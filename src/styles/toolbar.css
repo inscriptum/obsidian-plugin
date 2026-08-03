@@ -1,0 +1,120 @@
+/* ── Toolbar based on Figma mockup (design/src/components/obs-toolbar.ts) ─────────
+   40px height, "flat" Tabler 16px icons, groups separated by vertical
+   lines, save status and word count on the right.
+   The panel is pinned to the top: host note-toolbar — flex element with flex-shrink:0
+   (and position:sticky as a safeguard), the editor scrolls beneath it.
+
+   IMPORTANT: all button selectors have the `.note-toolbar ` prefix — specificity
+   (0,2,0)+ beats Obsidian's base styles `button:not(.clickable-icon)`
+   (0,1,0), `button:hover` (0,1,1) and `button:focus-visible` (0,1,1),
+   otherwise buttons get --interactive-normal fill and --input-shadow
+   ("raised buttons"). */
+
+note-toolbar {
+  display: block;
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.note-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 40px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  flex-shrink: 0;
+}
+
+/* vertical separator between groups */
+.note-toolbar__sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 6px;
+  background: var(--background-modifier-border);
+  flex-shrink: 0;
+}
+
+/* Flat icon button without volume: no border, fill, or shadow.
+   Hover — barely noticeable tint, as in the mockup (#1e1e23 on #111114). */
+.note-toolbar .note-toolbar__btn {
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: color 0.1s ease, background-color 0.1s ease;
+  flex-shrink: 0;
+}
+
+.note-toolbar .note-toolbar__btn:hover {
+  background: color-mix(in srgb, var(--text-normal) 7%, transparent);
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.note-toolbar .note-toolbar__btn:focus-visible {
+  outline: 1px solid var(--interactive-accent);
+  outline-offset: -1px;
+  box-shadow: none;
+}
+
+/* active state — subtle accent fill, like .row.active in the mockup sidebar */
+.note-toolbar .note-toolbar__btn.is-active {
+  background: color-mix(in srgb, var(--interactive-accent) 13%, transparent);
+  color: var(--text-accent);
+}
+
+.note-toolbar .note-toolbar__btn.is-active:hover {
+  background: color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+}
+
+.note-toolbar .note-toolbar__btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.note-toolbar__spacer {
+  flex: 1;
+}
+
+/* status bar on the right: ● Saved · 42 w. */
+.note-toolbar__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 12px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--text-faint);
+  white-space: nowrap;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.note-toolbar__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-success, #4ade80);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--text-success, #4ade80) 50%, transparent);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.note-toolbar__dot.is-pending {
+  background: var(--text-muted);
+  box-shadow: none;
+}

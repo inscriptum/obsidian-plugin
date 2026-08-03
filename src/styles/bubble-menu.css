@@ -1,0 +1,449 @@
+/* ─────────────────────────────────────────────────────────────
+   Bubble menu — design: docs/design/Bubble-Menu-Prototype
+   Tokens match .design/src/styles/tokens.css:
+   surface #19191e, border #30303a, hover #23232a,
+   icon #83838f / hover #e6e6ee / active #c0b1ff,
+   active fill rgba(124,106,247,.16) + inset outline.
+   ───────────────────────────────────────────────────────────── */
+
+/* bubble-menu-bar host — block so tippy measures it correctly */
+bubble-menu-bar {
+  display: block;
+}
+
+/* tippy: remove default background and padding around menu content.
+   :has() scopes only to our element, not touching Obsidian tippy-tooltips. */
+.tippy-box:has(> .tippy-content > bubble-menu-bar) {
+  background: transparent;
+  color: inherit;
+  border-radius: 0;
+  box-shadow: none;
+}
+.tippy-content:has(> bubble-menu-bar) {
+  padding: 0;
+}
+
+/* Menu appearance: scale(.965) + translateY(4px) → 1 / 0,
+   160ms cubic-bezier(.2,.8,.3,1), exit 120ms (see tippyOptions in NoteView). */
+.tippy-box[data-animation="bubble-pop"] {
+  transition-property: transform, opacity;
+  transition-timing-function: cubic-bezier(.2, .8, .3, 1);
+}
+.tippy-box[data-animation="bubble-pop"][data-state="hidden"] {
+  opacity: 0;
+  transform: scale(.965) translateY(4px);
+}
+.tippy-box[data-animation="bubble-pop"][data-state="visible"] {
+  opacity: 1;
+  transform: scale(1) translateY(0);
+}
+.tippy-box[data-animation="bubble-pop"][data-placement^="top"] {
+  transform-origin: center bottom;
+}
+.tippy-box[data-animation="bubble-pop"][data-placement^="bottom"] {
+  transform-origin: center top;
+}
+
+/* ─── Menu container ────────────────────────────────────────── */
+.bubble-menu-bar {
+  position: relative;
+  padding: 5px;
+  background: #19191e;
+  border: 1px solid #30303a;
+  border-radius: 11px;
+  box-shadow:
+    0 16px 44px rgba(0, 0, 0, .55),
+    0 3px 10px rgba(0, 0, 0, .35);
+  user-select: none;
+}
+
+.bubble-menu-bar__row {
+  display: none;
+  align-items: center;
+  gap: 1px;
+}
+.bubble-menu-bar__row.show {
+  display: flex;
+}
+
+/* Table panel — shown when caret is in a cell / cells are selected */
+.bubble-menu-table-bar {
+  display: none;
+  align-items: center;
+  gap: 1px;
+}
+.bubble-menu-table-bar.show {
+  display: flex;
+}
+
+.bubble-menu-bar button {
+  all: unset;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  color: #83838f;
+  cursor: pointer;
+  transition: color .1s, background-color .1s;
+}
+.bubble-menu-bar button:hover {
+  color: #e6e6ee;
+  background-color: #23232a;
+}
+.bubble-menu-bar button.is-active {
+  color: #c0b1ff;
+  background-color: rgba(124, 106, 247, .16);
+  box-shadow: inset 0 0 0 1px rgba(124, 106, 247, .35);
+}
+.bubble-menu-bar button.is-active:hover {
+  background-color: rgba(124, 106, 247, .24);
+}
+/* Unavailable table operation (merge/split) */
+.bubble-menu-bar button.is-disabled {
+  opacity: .35;
+  pointer-events: none;
+}
+/* Destructive "Delete table" button */
+.bubble-menu-bar button.danger {
+  color: #e07a7a;
+}
+.bubble-menu-bar button.danger:hover {
+  color: #f8a0a0;
+  background-color: rgba(248, 113, 113, .12);
+}
+.bubble-menu-bar button:focus-visible {
+  outline: 1px solid rgba(124, 106, 247, .8);
+  outline-offset: 1px;
+}
+.bubble-menu-bar button svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.8;
+}
+
+.bubble-menu-bar .bb-aa {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1;
+}
+
+.bubble-menu-sep {
+  width: 1px;
+  height: 18px;
+  flex: none;
+  background: #282830;
+  margin: 0 5px;
+}
+
+/* ─── Tooltips ─────────────────────────────────────────────── */
+.bubble-menu-bar .bb-btn[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 9px);
+  transform: translateX(-50%) translateY(2px);
+  white-space: nowrap;
+  background: #0b0b0f;
+  border: 1px solid #2c2c34;
+  color: #babcc8;
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: .01em;
+  padding: 4px 8px;
+  border-radius: 6px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 60;
+  transition: opacity .12s .25s, transform .12s .25s;
+}
+.bubble-menu-bar .bb-btn[data-tip][data-kbd]::after {
+  content: attr(data-tip) "  ·  " attr(data-kbd);
+}
+.bubble-menu-bar .bb-btn[data-tip]:hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ─── Selection center caret ─────────────────────────── */
+.bubble-menu-bar .bb-caret {
+  position: absolute;
+  bottom: -5px;
+  left: var(--caret-left, 50%);
+  margin-left: -4.5px;
+  width: 9px;
+  height: 9px;
+  background: #19191e;
+  border-right: 1px solid #30303a;
+  border-bottom: 1px solid #30303a;
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.bubble-menu-bar.is-flip .bb-caret {
+  top: -5px;
+  bottom: auto;
+  border: none;
+  border-left: 1px solid #30303a;
+  border-top: 1px solid #30303a;
+}
+
+/* ─── Layers above the menu ──────────────────────────────────────── */
+/* The layer opens up by default; the class layer-open-down (set in
+   TSX based on actual screen position) flips it downwards. */
+.bubble-menu-layer {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 9px);
+  min-width: 228px;
+  background: #19191e;
+  border: 1px solid #30303a;
+  border-radius: 11px;
+  box-shadow: 0 16px 44px rgba(0, 0, 0, .5);
+  padding: 6px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-5px);
+  transition: opacity .12s ease, transform .16s cubic-bezier(.2, .8, .3, 1);
+  z-index: 2;
+}
+.bubble-menu-bar.layer-open-down .bubble-menu-layer {
+  bottom: auto;
+  top: calc(100% + 9px);
+  transform: translateY(5px);
+}
+.bubble-menu-layer.show {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+/* "Link" layer is small — always below the menu */
+.bubble-menu-bar .bubble-menu-layer--link {
+  bottom: auto;
+  top: calc(100% + 9px);
+  transform: translateY(5px);
+}
+.bubble-menu-bar .bubble-menu-layer--link.show {
+  transform: none;
+}
+
+.bubble-menu-layer .bb-layer-caret {
+  position: absolute;
+  bottom: -5px;
+  left: var(--caret-left, 50%);
+  margin-left: -4.5px;
+  width: 9px;
+  height: 9px;
+  background: #19191e;
+  border-right: 1px solid #30303a;
+  border-bottom: 1px solid #30303a;
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+/* Layer opened downwards → caret on top */
+.bubble-menu-bar.layer-open-down .bubble-menu-layer .bb-layer-caret {
+  bottom: auto;
+  top: -5px;
+  border: none;
+  border-left: 1px solid #30303a;
+  border-top: 1px solid #30303a;
+}
+/* "Link" layer is always below → caret on top */
+.bubble-menu-bar .bubble-menu-layer--link .bb-layer-caret {
+  bottom: auto;
+  top: -5px;
+  border: none;
+  border-left: 1px solid #30303a;
+  border-top: 1px solid #30303a;
+}
+
+.bb-layer-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: #60606c;
+  padding: 6px 10px 4px;
+  user-select: none;
+}
+
+/* Layer items */
+.bubble-menu-bar .bb-mi {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 4px 9px;
+  /* all:unset from .bubble-menu-bar button resets box-sizing to content-box,
+     causing width:100% + padding to overflow the layer — restore border-box */
+  box-sizing: border-box;
+  border-radius: 6px;
+  color: #a9abb6;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background-color .08s, color .08s;
+}
+.bubble-menu-bar .bb-mi:hover {
+  background: #23232a;
+  color: #e6e6ee;
+}
+.bubble-menu-bar .bb-mi svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.8;
+  flex: none;
+}
+.bubble-menu-bar .bb-mi--h1 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #d8dae4;
+}
+.bubble-menu-bar .bb-mi--h2 {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #c5c7d3;
+}
+.bubble-menu-bar .bb-mi--h3 {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.bubble-menu-bar .bb-mi .bb-tick {
+  margin-left: auto;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: #b3a3f7;
+  opacity: 0;
+}
+.bubble-menu-bar .bb-mi .bb-tick svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 2.6;
+}
+.bubble-menu-bar .bb-mi.is-active {
+  color: #c0b1ff;
+}
+.bubble-menu-bar .bb-mi.is-active:hover {
+  color: #c0b1ff;
+}
+.bubble-menu-bar .bb-mi.is-active .bb-tick {
+  opacity: 1;
+}
+
+.bb-layer-sep {
+  height: 1px;
+  background: #26262e;
+  margin: 4px 4px;
+}
+
+/* Text color palette */
+.bubble-menu-bar .bb-sw-row {
+  display: flex;
+  gap: 8px;
+  padding: 2px 10px 10px;
+}
+.bubble-menu-bar .bb-sw {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  cursor: pointer;
+  outline: 1px solid transparent;
+  outline-offset: 2px;
+  transition: transform .1s;
+}
+.bubble-menu-bar .bb-sw:hover {
+  transform: scale(1.14);
+}
+.bubble-menu-bar .bb-sw.is-active {
+  outline: 1px solid #e6e6f0;
+}
+.bubble-menu-bar .bb-sw--violet {
+  background: #b3a3f7;
+}
+.bubble-menu-bar .bb-sw--green {
+  background: #4ade80;
+}
+.bubble-menu-bar .bb-sw--yellow {
+  background: #f59e0b;
+}
+.bubble-menu-bar .bb-sw--red {
+  background: #f87171;
+}
+.bubble-menu-bar .bb-sw--none {
+  background: #c9cad3;
+}
+.bubble-menu-bar .bb-sw--none::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  background: linear-gradient(45deg, transparent 45%, #7a2230 45%, #7a2230 55%, transparent 55%);
+  border-radius: 50%;
+}
+
+/* "Link" layer */
+.bubble-menu-bar .bb-link-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 2px 2px 4px;
+}
+.bubble-menu-bar .bubble-menu-link-input {
+  flex: 1;
+  min-width: 0;
+  background: #101015;
+  border: 1px solid #30303a;
+  border-radius: 7px;
+  color: #e2e2e8;
+  font-size: 13px;
+  font-family: inherit;
+  padding: 7px 10px;
+  outline: none;
+  user-select: text;
+  transition: border-color .1s, box-shadow .1s;
+}
+.bubble-menu-bar .bubble-menu-link-input:focus {
+  border-color: rgba(124, 106, 247, .55);
+  box-shadow: 0 0 0 3px rgba(124, 106, 247, .14);
+}
+.bubble-menu-bar .bubble-menu-link-input::placeholder {
+  color: #565660;
+}
+.bubble-menu-bar .bb-go {
+  width: 31px;
+  height: 31px;
+  flex: none;
+  border-radius: 7px;
+  background: rgba(124, 106, 247, .16);
+  border: 1px solid rgba(124, 106, 247, .4);
+  color: #c8baff;
+  cursor: pointer;
+  transition: background-color .1s;
+}
+.bubble-menu-bar .bb-go:hover {
+  background: rgba(124, 106, 247, .26);
+}
+.bubble-menu-bar .bb-go svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2;
+}
+.bubble-menu-bar .bb-link-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 4px 2px;
+  font-size: 11px;
+  color: #595965;
+}
+.bubble-menu-bar .bb-link-foot kbd {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  padding: 1px 5px;
+  border: 1px solid #2c2c34;
+  border-radius: 4px;
+  background: #121217;
+  color: #8a8a96;
+}

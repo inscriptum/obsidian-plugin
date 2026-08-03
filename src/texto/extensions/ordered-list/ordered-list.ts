@@ -1,0 +1,70 @@
+import { mergeAttributes, Node, wrappingInputRule } from '../../core'
+import { addCommands } from './commands'
+
+export interface OrderedListOptions {
+  HTMLAttributes: Record<string, any>
+}
+
+export const inputRegex = /^(\d+)\.\s$/
+
+export const OrderedList = Node.create<OrderedListOptions>({
+  name: 'orderedList',
+
+  addOptions() {
+    return {
+      HTMLAttributes: {},
+    }
+  },
+
+  group: 'block list',
+
+  content: 'listItem+',
+
+  addAttributes() {
+    return {
+      start: {
+        default: 1,
+        parseHTML: element => {
+          return element.hasAttribute('start')
+            ? parseInt(element.getAttribute('start') || '', 10)
+            : 1
+        },
+      },
+    }
+  },
+
+  parseHTML() {
+    return [
+      {
+        tag: 'ol',
+      },
+    ]
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    const { start, ...attributesWithoutStart } = HTMLAttributes
+
+    return start === 1
+      ? ['ol', mergeAttributes(this.options.HTMLAttributes, attributesWithoutStart), 0]
+      : ['ol', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
+  },
+
+  addCommands,
+
+  addKeyboardShortcuts() {
+    return {
+      'Mod-Shift-7': () => (this.editor.commands as any).toggleOrderedList(),
+    }
+  },
+
+  addInputRules() {
+    return [
+      wrappingInputRule({
+        find: inputRegex,
+        type: this.type,
+        getAttributes: match => ({ start: +match[1] }),
+        joinPredicate: (match, node) => node.childCount + node.attrs.start === +match[1],
+      }),
+    ]
+  },
+})

@@ -1,0 +1,25 @@
+texto-extension-task-item {
+	input {
+		pointer-events: none;
+	}
+
+	div {
+		min-width: 0;
+
+		p {
+			white-space: pre-wrap;
+			hyphens: auto;
+		}
+	}
+
+	& .visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		padding: 0;
+		overflow: hidden;
+		border: 0;
+		clip: rect(0 0 0 0);
+	}
+}

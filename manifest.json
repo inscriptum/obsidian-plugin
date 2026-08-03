@@ -1,0 +1,9 @@
+{
+  "id": "inscriptum",
+  "name": "Inscriptum",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Local-first rich text editor",
+  "author": "sumbad",
+  "isDesktopOnly": false
+}

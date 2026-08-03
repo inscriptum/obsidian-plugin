@@ -1,0 +1,52 @@
+{
+  "name": "@inscriptum/obsidian-plugin",
+  "version": "0.1.0",
+  "description": "Local-first rich text editor for Obsidian",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "deploy": "cp dist/main.js manifest.json dist/styles.css .obsidian/plugins/inscriptum/",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@web-companions/h": "0.3.3",
+    "@web-companions/lit": "0.2.0",
+    "highlight.js": "11.11.1",
+    "linkifyjs": "4.3.3",
+    "lit-html": "2.8.0",
+    "prosemirror-commands": "1.7.1",
+    "prosemirror-gapcursor": "1.4.1",
+    "prosemirror-history": "1.5.0",
+    "prosemirror-keymap": "1.2.3",
+    "prosemirror-model": "1.25.11",
+    "prosemirror-schema-basic": "1.2.4",
+    "prosemirror-schema-list": "1.5.1",
+    "prosemirror-state": "1.4.4",
+    "prosemirror-tables": "1.8.5",
+    "prosemirror-transform": "1.12.0",
+    "prosemirror-view": "1.42.2",
+    "tippy.js": "6.3.7",
+    "type-fest": "5.8.0"
+  },
+  "overrides": {
+    "prosemirror-model": "$prosemirror-model",
+    "prosemirror-state": "$prosemirror-state",
+    "prosemirror-view": "$prosemirror-view",
+    "prosemirror-transform": "$prosemirror-transform"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@babel/preset-typescript": "7.29.7",
+    "@types/node": "26.1.2",
+    "babel-plugin-transform-jsx-to-tt": "0.5.0",
+    "jsdom": "30.0.1",
+    "lightningcss": "1.33.0",
+    "obsidian": "1.13.1",
+    "typescript": "5.9.3",
+    "vite": "8.2.0",
+    "vitest": "4.1.10"
+  }
+}

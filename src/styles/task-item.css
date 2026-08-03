@@ -1,0 +1,82 @@
+/* ─── Task list container matching typography-v2.html .note .chk ─── */
+ul.chk,
+.chk {
+	/* Only apply margins when containing task items */
+	margin: 18px 0 26px;
+	list-style: none;
+	padding-left: 0;
+}
+
+texto-extension-task-item {
+	input {
+		pointer-events: none;
+	}
+
+	div {
+		min-width: 0;
+
+		p {
+			white-space: pre-wrap;
+			hyphens: auto;
+		}
+	}
+
+	& .visually-hidden {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		margin: -1px;
+		padding: 0;
+		overflow: hidden;
+		border: 0;
+		clip: rect(0 0 0 0);
+	}
+
+	/* Checked state text strikethrough matching .chk li.on */
+	&[data-checked="true"] .content {
+		color: #8d8f9b;
+		text-decoration: line-through;
+		text-decoration-color: rgba(141, 143, 155, .45);
+		text-decoration-thickness: 1px;
+		transition: color 200ms;
+	}
+}
+
+/* Light theme adjustments matching typography-v2.html .theme-light .note .chk */
+.theme-light texto-extension-task-item[data-checked="true"] .content {
+	color: #8f8f99;
+	text-decoration-color: rgba(143, 143, 153, .5);
+}
+
+/* ─── Custom SVG checkboxes (checkboxIconLinks) ───
+   Icon shape/size matches typography-v2.html .chk .box (16×16, radius 4.5px) ─── */
+texto-extension-task-item .custom-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	height: 16px;
+	flex: none;
+	color: #3a3a45;
+	transition: color 150ms ease;
+}
+
+texto-extension-task-item .custom-icon svg {
+	width: 16px;
+	height: 16px;
+	display: block;
+}
+
+/* Checked item — accent icon (checkmark), box background/border are baked into the SVG */
+texto-extension-task-item[data-checked="true"] .custom-icon {
+	color: var(--accent-2, #b3a3f7);
+}
+
+/* Light theme for custom icons */
+.theme-light texto-extension-task-item .custom-icon {
+	color: #c9c9d2;
+}
+
+.theme-light texto-extension-task-item[data-checked="true"] .custom-icon {
+	color: var(--accent-2, #b3a3f7);
+}

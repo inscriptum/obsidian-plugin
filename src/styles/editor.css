@@ -1,0 +1,131 @@
+@import './toolbar.css';
+@import './texto-editor.css';
+@import './typography-v2.css';
+@import './code-block-hljs.css';
+@import './attachment.css';
+@import './image.css';
+@import './table.css';
+@import './task-item.css';
+
+/* Hidden container for SVG checkbox icons (see note.element.tsx) */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip: rect(0 0 0 0);
+}
+
+/* contentEl FileView — this is Obsidian's .view-content, which by default
+   has padding (var(--size-4-4)). Increase specificity to remove it
+   and let the scroll container reach the very edge of the screen. */
+.view-content.note-view-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* note-toolbar host — flex element, pinned to the top (see toolbar.css).
+   texto-editor host — flex element with min-height:0 so the editor
+   scrolls inside instead of being clipped by the container. */
+note-toolbar {
+  flex-shrink: 0;
+}
+
+texto-editor {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+texto-editor .note {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.texto-editor {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 32px 48px 120px;
+  box-sizing: border-box;
+}
+
+.texto-editor .ProseMirror {
+  outline: none;
+  min-height: 100%;
+  max-width: 748px;
+  margin: 0 auto;
+}
+
+.texto-editor .ProseMirror p.is-editor-empty:first-child::before {
+  color: var(--text-faint);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+}
+
+/* Highlight — v2: radius 3px, padding 2px */
+.texto-editor .ProseMirror mark {
+  background: rgba(245, 158, 11, .28);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+/* ─── Subtle dividers inside ProseMirror ─── */
+.texto-editor .ProseMirror hr {
+  border: none;
+  border-top: 1px solid #26262d;
+  margin: 44px 0;
+}
+
+/* ─── Links in content: v2 style ─── */
+.texto-editor .ProseMirror a {
+  color: var(--accent-2, #b3a3f7);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: rgba(179, 163, 247, .35);
+  text-underline-offset: 3px;
+  transition: color 150ms, text-decoration-color 150ms, text-decoration-thickness 150ms;
+}
+
+.texto-editor .ProseMirror a:hover {
+  color: #cdbffb;
+  text-decoration-thickness: 2px;
+}
+
+.texto-editor .ProseMirror a:focus-visible {
+  outline: 2px solid var(--accent, #7c6af7);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+/* ── Light theme: ProseMirror-specific styles ── */
+.theme-light .texto-editor .ProseMirror mark {
+  background: rgba(245, 158, 11, .22);
+}
+
+.theme-light .texto-editor .ProseMirror hr {
+  border-top-color: #e6e6ec;
+}
+
+.theme-light .texto-editor .ProseMirror a {
+  color: #6b5bd2;
+  text-decoration-color: rgba(91, 69, 216, .35);
+}
+
+.theme-light .texto-editor .ProseMirror a:hover {
+  color: #5a4bbf;
+  text-decoration-color: rgba(91, 69, 216, .5);
+}

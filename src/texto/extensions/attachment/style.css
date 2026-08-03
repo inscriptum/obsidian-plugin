@@ -1,0 +1,169 @@
+.texto-extension-attachment {
+	--texto-attachment__block_padding: 0 8px;
+	--texto-attachment__block_font-size: 15px;
+	--texto-attachment__loading_font-size: 13px;
+	--texto-attachment__delete-btn-hover_background: #00103d0a;
+	--texto-attachment__secondary_color: #87898f;
+	--texto-attachment__secondary_background: #f6f7f8;
+	--texto-attachment__secondary_background_hover: rgb(0 16 61 / 4%);
+	--texto-attachment__progress_secondary_color: rgb(255 255 255 / 81%);
+	--texto-attachment__icon_color: #A5A7AD;
+
+	padding: 2px 0;
+	gap: 10px;
+	width: 100%;
+	user-select: none;
+
+	.delete-btn {
+		position: relative;
+		border: none;
+		box-sizing: border-box;
+		margin: 0;
+		text-decoration: none;
+		user-select: none;
+		display: flex;
+		flex-direction: row;
+		align-items: flex-start;
+		padding: 8px;
+		gap: 10px;
+		width: 36px;
+		height: 36px;
+		border-radius: 8px;
+		flex: none;
+		order: 1;
+		flex-grow: 0;
+		cursor: pointer;
+		background-color: transparent;
+		transition: background-color 0.2s, opacity 0.2s;
+
+		&:hover {
+			background-color: var(--texto-attachment__delete-btn-hover_background);
+		}
+	}
+
+	.placeholder-block {
+		font-size: var(--texto-attachment__block_font-size);
+		color: var(--texto-attachment__secondary_color);
+		cursor: pointer;
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		padding: var(--texto-attachment__block_padding);
+		gap: 8px;
+		height: 44px;
+		background: var(--texto-attachment__secondary_background);
+		border-radius: 12px;
+		flex: none;
+		order: 0;
+		align-self: stretch;
+		flex-grow: 0;
+		transition: background-color 0.2s;
+
+		.delete-btn {
+			opacity: 0;
+		}
+
+		&:hover {
+		 	background-color: var(--texto-attachment__secondary_background_hover);
+
+			.delete-btn {
+				opacity: 1;
+			}
+		}
+	}
+
+	.file-block {
+		font-size: var(--texto-attachment__block_font-size);
+		cursor: pointer;
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		padding: var(--texto-attachment__block_padding);
+		gap: 8px;
+		height: 44px;
+		border-radius: 12px;
+		flex: none;
+		order: 0;
+		align-self: stretch;
+		flex-grow: 0;
+		transition: background-color 0.2s;
+
+		/* stylelint-disable-next-line no-descending-specificity */
+		.delete-btn {
+			opacity: 0;
+		}
+
+		&:hover {
+			background-color: var(--texto-attachment__secondary_background_hover);
+
+			.delete-btn {
+				opacity: 1;
+			}
+		}
+	}
+
+	.loading-block {
+		font-size: var(--texto-attachment__loading_font-size);
+		position: relative;
+		color: var(--texto-attachment__secondary_color);
+		cursor: wait;
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		padding: var(--texto-attachment__block_padding);
+		gap: 8px;
+		height: 44px;
+		border-radius: 12px;
+		overflow: hidden;
+		background: linear-gradient(
+			90deg,
+			var(--texto-attachment__secondary_background) 30%,
+			var(--texto-attachment__progress_secondary_color) 38%,
+			var(--texto-attachment__progress_secondary_color) 40%,
+			var(--texto-attachment__secondary_background) 48%
+		);
+		background-size: 200% 100%;
+		background-position: 100% 0;
+		animation: texto-extension-attachment-loading 2s infinite;
+	}
+
+	.input-file {
+		clip: rect(0 0 0 0);
+		clip-path: inset(50%);
+		height: 1px;
+		overflow: hidden;
+		position: absolute;
+		white-space: nowrap;
+		width: 1px;
+	}
+
+	.icon-note-wrap {
+		line-height: 0;
+	}
+
+	.info-wrap {
+		user-select: none;
+		display: flex;
+		flex-direction: column;
+		flex-grow: 2;
+		overflow: hidden;
+	}
+
+	.text {
+		flex-grow: 2;
+		text-overflow: ellipsis;
+		width: 100%;
+		overflow: hidden;
+		white-space: nowrap;
+	}
+
+	& svg {
+		 color: var(--texto-attachment__icon_color);
+	}
+}
+
+@keyframes texto-extension-attachment-loading {
+	100% {
+		background-position: -100% 0;
+	}
+}

@@ -1,0 +1,177 @@
+/* ═══════════════════════════════════════════════════════════════
+   ProseMirror Tables — v2
+   Project uses its OWN table extension: div.table-wrapper (kebab-case)
+   (see src/texto/extensions/table/tableView.ts)
+   Max specificity + !important to override default Obsidian styles.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── Wrapper ─── */
+.ProseMirror .table-wrapper {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: clip;
+  overflow-clip-margin: padding-box;
+  width: max-content;
+  max-width: 100%;
+  padding: 10px 7px 8px 0;
+  margin: 22px 0 32px;
+}
+
+.ProseMirror .table-wrapper::-webkit-scrollbar-thumb,
+.ProseMirror .table-wrapper::-webkit-scrollbar-track {
+  cursor: default;
+}
+
+/* ─── Table ─── */
+.ProseMirror .table-wrapper table {
+  position: relative;
+  box-sizing: border-box;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+/* ─── Cells ─── */
+.ProseMirror .table-wrapper table td,
+.ProseMirror .table-wrapper table th {
+  border: 1px solid #2c2c34 !important;
+  min-width: 1em;
+  padding: 10px 12px;
+  vertical-align: top;
+  box-sizing: border-box;
+  position: relative;
+  font-size: 14px;
+  color: #b6b8c4 !important;
+  background: transparent !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.ProseMirror .table-wrapper table td:hover,
+.ProseMirror .table-wrapper table th:hover {
+  background: rgba(124, 106, 247, .04) !important;
+}
+
+.ProseMirror .table-wrapper table th {
+  text-align: left;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #d9dbe4 !important;
+  background: #15151a !important;
+}
+
+/* ─── Overlay (resize) ─── */
+.ProseMirror .table-wrapper .texto-table__overlay {
+  border-radius: 4px;
+  border: 1.5px solid #2c2d2e;
+  box-sizing: border-box;
+  position: absolute;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.ProseMirror .table-wrapper .texto-table__overlay_overlay-circle {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  right: -7px;
+  bottom: -7px;
+  cursor: nwse-resize;
+  pointer-events: all;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.ProseMirror .table-wrapper .texto-table__overlay_circle {
+  border: 1.5px solid #2c2d2e;
+  box-sizing: border-box;
+  border-radius: 8px;
+  width: 8px;
+  height: 8px;
+  background-color: white;
+  pointer-events: none;
+}
+
+.ProseMirror .table-wrapper .texto-table__cell-dragging .texto-table__overlay {
+  visibility: hidden;
+}
+
+/* ─── Cell text color (data-color from bubble menu) ─── */
+.ProseMirror .table-wrapper table td[data-color="#b3a3f7"],
+.ProseMirror .table-wrapper table th[data-color="#b3a3f7"] {
+  color: #b3a3f7 !important;
+}
+
+.ProseMirror .table-wrapper table td[data-color="#4ade80"],
+.ProseMirror .table-wrapper table th[data-color="#4ade80"] {
+  color: #4ade80 !important;
+}
+
+.ProseMirror .table-wrapper table td[data-color="#f59e0b"],
+.ProseMirror .table-wrapper table th[data-color="#f59e0b"] {
+  color: #f59e0b !important;
+}
+
+.ProseMirror .table-wrapper table td[data-color="#f87171"],
+.ProseMirror .table-wrapper table th[data-color="#f87171"] {
+  color: #f87171 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   Light theme
+   ═══════════════════════════════════════════════════════════════ */
+.theme-light .ProseMirror .table-wrapper table td,
+.theme-light .ProseMirror .table-wrapper table th {
+  border-color: #d7d7e0 !important;
+  color: #45454d !important;
+}
+
+.theme-light .ProseMirror .table-wrapper table th {
+  color: #33333b !important;
+  background: #f0f0f4 !important;
+}
+
+.theme-light .ProseMirror .table-wrapper table td:hover,
+.theme-light .ProseMirror .table-wrapper table th:hover {
+  background: rgba(124, 106, 247, .05) !important;
+}
+
+.theme-light .ProseMirror .table-wrapper table td[data-color="#b3a3f7"],
+.theme-light .ProseMirror .table-wrapper table th[data-color="#b3a3f7"] {
+  color: #6b5bd2 !important;
+}
+
+.theme-light .ProseMirror .table-wrapper table td[data-color="#4ade80"],
+.theme-light .ProseMirror .table-wrapper table th[data-color="#4ade80"] {
+  color: #16a34a !important;
+}
+
+.theme-light .ProseMirror .table-wrapper table td[data-color="#f59e0b"],
+.theme-light .ProseMirror .table-wrapper table th[data-color="#f59e0b"] {
+  color: #d97706 !important;
+}
+
+.theme-light .ProseMirror .table-wrapper table td[data-color="#f87171"],
+.theme-light .ProseMirror .table-wrapper table th[data-color="#f87171"] {
+  color: #dc2626 !important;
+}
+
+/* ─── Selected cells (CellSelection) ───
+   ProseMirror adds the .selectedCell class on cells.
+   The outline is drawn via ::after (as in prosemirror-tables/style/tables.css),
+   but with the plugin's accent color instead of blue. */
+.ProseMirror .table-wrapper .selectedCell::after {
+  z-index: 2;
+  position: absolute;
+  content: '';
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(124, 106, 247, .18);
+  box-shadow: inset 0 0 0 1.5px rgba(124, 106, 247, .6);
+  pointer-events: none;
+}
+
+.ProseMirror.resize-cursor {
+  cursor: col-resize;
+}

@@ -1,0 +1,84 @@
+.ProseMirror .table-wrapper {
+	position: relative;
+	overflow-x: auto;
+	overflow-y: clip;
+	overflow-clip-margin: padding-box;
+	width: max-content;
+	max-width: 100%;
+	padding: 10px 7px 8px 0;
+	margin: 10px 0 12px;
+
+	--border-style: 1px solid #dadce0aa;
+	--overlay-border-style: 1.5px solid #2c2d2e;
+	--overlay-border-radius: 4px;
+	--overlay-circle-background-color: white;
+
+	&::-webkit-scrollbar-thumb,
+	&::-webkit-scrollbar-track {
+		cursor: default;
+	}
+
+	& table {
+		position: relative;
+		border-bottom: var(--border-style);
+		border-right: var(--border-style);
+		box-sizing: border-box;
+		border-spacing: 0;
+		table-layout: fixed;
+	}
+
+	& td,
+	& th {
+		border-top: var(--border-style);
+		border-left: var(--border-style);
+		min-width: 1em;
+		padding: 8px 12px;
+		vertical-align: top;
+		box-sizing: border-box;
+		position: relative;
+	}
+
+	& th {
+		text-align: left;
+	}
+
+	& .texto-table__overlay {
+		border-radius: var(--overlay-border-radius);
+		border: var(--overlay-border-style);
+		box-sizing: border-box;
+		position: absolute;
+		z-index: 1;
+		pointer-events: none;
+
+		& .texto-table__overlay_overlay-circle {
+			position: absolute;
+			width: 14px;
+			height: 14px;
+			right: -7px;
+			bottom: -7px;
+			cursor: nwse-resize;
+			pointer-events: all;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+
+			& .texto-table__overlay_circle {
+				border: var(--overlay-border-style);
+				box-sizing: border-box;
+				border-radius: 8px;
+				width: 8px;
+				height: 8px;
+				background-color: var(--overlay-circle-background-color);
+				pointer-events: none;
+			}
+		}
+	}
+
+	.texto-table__cell-dragging & .texto-table__overlay {
+		visibility: hidden;
+	}
+}
+
+.ProseMirror.resize-cursor {
+	cursor: col-resize;
+}

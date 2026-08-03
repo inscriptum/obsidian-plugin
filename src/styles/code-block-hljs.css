@@ -1,0 +1,115 @@
+.ProseMirror {
+  --texto-code-block__background: #1c1b1b;
+  --texto-code-block-inner__background: #1c1b1b;
+  --texto-code-block__border-radius: 12px;
+  --texto-code-block__box-shadow: none;
+  --texto-code-block__border-left: none;
+  --texto-code-block__pre-margin: 12px auto;
+  --texto-code-block__pre-padding: 16px 0px;
+  --texto-code-block__font-family: 'JetBrains Mono', monospace;
+  --texto-code-block__font-size: 15px;
+  --texto-code-block__line-height: 20px;
+  --texto-code-block__code-margin: 0 10px 0 50px;
+  --texto-code-block__code-padding: 16px 0 10px 0;
+  --texto-code-block__scrollbar-color: var(--text-faint);
+  --texto-code-block__scrollbar-color-hover: var(--text-muted);
+  --texto-code-block__scrollbar-height: 6px;
+  --texto-code-block__scrollbar-border: none;
+  --texto-code-block__scrollbar-border-radius: 3px;
+  --texto-code-block__selection: #2383e247;
+  --texto-code-block__line-number-color: var(--text-faint);
+  --texto-code-block__line-number-left: 16px;
+  --texto-code-block__ln-select__right: 0.8rem;
+  --texto-code-block__ln-select__top: 0.8rem;
+  --texto-code-block__ln-select__opacity: 0.5;
+
+  & pre {
+    background: var(--texto-code-block__background);
+    border-radius: var(--texto-code-block__border-radius);
+    box-shadow: var(--texto-code-block__box-shadow);
+    border-left: var(--texto-code-block__border-left);
+    margin: var(--texto-code-block__pre-margin);
+    white-space: pre-wrap;
+    counter-reset: step;
+    counter-increment: step 0;
+    position: relative;
+    font-family: var(--texto-code-block__font-family);
+    font-variant-ligatures: normal;
+    font-size: var(--texto-code-block__font-size);
+    padding: var(--texto-code-block__pre-padding);
+
+    & code,
+    & code.hljs {
+      background: var(--texto-code-block-inner__background);
+      font-family: var(--texto-code-block__font-family);
+      font-variant-ligatures: normal;
+      font-size: var(--texto-code-block__font-size);
+      line-height: var(--texto-code-block__line-height);
+      white-space: pre;
+      margin: var(--texto-code-block__code-margin);
+      display: block;
+      overflow-x: auto;
+      scrollbar-color: var(--texto-code-block__scrollbar-color);
+      padding: var(--texto-code-block__code-padding);
+      cursor: default;
+
+      &::-webkit-scrollbar {
+        cursor: default;
+        height: var(--texto-code-block__scrollbar-height);
+      }
+
+      &::-webkit-scrollbar-thumb {
+        background: var(--texto-code-block__scrollbar-color);
+        border: var(--texto-code-block__scrollbar-border);
+        border-radius: var(--texto-code-block__scrollbar-border-radius);
+
+        &:hover {
+          background: var(--texto-code-block__scrollbar-color-hover);
+        }
+      }
+    }
+
+    ::selection {
+      background: var(--texto-code-block__selection);
+    }
+
+    & div.l {
+      cursor: text;
+
+      &::before {
+        color: var(--texto-code-block__line-number-color);
+        position: absolute;
+        left: var(--texto-code-block__line-number-left);
+        content: counter(step);
+        counter-increment: step;
+      }
+    }
+  }
+
+  .hljs-codeblock {
+    position: relative;
+    display: block;
+    margin: 0;
+    padding: 0;
+    white-space: nowrap;
+    font-family: var(--texto-code-block__font-family);
+    font-variant-ligatures: normal;
+    font-size: var(--texto-code-block__font-size);
+
+    .hljs-codeblock__select {
+      position: absolute;
+      right: var(--texto-code-block__ln-select__right);
+      top: var(--texto-code-block__ln-select__top);
+      opacity: var(--texto-code-block__ln-select__opacity);
+    }
+
+    & pre {
+      display: block;
+    }
+  }
+}
+
+.theme-light .ProseMirror {
+  --texto-code-block__background: #f6f6f6;
+  --texto-code-block-inner__background: #f6f6f6;
+}
