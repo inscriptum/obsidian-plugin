@@ -10,7 +10,6 @@ export function joinItemForward(): Command {
 		state,
 		dispatch,
 		tr,
-		// eslint-disable-next-line unicorn/consistent-function-scoping
 	}) => {
 		try {
 			const point = joinPoint(state.doc, state.selection.$from.pos, +1);

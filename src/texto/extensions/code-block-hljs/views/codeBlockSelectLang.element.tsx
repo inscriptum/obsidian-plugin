@@ -36,7 +36,6 @@ export const codeBlockSelectLangElement = litView.element({
 					</option>
 					<option disabled={true}>—</option>
 					{LANGUAGES.map(
-						// eslint-disable-next-line no-loop-func
 						(lang) => (
 							<option key={lang} value={lang} selected={params.selectedLanguage === lang}>
 								{lang}

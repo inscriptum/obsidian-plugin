@@ -13,7 +13,6 @@ export function resetAttributes(
 	typeOrName: string | NodeType | MarkType,
 	attributes: string | string[],
 ): Command {
-	// eslint-disable-next-line sonarjs/cognitive-complexity
 	return ({tr, state, dispatch}) => {
 		let nodeType: NodeType | null = null;
 		let markType: MarkType | null = null;

@@ -45,7 +45,6 @@ export class NodeView<
 	}
 
 	mount() {
-		// eslint-disable-next-line no-useless-return
 		return;
 	}
 
@@ -65,7 +64,7 @@ export class NodeView<
 		// `closest` is not available for text nodes so we may have to use its parent
 		const dragHandle =
 			target.nodeType === 3
-				? // eslint-disable-next-line sonarjs/no-duplicate-string
+				?
 				  target.parentElement?.closest('[data-drag-handle]')
 				: target.closest('[data-drag-handle]');
 
@@ -99,7 +98,6 @@ export class NodeView<
 		view.dispatch(transaction);
 	}
 
-	// eslint-disable-next-line complexity
 	stopEvent(event: Event) {
 		if (!this.dom) {
 			return false;

@@ -5,7 +5,6 @@ import type {Command} from '../@types';
  */
 export const selectAll =
 	(): Command =>
-	// eslint-disable-next-line unicorn/consistent-function-scoping
 	({tr, commands}) => {
 		return commands.setTextSelection({
 			from: 0,

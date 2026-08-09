@@ -155,7 +155,6 @@ export const Link = Mark.create<LinkOptions>({
 				() =>
 				// if we move function definitions to the highest possible scope,
 				// we will not be able to type {chain}
-				// eslint-disable-next-line unicorn/consistent-function-scoping
 				({chain}) => {
 					return chain()
 						.unsetMark(this.name, {extendEmptyMarkRange: true})

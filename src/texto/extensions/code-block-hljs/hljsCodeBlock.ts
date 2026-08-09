@@ -29,9 +29,7 @@ export interface HljsCodeBlockOptions {
 
 const CodeBlockSelectLangElement = codeBlockSelectLangElement('code-block-select-lang');
 
-// eslint-disable-next-line unicorn/no-unsafe-regex
 const backtickInputRegex = /^```(?<class>[a-z]*)? $/;
-// eslint-disable-next-line unicorn/no-unsafe-regex
 const tildeInputRegex = /^~~~(?<class>[a-z]*)? $/;
 
 export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({

@@ -12,7 +12,6 @@ export function updateAttributes(
 	typeOrName: string | NodeType | MarkType,
 	attributes: Record<string, any>,
 ): Command {
-	// eslint-disable-next-line sonarjs/cognitive-complexity
 	return ({tr, state, dispatch}) => {
 		let nodeType: NodeType | null = null;
 		let markType: MarkType | null = null;

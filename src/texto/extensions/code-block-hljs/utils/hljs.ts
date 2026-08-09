@@ -48,7 +48,7 @@ const isOldFirefox = gecko_version && gecko_version < 78;
 if (isBrowser && !isOldFirefox) {
 	try {
 		// NOTE: Use code splitting inside a host project
-		// eslint-disable-next-line @typescript-eslint/no-floating-promises
+		// eslint-disable-next-line @typescript-eslint/no-floating-promises -- intentionally not awaited: preload hljs language parsers (see NOTE above)
 		Promise.all([
 			import(
 				/* webpackChunkName: "highlightjs-xml" */

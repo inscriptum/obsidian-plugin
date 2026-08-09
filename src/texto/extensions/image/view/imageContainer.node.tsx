@@ -38,7 +38,6 @@ export const imageContainerNode = litView.node(function* (params: {
 	};
 
 	while (true) {
-		// eslint-disable-next-line no-loop-func
 		requestAnimationFrame(() => {
 			if (
 				imgRef.value != null &&

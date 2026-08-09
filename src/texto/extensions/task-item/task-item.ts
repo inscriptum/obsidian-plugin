@@ -173,7 +173,6 @@ export const TaskItem = Node.create<TaskItemOptions>({
 						return ignoreMutationIOsResult.value;
 					}
 
-					// eslint-disable-next-line sonarjs/prefer-single-boolean-return
 					if (mutation.target === element || element.contains(mutation.target)) {
 						// Ignore mutations for our container because we control it's view by ourselves.
 						// Additionally, in mobile Chrome browser mutations with container lead to a bug with an extra line.

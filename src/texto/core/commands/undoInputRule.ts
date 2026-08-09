@@ -5,13 +5,11 @@ import type {Command} from '../@types';
  */
 export const undoInputRule =
 	(): Command =>
-	// eslint-disable-next-line unicorn/consistent-function-scoping
 	({state, dispatch}) => {
 		const plugins = state.plugins;
 
 		for (let i = 0; i < plugins.length; i += 1) {
 			const plugin = plugins[i];
-			// eslint-disable-next-line init-declarations
 			let undoable;
 
 			if (plugin.spec.isInputRules && (undoable = plugin.getState(state))) {

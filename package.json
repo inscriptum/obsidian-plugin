@@ -9,7 +9,9 @@
     "build": "vite build",
     "deploy": "cp dist/main.js manifest.json dist/styles.css .obsidian/plugins/inscriptum/",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "dependencies": {
     "@web-companions/h": "0.3.3",
@@ -40,12 +42,19 @@
   "devDependencies": {
     "@babel/core": "7.29.7",
     "@babel/preset-typescript": "7.29.7",
+    "@eslint/js": "9.39.5",
+    "@eslint/json": "0.14.0",
     "@types/node": "26.1.2",
     "babel-plugin-transform-jsx-to-tt": "0.5.0",
+    "eslint": "9.39.5",
+    "eslint-plugin-obsidianmd": "0.4.1",
+    "globals": "17.9.0",
+    "jiti": "2.7.0",
     "jsdom": "30.0.1",
     "lightningcss": "1.33.0",
     "obsidian": "1.13.1",
     "typescript": "5.9.3",
+    "typescript-eslint": "8.66.0",
     "vite": "8.2.0",
     "vitest": "4.1.10"
   }

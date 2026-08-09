@@ -12,7 +12,6 @@ export function focus(
 		scrollIntoView?: boolean;
 	} = {},
 ): Command {
-	// eslint-disable-next-line sonarjs/cognitive-complexity
 	return ({editor, view, tr, dispatch}) => {
 		options = {
 			scrollIntoView: true,

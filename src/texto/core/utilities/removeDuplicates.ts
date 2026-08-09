@@ -8,7 +8,6 @@ export function removeDuplicates<T>(array: T[], by = JSON.stringify): T[] {
 	return array.filter((item) => {
 		const key = by(item);
 
-		// eslint-disable-next-line no-return-assign
 		return Object.prototype.hasOwnProperty.call(seen, key) ? false : (seen[key] = true);
 	});
 }

@@ -12,7 +12,6 @@ import type {Command} from '../@types';
  */
 export const joinUp =
 	(): Command =>
-	// eslint-disable-next-line unicorn/consistent-function-scoping
 	({state, dispatch}) => {
 		return originalJoinUp(state, dispatch);
 	};
@@ -22,7 +21,6 @@ export const joinUp =
  */
 export const joinDown =
 	(): Command =>
-	// eslint-disable-next-line unicorn/consistent-function-scoping
 	({state, dispatch}) => {
 		return originalJoinDown(state, dispatch);
 	};
@@ -32,7 +30,6 @@ export const joinDown =
  */
 export const joinBackward =
 	(): Command =>
-	// eslint-disable-next-line unicorn/consistent-function-scoping
 	({state, dispatch}) => {
 		return originalJoinBackward(state, dispatch);
 	};
@@ -42,7 +39,6 @@ export const joinBackward =
  */
 export const joinForward =
 	(): Command =>
-	// eslint-disable-next-line unicorn/consistent-function-scoping
 	({state, dispatch}) => {
 		return originalJoinForward(state, dispatch);
 	};

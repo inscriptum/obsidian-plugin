@@ -19,7 +19,6 @@ function ensureMarks(state: EditorState, splittableMarks?: string[]) {
  * Forks a new node from an existing node.
  */
 export function splitBlock({keepMarks}: {keepMarks?: boolean} = {keepMarks: true}): Command {
-	// eslint-disable-next-line complexity, sonarjs/cognitive-complexity
 	return ({tr, state, dispatch, editor}) => {
 		const {selection, doc} = tr;
 		const {$from, $to} = selection;

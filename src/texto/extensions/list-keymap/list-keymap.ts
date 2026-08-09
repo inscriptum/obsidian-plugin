@@ -45,11 +45,9 @@ export const ListKeymap = Extension.create<ListKeymapOptions>({
 
 				return handled;
 			},
-			// eslint-disable-next-line sonarjs/no-identical-functions
 			'Mod-Backspace': ({editor}) => {
 				let handled = false;
 
-				// eslint-disable-next-line sonarjs/no-identical-functions
 				this.options.listTypes.forEach(({itemName, wrapperNames}) => {
 					if (editor.state.schema.nodes[itemName] === undefined) {
 						return;

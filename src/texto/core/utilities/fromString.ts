@@ -3,7 +3,6 @@ export function fromString(value: any): any {
 		return value;
 	}
 
-	// eslint-disable-next-line unicorn/no-unsafe-regex
 	if (value.match(/^[+-]?(?:\d*\.)?\d+$/)) {
 		return Number(value);
 	}

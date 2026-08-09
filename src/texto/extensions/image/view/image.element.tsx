@@ -47,7 +47,6 @@ export const imageElement = litView.element({
 	};
 
 	while (true) {
-		// eslint-disable-next-line no-loop-func
 		requestAnimationFrame(() => {
 			if (params.state?.isAutoOpenFileSelection) {
 				openFileSelection();

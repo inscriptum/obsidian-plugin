@@ -12,7 +12,6 @@ export const Keymap = Extension.create({
 	name: 'keymap',
 
 	addKeyboardShortcuts() {
-		// eslint-disable-next-line unicorn/consistent-function-scoping
 		const handleBackspace = () =>
 			this.editor.commands.first(({commands}) => [
 				() => commands.undoInputRule(),
@@ -35,7 +34,6 @@ export const Keymap = Extension.create({
 				() => commands.selectNodeBackward(),
 			]);
 
-		// eslint-disable-next-line unicorn/consistent-function-scoping
 		const handleDelete = () =>
 			this.editor.commands.first(({commands}) => [
 				() => commands.deleteSelection(),
@@ -44,7 +42,6 @@ export const Keymap = Extension.create({
 				() => commands.selectNodeForward(),
 			]);
 
-		// eslint-disable-next-line unicorn/consistent-function-scoping
 		const handleEnter = () =>
 			this.editor.commands.first(({commands}) => [
 				() => commands.newlineInCode(),

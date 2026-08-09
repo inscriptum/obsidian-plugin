@@ -10,7 +10,6 @@ import {getSplittedAttributes} from '../helpers/getSplittedAttributes';
  * Splits one list item into two list items.
  */
 export function splitListItem(typeOrName: string | NodeType): Command {
-	// eslint-disable-next-line complexity, sonarjs/cognitive-complexity
 	return ({tr, state, dispatch, editor}) => {
 		const type = getNodeType(typeOrName, state.schema);
 		const {$from, $to} = state.selection;
@@ -43,7 +42,6 @@ export function splitListItem(typeOrName: string | NodeType): Command {
 
 			if (dispatch) {
 				let wrap = Fragment.empty;
-				// eslint-disable-next-line unicorn/no-nested-ternary
 				const depthBefore = $from.index(-1) ? 1 : $from.index(-2) ? 2 : 3;
 
 				// Build a fragment containing empty versions of the structure
@@ -55,7 +53,7 @@ export function splitListItem(typeOrName: string | NodeType): Command {
 				const depthAfter =
 					$from.indexAfter(-1) < $from.node(-2).childCount
 						? 1
-						: // eslint-disable-next-line unicorn/no-nested-ternary
+						:
 						$from.indexAfter(-2) < $from.node(-3).childCount
 						? 2
 						: 3;

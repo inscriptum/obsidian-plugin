@@ -16,7 +16,6 @@ import {createPositions} from './createPositions';
  * @param startPos a node's position at this time
  * @param keyToPos getting an actual node's position depends on attributes
  */
-// eslint-disable-next-line max-params
 export function setAttachmentViewProps(
 	element: AttachmentElementType,
 	node: ProseMirrorNode,
@@ -51,7 +50,6 @@ export function setAttachmentViewProps(
 			event.preventDefault();
 
 			if (isFunction(options.hooks?.onDeleteFile)) {
-				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 				options.hooks!.onDeleteFile(attrs);
 			}
 
@@ -70,7 +68,6 @@ export function setAttachmentViewProps(
 			event.preventDefault();
 
 			if (isFunction(options.hooks?.onRemove)) {
-				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 				options.hooks!.onRemove(attrs);
 			}
 
@@ -100,7 +97,6 @@ export function setAttachmentViewProps(
 		},
 		onClick: () => {
 			if (isFunction(options.hooks?.onClick)) {
-				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 				options.hooks!.onClick(attrs);
 			}
 		},
@@ -134,7 +130,6 @@ function onFileSelected(
 	const {options, key, editor, node} = context;
 
 	if (isFunction(options.hooks?.onFileSelected)) {
-		// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
 		options.hooks!.onFileSelected(selectedFile, (updatedAttrs) => {
 			const position = keyToPos.get(key);
 

@@ -5,7 +5,6 @@ import type {Command} from '../@types';
  */
 export const unsetAllMarks =
 	(): Command =>
-	// eslint-disable-next-line unicorn/consistent-function-scoping
 	({tr, dispatch}) => {
 		const {selection} = tr;
 		const {empty, ranges} = selection;

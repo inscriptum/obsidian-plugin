@@ -7,7 +7,6 @@ import type {Command} from '../@types';
  */
 export const liftEmptyBlock =
 	(): Command =>
-	// eslint-disable-next-line unicorn/consistent-function-scoping
 	({state, dispatch}) => {
 		return originalLiftEmptyBlock(state, dispatch);
 	};

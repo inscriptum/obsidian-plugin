@@ -5,7 +5,6 @@ import type {Command} from '../@types';
  */
 export const scrollIntoView =
 	(): Command =>
-	// eslint-disable-next-line unicorn/consistent-function-scoping
 	({tr, dispatch}) => {
 		if (dispatch) {
 			tr.scrollIntoView();

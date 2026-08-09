@@ -131,7 +131,6 @@ export const Image = Node.create<ImageOptions>({
 
 	addCommands,
 
-	// eslint-disable-next-line max-lines-per-function
 	addProseMirrorPlugins() {
 		const imageNodeType = this.type;
 

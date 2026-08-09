@@ -21,7 +21,6 @@ export function insertContentAt(
 		updateSelection?: boolean;
 	},
 ): Command {
-	// eslint-disable-next-line sonarjs/cognitive-complexity
 	return ({tr, dispatch, editor}) => {
 		if (dispatch) {
 			options = {

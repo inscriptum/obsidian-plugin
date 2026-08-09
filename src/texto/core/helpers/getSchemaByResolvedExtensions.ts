@@ -24,7 +24,6 @@ function cleanUpSchemaItem<T extends object>(data: T) {
 	) as T;
 }
 
-// eslint-disable-next-line max-lines-per-function
 export function getSchemaByResolvedExtensions(extensions: Extensions): Schema {
 	const allAttributes = getAttributesFromExtensions(extensions);
 	const {nodeExtensions, markExtensions} = splitExtensions(extensions);
