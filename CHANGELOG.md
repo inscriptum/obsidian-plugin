@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 <!-- ## [Unreleased] -->
 
+## [0.1.1] - 2026-08-10
+
+### Fixed
+
+- Fixed a crash that could prevent the plugin from loading on mobile devices (Android and iOS).
+- Improved compatibility with the latest Obsidian versions.
+- Various under-the-hood reliability improvements.
+
 ## [0.1.0] - 2026-08-09
 
 ### Added
