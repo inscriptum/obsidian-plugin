@@ -47,7 +47,7 @@ export const imageElement = litView.element({
 	};
 
 	while (true) {
-		requestAnimationFrame(() => {
+		window.requestAnimationFrame(() => {
 			if (params.state?.isAutoOpenFileSelection) {
 				openFileSelection();
 			}

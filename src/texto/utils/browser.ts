@@ -23,11 +23,12 @@ export const gecko_version = gecko && +(/Firefox\/(\d+)/.exec(agent) || [0, 0])[
 const _chrome = !ie && /Chrome\/(\d+)/.exec(agent);
 export const chrome = !!_chrome;
 export const chrome_version = _chrome ? +_chrome[1] : 0;
-export const safari = !ie && !!nav && /Apple Computer/.test(nav.vendor);
+export const safari =
+	!ie && /AppleWebKit\//.test(agent) && !/Chrome|CriOS|Chromium|Edg|OPR|FxiOS/.test(agent);
 // Is true for both iOS and iPadOS for convenience
 export const ios = safari && (/Mobile\/\w+/.test(agent) || (!!nav && nav.maxTouchPoints > 2));
-export const mac = ios || (nav ? /Mac/.test(nav.platform) : false);
-export const windows = nav ? /Win/.test(nav.platform) : false;
+export const mac = ios || /Mac/.test(agent);
+export const windows = /Windows|Win32|Win64/.test(agent);
 export const android = /Android \d/.test(agent);
 export const webkit = !!doc && 'webkitFontSmoothing' in doc.documentElement.style;
 export const webkit_version = webkit ? +(/\bAppleWebKit\/(\d+)/.exec(agent) || [0, 0])[1] : 0;

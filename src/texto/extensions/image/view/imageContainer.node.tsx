@@ -38,7 +38,7 @@ export const imageContainerNode = litView.node(function* (params: {
 	};
 
 	while (true) {
-		requestAnimationFrame(() => {
+		window.requestAnimationFrame(() => {
 			if (
 				imgRef.value != null &&
 				imgRef.value.complete &&

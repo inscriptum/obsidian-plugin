@@ -9,8 +9,8 @@ import {shouldShowDefault} from './helpers/shouldShow';
 function debounce<T extends (...args: any[]) => void>(fn: T, wait: number) {
 	let timer: ReturnType<typeof setTimeout> | null = null;
 	return (...args: Parameters<T>) => {
-		if (timer !== null) clearTimeout(timer);
-		timer = setTimeout(() => fn(...args), wait);
+		if (timer !== null) window.clearTimeout(timer);
+		timer = window.setTimeout(() => fn(...args), wait);
 	};
 }
 
@@ -110,11 +110,10 @@ export class BubbleMenuView implements PluginView {
 	setIsMousePressed = (e: MouseEvent) => {
 		const wasMousePressed = this.isMousePressed;
 
-		const buttons = e.buttons !== undefined ? e.buttons : e.which;
-		this.isMousePressed = buttons > 0;
+		this.isMousePressed = (e.buttons ?? 0) > 0;
 
 		if (wasMousePressed && !this.isMousePressed) {
-			setTimeout(() => this.update(this.editor.view));
+			window.setTimeout(() => this.update(this.editor.view));
 		}
 	};
 
@@ -124,7 +123,7 @@ export class BubbleMenuView implements PluginView {
 
 	focusHandler = () => {
 		// we use `setTimeout` to make sure `selection` is already updated
-		setTimeout(() => this.update(this.editor.view));
+		window.setTimeout(() => this.update(this.editor.view));
 	};
 
 	blurHandler = ({event}: {event: FocusEvent}) => {

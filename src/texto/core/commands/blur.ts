@@ -5,7 +5,7 @@ export function blur(): Command {
 	 * Removes focus from the editor.
 	 */
 	return ({editor, view}) => {
-		requestAnimationFrame(() => {
+		window.requestAnimationFrame(() => {
 			if (!editor.isDestroyed) {
 				(view.dom as HTMLElement).blur();
 

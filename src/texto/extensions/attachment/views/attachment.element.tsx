@@ -92,7 +92,7 @@ export const attachmentElement = litView.element({
 		}
 
 		if (params.state.isAutoOpenFileSelection) {
-			requestAnimationFrame(() => {
+			window.requestAnimationFrame(() => {
 				openFileSelection();
 			});
 		}

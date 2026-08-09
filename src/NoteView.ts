@@ -80,7 +80,7 @@ export class NoteView extends FileView {
     const bubbleMenuBarEl = new BubbleMenuBarElement();
     const tableBubbleMenuEl = new TableBubbleMenuElement();
 
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       const editorEl = noteEl.props.editorContainerEl?.value;
 
       if (editorEl != null) {
@@ -204,8 +204,8 @@ export class NoteView extends FileView {
           }),
         );
 
-        requestAnimationFrame(() => {
-          setTimeout(() => {
+        window.requestAnimationFrame(() => {
+          window.setTimeout(() => {
             this.editor?.view?.focus();
             this.contentEl.insertAdjacentElement('afterbegin', toolbarEl);
           }, 100);
@@ -230,9 +230,9 @@ export class NoteView extends FileView {
 
   private scheduleSave(): void {
     if (saveTimer) {
-      clearTimeout(saveTimer);
+      window.clearTimeout(saveTimer);
     }
-    saveTimer = setTimeout(() => {
+    saveTimer = window.setTimeout(() => {
       this.flushSave();
     }, AUTOSAVE_DELAY);
   }

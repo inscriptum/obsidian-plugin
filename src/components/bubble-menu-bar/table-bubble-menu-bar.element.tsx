@@ -40,7 +40,7 @@ export const TableBubbleMenuElement = litView.element({
   };
 
   const placeLayerDirection = (layerSel: string) => {
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       const bar = barEl();
       const layer = bar.querySelector<HTMLElement>(layerSel);
       if (!layer) return;
@@ -68,7 +68,7 @@ export const TableBubbleMenuElement = litView.element({
     }
     openLayer = "table-color";
     this.next().then(() => {
-      requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
         placeLayerCaret(".bubble-menu-layer--table-color", '[data-tbl="color"]');
         placeLayerDirection(".bubble-menu-layer--table-color");
       });
@@ -156,7 +156,7 @@ export const TableBubbleMenuElement = litView.element({
       (tippy as any).__bbWired = true;
       tippy.setProps({
         onHide: () => closeLayer(),
-        onShow: () => requestAnimationFrame(syncCaret),
+        onShow: () => window.requestAnimationFrame(syncCaret),
       });
     }
   };
@@ -170,7 +170,7 @@ export const TableBubbleMenuElement = litView.element({
     lastSelKey = selKey;
     wireTippy();
     this.next();
-    requestAnimationFrame(syncCaret);
+    window.requestAnimationFrame(syncCaret);
   };
 
   const onKeydown = (e: KeyboardEvent) => {

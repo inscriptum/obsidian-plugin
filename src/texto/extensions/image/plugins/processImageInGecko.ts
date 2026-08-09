@@ -54,7 +54,7 @@ export function processImageInGecko(type: NodeType, clipboardText: string | null
 	// Do observation not so long to prevent poor performance and stop it as soon as it's possible.
 	// Actually, 100ms was enough in my local PC (Linux, Intel Core 1.7 GHz), for an 5Mb image.
 	// But we will wait in 5 times longer to exclude some corner cases.
-	setTimeout(() => {
+	window.setTimeout(() => {
 		observer.disconnect();
 	}, 500);
 

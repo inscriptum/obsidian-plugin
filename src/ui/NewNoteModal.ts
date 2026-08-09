@@ -33,7 +33,7 @@ export class NewNoteModal extends Modal {
         .onClick(() => this.submit()),
     );
 
-    setTimeout(() => this.input?.inputEl.focus(), 0);
+    window.setTimeout(() => this.input?.inputEl.focus(), 0);
   }
 
   onClose(): void {

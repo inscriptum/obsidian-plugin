@@ -22,7 +22,7 @@ export function handleAddImg(
   editorRef: { current: Editor | null },
   ctx: ImageToolContext,
 ): void {
-  requestAnimationFrame(() => {
+  window.requestAnimationFrame(() => {
     const editor = editorRef.current;
     if (editor == null) return;
     // Already saved or no file to process

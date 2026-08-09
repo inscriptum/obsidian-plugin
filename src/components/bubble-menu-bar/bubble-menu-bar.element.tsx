@@ -72,7 +72,7 @@ export const BubbleMenuBarElement = litView.element({
    * the layer where it fits (up by default, down if there's room below).
    */
   const placeLayerDirection = (layerSel: string) => {
-    requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
       const bar = barEl();
       const layer = bar.querySelector<HTMLElement>(layerSel);
       if (!layer) return;
@@ -96,7 +96,7 @@ export const BubbleMenuBarElement = litView.element({
   const toggleStylesLayer = () => {
     openLayer = openLayer === "styles" ? null : "styles";
     this.next().then(() => {
-      requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
         placeLayerCaret(".bubble-menu-layer--styles", '[data-bb-action="styles"]');
         placeLayerDirection(".bubble-menu-layer--styles");
       });
@@ -110,7 +110,7 @@ export const BubbleMenuBarElement = litView.element({
     linkDraft = typeof attrs.href === "string" ? attrs.href : "";
     openLayer = "link";
     this.next().then(() => {
-      requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
         const input = barEl().querySelector<HTMLInputElement>(".bubble-menu-link-input");
         input?.focus();
         input?.select();
@@ -234,7 +234,7 @@ export const BubbleMenuBarElement = litView.element({
       tippy.setProps({
         // Click outside / hide menu closes open layers
         onHide: () => closeLayer(),
-        onShow: () => requestAnimationFrame(syncCaret),
+        onShow: () => window.requestAnimationFrame(syncCaret),
       });
     }
   };
@@ -248,7 +248,7 @@ export const BubbleMenuBarElement = litView.element({
     lastSelKey = selKey;
     wireTippy();
     this.next();
-    requestAnimationFrame(syncCaret);
+    window.requestAnimationFrame(syncCaret);
   };
 
   /* ── Keyboard: Esc (layer → menu), ⌘K (link) ── */

@@ -119,10 +119,10 @@ export const ToolbarElement = litView.element({
   // on change — "Saving…", after 600ms — "Saved".
   const markDirty = () => {
     if (saveTimer) {
-      clearTimeout(saveTimer);
+      window.clearTimeout(saveTimer);
     }
     saved = false;
-    saveTimer = setTimeout(() => {
+    saveTimer = window.setTimeout(() => {
       saved = true;
       this.next();
     }, 600);
@@ -169,7 +169,7 @@ export const ToolbarElement = litView.element({
     props.editor.off("selectionUpdate", refreshState);
     props.editor.off("update", refreshState);
     if (saveTimer) {
-      clearTimeout(saveTimer);
+      window.clearTimeout(saveTimer);
     }
   }
 })("note-toolbar");

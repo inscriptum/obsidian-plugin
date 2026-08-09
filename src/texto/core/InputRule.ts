@@ -200,7 +200,7 @@ export function inputRulesPlugin(props: {editor: Editor; rules: InputRule[]}): P
 
 			handleDOMEvents: {
 				compositionend: (view) => {
-					setTimeout(() => {
+					window.setTimeout(() => {
 						const {$cursor} = view.state.selection as TextSelection;
 
 						if ($cursor) {

@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@web-companions/h": "0.3.3",
+    "@web-companions/gfc": "2.4.0",
     "@web-companions/lit": "0.2.0",
     "highlight.js": "11.11.1",
     "linkifyjs": "4.3.3",
