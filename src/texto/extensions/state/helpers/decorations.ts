@@ -52,7 +52,7 @@ export function addDecorationsToSet(
 		});
 
 		return decoSet.add(doc, newDecos);
-	} catch (error) {
+	} catch {
 		return decoSet;
 	}
 }
@@ -156,7 +156,7 @@ function mapAndGatherDecorations(
 	}
 
 	for (let i = 0; i < children.length; i += 3) {
-		gather(children[i + 2] as DecorationSet, (oldChildren[i] as number) + oldOffset + 1);
+		gather(children[i + 2], (oldChildren[i] as number) + oldOffset + 1);
 	}
 
 	return decorations;

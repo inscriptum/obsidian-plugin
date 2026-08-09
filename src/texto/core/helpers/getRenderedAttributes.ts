@@ -6,13 +6,13 @@ import {mergeAttributes} from '../utilities/mergeAttributes';
 export function getRenderedAttributes(
 	nodeOrMark: Node | Mark,
 	extensionAttributes: ExtensionAttribute[],
-): Record<string, any> {
+): Record<string, unknown> {
 	return extensionAttributes
 		.filter((item) => item.attribute.rendered)
 		.map((item) => {
 			if (!item.attribute.renderHTML) {
 				return {
-					[item.name]: nodeOrMark.attrs[item.name],
+					[item.name]: nodeOrMark.attrs[item.name] as unknown,
 				};
 			}
 

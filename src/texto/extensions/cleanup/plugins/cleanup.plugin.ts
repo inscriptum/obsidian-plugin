@@ -23,7 +23,7 @@ export const cleanupPlugin = new Plugin({
 
 			const externalSpanEls = pastedEl.querySelectorAll(SELECTOR_EXTERNAL_SPAN);
 			externalSpanEls.forEach((el) => {
-				if (el instanceof HTMLElement) {
+				if (el.instanceOf(HTMLElement)) {
 					el.removeAttribute('style');
 				}
 			});

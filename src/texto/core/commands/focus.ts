@@ -22,7 +22,7 @@ export function focus(
 			// focus within `requestAnimationFrame` breaks focus on iOS
 			// so we have to call this
 			if (isiOS()) {
-				(view.dom as HTMLElement).focus();
+				view.dom.focus();
 			}
 
 			// For React we have to focus asynchronously. Otherwise wild things happen.

@@ -1,25 +1,25 @@
-import { App, Modal, Setting, TextComponent } from 'obsidian';
+import { App, Modal, Setting, TextComponent } from "obsidian";
 
 const INVALID_FILENAME_CHARS = /[\\/:*?"<>|]/g;
 
 export class NewNoteModal extends Modal {
-  private resolve: (name: string | null) => void;
+  private resolve: (name: string | null) => Promise<void>;
   private resolved = false;
   private input: TextComponent | null = null;
 
-  constructor(app: App, resolve: (name: string | null) => void) {
+  constructor(app: App, resolve: (name: string | null) => Promise<void>) {
     super(app);
     this.resolve = resolve;
   }
 
   onOpen(): void {
-    this.titleEl.setText('New Note');
+    this.titleEl.setText("New note");
 
-    new Setting(this.contentEl).setName('Note name').addText((text) => {
+    new Setting(this.contentEl).setName("Note name").addText((text) => {
       this.input = text;
-      text.setPlaceholder('Untitled');
-      text.inputEl.addEventListener('keydown', (event: KeyboardEvent) => {
-        if (event.key === 'Enter') {
+      text.setPlaceholder("Untitled");
+      text.inputEl.addEventListener("keydown", (event: KeyboardEvent) => {
+        if (event.key === "Enter") {
           event.preventDefault();
           this.submit();
         }
@@ -28,7 +28,7 @@ export class NewNoteModal extends Modal {
 
     new Setting(this.contentEl).addButton((btn) =>
       btn
-        .setButtonText('Create')
+        .setButtonText("Create")
         .setCta()
         .onClick(() => this.submit()),
     );
@@ -39,7 +39,7 @@ export class NewNoteModal extends Modal {
   onClose(): void {
     this.contentEl.empty();
     if (!this.resolved) {
-      this.resolve(null);
+      this.resolve(null).catch((e) => console.error(e));
     }
   }
 
@@ -47,11 +47,11 @@ export class NewNoteModal extends Modal {
     if (!this.input) {
       return;
     }
-    const raw = this.input.getValue().trim() || 'Untitled';
-    const name = raw.replace(INVALID_FILENAME_CHARS, '-');
+    const raw = this.input.getValue().trim() || "Untitled";
+    const name = raw.replace(INVALID_FILENAME_CHARS, "-");
 
     this.resolved = true;
-    this.resolve(name);
+    this.resolve(name).catch((e) => console.error(e));
     this.close();
   }
 }

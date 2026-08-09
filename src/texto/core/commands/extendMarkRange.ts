@@ -10,7 +10,7 @@ import {getMarkType} from '../helpers/getMarkType';
  */
 export function extendMarkRange(
 	typeOrName: string | MarkType,
-	attributes: Record<string, any> = {},
+	attributes: Record<string, unknown> = {},
 ): Command {
 	return ({tr, state, dispatch}) => {
 		const type = getMarkType(typeOrName, state.schema);

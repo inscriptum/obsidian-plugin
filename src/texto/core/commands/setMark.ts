@@ -54,7 +54,7 @@ function canSetMark(state: EditorState, tr: Transaction, newMarkType: MarkType) 
 /**
  * Add a mark with new attributes.
  */
-export function setMark(typeOrName: string | MarkType, attributes?: Record<string, any>): Command {
+export function setMark(typeOrName: string | MarkType, attributes?: Record<string, unknown>): Command {
 	return ({tr, state, dispatch}) => {
 		const {selection} = tr;
 		const {empty, ranges} = selection;

@@ -1,4 +1,4 @@
-import type {ResolvedPos} from 'prosemirror-model';
+import type {Node, ResolvedPos} from 'prosemirror-model';
 
 export const getTextContentFromNodes = ($from: ResolvedPos, maxMatch = 500) => {
 	let textBefore = '';
@@ -9,8 +9,11 @@ export const getTextContentFromNodes = ($from: ResolvedPos, maxMatch = 500) => {
 		Math.max(0, sliceEndPos - maxMatch),
 		sliceEndPos,
 		(node, pos, parent, index) => {
+			const toText = node.type.spec.toText as
+				| ((props: {node: Node; pos: number; parent: Node | null; index: number}) => string)
+				| undefined;
 			const chunk =
-				node.type.spec.toText?.({
+				toText?.({
 					node,
 					pos,
 					parent,

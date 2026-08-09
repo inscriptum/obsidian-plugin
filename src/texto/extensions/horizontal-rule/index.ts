@@ -5,6 +5,6 @@ export default HorizontalRule
 
 declare global {
   interface Commands {
-    setHorizontalRule: () => any
+    setHorizontalRule: () => boolean
   }
 }

@@ -117,7 +117,7 @@ export const TaskItem = Node.create<TaskItemOptions>({
 
 	addNodeView() {
 		const element = new ItemElement();
-		const contentEl = document.createElement('div');
+		const contentEl = createDiv();
 		contentEl.classList.add('content');
 
 		return ({node, HTMLAttributes, getPos, editor}) => {

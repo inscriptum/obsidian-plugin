@@ -1,4 +1,4 @@
-export function mergeAttributes(...objects: Record<string, any>[]): Record<string, any> {
+export function mergeAttributes(...objects: Record<string, unknown>[]): Record<string, unknown> {
 	return objects
 		.filter((item) => !!item)
 		.reduce((items, item) => {

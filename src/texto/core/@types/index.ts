@@ -106,7 +106,7 @@ export type Attribute = {
 	default: any;
 	rendered?: boolean;
 	renderHTML?: ((attributes: Record<string, any>) => Record<string, any> | null) | null;
-	parseHTML?: ((element: HTMLElement) => any | null) | null;
+	parseHTML?: ((element: HTMLElement) => any) | null;
 	keepOnSplit: boolean;
 	isRequired?: boolean;
 };
@@ -177,6 +177,9 @@ export type CommandsSet<C extends object> = {[P in keyof C]: Record<P, C[P]>};
 
 export type AnyCommands = Record<string, (...args: any[]) => Command>;
 
+// `Commands` is a global interface augmented via `declare global` in each
+// extension's index file; ESLint can't see those augmentations from this file.
+// eslint-disable-next-line no-undef -- global interface merged by extension index files
 type AllCommands = UnionToIntersection<ValuesOf<{[K in keyof Commands]: Commands[K]}>>;
 
 type AllCommandsByType<T> = Pick<AllCommands, KeysWithTypeOf<AllCommands, (...args: any) => T>>;

@@ -1,13 +1,24 @@
-export function addCommands() {
+import type { Command } from "../../core/@types";
+import type { AnyConfig } from "../../core/@types/AnyConfig";
+
+type AddCommandsThis = ThisParameterType<Required<AnyConfig>["addCommands"]>;
+
+export function addCommands(this: AddCommandsThis) {
   return {
-    setStrike: () => ({ commands }: { commands: any }) => {
-      return commands.setMark('strike')
-    },
-    toggleStrike: () => ({ commands }: { commands: any }) => {
-      return commands.toggleMark('strike')
-    },
-    unsetStrike: () => ({ commands }: { commands: any }) => {
-      return commands.unsetMark('strike')
-    },
-  }
+    setStrike:
+      (): Command =>
+      ({ commands }) => {
+        return commands.setMark("strike");
+      },
+    toggleStrike:
+      (): Command =>
+      ({ commands }) => {
+        return commands.toggleMark("strike");
+      },
+    unsetStrike:
+      (): Command =>
+      ({ commands }) => {
+        return commands.unsetMark("strike");
+      },
+  };
 }

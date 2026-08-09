@@ -1,6 +1,8 @@
+import type { Instance } from "tippy.js";
 import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
 import { Editor, posToDOMRect } from "../../texto/core";
+import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
 import { bgHexToAttr, getTableMenuState, TABLE_FILLS, type TableMenuState } from "./tableMenuState";
 import { TEXT_COLORS } from "./bubbleMenuState";
 import { bbIcon } from "./icons";
@@ -138,13 +140,18 @@ export const TableBubbleMenuElement = litView.element({
     bar.classList.toggle("is-flip", box?.getAttribute("data-placement")?.startsWith("bottom") ?? false);
   };
 
-  const getTippy = (): any => {
+  /** Plugin instances expose a private `key` field holding the PluginKey name. */
+  type KeyedPlugin = { key?: { key?: string } };
+
+  const wiredTippies = new WeakSet<Instance>();
+
+  const getTippy = (): Instance | undefined => {
     if (props.editor.isDestroyed) return undefined;
     const es = props.editor.state;
     for (const plugin of es.plugins) {
-      const key = (plugin as any).key;
-      if (key?.key === "tableBubbleMenu") {
-        return (plugin.getState(es) as any)?.tippy;
+      const key = (plugin as KeyedPlugin).key?.key;
+      if (key === "tableBubbleMenu") {
+        return (plugin.getState(es) as BubbleMenuPluginState | undefined)?.tippy;
       }
     }
     return undefined;
@@ -152,11 +159,15 @@ export const TableBubbleMenuElement = litView.element({
 
   const wireTippy = () => {
     const tippy = getTippy();
-    if (tippy && !(tippy as any).__bbWired) {
-      (tippy as any).__bbWired = true;
+    if (tippy && !wiredTippies.has(tippy)) {
+      wiredTippies.add(tippy);
       tippy.setProps({
-        onHide: () => closeLayer(),
-        onShow: () => window.requestAnimationFrame(syncCaret),
+        onHide: () => {
+          closeLayer();
+        },
+        onShow: () => {
+          window.requestAnimationFrame(syncCaret);
+        },
       });
     }
   };

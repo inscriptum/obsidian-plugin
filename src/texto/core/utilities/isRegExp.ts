@@ -1,3 +1,3 @@
-export function isRegExp(value: any): value is RegExp {
+export function isRegExp(value: unknown): value is RegExp {
 	return Object.prototype.toString.call(value) === '[object RegExp]';
 }

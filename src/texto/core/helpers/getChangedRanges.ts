@@ -44,7 +44,8 @@ export function getChangedRanges(transform: Transform): ChangedRange[] {
 
 		// This accounts for step changes where no range was actually altered
 		// e.g. when setting a mark, node attribute, etc.
-		if (!(stepMap as any)['ranges'].length) {
+		// `ranges` exists at runtime but isn't declared on the public StepMap type.
+		if (!(stepMap as unknown as {ranges: number[]}).ranges.length) {
 			const {from, to} = steps[index] as Step & {
 				from?: number;
 				to?: number;

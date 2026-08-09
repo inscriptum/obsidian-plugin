@@ -83,6 +83,6 @@ export async function deleteAttachmentFile(app: App, id: string | null | undefin
   if (!id) return;
   const file = app.vault.getAbstractFileByPath(id);
   if (file) {
-    await app.vault.delete(file as TFile);
+    await app.vault.delete(file);
   }
 }

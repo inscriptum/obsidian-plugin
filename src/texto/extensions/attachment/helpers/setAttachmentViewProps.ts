@@ -50,7 +50,7 @@ export function setAttachmentViewProps(
 			event.preventDefault();
 
 			if (isFunction(options.hooks?.onDeleteFile)) {
-				options.hooks!.onDeleteFile(attrs);
+				options.hooks.onDeleteFile(attrs);
 			}
 
 			const position = keyToPos.get(attrs.key);
@@ -68,7 +68,7 @@ export function setAttachmentViewProps(
 			event.preventDefault();
 
 			if (isFunction(options.hooks?.onRemove)) {
-				options.hooks!.onRemove(attrs);
+				options.hooks.onRemove(attrs);
 			}
 
 			const position = keyToPos.get(attrs.key);
@@ -97,7 +97,7 @@ export function setAttachmentViewProps(
 		},
 		onClick: () => {
 			if (isFunction(options.hooks?.onClick)) {
-				options.hooks!.onClick(attrs);
+				options.hooks.onClick(attrs);
 			}
 		},
 	};
@@ -130,7 +130,7 @@ function onFileSelected(
 	const {options, key, editor, node} = context;
 
 	if (isFunction(options.hooks?.onFileSelected)) {
-		options.hooks!.onFileSelected(selectedFile, (updatedAttrs) => {
+		options.hooks.onFileSelected(selectedFile, (updatedAttrs) => {
 			const position = keyToPos.get(key);
 
 			if (position != null) {

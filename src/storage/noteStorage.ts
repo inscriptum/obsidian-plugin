@@ -1,16 +1,13 @@
-import type { TFile, Vault } from 'obsidian';
-import type { JSONContent } from '../texto/core/@types';
+import type { TFile, Vault } from "obsidian";
+import type { JSONContent } from "../texto/core/@types";
 
 export const EMPTY_DOC: JSONContent = {
-  type: 'noteDoc',
-  content: [
-    { type: 'noteTitle' },
-    { type: 'paragraph' },
-  ],
+  type: "noteDoc",
+  content: [{ type: "noteTitle" }, { type: "paragraph" }],
 };
 
 export function createEmptyNote(): JSONContent {
-  return JSON.parse(JSON.stringify(EMPTY_DOC));
+  return JSON.parse(JSON.stringify(EMPTY_DOC)) as JSONContent;
 }
 
 export async function readNote(

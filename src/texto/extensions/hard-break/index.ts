@@ -5,6 +5,6 @@ export default HardBreak
 
 declare global {
   interface Commands {
-    setHardBreak: () => any
+    setHardBreak: () => boolean
   }
 }

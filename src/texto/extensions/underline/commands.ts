@@ -1,13 +1,24 @@
-export function addCommands() {
+import type { Command } from "../../core/@types";
+import type { AnyConfig } from "../../core/@types/AnyConfig";
+
+type AddCommandsThis = ThisParameterType<Required<AnyConfig>["addCommands"]>;
+
+export function addCommands(this: AddCommandsThis) {
   return {
-    setUnderline: () => ({ commands }: { commands: any }) => {
-      return commands.setMark('underline')
-    },
-    toggleUnderline: () => ({ commands }: { commands: any }) => {
-      return commands.toggleMark('underline')
-    },
-    unsetUnderline: () => ({ commands }: { commands: any }) => {
-      return commands.unsetMark('underline')
-    },
-  }
+    setUnderline:
+      (): Command =>
+      ({ commands }) => {
+        return commands.setMark("underline");
+      },
+    toggleUnderline:
+      (): Command =>
+      ({ commands }) => {
+        return commands.toggleMark("underline");
+      },
+    unsetUnderline:
+      (): Command =>
+      ({ commands }) => {
+        return commands.unsetMark("underline");
+      },
+  };
 }

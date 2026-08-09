@@ -5,7 +5,7 @@ import { createEmptyNote } from '../../storage/noteStorage';
 
 function createEditor(content = createEmptyNote()) {
   return new Editor({
-    element: document.createElement('div'),
+    element: createDiv(),
     content,
     extensions: getExtensions(),
   });
@@ -25,7 +25,7 @@ describe('editor lifecycle', () => {
     const onUpdate = vi.fn();
 
     const editor = new Editor({
-      element: document.createElement('div'),
+      element: createDiv(),
       content: createEmptyNote(),
       extensions: getExtensions(),
       onUpdate,

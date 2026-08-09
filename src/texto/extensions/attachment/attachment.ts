@@ -22,7 +22,7 @@ export interface AttachmentOptionsHooks {
 	onFileSelected?: (
 		selectedFile: File | null,
 		update: (attrs: Omit<AttachmentOptions['attributes'], 'key'>) => void,
-	) => void;
+	) => void | Promise<void>;
 	onDeleteFile?: (attrs: AttachmentOptions['attributes']) => void;
 	onRemove?: (attrs: AttachmentOptions['attributes']) => void;
 	onClick?: (attrs: AttachmentOptions['attributes']) => void;
@@ -164,6 +164,6 @@ export const AttachmentStub = Node.create<AttachmentOptions>({
 	},
 
 	renderHTML({HTMLAttributes}) {
-		return ['p', mergeAttributes(this.options, HTMLAttributes), 0];
+		return ['p', mergeAttributes(this.options as unknown as Record<string, unknown>, HTMLAttributes), 0];
 	},
 });

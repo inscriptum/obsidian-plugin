@@ -3,7 +3,6 @@ import type {EditorState, PluginSpec, Transaction} from 'prosemirror-state';
 import {ReplaceAroundStep, ReplaceStep} from 'prosemirror-transform';
 
 import {keyToPos} from '../attachment';
-import {createPositions} from './createPositions';
 
 const INNER_TRANSACTION_META = 'isInnerTask';
 

@@ -6,7 +6,7 @@ import type { JSONContent } from './@types';
 function createEditor(content?: JSONContent) {
   const defaultContent: JSONContent = { type: 'noteDoc', content: [] };
   return new Editor({
-    element: document.createElement('div'),
+    element: createDiv(),
     content: content ?? defaultContent,
     extensions: getExtensions(),
   });
@@ -28,7 +28,7 @@ describe('editor commands', () => {
 
       const json = editor.getJSON();
       const paragraph = json.content?.[1];
-      expect(paragraph?.content?.[0].marks?.some((m: any) => m.type === 'bold')).toBe(true);
+      expect(paragraph?.content?.[0].marks?.some((m) => m.type === 'bold')).toBe(true);
 
       editor.destroy();
     });
@@ -54,8 +54,8 @@ describe('editor commands', () => {
       const paragraph = json.content?.[1];
       
       // The toggled text should no longer have the bold mark
-      const hasBold = paragraph?.content?.some((n: any) => 
-        n.marks?.some((m: any) => m.type === 'bold')
+      const hasBold = paragraph?.content?.some((n) => 
+        n.marks?.some((m) => m.type === 'bold')
       );
       expect(hasBold).toBe(false);
 
@@ -79,7 +79,7 @@ describe('editor commands', () => {
 
       const json = editor.getJSON();
       const paragraph = json.content?.[1];
-      expect(paragraph?.content?.[0].marks?.some((m: any) => m.type === 'italic')).toBe(true);
+      expect(paragraph?.content?.[0].marks?.some((m) => m.type === 'italic')).toBe(true);
 
       editor.destroy();
     });
@@ -101,7 +101,7 @@ describe('editor commands', () => {
 
       const json = editor.getJSON();
       const paragraph = json.content?.[1];
-      expect(paragraph?.content?.[0].marks?.some((m: any) => m.type === 'underline')).toBe(true);
+      expect(paragraph?.content?.[0].marks?.some((m) => m.type === 'underline')).toBe(true);
 
       editor.destroy();
     });
@@ -123,7 +123,7 @@ describe('editor commands', () => {
 
       const json = editor.getJSON();
       const paragraph = json.content?.[1];
-      expect(paragraph?.content?.[0].marks?.some((m: any) => m.type === 'strike')).toBe(true);
+      expect(paragraph?.content?.[0].marks?.some((m) => m.type === 'strike')).toBe(true);
 
       editor.destroy();
     });
@@ -141,11 +141,11 @@ describe('editor commands', () => {
 
       const docSize = editor.state.doc.content.size;
       editor.commands.setTextSelection({ from: 0, to: docSize });
-      (editor.commands as any).setColor('#ff0000');
+      editor.commands.setColor('#ff0000');
 
       const json = editor.getJSON();
       const paragraph = json.content?.[1];
-      const textStyles = paragraph?.content?.[0].marks?.filter((m: any) => m.type === 'textStyle');
+      const textStyles = paragraph?.content?.[0].marks?.filter((m) => m.type === 'textStyle');
       expect(textStyles?.length).toBeGreaterThan(0);
 
       editor.destroy();
@@ -185,7 +185,7 @@ describe('editor commands', () => {
         ],
       });
 
-      const commands = (editor.commands as any);
+      const commands = editor.commands;
       expect(typeof commands.toggleTaskList).toBe('function');
 
       editor.destroy();

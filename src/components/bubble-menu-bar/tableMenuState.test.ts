@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import type { Node } from 'prosemirror-model';
 import { EditorState, TextSelection } from 'prosemirror-state';
 import { CellSelection } from 'prosemirror-tables';
 import { buildSchema } from '../../../tests/helpers/buildSchema';
@@ -8,9 +9,9 @@ import { bgHexToAttr, getTableMenuState, TABLE_BG_RGBA } from './tableMenuState'
 const schema = buildSchema();
 
 /** Позиции всех ячеек таблицы. */
-function cellPositions(doc: any): number[] {
+function cellPositions(doc: Node): number[] {
   const positions: number[] = [];
-  doc.descendants((node: any, pos: number) => {
+  doc.descendants((node, pos) => {
     if (node.type.name === 'tableCell' || node.type.name === 'tableHeader') {
       positions.push(pos);
     }
@@ -19,7 +20,7 @@ function cellPositions(doc: any): number[] {
   return positions;
 }
 
-function caretState(doc: any, atCell: number) {
+function caretState(doc: Node, atCell: number) {
   return EditorState.create({
     doc,
     selection: TextSelection.create(doc, atCell + 1),

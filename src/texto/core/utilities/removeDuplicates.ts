@@ -3,7 +3,7 @@
  * Supports numbers, strings and objects.
  */
 export function removeDuplicates<T>(array: T[], by = JSON.stringify): T[] {
-	const seen: Record<any, any> = {};
+	const seen: Record<string, unknown> = {};
 
 	return array.filter((item) => {
 		const key = by(item);

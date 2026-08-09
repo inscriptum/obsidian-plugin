@@ -34,9 +34,9 @@ function setHljsCodeBlock(this: AddCommandsThis, attributes?: {language: Support
 				}
 			});
 
-			const codeNodeJson: any = generateHljsNodeJson(codeText, attributes?.language);
+			const codeNodeJson = generateHljsNodeJson(codeText, attributes?.language);
 			const newNode = param.editor.schema.nodeFromJSON(codeNodeJson);
-			const jsonContent = newNode.content.toJSON() || [];
+			const jsonContent: JSONContent = newNode.content.toJSON() as JSONContent || [];
 			const command = param.chain();
 
 			if (isParentNodeReplace) {
@@ -93,10 +93,10 @@ function toggleHljsCodeBlock(this: AddCommandsThis, attributes?: {language: Supp
 
 			const codeText = getHljsBlockContentAsText(parentNode);
 
-			const dom = document.createElement('div');
+			const dom = createDiv();
 
 			codeText.split('\n').forEach((block) => {
-				const p = dom.appendChild(document.createElement('p'));
+				const p = dom.appendChild(createEl('p'));
 				p.innerText = block;
 			});
 
@@ -106,7 +106,7 @@ function toggleHljsCodeBlock(this: AddCommandsThis, attributes?: {language: Supp
 				.parse(dom, {
 					preserveWhitespace: 'full',
 				})
-				.toJSON();
+				.toJSON() as JSONContent;
 
 			return param
 				.chain()

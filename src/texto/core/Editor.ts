@@ -47,7 +47,7 @@ export class Editor extends EventEmitter<EditorEvents> {
 	public extensionStorage: Record<string, any> = {};
 
 	public options: EditorOptions = {
-		element: document.createElement('div'),
+		element: createDiv(),
 		content: '',
 		extensions: [],
 		autofocus: false,

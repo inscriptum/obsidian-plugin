@@ -7,7 +7,7 @@ export function blur(): Command {
 	return ({editor, view}) => {
 		window.requestAnimationFrame(() => {
 			if (!editor.isDestroyed) {
-				(view.dom as HTMLElement).blur();
+				view.dom.blur();
 
 				// Browsers should remove the caret on blur but safari does not.
 				// See: https://github.com/ueberdosis/tiptap/issues/2405

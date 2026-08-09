@@ -1,4 +1,4 @@
-export function fromString(value: any): any {
+export function fromString(value: unknown): unknown {
 	if (typeof value !== 'string') {
 		return value;
 	}

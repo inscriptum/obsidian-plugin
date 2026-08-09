@@ -25,7 +25,7 @@ export function joinItemForward(): Command {
 			}
 
 			return true;
-		} catch (error) {
+		} catch {
 			return false;
 		}
 	};

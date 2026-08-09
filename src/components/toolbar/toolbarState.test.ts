@@ -1,13 +1,14 @@
 import { describe, it, expect } from 'vitest';
+import type { Editor } from '../../texto/core';
 import { getToolbarState } from './toolbarState';
 
-function makeEditor(active: Record<string, boolean>) {
+function makeEditor(active: Record<string, boolean>): Pick<Editor, 'isActive'> {
   return {
-    isActive: (name: string, attrs?: any) => {
+    isActive(name: string, attrs?: {level?: number}) {
       if (name === 'heading') return active[`heading${attrs?.level}`] ?? false;
       return active[name] ?? false;
     },
-  } as any;
+  };
 }
 
 describe('getToolbarState', () => {

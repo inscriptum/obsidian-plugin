@@ -112,7 +112,7 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
 			{
 				tag: 'div',
 				preserveWhitespace: 'full',
-				getAttrs: (node) => (node as HTMLDivElement).style.whiteSpace === 'pre' && null,
+				getAttrs: (node) => node.style.whiteSpace === 'pre' && null,
 				getContent(domNode, schema) {
 					let textContent = '';
 
@@ -291,7 +291,7 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
 
 						// If there is only one hljsCodeBlock node use a special converter
 						if (isCopyOnlyHljsBlock) {
-							return getHljsBlockContentAsText(slice.content.firstChild!);
+							return getHljsBlockContentAsText(slice.content.firstChild);
 						}
 
 						// Default separator from https://github.com/ProseMirror/prosemirror-view/blob/bc8dcf0b8c77a8c6af867c74e6fbfbe4fe603828/src/clipboard.ts#L37
@@ -303,7 +303,7 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
 					clipboardTextParser: (text, _$context, _plain) => {
 						const {state, schema} = this.editor;
 						if (state.selection.$anchor.parent.type.name !== 'hljsCodeBlockRow') {
-							return undefined as any;
+							return null as unknown as Slice;
 						}
 
 						const codeNodeJson = generateHljsNodeJson(text); // can skip language because a CodeBlock will be automatically updated after pasting
@@ -383,7 +383,7 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
 
 	addNodeView() {
 		const container = new CodeBlockSelectLangElement();
-		const domCodeEl = document.createElement('code');
+		const domCodeEl = createEl('code');
 		container.props.domCodeEl = domCodeEl;
 		container.classList.add('hljs-codeblock');
 
@@ -431,8 +431,9 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
 
 						// Remove empty blocks
 						if (
-							(mutation as any).addedNodes?.length === 0 &&
-							(mutation as any).removedNodes?.length > 0 &&
+							mutation.type === 'childList' &&
+							mutation.addedNodes.length === 0 &&
+							mutation.removedNodes.length > 0 &&
 							hljsBlockNode?.type === this.type &&
 							hljsBlockNode.childCount === 1 &&
 							hljsBlockNode.firstChild?.content.size === 0

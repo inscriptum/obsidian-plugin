@@ -1,5 +1,4 @@
 import {callOrReturn, getExtensionField, mergeAttributes, Node} from '../../core';
-import {NodeConfig} from '../../core/@types/NodeConfig';
 import {columnResizing, tableEditing} from 'prosemirror-tables';
 import {NodeView} from 'prosemirror-view';
 

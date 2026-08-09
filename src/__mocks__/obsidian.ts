@@ -1,3 +1,4 @@
+import type { TFolder } from 'obsidian';
 import { vi } from 'vitest';
 
 export class Vault {
@@ -14,9 +15,9 @@ export class TFile {
   name: string;
   basename: string;
   extension: string;
-  stat: any;
+  stat: {ctime: number; mtime: number; size: number};
   vault: any;
-  parent: any;
+  parent: TFolder | null;
 
   constructor(path: string) {
     this.path = path;
@@ -47,11 +48,11 @@ export const Platform = {
 };
 
 export class Plugin {
-  app: any;
-  loadData(): Promise<any> {
+  app: unknown;
+  loadData(): Promise<unknown> {
     return Promise.resolve({});
   }
-  saveData(_data: any): Promise<void> {
+  saveData(_data: unknown): Promise<void> {
     return Promise.resolve();
   }
 }
@@ -60,10 +61,10 @@ export abstract class ItemView {
   abstract getViewType(): string;
   abstract getDisplayText(): string;
   abstract getIcon(): string;
-  app: any;
+  app: unknown;
   contentEl: HTMLElement;
-  constructor(_leaf: any) {
-    this.contentEl = document.createElement('div');
+  constructor(_leaf: unknown) {
+    this.contentEl = createDiv();
   }
   abstract onOpen(): Promise<void>;
   abstract onClose(): Promise<void>;

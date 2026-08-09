@@ -1,7 +1,7 @@
 import { Mark, mergeAttributes } from '../../core'
 
 export interface UnderlineOptions {
-  HTMLAttributes: Record<string, any>
+  HTMLAttributes: Record<string, unknown>
 }
 
 export const Underline = Mark.create<UnderlineOptions>({
@@ -21,7 +21,7 @@ export const Underline = Mark.create<UnderlineOptions>({
       {
         style: 'text-decoration',
         consuming: false,
-        getAttrs: style => ((style as string).includes('underline') ? {} : false),
+        getAttrs: style => (style.includes('underline') ? {} : false),
       },
     ]
   },

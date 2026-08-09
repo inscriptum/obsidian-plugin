@@ -15,6 +15,7 @@ export default defineConfig(
 		'vite',
 		'vite.config.mts',
 		'vitest.config.mts',
+		'vitest.setup.ts',
 		'main.js',
 		'styles.css',
 		'package.json',
@@ -62,7 +63,12 @@ export default defineConfig(
 			'@typescript-eslint/no-misused-promises': 'warn',
 			'@typescript-eslint/no-floating-promises': 'warn',
 			'@typescript-eslint/no-unnecessary-type-assertion': 'warn',
-			'@typescript-eslint/no-empty-object-type': 'warn',
+			'@typescript-eslint/no-empty-object-type': [
+				'warn',
+				// Extension command types use `declare global { interface Commands extends … {} }`
+				// as declaration-merging augmentation points — these must stay interfaces.
+				{allowInterfaces: 'with-single-extends'},
+			],
 			'@typescript-eslint/no-redundant-type-constituents': 'warn',
 			'@typescript-eslint/no-this-alias': 'warn',
 			'@typescript-eslint/no-unsafe-function-type': 'warn',

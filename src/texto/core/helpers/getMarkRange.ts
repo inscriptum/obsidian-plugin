@@ -6,7 +6,7 @@ import {objectIncludes} from '../utilities/objectIncludes';
 function findMarkInSet(
 	marks: ProseMirrorMark[],
 	type: MarkType,
-	attributes: Record<string, any> = {},
+	attributes: Record<string, unknown> = {},
 ): ProseMirrorMark | undefined {
 	return marks.find((item) => {
 		return item.type === type && objectIncludes(item.attrs, attributes);
@@ -16,7 +16,7 @@ function findMarkInSet(
 function isMarkInSet(
 	marks: ProseMirrorMark[],
 	type: MarkType,
-	attributes: Record<string, any> = {},
+	attributes: Record<string, unknown> = {},
 ): boolean {
 	return !!findMarkInSet(marks, type, attributes);
 }
@@ -24,7 +24,7 @@ function isMarkInSet(
 export function getMarkRange(
 	$pos: ResolvedPos,
 	type: MarkType,
-	attributes: Record<string, any> = {},
+	attributes: Record<string, unknown> = {},
 ): Range | void {
 	if (!$pos || !type) {
 		return;

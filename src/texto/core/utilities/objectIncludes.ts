@@ -6,8 +6,8 @@ import {isRegExp} from './isRegExp';
  * @param object2 Object
  */
 export function objectIncludes(
-	object1: Record<string, any>,
-	object2: Record<string, any>,
+	object1: Record<string, unknown>,
+	object2: Record<string, unknown>,
 	options: {strict: boolean} = {strict: true},
 ): boolean {
 	const keys = Object.keys(object2);
@@ -22,7 +22,7 @@ export function objectIncludes(
 		}
 
 		if (isRegExp(object2[key])) {
-			return object2[key].test(object1[key]);
+			return object2[key].test(String(object1[key]));
 		}
 
 		return object2[key] === object1[key];

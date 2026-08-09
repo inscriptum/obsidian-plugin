@@ -11,11 +11,24 @@ export type TextoErrorTypeKey = keyof TextoErrorType;
 
 const MAX_ERROR_MSG = 100;
 
+function stringifyCause(cause: unknown): string {
+  if (typeof cause === 'object' && cause !== null) {
+    try {
+      const json = JSON.stringify(cause);
+      if (json !== undefined) return json;
+    } catch {
+      /* ignore non-serializable values */
+    }
+    return '<object>';
+  }
+  return String(cause);
+}
+
 export class TextoError extends Error {
 	name = 'TextoError';
 	type: TextoErrorType[TextoErrorTypeKey];
 
-	constructor(type: TextoErrorType[TextoErrorTypeKey], cause: Error | unknown) {
+	constructor(type: TextoErrorType[TextoErrorTypeKey], cause: unknown) {
 		let message: string = type;
 
 		if (cause instanceof Error) {
@@ -26,8 +39,8 @@ export class TextoError extends Error {
 			}
 
 			message = `${type} \n\t - ${cause.name}: ${errorMsg}`;
-		} else if (typeof cause != null) {
-			message = `${type}  \n\t - ${String(cause)}`;
+		} else if (cause != null) {
+			message = `${type}  \n\t - ${stringifyCause(cause)}`;
 		}
 
 		super(message);

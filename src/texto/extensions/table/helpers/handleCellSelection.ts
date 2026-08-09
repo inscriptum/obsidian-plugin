@@ -11,9 +11,9 @@ function getOverlayElement(
 	rect: {top: number; left: number; width: number; height: number},
 	needCircle: boolean,
 ) {
-	const element = document.createElement('div');
-	const overlayCircle = document.createElement('div');
-	const circle = document.createElement('div');
+	const element = createDiv();
+	const overlayCircle = createDiv();
+	const circle = createDiv();
 	element.className = 'texto-table__overlay';
 	overlayCircle.className = 'texto-table__overlay_overlay-circle';
 	circle.className = 'texto-table__overlay_circle';
@@ -44,7 +44,7 @@ function getMoreCellsSelectingDecoration(state: EditorState, isMobileView: boole
 			const rect = getSelectedTableRect(view, selection);
 			return getOverlayElement(rect, !isMobileView);
 		} catch {
-			return document.createElement('div');
+			return createDiv();
 		}
 	});
 }
@@ -78,7 +78,7 @@ function getOneCellSelectingDecoration(state: EditorState, isMobileView: boolean
 			const rect = getSelectedTableRect(view, selection);
 			return getOverlayElement(rect, !isMobileView);
 		} catch {
-			return document.createElement('div');
+			return createDiv();
 		}
 	});
 }

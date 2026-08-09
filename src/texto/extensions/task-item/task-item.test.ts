@@ -22,7 +22,7 @@ function contentWithTaskItem(checked: boolean) {
 }
 
 function renderTaskItem(checked: boolean) {
-  const el = document.createElement('div');
+  const el = createDiv();
   document.body.appendChild(el);
 
   const editor = new Editor({

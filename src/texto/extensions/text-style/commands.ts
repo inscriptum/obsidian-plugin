@@ -1,7 +1,12 @@
-export function addCommands() {
+import type { Command } from "../../core/@types";
+import type { AnyConfig } from "../../core/@types/AnyConfig";
+
+type AddCommandsThis = ThisParameterType<Required<AnyConfig>["addCommands"]>;
+
+export function addCommands(this: AddCommandsThis) {
   return {
-    removeEmptyTextStyle: () => ({ state, commands }: { state: any; commands: any }) => {
-      return true
+    removeEmptyTextStyle: (): Command => () => {
+      return true;
     },
-  }
+  };
 }

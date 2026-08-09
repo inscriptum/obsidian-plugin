@@ -1,13 +1,24 @@
-export function addCommands() {
+import type { Command } from "../../core/@types";
+import type { AnyConfig } from "../../core/@types/AnyConfig";
+
+type AddCommandsThis = ThisParameterType<Required<AnyConfig>["addCommands"]>;
+
+export function addCommands(this: AddCommandsThis) {
   return {
-    setCode: () => ({ commands }: { commands: any }) => {
-      return commands.setMark('code')
-    },
-    toggleCode: () => ({ commands }: { commands: any }) => {
-      return commands.toggleMark('code')
-    },
-    unsetCode: () => ({ commands }: { commands: any }) => {
-      return commands.unsetMark('code')
-    },
-  }
+    setCode:
+      (): Command =>
+      ({ commands }) => {
+        return commands.setMark("code");
+      },
+    toggleCode:
+      (): Command =>
+      ({ commands }) => {
+        return commands.toggleMark("code");
+      },
+    unsetCode:
+      (): Command =>
+      ({ commands }) => {
+        return commands.unsetMark("code");
+      },
+  };
 }

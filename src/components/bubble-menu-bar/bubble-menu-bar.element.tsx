@@ -1,6 +1,8 @@
 import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
+import type { Instance } from "tippy.js";
 import { Editor, isTextSelection, posToDOMRect } from "../../texto/core";
+import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
 import { getBubbleMenuState, TEXT_COLORS, type BubbleMenuState } from "./bubbleMenuState";
 import { bbIcon } from "./icons";
 
@@ -34,14 +36,19 @@ export const BubbleMenuBarElement = litView.element({
   const root: HTMLElement = this;
   const barEl = () => root.querySelector<HTMLElement>(".bubble-menu-bar")!;
 
+  /** Plugin instances expose a private `key` field holding the PluginKey name. */
+  type KeyedPlugin = { key?: { key?: string } };
+
+  const wiredTippies = new WeakSet<Instance>();
+
   /* ── Access to tippy instance (stored in bubbleMenu plugin state) ── */
-  const getTippy = (): any => {
+  const getTippy = (): Instance | undefined => {
     if (props.editor.isDestroyed) return undefined;
     const es = props.editor.state;
     for (const plugin of es.plugins) {
-      const key = (plugin as any).key;
-      if (key?.key === "bubbleMenu") {
-        return (plugin.getState(es) as any)?.tippy;
+      const key = (plugin as KeyedPlugin).key?.key;
+      if (key === "bubbleMenu") {
+        return (plugin.getState(es) as BubbleMenuPluginState | undefined)?.tippy;
       }
     }
     return undefined;
@@ -229,12 +236,16 @@ export const BubbleMenuBarElement = litView.element({
   /* ── State update from editor events ── */
   const wireTippy = () => {
     const tippy = getTippy();
-    if (tippy && !(tippy as any).__bbWired) {
-      (tippy as any).__bbWired = true;
+    if (tippy && !wiredTippies.has(tippy)) {
+      wiredTippies.add(tippy);
       tippy.setProps({
         // Click outside / hide menu closes open layers
-        onHide: () => closeLayer(),
-        onShow: () => window.requestAnimationFrame(syncCaret),
+        onHide: () => {
+          closeLayer();
+        },
+        onShow: () => {
+          window.requestAnimationFrame(syncCaret);
+        },
       });
     }
   };

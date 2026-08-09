@@ -18,7 +18,7 @@ export const TextStyle = Mark.create<TextStyleOptions>({
       {
         tag: 'span',
         getAttrs: element => {
-          const hasStyles = (element as HTMLElement).hasAttribute('style')
+          const hasStyles = element.hasAttribute('style')
 
           if (!hasStyles) {
             return false

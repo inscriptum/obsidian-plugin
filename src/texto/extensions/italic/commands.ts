@@ -1,13 +1,24 @@
-export function addCommands() {
+import type { Command } from "../../core/@types";
+import type { AnyConfig } from "../../core/@types/AnyConfig";
+
+type AddCommandsThis = ThisParameterType<Required<AnyConfig>["addCommands"]>;
+
+export function addCommands(this: AddCommandsThis) {
   return {
-    setItalic: () => ({ commands }: { commands: any }) => {
-      return commands.setMark('italic')
-    },
-    toggleItalic: () => ({ commands }: { commands: any }) => {
-      return commands.toggleMark('italic')
-    },
-    unsetItalic: () => ({ commands }: { commands: any }) => {
-      return commands.unsetMark('italic')
-    },
-  }
+    setItalic:
+      (): Command =>
+      ({ commands }) => {
+        return commands.setMark("italic");
+      },
+    toggleItalic:
+      (): Command =>
+      ({ commands }) => {
+        return commands.toggleMark("italic");
+      },
+    unsetItalic:
+      (): Command =>
+      ({ commands }) => {
+        return commands.unsetMark("italic");
+      },
+  };
 }

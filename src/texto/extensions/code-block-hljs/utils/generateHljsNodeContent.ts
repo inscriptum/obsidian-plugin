@@ -1,4 +1,4 @@
-import type {Node as ProsemirrorNode, Schema} from 'prosemirror-model';
+import type {Schema} from 'prosemirror-model';
 
 import {findLanguageByCssClass} from './findLanguageByCssClass';
 import {generateHljsNodeJson} from './generateHljsNodeJson';
@@ -16,7 +16,7 @@ export function generateHljsNodeContent(
 			: undefined;
 
 	const codeNodeJson = generateHljsNodeJson(textContent, language);
-	const hljsNode = schema.nodeFromJSON(codeNodeJson) as ProsemirrorNode;
+	const hljsNode = schema.nodeFromJSON(codeNodeJson);
 
 	return hljsNode.content;
 }

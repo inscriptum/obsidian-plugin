@@ -1,15 +1,22 @@
-export function addCommands() {
+import type { Command } from "../../core/@types";
+import type { AnyConfig } from "../../core/@types/AnyConfig";
+
+type AddCommandsThis = ThisParameterType<Required<AnyConfig>["addCommands"]>;
+
+export function addCommands(this: AddCommandsThis) {
   return {
-    setColor: (color: string) => ({ chain }: { chain: any }) => {
-      return chain()
-        .setMark('textStyle', { color })
-        .run()
-    },
-    unsetColor: () => ({ chain }: { chain: any }) => {
-      return chain()
-        .setMark('textStyle', { color: null })
-        .removeEmptyTextStyle()
-        .run()
-    },
-  }
+    setColor:
+      (color: string): Command =>
+      ({ chain }) => {
+        return chain().setMark("textStyle", { color }).run();
+      },
+    unsetColor:
+      (): Command =>
+      ({ chain }) => {
+        return chain()
+          .setMark("textStyle", { color: null })
+          .removeEmptyTextStyle()
+          .run();
+      },
+  };
 }

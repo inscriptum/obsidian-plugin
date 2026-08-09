@@ -16,7 +16,7 @@ export function generateCodeBlockDomElement(codeText: string, language?: Support
 	const codeLineList = hljsResult.value.split('\n');
 
 	let codeRows = '';
-	const preElement = document.createElement('pre');
+	const preElement = createEl('pre');
 
 	const openedTagsReg = /<\w+/gi;
 	const closedTagsReg = /\/\w*>/gi;
@@ -76,7 +76,7 @@ export function generateCodeBlockDomElement(codeText: string, language?: Support
 function parseCodeRows(codeRows: string): DocumentFragment {
 	const parsed = new DOMParser().parseFromString(`<div>${codeRows}</div>`, 'text/html');
 	const rows = parsed.body.firstElementChild;
-	const fragment = document.createDocumentFragment();
+	const fragment = createFragment();
 
 	if (rows) {
 		while (rows.firstChild) {

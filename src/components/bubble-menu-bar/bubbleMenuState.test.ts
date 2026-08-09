@@ -1,17 +1,20 @@
 import { describe, it, expect } from 'vitest';
+import type { Editor } from '../../texto/core';
 import { getBubbleMenuState, TEXT_COLORS } from './bubbleMenuState';
 
 function makeEditor(
   active: Record<string, boolean>,
   attrs: Record<string, Record<string, unknown>> = {},
-) {
+): Pick<Editor, 'isActive' | 'getAttributes'> {
   return {
-    isActive: (name: string, a?: any) => {
+    isActive(name: string, a?: {level?: number}) {
       if (name === 'heading') return active[`heading${a?.level}`] ?? false;
       return active[name] ?? false;
     },
-    getAttributes: (name: string) => attrs[name] ?? {},
-  } as any;
+    getAttributes(name: string) {
+      return attrs[name] ?? {};
+    },
+  };
 }
 
 describe('getBubbleMenuState', () => {

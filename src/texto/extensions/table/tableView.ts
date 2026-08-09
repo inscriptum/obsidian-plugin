@@ -28,7 +28,7 @@ export function updateColumns(
 			}
 
 			if (!nextDOM) {
-				colgroup.appendChild(document.createElement('col')).style.width = cssWidth;
+				colgroup.appendChild(createEl('col')).style.width = cssWidth;
 			} else if (
 				'style' in nextDOM &&
 				typeof nextDOM.style === 'object' &&
@@ -71,12 +71,12 @@ export class TableView implements NodeView {
 	constructor(node: ProseMirrorNode, cellMinWidth: number) {
 		this.node = node;
 		this.cellMinWidth = cellMinWidth;
-		this.dom = document.createElement('div');
+		this.dom = createDiv();
 		this.dom.className = 'table-wrapper';
-		this.table = this.dom.appendChild(document.createElement('table'));
-		this.colgroup = this.table.appendChild(document.createElement('colgroup'));
+		this.table = this.dom.appendChild(createEl('table'));
+		this.colgroup = this.table.appendChild(createEl('colgroup'));
 		updateColumns(node, this.colgroup, this.table, cellMinWidth);
-		this.contentDOM = this.table.appendChild(document.createElement('tbody'));
+		this.contentDOM = this.table.appendChild(createEl('tbody'));
 	}
 
 	update(node: ProseMirrorNode) {

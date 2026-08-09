@@ -123,7 +123,7 @@ export class CommandManager {
 		return {
 			...formattedCommands,
 			chain: () => this.createChain(tr, dispatch),
-		} as CanCommands;
+		};
 	}
 
 	public buildProps(tr: Transaction, shouldDispatch = true): CommandProps {

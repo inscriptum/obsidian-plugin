@@ -4,7 +4,7 @@ import type {Editor} from '..';
 import type {AnyCommands, Extensions, KeyboardShortcutCommand} from '.';
 
 export interface AnyConfig<
-	Options = any,
+	Options = Record<string, unknown>,
 	Storage = any,
 	Config extends Record<any, any> = any,
 	ConfigType = unknown,

@@ -13,7 +13,7 @@ export function getDebugJSON(node: ProseMirrorNode, startOffset = 0): DebugJSONC
 	const from = startOffset;
 	const to = from + node.nodeSize;
 	const marks = node.marks.map((mark) => {
-		const output: {type: string; attrs?: Record<string, any>} = {
+		const output: {type: string; attrs?: Record<string, unknown>} = {
 			type: mark.type.name,
 		};
 

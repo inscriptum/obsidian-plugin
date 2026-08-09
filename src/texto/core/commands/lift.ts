@@ -8,7 +8,7 @@ import {isNodeActive} from '../helpers/isNodeActive';
 /**
  * Removes an existing wrap.
  */
-export function lift(typeOrName: string | NodeType, attributes: Record<string, any> = {}): Command {
+export function lift(typeOrName: string | NodeType, attributes: Record<string, unknown> = {}): Command {
 	return ({state, dispatch}) => {
 		const type = getNodeType(typeOrName, state.schema);
 		const isActive = isNodeActive(state, type, attributes);

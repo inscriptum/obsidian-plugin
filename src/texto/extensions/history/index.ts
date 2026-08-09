@@ -5,7 +5,7 @@ export default History
 
 declare global {
   interface Commands {
-    undo: () => any
-    redo: () => any
+    undo: () => boolean
+    redo: () => boolean
   }
 }
