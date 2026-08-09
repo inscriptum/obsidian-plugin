@@ -31,6 +31,21 @@ jobs:
         run: |
           [ -f styles.css ] && echo "exists=true" >> "$GITHUB_OUTPUT" || echo "exists=false" >> "$GITHUB_OUTPUT"
 
+      - name: Extract changelog notes
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          ver="${tag#v}"
+          esc="${ver//./\\.}"
+          awk -v v="$esc" '
+            $0 ~ "^## \\[" v "\\]" { found=1 }
+            found && /^## / && $0 !~ "^## \\[" v "\\]" { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if [ ! -s release-notes.md ]; then
+            echo "::error::No CHANGELOG section for tag $tag in CHANGELOG.md (expected header: ## [$ver])"
+            exit 1
+          fi
+
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -39,5 +54,5 @@ jobs:
 
           gh release create "$tag" \
             --title="$tag" \
-            --draft \
+            --notes-file release-notes.md \
             main.js manifest.json ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}

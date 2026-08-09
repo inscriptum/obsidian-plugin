@@ -102,9 +102,11 @@ npm version patch
 git push --follow-tags
 ```
 
-The workflow builds the plugin and creates a draft GitHub release.
+The workflow builds the plugin, takes the release notes for the new version
+from [CHANGELOG.md](CHANGELOG.md), and publishes the release automatically.
 
-Publish the draft release once the build finishes.
+Before pushing the tag, add a `## [x.y.z]` section to CHANGELOG.md describing
+the changes — the release will be created only if that section exists.
 
 ## License
 
