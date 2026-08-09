@@ -100,7 +100,7 @@ export class BubbleMenuView implements PluginView {
 		this.tippyOptions = tippyOptions;
 		// Detaches menu content from its current parent
 		this.element.remove();
-		this.element.style.visibility = 'visible';
+		this.element.classList.add('is-visible');
 	}
 
 	mousedownHandler = () => {

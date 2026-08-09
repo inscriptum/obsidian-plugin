@@ -36,6 +36,16 @@ export class Notice {
   constructor(_message: string) {}
 }
 
+export const Platform = {
+  isDesktop: true,
+  isMobile: false,
+  isMacOS: false,
+  isIosApp: false,
+  isAndroidApp: false,
+  isWin: false,
+  isLinux: false,
+};
+
 export class Plugin {
   app: any;
   loadData(): Promise<any> {

@@ -27,10 +27,6 @@ export default class NotesPlugin extends Plugin {
     });
   }
 
-  onunload(): void {
-    this.app.workspace.detachLeavesOfType(NOTE_VIEW_TYPE);
-  }
-
   private createNewNote(): void {
     new NewNoteModal(this.app, async (name) => {
       if (!name) return;

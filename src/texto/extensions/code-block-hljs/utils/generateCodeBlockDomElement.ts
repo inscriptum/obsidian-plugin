@@ -64,9 +64,27 @@ export function generateCodeBlockDomElement(codeText: string, language?: Support
 		}
 	}
 
-	preElement.innerHTML = codeRows;
+	preElement.appendChild(parseCodeRows(codeRows));
 
 	return preElement;
+}
+
+/**
+ * Parses the highlight.js-generated HTML into DOM nodes without using
+ * `innerHTML` (trusted input — highlight.js escapes the code text).
+ */
+function parseCodeRows(codeRows: string): DocumentFragment {
+	const parsed = new DOMParser().parseFromString(`<div>${codeRows}</div>`, 'text/html');
+	const rows = parsed.body.firstElementChild;
+	const fragment = document.createDocumentFragment();
+
+	if (rows) {
+		while (rows.firstChild) {
+			fragment.appendChild(rows.firstChild);
+		}
+	}
+
+	return fragment;
 }
 
 function createNewCodeRow(lines: string[]) {

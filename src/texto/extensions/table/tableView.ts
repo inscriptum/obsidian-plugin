@@ -53,9 +53,9 @@ export function updateColumns(
 
 	if (fixedWidth) {
 		table.style.width = `${totalWidth}px`;
-		table.style.minWidth = '';
+		table.style.removeProperty('min-width');
 	} else {
-		table.style.width = '';
+		table.style.removeProperty('width');
 		table.style.minWidth = `${totalWidth}px`;
 	}
 }
