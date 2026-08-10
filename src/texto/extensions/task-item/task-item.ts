@@ -1,4 +1,5 @@
 import {isFunction, mergeAttributes, Node, wrappingInputRule} from '../../core';
+import {elTag} from '../../../tags';
 import type {KeyboardShortcutCommand} from '../../core/@types/index';
 import {ignoreMutationIOS} from '../../core/helpers';
 import type {Node as ProseMirrorNode} from 'prosemirror-model';
@@ -18,7 +19,9 @@ export interface TaskItemOptions {
 
 export const inputRegex = /^\s*(\[([( |x])?])\s$/;
 
-export const VIEW_TAG = 'texto-extension-task-item';
+export const VIEW_TAG = elTag('texto-extension-task-item');
+/** Static tag used in HTML serialization (clipboard/export) — stays version-independent. */
+export const HTML_TAG = 'texto-extension-task-item';
 export const ItemElement = itemElement(VIEW_TAG);
 
 export const TaskItem = Node.create<TaskItemOptions>({
@@ -117,6 +120,7 @@ export const TaskItem = Node.create<TaskItemOptions>({
 
 	addNodeView() {
 		const element = new ItemElement();
+		element.classList.add('texto-extension-task-item-host');
 		const contentEl = createDiv();
 		contentEl.classList.add('content');
 

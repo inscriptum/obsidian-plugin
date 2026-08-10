@@ -1,6 +1,7 @@
 import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
 import { Editor } from "../../texto/core";
+import { elTag } from "../../tags";
 import { createRef, Ref, ref } from "lit-html/directives/ref.js";
 
 export const NoteElement = litView.element({
@@ -82,4 +83,4 @@ export const NoteElement = litView.element({
       props.editor.destroy();
     }
   }
-})("texto-editor");
+})(elTag("texto-editor"));

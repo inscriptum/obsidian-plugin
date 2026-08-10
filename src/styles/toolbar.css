@@ -10,7 +10,7 @@
    otherwise buttons get --interactive-normal fill and --input-shadow
    ("raised buttons"). */
 
-note-toolbar {
+.note-toolbar-host {
   display: block;
   flex-shrink: 0;
   position: sticky;

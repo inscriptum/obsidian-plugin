@@ -1,4 +1,5 @@
 import {isFunction, mergeAttributes, Node} from '../../core';
+import {elTag} from '../../../tags';
 import {
 	type NodeStatePluginAction,
 	getTransactionsMetadata,
@@ -51,7 +52,9 @@ export interface ImageOptions {
 	hooks?: ImageOptionsHooks;
 }
 
-export const VIEW_TAG = 'texto-extension-image';
+export const VIEW_TAG = elTag('texto-extension-image');
+/** Static tag used in HTML serialization (clipboard/export) — stays version-independent. */
+export const HTML_TAG = 'texto-extension-image';
 export const ImageElement = imageElement(VIEW_TAG);
 export type ImageElementPublicProps = Omit<
 	InstanceType<typeof ImageElement>['props'],
@@ -91,7 +94,7 @@ export const Image = Node.create<ImageOptions>({
 			data: {
 				default: null,
 				parseHTML: (element: HTMLElement) => {
-					if (element.tagName === VIEW_TAG.toUpperCase()) {
+					if (element.tagName === HTML_TAG.toUpperCase()) {
 						return {
 							id: element.dataset['id'], // 'data-id' is a main property, if it's undefined the attributes consider as invalid
 							size: element.dataset['size'],
@@ -118,13 +121,13 @@ export const Image = Node.create<ImageOptions>({
 		delete attrs.state;
 		delete attrs.key;
 
-		return [VIEW_TAG, attrs];
+		return [HTML_TAG, attrs];
 	},
 
 	parseHTML() {
 		return [
 			{
-				tag: VIEW_TAG,
+				tag: HTML_TAG,
 			},
 		];
 	},
@@ -296,6 +299,7 @@ export const Image = Node.create<ImageOptions>({
 
 	addNodeView() {
 		const element = new ImageElement();
+		element.addClass('texto-extension-image-host');
 
 		return ({node, getPos, editor}) => {
 			if (!isFunction(getPos)) {

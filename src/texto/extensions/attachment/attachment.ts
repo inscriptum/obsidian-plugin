@@ -1,4 +1,5 @@
 import {isFunction, mergeAttributes, Node} from '../../core';
+import {elTag} from '../../../tags';
 import {Plugin} from 'prosemirror-state';
 
 import {addAttachmentCommands} from './commands';
@@ -42,7 +43,9 @@ export interface AttachmentOptions {
 	hooks?: AttachmentOptionsHooks;
 }
 
-export const VIEW_TAG = 'texto-extension-attachment';
+export const VIEW_TAG = elTag('texto-extension-attachment');
+/** Static tag used in HTML serialization (clipboard/export) — stays version-independent. */
+export const HTML_TAG = 'texto-extension-attachment';
 const AttachmentElement = attachmentElement(VIEW_TAG);
 
 export type AttachmentElementType = InstanceType<typeof AttachmentElement>;
@@ -98,13 +101,13 @@ export const Attachment = Node.create<AttachmentOptions>({
 		const attrs = mergeAttributes(this.options.attributes, HTMLAttributes);
 		delete attrs.state;
 
-		return [VIEW_TAG, attrs];
+		return [HTML_TAG, attrs];
 	},
 
 	parseHTML() {
 		return [
 			{
-				tag: VIEW_TAG,
+				tag: HTML_TAG,
 			},
 		];
 	},

@@ -1,4 +1,5 @@
 import {type Editor, isFunction, isNodeEmpty, isString, Node} from '../../core';
+import {elTag} from '../../../tags';
 import {Slice} from 'prosemirror-model';
 import {Plugin, TextSelection} from 'prosemirror-state';
 
@@ -27,7 +28,7 @@ export interface HljsCodeBlockOptions {
 		  };
 }
 
-const CodeBlockSelectLangElement = codeBlockSelectLangElement('code-block-select-lang');
+const CodeBlockSelectLangElement = codeBlockSelectLangElement(elTag('code-block-select-lang'));
 
 const backtickInputRegex = /^```(?<class>[a-z]*)? $/;
 const tildeInputRegex = /^~~~(?<class>[a-z]*)? $/;

@@ -5,7 +5,7 @@
   "license": "MIT",
   "main": "main.js",
   "scripts": {
-    "dev": "vite build --watch",
+    "dev": "vite build --watch --mode development",
     "build": "vite build",
     "deploy": "cp dist/main.js manifest.json dist/styles.css .obsidian/plugins/inscriptum/",
     "test": "vitest run",

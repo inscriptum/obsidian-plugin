@@ -2,6 +2,7 @@ import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
 import type { Instance } from "tippy.js";
 import { Editor, isTextSelection, posToDOMRect } from "../../texto/core";
+import { elTag } from "../../tags";
 import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
 import { getBubbleMenuState, TEXT_COLORS, type BubbleMenuState } from "./bubbleMenuState";
 import { bbIcon } from "./icons";
@@ -524,4 +525,4 @@ export const BubbleMenuBarElement = litView.element({
     props.editor.off("update", refreshState);
     document.removeEventListener("keydown", onKeydown);
   }
-})("bubble-menu-bar");
+})(elTag("bubble-menu-bar"));

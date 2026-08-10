@@ -90,8 +90,11 @@ export class NoteView extends FileView {
 
     const content = await readNote(file, this.app.vault);
     const noteEl = new NoteElement();
+    noteEl.addClass("texto-editor-host");
     const toolbarEl = new ToolbarElement();
+    toolbarEl.addClass("note-toolbar-host");
     const bubbleMenuBarEl = new BubbleMenuBarElement();
+    bubbleMenuBarEl.addClass("bubble-menu-bar-host");
     const tableBubbleMenuEl = new TableBubbleMenuElement();
 
     window.requestAnimationFrame(() => {

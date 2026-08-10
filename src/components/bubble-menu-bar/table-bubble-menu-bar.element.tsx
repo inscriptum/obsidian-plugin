@@ -2,6 +2,7 @@ import type { Instance } from "tippy.js";
 import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
 import { Editor, posToDOMRect } from "../../texto/core";
+import { elTag } from "../../tags";
 import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
 import { bgHexToAttr, getTableMenuState, TABLE_FILLS, type TableMenuState } from "./tableMenuState";
 import { TEXT_COLORS } from "./bubbleMenuState";
@@ -346,4 +347,4 @@ export const TableBubbleMenuElement = litView.element({
     props.editor.off("update", refreshState);
     document.removeEventListener("keydown", onKeydown);
   }
-})("table-bubble-menu-bar");
+})(elTag("table-bubble-menu-bar"));

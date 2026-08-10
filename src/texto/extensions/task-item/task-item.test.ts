@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Editor } from '../../core/Editor';
 import { getExtensions } from '../../getExtensions';
+import { VIEW_TAG } from './task-item';
 
 function contentWithTaskItem(checked: boolean) {
   return {
@@ -32,7 +33,7 @@ function renderTaskItem(checked: boolean) {
     editable: true,
   });
 
-  const item = el.querySelector('texto-extension-task-item');
+  const item = el.querySelector(VIEW_TAG);
 
   return {
     item,

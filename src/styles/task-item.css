@@ -7,7 +7,7 @@ ul.chk,
 	padding-left: 0;
 }
 
-texto-extension-task-item {
+.texto-extension-task-item-host {
 	input {
 		pointer-events: none;
 	}
@@ -22,14 +22,16 @@ texto-extension-task-item {
 	}
 
 	& .visually-hidden {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		margin: -1px;
-		padding: 0;
-		overflow: hidden;
-		border: 0;
-		clip: rect(0 0 0 0);
+		position: absolute !important;
+		width: 1px !important;
+		height: 1px !important;
+		margin: -1px !important;
+		padding: 0 !important;
+		overflow: hidden !important;
+		border: 0 !important;
+		clip: rect(0 0 0 0) !important;
+		appearance: none !important;
+		-webkit-appearance: none !important;
 	}
 
 	/* Checked state text strikethrough matching .chk li.on */
@@ -43,14 +45,14 @@ texto-extension-task-item {
 }
 
 /* Light theme adjustments matching typography-v2.html .theme-light .note .chk */
-.theme-light texto-extension-task-item[data-checked="true"] .content {
+.theme-light .texto-extension-task-item-host[data-checked="true"] .content {
 	color: #8f8f99;
 	text-decoration-color: rgba(143, 143, 153, .5);
 }
 
 /* ─── Custom SVG checkboxes (checkboxIconLinks) ───
    Icon shape/size matches typography-v2.html .chk .box (16×16, radius 4.5px) ─── */
-texto-extension-task-item .custom-icon {
+.texto-extension-task-item-host .custom-icon {
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -61,22 +63,22 @@ texto-extension-task-item .custom-icon {
 	transition: color 150ms ease;
 }
 
-texto-extension-task-item .custom-icon svg {
+.texto-extension-task-item-host .custom-icon svg {
 	width: 16px;
 	height: 16px;
 	display: block;
 }
 
 /* Checked item — accent icon (checkmark), box background/border are baked into the SVG */
-texto-extension-task-item[data-checked="true"] .custom-icon {
+.texto-extension-task-item-host[data-checked="true"] .custom-icon {
 	color: var(--accent-2, #b3a3f7);
 }
 
 /* Light theme for custom icons */
-.theme-light texto-extension-task-item .custom-icon {
+.theme-light .texto-extension-task-item-host .custom-icon {
 	color: #c9c9d2;
 }
 
-.theme-light texto-extension-task-item[data-checked="true"] .custom-icon {
+.theme-light .texto-extension-task-item-host[data-checked="true"] .custom-icon {
 	color: var(--accent-2, #b3a3f7);
 }

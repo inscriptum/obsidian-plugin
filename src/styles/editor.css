@@ -9,14 +9,16 @@
 
 /* Hidden container for SVG checkbox icons (see note.element.tsx) */
 .visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  margin: -1px;
-  padding: 0;
-  overflow: hidden;
-  border: 0;
-  clip: rect(0 0 0 0);
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  clip: rect(0 0 0 0) !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
 }
 
 /* contentEl FileView — this is Obsidian's .view-content, which by default
@@ -33,11 +35,11 @@
 /* note-toolbar host — flex element, pinned to the top (see toolbar.css).
    texto-editor host — flex element with min-height:0 so the editor
    scrolls inside instead of being clipped by the container. */
-note-toolbar {
+.note-toolbar-host {
   flex-shrink: 0;
 }
 
-texto-editor {
+.texto-editor-host {
   flex: 1;
   min-height: 0;
   display: flex;
@@ -45,7 +47,7 @@ texto-editor {
   overflow: hidden;
 }
 
-texto-editor .note {
+.texto-editor-host .note {
   flex: 1;
   min-height: 0;
   display: flex;

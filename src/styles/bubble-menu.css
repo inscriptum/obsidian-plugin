@@ -7,26 +7,26 @@
    ───────────────────────────────────────────────────────────── */
 
 /* bubble-menu-bar host — block so tippy measures it correctly */
-bubble-menu-bar {
+.bubble-menu-bar-host {
   display: block;
 }
 
 /* The menu content is detached from its previous parent before being re-attached
 to a new tippy instance; force it visible so a stale hidden state (if any) can
 never keep the menu invisible. */
-bubble-menu-bar.is-visible {
+.bubble-menu-bar-host.is-visible {
   visibility: visible;
 }
 
 /* tippy: remove default background and padding around menu content.
    :has() scopes only to our element, not touching Obsidian tippy-tooltips. */
-.tippy-box:has(> .tippy-content > bubble-menu-bar) {
+.tippy-box:has(> .tippy-content > .bubble-menu-bar-host) {
   background: transparent;
   color: inherit;
   border-radius: 0;
   box-shadow: none;
 }
-.tippy-content:has(> bubble-menu-bar) {
+.tippy-content:has(> .bubble-menu-bar-host) {
   padding: 0;
 }
 

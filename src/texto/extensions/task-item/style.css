@@ -1,4 +1,4 @@
-texto-extension-task-item {
+.texto-extension-task-item-host {
 	input {
 		pointer-events: none;
 	}
@@ -13,13 +13,15 @@ texto-extension-task-item {
 	}
 
 	& .visually-hidden {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		margin: -1px;
-		padding: 0;
-		overflow: hidden;
-		border: 0;
-		clip: rect(0 0 0 0);
+		position: absolute !important;
+		width: 1px !important;
+		height: 1px !important;
+		margin: -1px !important;
+		padding: 0 !important;
+		overflow: hidden !important;
+		border: 0 !important;
+		clip: rect(0 0 0 0) !important;
+		appearance: none !important;
+		-webkit-appearance: none !important;
 	}
 }

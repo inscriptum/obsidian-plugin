@@ -120,12 +120,12 @@ img.ProseMirror-separator {
 	padding: 0;
 }
 
-.ProseMirror ul[data-type='taskList'] texto-extension-task-item {
+.ProseMirror ul[data-type='taskList'] .texto-extension-task-item-host {
 	display: flex;
 	align-items: flex-start;
 }
 
-.ProseMirror ul[data-type='taskList'] texto-extension-task-item > label {
+.ProseMirror ul[data-type='taskList'] .texto-extension-task-item-host > label {
 	flex: 0 0 auto;
 	/* Matches typography-v2.html .chk: box 16px + li padding-left 34px = 18px gap to text */
 	margin-right: 18px;
@@ -138,6 +138,6 @@ img.ProseMirror-separator {
 	align-items: center;
 }
 
-.ProseMirror ul[data-type='taskList'] texto-extension-task-item > div {
+.ProseMirror ul[data-type='taskList'] .texto-extension-task-item-host > div {
 	flex: 1 1 auto;
 }

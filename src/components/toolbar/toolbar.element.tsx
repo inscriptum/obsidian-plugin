@@ -1,6 +1,7 @@
 import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
 import { Editor } from "../../texto/core";
+import { elTag } from "../../tags";
 import { getToolbarState, type ToolbarState } from "./toolbarState";
 import { toolbarIcon, type IconFn } from "./icons";
 
@@ -172,4 +173,4 @@ export const ToolbarElement = litView.element({
       window.clearTimeout(saveTimer);
     }
   }
-})("note-toolbar");
+})(elTag("note-toolbar"));
