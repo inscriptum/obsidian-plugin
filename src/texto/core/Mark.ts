@@ -1,18 +1,24 @@
 import type {AnyConfig} from './@types/AnyConfig';
+import type {AnyRecord} from './@types';
 import type {MarkConfig} from './@types/MarkConfig';
 import type {Editor} from './Editor';
 import {getExtensionField} from './helpers/getExtensionField';
 import {callOrReturn} from './utilities/callOrReturn';
 import {mergeDeep} from './utilities/mergeDeep';
 
-export class Mark<Options extends Record<string, any> = any, Storage = any> {
+// Options/Storage default to `any` for covariance (Mark<CustomOptions> must stay assignable to Mark)
+/* eslint-disable @typescript-eslint/no-explicit-any -- deliberate covariance for extension generic parameters */
+export class Mark<
+	Options extends AnyRecord = any,
+	Storage extends AnyRecord = any,
+> {
 	type = 'mark';
 
 	name = 'mark';
 
-	parent: Mark | null = null;
+	parent: Mark<any, any> | null = null;
 
-	child: Mark | null = null;
+	child: Mark<any, any> | null = null;
 
 	options: Options = {} as Options;
 
@@ -35,9 +41,10 @@ export class Mark<Options extends Record<string, any> = any, Storage = any> {
 				getExtensionField<AnyConfig['addOptions']>(this, 'addOptions', {
 					name: this.name,
 				}),
-			);
+			) as Options;
 		}
 
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- addStorage returns Storage (default `any`) via dynamic getExtensionField
 		this.storage =
 			callOrReturn(
 				getExtensionField<AnyConfig['addStorage']>(this, 'addStorage', {
@@ -47,7 +54,9 @@ export class Mark<Options extends Record<string, any> = any, Storage = any> {
 			) || {};
 	}
 
-	static create<O extends Record<string, any> = any, S = any>(config: Partial<MarkConfig<O, S>> = {}) {
+	static create<O extends AnyRecord = any, S extends AnyRecord = any>(
+		config: Partial<MarkConfig<O, S>> = {},
+	) {
 		return new Mark<O, S>(config);
 	}
 
@@ -58,6 +67,7 @@ export class Mark<Options extends Record<string, any> = any, Storage = any> {
 
 		extension.options = mergeDeep(this.options, options) as Options;
 
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- addStorage returns Storage (default `any`) via dynamic getExtensionField
 		extension.storage = callOrReturn(
 			getExtensionField<AnyConfig['addStorage']>(extension, 'addStorage', {
 				name: extension.name,
@@ -68,7 +78,10 @@ export class Mark<Options extends Record<string, any> = any, Storage = any> {
 		return extension;
 	}
 
-	extend<ExtendedOptions extends Record<string, any> = Options, ExtendedStorage = Storage>(
+	extend<
+		ExtendedOptions extends AnyRecord = Options,
+		ExtendedStorage extends AnyRecord = Storage,
+	>(
 		extendedConfig: Partial<MarkConfig<ExtendedOptions, ExtendedStorage>> = {},
 	) {
 		const extension = new Mark<ExtendedOptions, ExtendedStorage>(extendedConfig);
@@ -77,13 +90,13 @@ export class Mark<Options extends Record<string, any> = any, Storage = any> {
 
 		this.child = extension;
 
-		extension.name = extendedConfig.name ? extendedConfig.name : extension.parent.name;
+		extension.name = extendedConfig.name ? extendedConfig.name : extension.parent?.name ?? extension.name;
 
 		extension.options = callOrReturn(
 			getExtensionField<MarkConfig['addOptions']>(extension, 'addOptions', {
 				name: extension.name,
 			}),
-		);
+		) as ExtendedOptions;
 
 		extension.storage = callOrReturn(
 			getExtensionField<MarkConfig['addStorage']>(extension, 'addStorage', {
@@ -123,3 +136,4 @@ export class Mark<Options extends Record<string, any> = any, Storage = any> {
 		return false;
 	}
 }
+/* eslint-enable @typescript-eslint/no-explicit-any -- end: covariance defaults */

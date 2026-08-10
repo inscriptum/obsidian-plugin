@@ -1,4 +1,5 @@
 import {Mark, markPasteRule, mergeAttributes} from '../../core';
+import type { ExtendedRegExpMatchArray } from '../../core/@types';
 import {find, registerCustomProtocol, reset} from 'linkifyjs';
 import type {Plugin} from 'prosemirror-state';
 
@@ -9,6 +10,13 @@ import {pasteHandler} from './helpers/pasteHandler';
 export interface LinkProtocolOptions {
 	scheme: string;
 	optionalSlashes?: boolean;
+}
+
+export interface LinkHTMLAttributes {
+  target?: string | null;
+  rel?: string | null;
+  class?: string | null;
+  [key: string]: unknown;
 }
 
 export interface LinkOptions {
@@ -31,7 +39,7 @@ export interface LinkOptions {
 	/**
 	 * A list of HTML attributes to be rendered.
 	 */
-	HTMLAttributes: Record<string, any>;
+	HTMLAttributes: LinkHTMLAttributes;
 	/**
 	 * A validation function that modifies link verification for the auto linker.
 	 * @param url - The url to be validated.
@@ -47,14 +55,14 @@ declare global {
 			target?: string | null;
 			rel?: string | null;
 			class?: string | null;
-		}) => any
+		}) => boolean
 		toggleLink: (attributes: {
 			href: string;
 			target?: string | null;
 			rel?: string | null;
 			class?: string | null;
-		}) => any
-		unsetLink: () => any
+		}) => boolean
+		unsetLink: () => boolean
 	}
 }
 
@@ -137,13 +145,13 @@ export const Link = Mark.create<LinkOptions>({
 	addCommands() {
 		return {
 			setLink:
-				(attributes) =>
+				(attributes: LinkHTMLAttributes) =>
 				({chain}) => {
 					return chain().setMark(this.name, attributes).setMeta('preventAutolink', true).run();
 				},
 
 			toggleLink:
-				(attributes) =>
+				(attributes: LinkHTMLAttributes) =>
 				({chain}) => {
 					return chain()
 						.toggleMark(this.name, attributes, {extendEmptyMarkRange: true})
@@ -183,7 +191,7 @@ export const Link = Mark.create<LinkOptions>({
 							data: link,
 						})),
 				type: this.type,
-				getAttributes: (match: any, pasteEvent: any) => {
+				getAttributes: (match: ExtendedRegExpMatchArray, pasteEvent: ClipboardEvent) => {
 					const html = pasteEvent?.clipboardData?.getData('text/html');
 					const hrefRegex = /href="([^"]*)"/;
 
@@ -196,7 +204,7 @@ export const Link = Mark.create<LinkOptions>({
 					}
 
 					return {
-						href: match.data?.href,
+						href: match.data?.href as string | undefined,
 					};
 				},
 			}),

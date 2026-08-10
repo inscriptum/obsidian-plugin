@@ -1,9 +1,10 @@
 import type {Node, NodeType} from 'prosemirror-model';
 import type {EditorState} from 'prosemirror-state';
 
+import type {AnyRecord} from '../@types';
 import {getNodeType} from './getNodeType';
 
-export function getNodeAttributes(state: EditorState, typeOrName: string | NodeType): Record<string, any> {
+export function getNodeAttributes(state: EditorState, typeOrName: string | NodeType): AnyRecord {
 	const type = getNodeType(typeOrName, state.schema);
 	const {from, to} = state.selection;
 	const nodes: Node[] = [];

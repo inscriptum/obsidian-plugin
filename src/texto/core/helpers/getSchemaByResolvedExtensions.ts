@@ -1,7 +1,7 @@
 import {type MarkSpec, type NodeSpec, Schema} from 'prosemirror-model';
 
-import type {Extensions} from '../@types';
-import type {AnyConfig} from '../@types/AnyConfig';
+import type {AnyExtension, AnyRecord, Extensions} from '../@types';
+import type {AnyObject} from '../@types/AnyConfig';
 import type {MarkConfig} from '../@types/MarkConfig';
 import type {NodeConfig} from '../@types/NodeConfig';
 import {callOrReturn} from '../utilities/callOrReturn';
@@ -12,10 +12,13 @@ import {getRenderedAttributes} from './getRenderedAttributes';
 import {injectExtensionAttributesToParseRule} from './injectExtensionAttributesToParseRule';
 import {splitExtensions} from './splitExtensions';
 
-function cleanUpSchemaItem<T extends object>(data: T) {
+type ExtendNodeSchema = ((extension: AnyExtension) => AnyRecord) | null;
+type ExtendMarkSchema = ((extension: AnyExtension) => AnyRecord) | null;
+
+function cleanUpSchemaItem<T extends AnyObject>(data: T) {
 	return Object.fromEntries(
 		Object.entries(data).filter(([key, value]) => {
-			if (key === 'attrs' && isEmptyObject(value)) {
+			if (key === 'attrs' && isEmptyObject(value as AnyRecord)) {
 				return false;
 			}
 
@@ -36,12 +39,12 @@ export function getSchemaByResolvedExtensions(extensions: Extensions): Schema {
 			);
 			const context = {
 				name: extension.name,
-				options: extension.options,
-				storage: extension.storage,
+				options: extension.options as AnyRecord,
+				storage: extension.storage as AnyRecord,
 			};
 
 			const extraNodeFields = extensions.reduce((fields, e) => {
-				const extendNodeSchema = getExtensionField<AnyConfig['extendNodeSchema']>(
+				const extendNodeSchema = getExtensionField<ExtendNodeSchema>(
 					e,
 					'extendNodeSchema',
 					context,
@@ -77,7 +80,7 @@ export function getSchemaByResolvedExtensions(extensions: Extensions): Schema {
 				),
 				attrs: Object.fromEntries(
 					extensionAttributes.map((extensionAttribute) => {
-						return [extensionAttribute.name, {default: extensionAttribute?.attribute?.default}];
+						return [extensionAttribute.name, {default: extensionAttribute?.attribute?.default as unknown}];
 					}),
 				),
 			});
@@ -119,12 +122,12 @@ export function getSchemaByResolvedExtensions(extensions: Extensions): Schema {
 			);
 			const context = {
 				name: extension.name,
-				options: extension.options,
-				storage: extension.storage,
+				options: extension.options as AnyRecord,
+				storage: extension.storage as AnyRecord,
 			};
 
 			const extraMarkFields = extensions.reduce((fields, e) => {
-				const extendMarkSchema = getExtensionField<AnyConfig['extendMarkSchema']>(
+				const extendMarkSchema = getExtensionField<ExtendMarkSchema>(
 					e,
 					'extendMarkSchema',
 					context,
@@ -151,7 +154,7 @@ export function getSchemaByResolvedExtensions(extensions: Extensions): Schema {
 				code: callOrReturn(getExtensionField<MarkConfig['code']>(extension, 'code', context)),
 				attrs: Object.fromEntries(
 					extensionAttributes.map((extensionAttribute) => {
-						return [extensionAttribute.name, {default: extensionAttribute?.attribute?.default}];
+						return [extensionAttribute.name, {default: extensionAttribute?.attribute?.default as unknown}];
 					}),
 				),
 			});

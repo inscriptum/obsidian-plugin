@@ -1,7 +1,9 @@
 import { mergeAttributes, Node, wrappingInputRule } from '../../core'
+import type { AnyRecord } from '../../core/@types'
+import { addCommands } from './commands'
 
 export interface BlockquoteOptions {
-  HTMLAttributes: Record<string, any>
+  HTMLAttributes: AnyRecord
 }
 
 declare module '../../core' {
@@ -41,19 +43,7 @@ export const Blockquote = Node.create<BlockquoteOptions>({
     return ['blockquote', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
   },
 
-  addCommands() {
-    return {
-      setBlockquote: () => ({ commands }) => {
-        return commands.wrapIn(this.name)
-      },
-      toggleBlockquote: () => ({ commands }) => {
-        return commands.toggleWrap(this.name)
-      },
-      unsetBlockquote: () => ({ commands }) => {
-        return commands.lift(this.name)
-      },
-    }
-  },
+  addCommands,
 
   addKeyboardShortcuts() {
     return {

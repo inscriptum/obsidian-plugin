@@ -1,8 +1,9 @@
 import {Node} from '../../core';
 import {mergeAttributes} from '../../core/utilities';
+import type { AnyRecord } from '../../core/@types';
 
 export interface TitleOptions {
-	HTMLAttributes: Record<string, any>;
+	HTMLAttributes: AnyRecord;
 }
 
 export const NoteTitle = Node.create<TitleOptions>({

@@ -21,13 +21,14 @@ export const TableBubbleMenuElement = litView.element({
   let openLayer: OpenLayer = null;
   let lastSelKey = "";
 
+  // eslint-disable-next-line @typescript-eslint/no-this-alias -- generator component: needs external this reference for rAF/handlers
   const root: HTMLElement = this;
   const barEl = () => root.querySelector<HTMLElement>(".bubble-menu-bar")!;
 
   const closeLayer = () => {
     if (openLayer) {
       openLayer = null;
-      this.next();
+      void this.next();
     }
   };
 
@@ -70,7 +71,7 @@ export const TableBubbleMenuElement = litView.element({
       return;
     }
     openLayer = "table-color";
-    this.next().then(() => {
+    void this.next().then(() => {
       window.requestAnimationFrame(() => {
         placeLayerCaret(".bubble-menu-layer--table-color", '[data-tbl="color"]');
         placeLayerDirection(".bubble-menu-layer--table-color");
@@ -181,7 +182,7 @@ export const TableBubbleMenuElement = litView.element({
     if (selKey !== lastSelKey) openLayer = null;
     lastSelKey = selKey;
     wireTippy();
-    this.next();
+    void this.next();
     window.requestAnimationFrame(syncCaret);
   };
 

@@ -1,6 +1,6 @@
 import type {NodeType} from 'prosemirror-model';
 
-import type {Command} from '../@types';
+import type {AnyRecord, Command} from '../@types';
 import {getNodeType} from '../helpers/getNodeType';
 import {isNodeActive} from '../helpers/isNodeActive';
 
@@ -10,7 +10,7 @@ import {isNodeActive} from '../helpers/isNodeActive';
 export function toggleNode(
 	typeOrName: string | NodeType,
 	toggleTypeOrName: string | NodeType,
-	attributes: Record<string, any> = {},
+	attributes: AnyRecord = {},
 ): Command {
 	return ({state, commands}) => {
 		const type = getNodeType(typeOrName, state.schema);

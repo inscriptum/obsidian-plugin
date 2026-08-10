@@ -25,7 +25,7 @@ export const State = new Extension<StateOptions>({
 				attributes: {
 					key: {
 						default: null,
-						renderHTML: (attributes) => ({
+						renderHTML: (attributes: { key?: string | null }) => ({
 							key: attributes.key,
 						}),
 						parseHTML: (element) => element.getAttribute('key'),

@@ -1,6 +1,6 @@
 import type {Node as ProseMirrorNode} from 'prosemirror-model';
 import {NodeSelection} from 'prosemirror-state';
-import type {Decoration, NodeView as ProseMirrorNodeView} from 'prosemirror-view';
+import type {Decoration, NodeView as ProseMirrorNodeView, ViewMutationRecord} from 'prosemirror-view';
 
 import type {NodeViewRendererOptions, NodeViewRendererProps} from './@types';
 import type {Editor as CoreEditor} from './Editor';
@@ -25,7 +25,7 @@ export class NodeView<
 
 	decorations: Decoration[];
 
-	getPos: any;
+	getPos: (() => number) | boolean;
 
 	isDragging = false;
 
@@ -42,6 +42,10 @@ export class NodeView<
 		this.decorations = props.decorations;
 		this.getPos = props.getPos;
 		this.mount();
+	}
+
+	private getPosition(): number {
+		return typeof this.getPos === 'function' ? this.getPos() : 0;
 	}
 
 	mount() {
@@ -81,8 +85,8 @@ export class NodeView<
 			const handleBox = dragHandle.getBoundingClientRect();
 
 			// In React, we have to go through nativeEvent to reach offsetX/offsetY.
-			const offsetX = event.offsetX ?? (event as any).nativeEvent?.offsetX;
-			const offsetY = event.offsetY ?? (event as any).nativeEvent?.offsetY;
+			const offsetX = event.offsetX ?? (event as DragEvent & {nativeEvent?: DragEvent}).nativeEvent?.offsetX;
+			const offsetY = event.offsetY ?? (event as DragEvent & {nativeEvent?: DragEvent}).nativeEvent?.offsetY;
 
 			x = handleBox.x - domBox.x + offsetX;
 			y = handleBox.y - domBox.y + offsetY;
@@ -92,7 +96,7 @@ export class NodeView<
 
 		// we need to tell ProseMirror that we want to move the whole node
 		// so we create a NodeSelection
-		const selection = NodeSelection.create(view.state.doc, this.getPos());
+		const selection = NodeSelection.create(view.state.doc, this.getPosition());
 		const transaction = view.state.tr.setSelection(selection);
 
 		view.dispatch(transaction);
@@ -188,7 +192,7 @@ export class NodeView<
 		return true;
 	}
 
-	ignoreMutation(mutation: any) {
+	ignoreMutation(mutation: ViewMutationRecord) {
 		if (!this.dom || !this.contentDOM) {
 			return true;
 		}
@@ -230,7 +234,7 @@ export class NodeView<
 
 	updateAttributes(attributes: object) {
 		this.editor.commands.command(({tr}) => {
-			const pos = this.getPos();
+			const pos = this.getPosition();
 
 			tr.setNodeMarkup(pos, undefined, {
 				...this.node.attrs,
@@ -242,7 +246,7 @@ export class NodeView<
 	}
 
 	deleteNode(): void {
-		const from = this.getPos();
+		const from = this.getPosition();
 		const to = from + this.node.nodeSize;
 
 		this.editor.commands.deleteRange({from, to});

@@ -1,7 +1,7 @@
 import type {Node as ProseMirrorNode, NodeType} from 'prosemirror-model';
 import {canJoin, findWrapping} from 'prosemirror-transform';
 
-import type {ExtendedRegExpMatchArray} from '../@types';
+import type {AnyRecord, ExtendedRegExpMatchArray} from '../@types';
 import {type InputRuleFinder,InputRule} from '../InputRule';
 import {callOrReturn} from '../utilities/callOrReturn';
 
@@ -23,8 +23,8 @@ export function wrappingInputRule(config: {
 	find: InputRuleFinder;
 	type: NodeType;
 	getAttributes?:
-		| Record<string, any>
-		| ((match: ExtendedRegExpMatchArray) => Record<string, any>)
+		| AnyRecord
+		| ((match: ExtendedRegExpMatchArray) => AnyRecord)
 		| false
 		| null;
 	joinPredicate?: (match: ExtendedRegExpMatchArray, node: ProseMirrorNode) => boolean;

@@ -1,4 +1,5 @@
 import {type Editor, isFunction, isNodeEmpty, isString, Node} from '../../core';
+import type {ExtendedRegExpMatchArray} from '../../core/@types';
 import {elTag} from '../../../tags';
 import {Slice} from 'prosemirror-model';
 import {Plugin, TextSelection} from 'prosemirror-state';
@@ -26,6 +27,14 @@ export interface HljsCodeBlockOptions {
 				spellcheck: string;
 				class: string;
 		  };
+}
+
+interface HljsCodeBlockAttrs {
+	autocomplete: string;
+	autocorrect: string;
+	autocapitalize: string;
+	spellcheck: string;
+	class: string;
 }
 
 const CodeBlockSelectLangElement = codeBlockSelectLangElement(elTag('code-block-select-lang'));
@@ -276,8 +285,8 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
 
 	addInputRules() {
 		return [
-			nodeInputRule(backtickInputRegex, this.type, ({groups}: any) => groups),
-			nodeInputRule(tildeInputRegex, this.type, ({groups}: any) => groups),
+			nodeInputRule(backtickInputRegex, this.type, ({groups}: ExtendedRegExpMatchArray) => groups ?? {}),
+			nodeInputRule(tildeInputRegex, this.type, ({groups}: ExtendedRegExpMatchArray) => groups ?? {}),
 		];
 	},
 
@@ -397,7 +406,7 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
 				}
 			}
 
-			const language = findLanguageByCssClass(node.attrs.class, this.options.languageClassPrefix);
+			const language = findLanguageByCssClass((node.attrs as HljsCodeBlockAttrs).class, this.options.languageClassPrefix);
 
 			if (isString(language)) {
 				container.props.selectedLanguage = language;
@@ -409,7 +418,7 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
 				);
 			}
 
-			updateHljsElCssClass(domCodeEl, node.attrs.class);
+			updateHljsElCssClass(domCodeEl, (node.attrs as HljsCodeBlockAttrs).class);
 
 			if (isFunction(getPos)) {
 				const pos = getPos();
@@ -467,7 +476,7 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
 					const codeText = getHljsBlockContentAsText(updatedNode);
 
 					const language = findLanguageByCssClass(
-						updatedNode.attrs.class,
+						(updatedNode.attrs as HljsCodeBlockAttrs).class,
 						this.options.languageClassPrefix,
 					);
 

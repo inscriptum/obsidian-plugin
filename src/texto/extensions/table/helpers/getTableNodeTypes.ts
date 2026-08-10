@@ -1,21 +1,27 @@
-import {NodeType, Schema} from 'prosemirror-model';
+import { NodeType, Schema } from "prosemirror-model";
 
-export function getTableNodeTypes(schema: Schema): {[key: string]: NodeType} {
-	if (schema.cached.tableNodeTypes) {
-		return schema.cached.tableNodeTypes;
-	}
+export type SchemaWithCache = Schema & {
+  cached?: { tableNodeTypes: { [key: string]: NodeType } };
+};
 
-	const roles: {[key: string]: NodeType} = {};
+export function getTableNodeTypes(schema: SchemaWithCache): {
+  [key: string]: NodeType;
+} {
+  if (schema.cached?.tableNodeTypes) {
+    return schema.cached.tableNodeTypes;
+  }
 
-	Object.keys(schema.nodes).forEach((type) => {
-		const nodeType = schema.nodes[type];
+  const roles: { [key: string]: NodeType } = {};
 
-		if (nodeType.spec.tableRole) {
-			roles[nodeType.spec.tableRole] = nodeType;
-		}
-	});
+  Object.keys(schema.nodes).forEach((type) => {
+    const nodeType = schema.nodes[type];
 
-	schema.cached.tableNodeTypes = roles;
+    if (typeof nodeType.spec.tableRole === 'string') {
+      roles[nodeType.spec.tableRole] = nodeType;
+    }
+  });
 
-	return roles;
+  schema.cached = { tableNodeTypes: roles };
+
+  return roles;
 }

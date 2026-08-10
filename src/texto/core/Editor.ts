@@ -4,6 +4,7 @@ import {type Plugin, type PluginKey, type Transaction,EditorState} from 'prosemi
 import {EditorView} from 'prosemirror-view';
 
 import type {
+	AnyRecord,
 	CanCommands,
 	ChainedCommands,
 	EditorEvents,
@@ -33,6 +34,10 @@ export interface HTMLElement {
 	editor?: Editor;
 }
 
+// prosemirror internal properties not exposed in public types
+type PluginWithKey = Plugin & {key: string};
+type ViewWithDocView = EditorView & {docView?: unknown};
+
 export class Editor extends EventEmitter<EditorEvents> {
 	private commandManager!: CommandManager;
 
@@ -44,7 +49,7 @@ export class Editor extends EventEmitter<EditorEvents> {
 
 	public isFocused = false;
 
-	public extensionStorage: Record<string, any> = {};
+	public extensionStorage: AnyRecord = {};
 
 	public options: EditorOptions = {
 		element: createDiv(),
@@ -112,23 +117,23 @@ export class Editor extends EventEmitter<EditorEvents> {
 
 		// Catch errors inside transactions
 		this.on('transaction', ({transaction}) => {
-			let error: unknown[] = transaction.getMeta('emit::error');
+			const errorMeta: unknown = transaction.getMeta('emit::error');
 
-			if (error == null) {
+			if (errorMeta == null) {
 				return;
 			}
 
-			if (!Array.isArray(error)) {
-				error = [error];
-			}
+			const error: unknown[] = Array.isArray(errorMeta) ? errorMeta : [errorMeta];
 
 			let textoErrorCode: TextoErrorType[TextoErrorTypeKey] = TEXTO_ERROR.TRANSACTION_ERROR;
 
-			const collaborationStoragePluginKey = this.extensionStorage.collaboration?.pluginKey;
+			const collaborationPluginKey = (
+				this.extensionStorage.collaboration as {pluginKey?: PluginKey | null} | undefined
+			)?.pluginKey;
 
 			if (
-				collaborationStoragePluginKey != null &&
-				transaction.getMeta(collaborationStoragePluginKey)?.isFirstRender
+				collaborationPluginKey != null &&
+				(transaction.getMeta(collaborationPluginKey) as {isFirstRender?: boolean} | undefined)?.isFirstRender
 			) {
 				textoErrorCode = TEXTO_ERROR.INIT_ERROR;
 			}
@@ -142,7 +147,7 @@ export class Editor extends EventEmitter<EditorEvents> {
 	/**
 	 * Returns the editor storage.
 	 */
-	public get storage(): Record<string, any> {
+	public get storage(): AnyRecord {
 		return this.extensionStorage;
 	}
 
@@ -252,10 +257,10 @@ export class Editor extends EventEmitter<EditorEvents> {
 			return;
 		}
 
-		const name = typeof nameOrPluginKey === 'string' ? `${nameOrPluginKey}$` : (nameOrPluginKey as any)['key'];
+		const name = typeof nameOrPluginKey === 'string' ? `${nameOrPluginKey}$` : (nameOrPluginKey as PluginKey & {key: string}).key;
 
 		const state = this.state.reconfigure({
-			plugins: this.state.plugins.filter((plugin) => !(plugin as any)['key'].startsWith(name)),
+			plugins: this.state.plugins.filter((plugin) => !(plugin as PluginWithKey).key.startsWith(name)),
 		});
 
 		this.view.updateState(state);
@@ -343,7 +348,7 @@ export class Editor extends EventEmitter<EditorEvents> {
 
 	private capturedTransaction: Transaction | null = null;
 
-	public captureTransaction(fn: () => any) {
+	public captureTransaction(fn: () => void) {
 		this.isCapturingTransaction = true;
 		fn();
 		this.isCapturingTransaction = false;
@@ -393,8 +398,8 @@ export class Editor extends EventEmitter<EditorEvents> {
 			});
 		}
 
-		const focus = transaction.getMeta('focus');
-		const blur = transaction.getMeta('blur');
+		const focus = transaction.getMeta('focus') as {event: FocusEvent} | undefined;
+		const blur = transaction.getMeta('blur') as {event: FocusEvent} | undefined;
 
 		if (focus) {
 			this.emit('focus', {
@@ -425,7 +430,7 @@ export class Editor extends EventEmitter<EditorEvents> {
 	/**
 	 * Get attributes of the currently selected node or mark.
 	 */
-	public getAttributes(nameOrType: string | NodeType | MarkType): Record<string, any> {
+	public getAttributes(nameOrType: string | NodeType | MarkType): AnyRecord {
 		return getAttributes(this.state, nameOrType);
 	}
 
@@ -436,8 +441,8 @@ export class Editor extends EventEmitter<EditorEvents> {
 	 * @param attributes Attributes of the node or mark
 	 */
 	public isActive(name: string, attributes?: object): boolean;
-	public isActive(attributes: any): boolean;
-	public isActive(nameOrAttributes: string, attributesOrUndefined?: object): boolean {
+	public isActive(attributes: object): boolean;
+	public isActive(nameOrAttributes: string | object, attributesOrUndefined?: object): boolean {
 		const name = typeof nameOrAttributes === 'string' ? nameOrAttributes : null;
 
 		const attributes = typeof nameOrAttributes === 'string' ? attributesOrUndefined : nameOrAttributes;
@@ -449,7 +454,7 @@ export class Editor extends EventEmitter<EditorEvents> {
 	 * Get the document as JSON.
 	 */
 	public getJSON(): JSONContent {
-		return this.state.doc.toJSON();
+		return this.state.doc.toJSON() as JSONContent;
 	}
 
 	/**
@@ -501,7 +506,7 @@ export class Editor extends EventEmitter<EditorEvents> {
 	 * Check if the editor is already destroyed.
 	 */
 	public get isDestroyed(): boolean {
-		return !(this.view as any)?.['docView'];
+		return !(this.view as ViewWithDocView).docView;
 	}
 
 	/**

@@ -1,6 +1,6 @@
 import type {MarkType} from 'prosemirror-model';
 
-import type {Command} from '../@types';
+import type {AnyRecord, Command} from '../@types';
 import {getMarkType} from '../helpers/getMarkType';
 import {isMarkActive} from '../helpers/isMarkActive';
 
@@ -9,7 +9,7 @@ import {isMarkActive} from '../helpers/isMarkActive';
  */
 export function toggleMark(
 	typeOrName: string | MarkType,
-	attributes: Record<string, any> = {},
+	attributes: AnyRecord = {},
 	options: {
 		/**
 		 * Removes the mark even across the current selection. Defaults to `false`.

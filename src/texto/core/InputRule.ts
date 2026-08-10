@@ -1,6 +1,6 @@
-import {type EditorState, type TextSelection,Plugin} from 'prosemirror-state';
+import {type EditorState, type TextSelection, type Transaction, Plugin} from 'prosemirror-state';
 
-import type {CanCommands, ChainedCommands, ExtendedRegExpMatchArray, Range, SingleCommands} from './@types';
+import type {AnyRecord, CanCommands, ChainedCommands, ExtendedRegExpMatchArray, Range, SingleCommands} from './@types';
 import {CommandManager} from './CommandManager';
 import type {Editor} from './Editor';
 import {createChainableState} from './helpers/createChainableState';
@@ -8,12 +8,20 @@ import {findParentNodeClosestToPos} from './helpers/findParentNodeClosestToPos';
 import {getTextContentFromNodes} from './helpers/getTextContentFromNodes';
 import {isRegExp} from './utilities/isRegExp';
 
+/** Meta stored by the input rules plugin to allow undoing a matched rule. */
+export interface InputRuleState {
+	transform: Transaction;
+	from: number;
+	to: number;
+	text: string;
+}
+
 export type InputRuleMatch = {
 	index: number;
 	text: string;
 	replaceWith?: string;
 	match?: RegExpMatchArray;
-	data?: Record<string, any>;
+	data?: AnyRecord;
 };
 
 export type InputRuleFinder = RegExp | ((text: string) => InputRuleMatch | null);
@@ -81,7 +89,7 @@ function run(config: {
 	to: number;
 	text: string;
 	rules: InputRule[];
-	plugin: Plugin;
+	plugin: Plugin<InputRuleState | null>;
 }): boolean {
 	const {editor, from, to, text, rules, plugin} = config;
 	const {view} = editor;
@@ -168,18 +176,18 @@ function run(config: {
  * input that matches any of the given rules to trigger the rule’s
  * action.
  */
-export function inputRulesPlugin(props: {editor: Editor; rules: InputRule[]}): Plugin {
+export function inputRulesPlugin(props: {editor: Editor; rules: InputRule[]}): Plugin<InputRuleState | null> {
 	const {editor, rules} = props;
-	const plugin = new Plugin({
+	const plugin: Plugin<InputRuleState | null> = new Plugin<InputRuleState | null>({
 		state: {
 			init() {
 				return null;
 			},
 			apply(tr, prev) {
-				const stored = tr.getMeta(plugin);
+				const stored: unknown = tr.getMeta(plugin);
 
 				if (stored) {
-					return stored;
+					return stored as InputRuleState;
 				}
 
 				return tr.selectionSet || tr.docChanged ? null : prev;
@@ -244,7 +252,7 @@ export function inputRulesPlugin(props: {editor: Editor; rules: InputRule[]}): P
 		},
 
 		isInputRules: true,
-	}) as Plugin;
+	});
 
 	return plugin;
 }

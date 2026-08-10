@@ -7,6 +7,7 @@ export const MAX_FILENAME_LENGTH = 200;
 const INVALID_FILENAME_CHARS = /[\\/:*?"<>|]/g;
 
 /** Control characters — removed entirely. */
+// eslint-disable-next-line no-control-regex -- intentional: sanitize filenames from control characters
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
 
 /** Spaces and line breaks are collapsed into a single space. */

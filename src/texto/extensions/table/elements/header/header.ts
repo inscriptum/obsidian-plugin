@@ -1,7 +1,8 @@
 import {mergeAttributes, Node} from '../../../../core';
+import type { AnyRecord } from '../../../../core/@types';
 
 export interface TableHeaderOptions {
-	HTMLAttributes: Record<string, any>;
+	  HTMLAttributes: AnyRecord;
 	initWidth: number;
 }
 
@@ -32,13 +33,13 @@ export const TableHeader = Node.create<TableHeaderOptions>({
 					const colwidth = element.dataset['colwidth'];
 					return colwidth ? [parseInt(colwidth)] : [initWidth];
 				},
-				renderHTML: (attributes) => ({
+				renderHTML: (attributes: { colwidth: number[]; dataColor: string | null; backgroundColor: string | null }) => ({
 					['data-colwidth']: attributes?.colwidth ? attributes.colwidth : [initWidth],
 				}),
 			},
 			dataColor: {
 				default: null,
-				renderHTML: (attributes) => {
+				renderHTML: (attributes: { colwidth: number[]; dataColor: string | null; backgroundColor: string | null }) => {
 					if (!attributes.dataColor) {
 						return {};
 					}
@@ -54,7 +55,7 @@ export const TableHeader = Node.create<TableHeaderOptions>({
 			},
 			backgroundColor: {
 				default: null,
-				renderHTML: (attributes) => {
+				renderHTML: (attributes: { colwidth: number[]; dataColor: string | null; backgroundColor: string | null }) => {
 					if (!attributes.backgroundColor) {
 						return {};
 					}

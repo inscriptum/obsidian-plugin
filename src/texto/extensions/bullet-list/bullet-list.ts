@@ -1,8 +1,9 @@
 import { mergeAttributes, Node, wrappingInputRule } from '../../core'
+import type { AnyRecord } from '../../core/@types'
 import { addCommands } from './commands'
 
 export interface BulletListOptions {
-  HTMLAttributes: Record<string, any>
+  HTMLAttributes: AnyRecord
 }
 
 export const inputRegex = /^\s*([-+*])\s$/
@@ -34,7 +35,7 @@ export const BulletList = Node.create<BulletListOptions>({
 
   addKeyboardShortcuts() {
     return {
-      'Mod-Shift-8': () => (this.editor.commands as any).toggleBulletList(),
+      'Mod-Shift-8': () => this.editor.commands.toggleBulletList(),
     }
   },
 

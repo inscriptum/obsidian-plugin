@@ -1,7 +1,9 @@
 import { Mark, markInputRule, markPasteRule, mergeAttributes } from '../../core'
+import type { AnyRecord } from '../../core/@types'
+import { addCommands } from './commands'
 
 export interface ItalicOptions {
-  HTMLAttributes: Record<string, any>
+  HTMLAttributes: AnyRecord
 }
 
 export const starInputRegex = /(?:^|\s)(\*(?!\s+\*)((?:[^*]+))\*(?!\s+\*))$/
@@ -40,19 +42,7 @@ export const Italic = Mark.create<ItalicOptions>({
     return ['em', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
   },
 
-  addCommands() {
-    return {
-      setItalic: () => ({ commands }) => {
-        return commands.setMark(this.name)
-      },
-      toggleItalic: () => ({ commands }) => {
-        return commands.toggleMark(this.name)
-      },
-      unsetItalic: () => ({ commands }) => {
-        return commands.unsetMark(this.name)
-      },
-    }
-  },
+  addCommands,
 
   addKeyboardShortcuts() {
     return {

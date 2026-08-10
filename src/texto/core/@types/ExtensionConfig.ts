@@ -3,10 +3,10 @@ import type {Plugin} from 'prosemirror-state';
 
 import type {Editor, InputRule} from '..';
 import type {PasteRule} from '../PasteRule';
-import type {GlobalAttributes, ParentConfig} from '.';
+import type {AnyRecord, GlobalAttributes, ParentConfig} from '.';
 import type {AnyConfig} from './AnyConfig';
 
-export interface ExtensionConfig<Options = any, Storage = any>
+export interface ExtensionConfig<Options = AnyRecord, Storage = AnyRecord>
 	extends AnyConfig<Options, Storage, ExtensionConfig<Options, Storage>, unknown> {
 	/**
 	 * Global attributes
@@ -63,7 +63,7 @@ export interface ExtensionConfig<Options = any, Storage = any>
 					parent: ParentConfig<ExtensionConfig<Options, Storage>>['extendNodeSchema'];
 				},
 				extension: Node,
-		  ) => Record<string, any>)
+		  ) => AnyRecord)
 		| null;
 
 	/**
@@ -78,6 +78,6 @@ export interface ExtensionConfig<Options = any, Storage = any>
 					parent: ParentConfig<ExtensionConfig<Options, Storage>>['extendMarkSchema'];
 				},
 				extension: Mark,
-		  ) => Record<string, any>)
+		  ) => AnyRecord)
 		| null;
 }

@@ -192,6 +192,9 @@
       ]
     },
     {
+      "type": "paragraph"
+    },
+    {
       "type": "heading",
       "attrs": {
         "level": 2

@@ -130,7 +130,7 @@ function onFileSelected(
 	const {options, key, editor, node} = context;
 
 	if (isFunction(options.hooks?.onFileSelected)) {
-		options.hooks.onFileSelected(selectedFile, (updatedAttrs) => {
+		void options.hooks.onFileSelected(selectedFile, (updatedAttrs) => {
 			const position = keyToPos.get(key);
 
 			if (position != null) {
@@ -173,10 +173,12 @@ function prepareViewState(attrs: AttachmentOptions['attributes'], options: Attac
  * @param pos the node's position
  */
 function removeTempStateOptions(node: ProseMirrorNode, editor: Editor, pos: number) {
-	if (node.attrs.state?.isAutoOpenFileSelection) {
-		node.attrs.state.isAutoOpenFileSelection = false;
+	const attrs = node.attrs as AttachmentOptions['attributes'];
+
+	if (attrs.state?.isAutoOpenFileSelection) {
+		attrs.state.isAutoOpenFileSelection = false;
 		editor.view.dispatch(
-			editor.view.state.tr.setNodeMarkup(pos, node.type, node.attrs).setMeta('addToHistory', false),
+			editor.view.state.tr.setNodeMarkup(pos, node.type, attrs).setMeta('addToHistory', false),
 		);
 	}
 }

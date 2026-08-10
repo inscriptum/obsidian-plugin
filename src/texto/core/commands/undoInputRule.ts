@@ -1,4 +1,5 @@
 import type {Command} from '../@types';
+import type {InputRuleState} from '../InputRule';
 
 /**
  * Undo an input rule.
@@ -10,9 +11,9 @@ export const undoInputRule =
 
 		for (let i = 0; i < plugins.length; i += 1) {
 			const plugin = plugins[i];
-			let undoable;
+			const undoable = plugin.getState(state) as InputRuleState | null;
 
-			if (plugin.spec.isInputRules && (undoable = plugin.getState(state))) {
+			if (plugin.spec.isInputRules && undoable) {
 				if (dispatch) {
 					const tr = state.tr;
 					const toUndo = undoable.transform;

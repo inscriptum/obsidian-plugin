@@ -6,9 +6,9 @@ import type {Editor} from '../Editor';
 import type {InputRule} from '../InputRule';
 import type {PasteRule} from '../PasteRule';
 import type {AnyCommands, AnyExtension, Attributes, GlobalAttributes, NodeViewRenderer, ParentConfig} from '.';
-import type {AnyConfig} from './AnyConfig';
+import type {AnyConfig, AnyObject} from './AnyConfig';
 
-export interface NodeConfig<Options = any, Storage = any>
+export interface NodeConfig<Options = AnyObject, Storage = AnyObject>
 	extends AnyConfig<Options, Storage, NodeConfig<Options, Storage>, NodeType> {
 	/**
 	 * Global attributes
@@ -80,7 +80,7 @@ export interface NodeConfig<Options = any, Storage = any>
 					parent: ParentConfig<NodeConfig<Options, Storage>>['extendNodeSchema'];
 				},
 				extension: AnyExtension,
-		  ) => Record<string, any>)
+		  ) => Record<string, AnyObject>)
 		| null;
 
 	/**
@@ -95,7 +95,7 @@ export interface NodeConfig<Options = any, Storage = any>
 					parent: ParentConfig<NodeConfig<Options, Storage>>['extendMarkSchema'];
 				},
 				extension: Node,
-		  ) => Record<string, any>)
+		  ) => Record<string, unknown>)
 		| null;
 
 	/**
@@ -272,7 +272,7 @@ export interface NodeConfig<Options = any, Storage = any>
 				},
 				props: {
 					node: ProseMirrorNode;
-					HTMLAttributes: Record<string, any>;
+					HTMLAttributes: Record<string, unknown>;
 				},
 		  ) => DOMOutputSpec)
 		| null;

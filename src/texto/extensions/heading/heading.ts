@@ -1,10 +1,16 @@
 import { mergeAttributes, Node, textblockTypeInputRule } from '../../core'
+import type { AnyRecord } from '../../core/@types'
+import { addCommands } from './commands'
 
 export type Level = 1 | 2 | 3 | 4 | 5 | 6
 
+interface HeadingAttrs {
+  level: Level
+}
+
 export interface HeadingOptions {
   levels: Level[]
-  HTMLAttributes: Record<string, any>
+  HTMLAttributes: AnyRecord
 }
 
 declare module '../../core' {
@@ -50,32 +56,16 @@ export const Heading = Node.create<HeadingOptions>({
   },
 
   renderHTML({ node, HTMLAttributes }) {
-    const hasLevel = this.options.levels.includes(node.attrs.level)
+    const attrs = node.attrs as HeadingAttrs
+    const hasLevel = this.options.levels.includes(attrs.level)
     const level = hasLevel
-      ? node.attrs.level
+      ? attrs.level
       : this.options.levels[0]
 
     return [`h${level}`, mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
   },
 
-  addCommands() {
-    return {
-      setHeading: attributes => ({ commands }) => {
-        if (!this.options.levels.includes(attributes.level)) {
-          return false
-        }
-
-        return commands.setNode(this.name, attributes)
-      },
-      toggleHeading: attributes => ({ commands }) => {
-        if (!this.options.levels.includes(attributes.level)) {
-          return false
-        }
-
-        return commands.toggleNode(this.name, 'paragraph', attributes)
-      },
-    }
-  },
+  addCommands,
 
   addKeyboardShortcuts() {
     return this.options.levels.reduce((items, level) => ({

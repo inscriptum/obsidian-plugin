@@ -1,5 +1,8 @@
 import type {EditorState, Transaction} from 'prosemirror-state';
 
+// `filterTransaction` is a private EditorState field not exposed in the public types.
+type EditorStateWithFilter = EditorState & {filterTransaction: (tr: Transaction) => boolean};
+
 export function createChainableState(config: {transaction: Transaction; state: EditorState}): EditorState {
 	const {state, transaction} = config;
 	let {selection} = transaction;
@@ -10,7 +13,7 @@ export function createChainableState(config: {transaction: Transaction; state: E
 		...state,
 		apply: state.apply.bind(state),
 		applyTransaction: state.applyTransaction.bind(state),
-		filterTransaction: (state as any)['filterTransaction'],
+		filterTransaction: (state as EditorStateWithFilter).filterTransaction,
 		plugins: state.plugins,
 		schema: state.schema,
 		reconfigure: state.reconfigure.bind(state),

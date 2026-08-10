@@ -1,6 +1,7 @@
 import type {MarkType, NodeType} from 'prosemirror-model';
 import type {EditorState} from 'prosemirror-state';
 
+import type {AnyRecord} from '../@types';
 import {getMarkAttributes} from './getMarkAttributes';
 import {getNodeAttributes} from './getNodeAttributes';
 import {getSchemaTypeNameByName} from './getSchemaTypeNameByName';
@@ -8,7 +9,7 @@ import {getSchemaTypeNameByName} from './getSchemaTypeNameByName';
 export function getAttributes(
 	state: EditorState,
 	typeOrName: string | NodeType | MarkType,
-): Record<string, any> {
+): AnyRecord {
 	const schemaType = getSchemaTypeNameByName(
 		typeof typeOrName === 'string' ? typeOrName : typeOrName.name,
 		state.schema,

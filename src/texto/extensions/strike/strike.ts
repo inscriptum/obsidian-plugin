@@ -1,7 +1,9 @@
 import { Mark, markInputRule, markPasteRule, mergeAttributes } from '../../core'
+import type { AnyRecord } from '../../core/@types'
+import { addCommands } from './commands'
 
 export interface StrikeOptions {
-  HTMLAttributes: Record<string, any>
+  HTMLAttributes: AnyRecord
 }
 
 export const inputRegex = /(?:^|\s)(~~(?!\s+~~)((?:[^~]+))~~(?!\s+~~))$/
@@ -40,19 +42,7 @@ export const Strike = Mark.create<StrikeOptions>({
     return ['s', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
   },
 
-  addCommands() {
-    return {
-      setStrike: () => ({ commands }) => {
-        return commands.setMark(this.name)
-      },
-      toggleStrike: () => ({ commands }) => {
-        return commands.toggleMark(this.name)
-      },
-      unsetStrike: () => ({ commands }) => {
-        return commands.unsetMark(this.name)
-      },
-    }
-  },
+  addCommands,
 
   addKeyboardShortcuts() {
     return {

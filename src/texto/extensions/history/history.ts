@@ -1,5 +1,6 @@
 import { Extension } from '../../core'
-import { history, redo, undo } from 'prosemirror-history'
+import { history } from 'prosemirror-history'
+import { addCommands } from './commands'
 
 export interface HistoryOptions {
   depth: number
@@ -16,16 +17,7 @@ export const History = Extension.create<HistoryOptions>({
     }
   },
 
-  addCommands() {
-    return {
-      undo: () => ({ state, dispatch }) => {
-        return undo(state, dispatch)
-      },
-      redo: () => ({ state, dispatch }) => {
-        return redo(state, dispatch)
-      },
-    }
-  },
+  addCommands,
 
   addProseMirrorPlugins() {
     return [
@@ -35,9 +27,9 @@ export const History = Extension.create<HistoryOptions>({
 
   addKeyboardShortcuts() {
     return {
-      'Mod-z': () => (this.editor.commands as any).undo(),
-      'Shift-Mod-z': () => (this.editor.commands as any).redo(),
-      'Mod-y': () => (this.editor.commands as any).redo(),
+      'Mod-z': () => this.editor.commands.undo(),
+      'Shift-Mod-z': () => this.editor.commands.redo(),
+      'Mod-y': () => this.editor.commands.redo(),
     }
   },
 })

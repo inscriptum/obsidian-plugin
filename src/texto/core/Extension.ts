@@ -1,10 +1,12 @@
 import type {AnyConfig} from './@types/AnyConfig';
+import type {AnyRecord} from './@types';
 import type {ExtensionConfig} from './@types/ExtensionConfig';
 import {getExtensionField} from './helpers/getExtensionField';
 import {callOrReturn} from './utilities/callOrReturn';
 import {mergeDeep} from './utilities/mergeDeep';
 
-export class Extension<Options extends Record<string, any> = any, Storage = any> {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Options/Storage default to `any` for covariance (Extension<CustomOptions> must stay assignable to Extension)
+export class Extension<Options extends AnyRecord = any, Storage = any> {
 	type = 'extension';
 
 	name = 'extension';
@@ -34,9 +36,10 @@ export class Extension<Options extends Record<string, any> = any, Storage = any>
 				getExtensionField<AnyConfig['addOptions']>(this, 'addOptions', {
 					name: this.name,
 				}),
-			);
+			) as Options;
 		}
 
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- addStorage returns Storage (default `any`) via dynamic getExtensionField
 		this.storage =
 			callOrReturn(
 				getExtensionField<AnyConfig['addStorage']>(this, 'addStorage', {
@@ -46,7 +49,7 @@ export class Extension<Options extends Record<string, any> = any, Storage = any>
 			) || {};
 	}
 
-	static create<O extends Record<string, any> = any, S = any>(config: Partial<ExtensionConfig<O, S>> = {}) {
+	static create<O extends AnyRecord = any, S = any>(config: Partial<ExtensionConfig<O, S>> = {}) { // eslint-disable-line @typescript-eslint/no-explicit-any -- covariance default
 		return new Extension<O, S>(config);
 	}
 
@@ -57,6 +60,7 @@ export class Extension<Options extends Record<string, any> = any, Storage = any>
 
 		extension.options = mergeDeep(this.options, options) as Options;
 
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- addStorage returns Storage (default `any`) via dynamic getExtensionField
 		extension.storage = callOrReturn(
 			getExtensionField<AnyConfig['addStorage']>(extension, 'addStorage', {
 				name: extension.name,
@@ -67,7 +71,7 @@ export class Extension<Options extends Record<string, any> = any, Storage = any>
 		return extension;
 	}
 
-	extend<ExtendedOptions extends Record<string, any> = Options, ExtendedStorage = Storage>(
+	extend<ExtendedOptions extends AnyRecord = Options, ExtendedStorage = Storage>(
 		extendedConfig: Partial<ExtensionConfig<ExtendedOptions, ExtendedStorage>> = {},
 	) {
 		const extension = new Extension<ExtendedOptions, ExtendedStorage>(extendedConfig);
@@ -76,14 +80,15 @@ export class Extension<Options extends Record<string, any> = any, Storage = any>
 
 		this.child = extension;
 
-		extension.name = extendedConfig.name ? extendedConfig.name : extension.parent.name;
+		extension.name = extendedConfig.name ? extendedConfig.name : extension.parent?.name ?? extension.name;
 
 		extension.options = callOrReturn(
 			getExtensionField<AnyConfig['addOptions']>(extension, 'addOptions', {
 				name: extension.name,
 			}),
-		);
+		) as ExtendedOptions;
 
+		// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- addStorage returns Storage (default `any`) via dynamic getExtensionField
 		extension.storage = callOrReturn(
 			getExtensionField<AnyConfig['addStorage']>(extension, 'addStorage', {
 				name: extension.name,

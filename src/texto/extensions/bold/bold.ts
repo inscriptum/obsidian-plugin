@@ -1,7 +1,9 @@
 import { Mark, markInputRule, markPasteRule, mergeAttributes } from '../../core'
+import type { AnyRecord } from '../../core/@types'
+import { addCommands } from './commands'
 
 export interface BoldOptions {
-  HTMLAttributes: Record<string, any>
+  HTMLAttributes: AnyRecord
 }
 
 declare module '../../core' {
@@ -51,19 +53,7 @@ export const Bold = Mark.create<BoldOptions>({
     return ['strong', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
   },
 
-  addCommands() {
-    return {
-      setBold: () => ({ commands }) => {
-        return commands.setMark(this.name)
-      },
-      toggleBold: () => ({ commands }) => {
-        return commands.toggleMark(this.name)
-      },
-      unsetBold: () => ({ commands }) => {
-        return commands.unsetMark(this.name)
-      },
-    }
-  },
+  addCommands,
 
   addKeyboardShortcuts() {
     return {

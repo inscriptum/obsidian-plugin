@@ -1,6 +1,6 @@
 import type {MarkType} from 'prosemirror-model';
 
-import type {ExtendedRegExpMatchArray} from '../@types';
+import type {AnyRecord, ExtendedRegExpMatchArray} from '../@types';
 import {getMarksBetween} from '../helpers/getMarksBetween';
 import {type InputRuleFinder,InputRule} from '../InputRule';
 import {callOrReturn} from '../utilities/callOrReturn';
@@ -13,8 +13,8 @@ export function markInputRule(config: {
 	find: InputRuleFinder;
 	type: MarkType;
 	getAttributes?:
-		| Record<string, any>
-		| ((match: ExtendedRegExpMatchArray) => Record<string, any>)
+		| AnyRecord
+		| ((match: ExtendedRegExpMatchArray) => AnyRecord)
 		| false
 		| null;
 }) {

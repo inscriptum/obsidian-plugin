@@ -4,10 +4,10 @@ import type {Plugin} from 'prosemirror-state';
 import type {Editor} from '../Editor';
 import type {InputRule} from '../InputRule';
 import type {PasteRule} from '../PasteRule';
-import type {Attributes, GlobalAttributes, ParentConfig} from '.';
+import type {AnyRecord, Attributes, GlobalAttributes, ParentConfig} from '.';
 import type {AnyConfig} from './AnyConfig';
 
-export interface MarkConfig<Options = any, Storage = any>
+export interface MarkConfig<Options = AnyRecord, Storage = AnyRecord>
 	extends AnyConfig<Options, Storage, MarkConfig<Options, Storage>, MarkType> {
 	/**
 	 * Global attributes
@@ -67,7 +67,7 @@ export interface MarkConfig<Options = any, Storage = any>
 					parent: ParentConfig<MarkConfig<Options, Storage>>['extendNodeSchema'];
 				},
 				extension: Node,
-		  ) => Record<string, any>)
+		  ) => AnyRecord)
 		| null;
 
 	/**
@@ -82,7 +82,7 @@ export interface MarkConfig<Options = any, Storage = any>
 					parent: ParentConfig<MarkConfig<Options, Storage>>['extendMarkSchema'];
 				},
 				extension: Mark,
-		  ) => Record<string, any>)
+		  ) => AnyRecord)
 		| null;
 
 	/**
@@ -178,7 +178,7 @@ export interface MarkConfig<Options = any, Storage = any>
 				},
 				props: {
 					mark: ProseMirrorMark;
-					HTMLAttributes: Record<string, any>;
+					HTMLAttributes: AnyRecord;
 				},
 		  ) => DOMOutputSpec)
 		| null;

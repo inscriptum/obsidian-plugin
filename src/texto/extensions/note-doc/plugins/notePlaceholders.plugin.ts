@@ -1,6 +1,7 @@
 import {Editor} from '../../../core';
 import {Plugin, PluginKey} from 'prosemirror-state';
 import {Decoration, DecorationSet} from 'prosemirror-view';
+import type { AnyRecord } from '../../../core/@types';
 
 import {NoteTitle} from '../NoteTitle';
 
@@ -20,7 +21,7 @@ export interface NotePlaceholdersOptions {
 export const notePlaceholdersPlugin = (
 	editor: Editor,
 	options: NotePlaceholdersOptions,
-	notEmptyTitleAttributes: Record<string, any> | undefined,
+	notEmptyTitleAttributes: AnyRecord | undefined,
 ) =>
 	new Plugin({
 		key: new PluginKey('notePlaceholders'),

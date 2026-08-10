@@ -1,5 +1,4 @@
-import type {Attribute, Attributes, ExtensionAttribute, Extensions, GlobalAttributes} from '../@types';
-import type {AnyConfig} from '../@types/AnyConfig';
+import type {AnyRecord, Attribute, Attributes, ExtensionAttribute, Extensions, GlobalAttributes} from '../@types';
 import type {MarkConfig} from '../@types/MarkConfig';
 import type {NodeConfig} from '../@types/NodeConfig';
 import {getExtensionField} from './getExtensionField';
@@ -25,11 +24,11 @@ export function getAttributesFromExtensions(extensions: Extensions): ExtensionAt
 	extensions.forEach((extension) => {
 		const context = {
 			name: extension.name,
-			options: extension.options,
-			storage: extension.storage,
+			options: extension.options as AnyRecord,
+			storage: extension.storage as AnyRecord,
 		};
 
-		const addGlobalAttributes = getExtensionField<AnyConfig['addGlobalAttributes']>(
+		const addGlobalAttributes = getExtensionField<(() => GlobalAttributes | object) | null>(
 			extension,
 			'addGlobalAttributes',
 			context,
@@ -61,8 +60,8 @@ export function getAttributesFromExtensions(extensions: Extensions): ExtensionAt
 	nodeAndMarkExtensions.forEach((extension) => {
 		const context = {
 			name: extension.name,
-			options: extension.options,
-			storage: extension.storage,
+			options: extension.options as AnyRecord,
+			storage: extension.storage as AnyRecord,
 		};
 
 		const addAttributes = getExtensionField<NodeConfig['addAttributes'] | MarkConfig['addAttributes']>(

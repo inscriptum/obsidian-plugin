@@ -1,6 +1,6 @@
 import {type EditorState, Plugin} from 'prosemirror-state';
 
-import type {CanCommands, ChainedCommands, ExtendedRegExpMatchArray, Range, SingleCommands} from './@types';
+import type {AnyRecord, CanCommands, ChainedCommands, ExtendedRegExpMatchArray, Range, SingleCommands} from './@types';
 import {CommandManager} from './CommandManager';
 import type {Editor} from './Editor';
 import {createChainableState} from './helpers/createChainableState';
@@ -13,7 +13,7 @@ export type PasteRuleMatch = {
 	text: string;
 	replaceWith?: string;
 	match?: RegExpMatchArray;
-	data?: Record<string, any>;
+	data?: AnyRecord;
 };
 
 export type PasteRuleFinder = RegExp | ((text: string) => PasteRuleMatch[] | null | undefined);

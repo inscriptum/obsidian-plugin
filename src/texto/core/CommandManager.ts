@@ -41,6 +41,7 @@ export class CommandManager {
 
 		return Object.fromEntries(
 			Object.entries(rawCommands).map(([name, command]) => {
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic command proxy: args are forwarded to arbitrary command implementations
 				const method = (...args: any[]) => {
 					const callback = this.executeCommand(command, args, props);
 
@@ -161,6 +162,7 @@ export class CommandManager {
 
 	private executeCommand(command: CommandSpec, args: Parameters<CommandSpec>, props: CommandProps) {
 		try {
+			// eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- CommandSpec args are dynamic (AnyCommands), forwarded verbatim
 			return command(...args)(props);
 		} catch (error) {
 			this.editor.throwError(new TextoError(TEXTO_ERROR.EXECUTE_COMMAND_ERROR, error));

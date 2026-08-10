@@ -1,7 +1,9 @@
 import { Mark, markInputRule, markPasteRule, mergeAttributes } from '../../core'
+import type { AnyRecord } from '../../core/@types'
+import { addCommands } from './commands'
 
 export interface CodeOptions {
-  HTMLAttributes: Record<string, any>
+  HTMLAttributes: AnyRecord
 }
 
 export const inputRegex = /(?:^|\s)(`(?!\s+`)((?:[^`]+))`(?!\s+`))$/
@@ -33,19 +35,7 @@ export const Code = Mark.create<CodeOptions>({
     return ['code', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
   },
 
-  addCommands() {
-    return {
-      setCode: () => ({ commands }) => {
-        return commands.setMark(this.name)
-      },
-      toggleCode: () => ({ commands }) => {
-        return commands.toggleMark(this.name)
-      },
-      unsetCode: () => ({ commands }) => {
-        return commands.unsetMark(this.name)
-      },
-    }
-  },
+  addCommands,
 
   addKeyboardShortcuts() {
     return {

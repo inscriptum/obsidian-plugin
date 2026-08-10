@@ -1,7 +1,8 @@
 import {mergeAttributes, Node} from '../../core';
+import type { AnyRecord } from '../../core/@types';
 
 export interface HljsCodeBlockRowOptions {
-	HTMLAttributes: Record<string, any>;
+	HTMLAttributes: AnyRecord;
 }
 
 export const HljsCodeBlockRow = Node.create<HljsCodeBlockRowOptions>({

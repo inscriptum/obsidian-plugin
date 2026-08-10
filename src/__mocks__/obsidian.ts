@@ -16,7 +16,7 @@ export class TFile {
   basename: string;
   extension: string;
   stat: {ctime: number; mtime: number; size: number};
-  vault: any;
+  vault: Vault | null;
   parent: TFolder | null;
 
   constructor(path: string) {

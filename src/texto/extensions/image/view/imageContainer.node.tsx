@@ -12,8 +12,8 @@ export const imageContainerNode = litView.node(function* (params: {
 	key: string;
 	data: ViewNodeData;
 	state?: ViewNodeState;
-	onClick?: (ev: MouseEvent) => any;
-	onRemove: (ev: MouseEvent) => any;
+	onClick?: (ev: MouseEvent) => void;
+	onRemove: (ev: MouseEvent) => void;
 	updateAttrs: UpdateFn;
 }) {
 	const imgRef = createRef<HTMLImageElement>();

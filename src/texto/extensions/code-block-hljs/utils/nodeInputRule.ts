@@ -1,4 +1,5 @@
 import {InputRule} from '../../../core';
+import type {AnyRecord, ExtendedRegExpMatchArray} from '../../../core/@types';
 import {NodeType} from 'prosemirror-model';
 import {TextSelection} from 'prosemirror-state';
 
@@ -8,12 +9,12 @@ import {TextSelection} from 'prosemirror-state';
 export function nodeInputRule(
 	regexp: RegExp,
 	type: NodeType,
-	getAttributes?: (match: any) => any,
+	getAttributes?: AnyRecord | ((match: ExtendedRegExpMatchArray) => AnyRecord) | false | null,
 ): InputRule {
 	return new InputRule({
 		find: regexp,
 		handler: (props) => {
-			const attributes = getAttributes instanceof Function ? getAttributes(props.match) : getAttributes;
+			const attributes = (getAttributes instanceof Function ? getAttributes(props.match) : getAttributes) || {};
 			const {tr} = props.state;
 
 			if (props.match[0]) {

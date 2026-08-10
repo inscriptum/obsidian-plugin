@@ -1,6 +1,6 @@
 import type {NodeType} from 'prosemirror-model';
 
-import type {ExtendedRegExpMatchArray} from '../@types';
+import type {AnyRecord, ExtendedRegExpMatchArray} from '../@types';
 import {PasteRule} from '../PasteRule';
 import {callOrReturn} from '../utilities';
 
@@ -12,8 +12,8 @@ export function nodePasteRule(config: {
 	find: RegExp;
 	type: NodeType;
 	getAttributes?:
-		| Record<string, any>
-		| ((match: ExtendedRegExpMatchArray) => Record<string, any>)
+		| AnyRecord
+		| ((match: ExtendedRegExpMatchArray) => AnyRecord)
 		| false
 		| null;
 }) {

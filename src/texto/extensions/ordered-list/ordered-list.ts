@@ -1,8 +1,9 @@
 import { mergeAttributes, Node, wrappingInputRule } from '../../core'
+import type { AnyRecord } from '../../core/@types'
 import { addCommands } from './commands'
 
 export interface OrderedListOptions {
-  HTMLAttributes: Record<string, any>
+  HTMLAttributes: AnyRecord
 }
 
 export const inputRegex = /^(\d+)\.\s$/
@@ -53,7 +54,7 @@ export const OrderedList = Node.create<OrderedListOptions>({
 
   addKeyboardShortcuts() {
     return {
-      'Mod-Shift-7': () => (this.editor.commands as any).toggleOrderedList(),
+      'Mod-Shift-7': () => this.editor.commands.toggleOrderedList(),
     }
   },
 

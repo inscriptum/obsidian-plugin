@@ -1,5 +1,5 @@
 import {type Node as ProseMirrorNode, type NodeType, Fragment, Slice} from 'prosemirror-model';
-import {TextSelection} from 'prosemirror-state';
+import {NodeSelection, TextSelection} from 'prosemirror-state';
 import {canSplit} from 'prosemirror-transform';
 
 import type {Command} from '../@types';
@@ -14,7 +14,8 @@ export function splitListItem(typeOrName: string | NodeType): Command {
 		const type = getNodeType(typeOrName, state.schema);
 		const {$from, $to} = state.selection;
 
-		const node: ProseMirrorNode = (state.selection as any)['node'];
+		const node: ProseMirrorNode | null =
+			state.selection instanceof NodeSelection ? state.selection.node : null;
 
 		if ((node && node.isBlock) || $from.depth < 2 || !$from.sameParent($to)) {
 			return false;

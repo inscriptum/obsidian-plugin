@@ -83,6 +83,7 @@ export async function deleteAttachmentFile(app: App, id: string | null | undefin
   if (!id) return;
   const file = app.vault.getAbstractFileByPath(id);
   if (file) {
-    await app.vault.delete(file);
+    // respect user's deletion preference (system trash / Obsidian trash / permanent)
+    await app.fileManager.trashFile(file);
   }
 }

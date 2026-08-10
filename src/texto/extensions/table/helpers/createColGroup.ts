@@ -1,4 +1,4 @@
-import {DOMOutputSpec, Node as ProseMirrorNode} from 'prosemirror-model';
+import { DOMOutputSpec, Node as ProseMirrorNode } from "prosemirror-model";
 
 /**
  * Creates a colgroup element for a table node in ProseMirror.
@@ -10,41 +10,45 @@ import {DOMOutputSpec, Node as ProseMirrorNode} from 'prosemirror-model';
  * @returns An object containing the colgroup element, the total width of the table, and the minimum width of the table.
  */
 export function createColGroup(
-	node: ProseMirrorNode,
-	cellMinWidth: number,
-	overrideCol?: number,
-	overrideValue?: any,
+  node: ProseMirrorNode,
+  cellMinWidth: number,
+  overrideCol?: number,
+  overrideValue?: number,
 ) {
-	let totalWidth = 0;
-	let fixedWidth = true;
-	const cols: DOMOutputSpec[] = [];
-	const row = node.firstChild;
+  let totalWidth = 0;
+  let fixedWidth = true;
+  const cols: DOMOutputSpec[] = [];
+  const row = node.firstChild;
 
-	if (!row) {
-		return {};
-	}
+  if (!row) {
+    return {};
+  }
 
-	for (let i = 0, col = 0; i < row.childCount; i += 1) {
-		const {colspan, colwidth} = row.child(i).attrs;
+  for (let i = 0, col = 0; i < row.childCount; i += 1) {
+    const { colspan, colwidth } = row.child(i).attrs as {
+      colspan: number;
+      colwidth: number[];
+    };
 
-		for (let j = 0; j < colspan; j += 1, col += 1) {
-			const hasWidth = overrideCol === col ? overrideValue : colwidth && colwidth[j];
-			const cssWidth = hasWidth ? `${hasWidth}px` : '';
+    for (let j = 0; j < colspan; j += 1, col += 1) {
+      const hasWidth =
+        overrideCol === col ? overrideValue : colwidth && colwidth[j];
+      const cssWidth = hasWidth ? `${hasWidth}px` : "";
 
-			totalWidth += hasWidth || cellMinWidth;
+      totalWidth += hasWidth || cellMinWidth;
 
-			if (!hasWidth) {
-				fixedWidth = false;
-			}
+      if (!hasWidth) {
+        fixedWidth = false;
+      }
 
-			cols.push(['col', cssWidth ? {style: `width: ${cssWidth}`} : {}]);
-		}
-	}
+      cols.push(["col", cssWidth ? { style: `width: ${cssWidth}` } : {}]);
+    }
+  }
 
-	const tableWidth = fixedWidth ? `${totalWidth}px` : '';
-	const tableMinWidth = fixedWidth ? '' : `${totalWidth}px`;
+  const tableWidth = fixedWidth ? `${totalWidth}px` : "";
+  const tableMinWidth = fixedWidth ? "" : `${totalWidth}px`;
 
-	const colgroup: DOMOutputSpec = ['colgroup', {}, ...cols];
+  const colgroup: DOMOutputSpec = ["colgroup", {}, ...cols];
 
-	return {colgroup, tableWidth, tableMinWidth};
+  return { colgroup, tableWidth, tableMinWidth };
 }

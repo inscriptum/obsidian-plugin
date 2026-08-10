@@ -1,4 +1,5 @@
 import { Extension } from '../../core'
+import { addCommands } from './commands'
 
 export type ColorOptions = {
   types: string[]
@@ -21,7 +22,7 @@ export const Color = Extension.create<ColorOptions>({
           color: {
             default: null,
             parseHTML: element => element.style.color?.replace(/['"]+/g, ''),
-            renderHTML: attributes => {
+            renderHTML: (attributes: { color?: string | null }) => {
               if (!attributes.color) {
                 return {}
               }
@@ -36,19 +37,5 @@ export const Color = Extension.create<ColorOptions>({
     ]
   },
 
-  addCommands() {
-    return {
-      setColor: color => ({ chain }) => {
-        return chain()
-          .setMark('textStyle', { color })
-          .run()
-      },
-      unsetColor: () => ({ chain }) => {
-        return chain()
-          .setMark('textStyle', { color: null })
-          .removeEmptyTextStyle()
-          .run()
-      },
-    }
-  },
+  addCommands,
 })

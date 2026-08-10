@@ -1,10 +1,11 @@
 import {mergeAttributes, Node} from '../../core';
+import type { AnyRecord } from '../../core/@types';
 
 import {addCommands} from './commands';
 
 export interface TaskListOptions {
 	itemTypeName: string;
-	HTMLAttributes: Record<string, any>;
+	  HTMLAttributes: AnyRecord;
 }
 
 export const TaskList = Node.create<TaskListOptions>({

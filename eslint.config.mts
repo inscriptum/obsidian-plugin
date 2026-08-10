@@ -10,6 +10,7 @@ export default defineConfig(
 		'demo',
 		'tests',
 		'docs',
+		'.kley',
 		'.github',
 		'.obsidian',
 		'vite',
@@ -55,6 +56,23 @@ export default defineConfig(
 			'@microsoft/sdl/no-inner-html': 'error',
 
 			// ── Downgraded to warning to match the review ────────────────
+			// List from obsidianmd preset, WITHOUT '@typescript-eslint/no-explicit-any':
+			// any in texto/core generic parameters (Node/Extension/Mark) is intentional
+			// for covariance (Node<CustomOptions> must be compatible with Node<default>),
+			// therefore disable comments for any are allowed.
+			'eslint-comments/no-restricted-disable': [
+				'error',
+				'obsidianmd/*',
+				'no-console',
+				'no-restricted-globals',
+				'@typescript-eslint/no-restricted-imports',
+				'no-alert',
+				'@typescript-eslint/no-deprecated',
+				'@microsoft/sdl/no-document-write',
+				'no-eval',
+				'@microsoft/sdl/no-inner-html',
+				'obsidianmd/no-nodejs-modules',
+			],
 			'@typescript-eslint/no-unsafe-assignment': 'warn',
 			'@typescript-eslint/no-unsafe-call': 'warn',
 			'@typescript-eslint/no-unsafe-member-access': 'warn',
@@ -77,6 +95,14 @@ export default defineConfig(
 			'valid-typeof': 'warn',
 			'no-control-regex': 'warn',
 			'no-unsanitized/property': 'warn',
+		},
+	},
+	{
+		// obsidianmd rules target plugin source code; for the linter config
+		// itself and Obsidian API mocks they produce false positives.
+		files: ['eslint.config.mts', 'src/__mocks__/**'],
+		rules: {
+			'obsidianmd/hardcoded-config-path': 'off',
 		},
 	},
 	{

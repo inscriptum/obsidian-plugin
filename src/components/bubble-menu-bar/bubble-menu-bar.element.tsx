@@ -34,6 +34,7 @@ export const BubbleMenuBarElement = litView.element({
   let linkDraft = "";
   let lastSelKey = "";
 
+  // eslint-disable-next-line @typescript-eslint/no-this-alias -- generator component: needs external this reference for rAF/handlers
   const root: HTMLElement = this;
   const barEl = () => root.querySelector<HTMLElement>(".bubble-menu-bar")!;
 
@@ -59,7 +60,7 @@ export const BubbleMenuBarElement = litView.element({
   const closeLayer = () => {
     if (openLayer) {
       openLayer = null;
-      this.next();
+      void this.next();
     }
   };
 
@@ -103,7 +104,7 @@ export const BubbleMenuBarElement = litView.element({
 
   const toggleStylesLayer = () => {
     openLayer = openLayer === "styles" ? null : "styles";
-    this.next().then(() => {
+    void this.next().then(() => {
       window.requestAnimationFrame(() => {
         placeLayerCaret(".bubble-menu-layer--styles", '[data-bb-action="styles"]');
         placeLayerDirection(".bubble-menu-layer--styles");
@@ -117,7 +118,7 @@ export const BubbleMenuBarElement = litView.element({
     const attrs = props.editor.getAttributes("link");
     linkDraft = typeof attrs.href === "string" ? attrs.href : "";
     openLayer = "link";
-    this.next().then(() => {
+    void this.next().then(() => {
       window.requestAnimationFrame(() => {
         const input = barEl().querySelector<HTMLInputElement>(".bubble-menu-link-input");
         input?.focus();
@@ -259,7 +260,7 @@ export const BubbleMenuBarElement = litView.element({
     if (selKey !== lastSelKey) openLayer = null;
     lastSelKey = selKey;
     wireTippy();
-    this.next();
+    void this.next();
     window.requestAnimationFrame(syncCaret);
   };
 

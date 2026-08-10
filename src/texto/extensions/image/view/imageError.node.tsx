@@ -8,7 +8,7 @@ const PlaceholderDeleteIconNode = placeholderDeleteIconNote();
 
 export const imageErrorNode = litView.node(function* (params: {
 	text: string;
-	onRemove?: (ev: MouseEvent) => any;
+	onRemove?: (ev: MouseEvent) => void;
 }) {
 	while (true) {
 		params = yield (

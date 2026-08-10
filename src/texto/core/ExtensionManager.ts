@@ -1,10 +1,10 @@
 import {keymap} from 'prosemirror-keymap';
 import type {Node as ProsemirrorNode, Schema} from 'prosemirror-model';
 import type {Plugin} from 'prosemirror-state';
-import type {Decoration, EditorView} from 'prosemirror-view';
+import type {Decoration, EditorView, NodeViewConstructor} from 'prosemirror-view';
 
 import {Mark} from '.';
-import type {Extensions, RawCommands} from './@types';
+import type {AnyRecord, Extensions, RawCommands} from './@types';
 import type {AnyConfig} from './@types/AnyConfig';
 import type {NodeConfig} from './@types/NodeConfig';
 import type {Editor} from './Editor';
@@ -16,10 +16,14 @@ import {getSchemaByResolvedExtensions} from './helpers/getSchemaByResolvedExtens
 import {getSchemaTypeByName} from './helpers/getSchemaTypeByName';
 import {isExtensionRulesEnabled} from './helpers/isExtensionRulesEnabled';
 import {splitExtensions} from './helpers/splitExtensions';
-import {inputRulesPlugin} from './InputRule';
-import {pasteRulesPlugin} from './PasteRule';
+import {inputRulesPlugin, type InputRule} from './InputRule';
+import {pasteRulesPlugin, type PasteRule} from './PasteRule';
 import {callOrReturn} from './utilities/callOrReturn';
 import {findDuplicates} from './utilities/findDuplicates';
+
+type AddInputRules = (() => InputRule[]) | null;
+type AddPasteRules = (() => PasteRule[]) | null;
+type AddProseMirrorPlugins = (() => Plugin[]) | null;
 
 export class ExtensionManager {
 	editor: Editor;
@@ -37,12 +41,12 @@ export class ExtensionManager {
 
 		this.extensions.forEach((extension) => {
 			// store extension storage in editor
-			this.editor.extensionStorage[extension.name] = extension.storage;
+			this.editor.extensionStorage[extension.name] = extension.storage as AnyRecord;
 
 			const context = {
 				name: extension.name,
-				options: extension.options,
-				storage: extension.storage,
+				options: extension.options as AnyRecord,
+				storage: extension.storage as AnyRecord,
 				editor: this.editor,
 				type: getSchemaTypeByName(extension.name, this.schema),
 			};
@@ -139,8 +143,8 @@ export class ExtensionManager {
 				.map((extension) => {
 					const context = {
 						name: extension.name,
-						options: extension.options,
-						storage: extension.storage,
+						options: extension.options as AnyRecord,
+						storage: extension.storage as AnyRecord,
 					};
 
 					const addExtensions = getExtensionField<AnyConfig['addExtensions']>(
@@ -183,8 +187,8 @@ export class ExtensionManager {
 		return this.extensions.reduce((commands, extension) => {
 			const context = {
 				name: extension.name,
-				options: extension.options,
-				storage: extension.storage,
+				options: extension.options as AnyRecord,
+				storage: extension.storage as AnyRecord,
 				editor: this.editor,
 				type: getSchemaTypeByName(extension.name, this.schema),
 			};
@@ -216,15 +220,15 @@ export class ExtensionManager {
 		// based on the `priority` option.
 		const extensions = ExtensionManager.sort([...this.extensions].reverse());
 
-		const inputRules: any[] = [];
-		const pasteRules: any[] = [];
+		const inputRules: InputRule[] = [];
+		const pasteRules: PasteRule[] = [];
 
 		const allPlugins = extensions
 			.map((extension) => {
 				const context = {
 					name: extension.name,
-					options: extension.options,
-					storage: extension.storage,
+					options: extension.options as AnyRecord,
+					storage: extension.storage as AnyRecord,
 					editor,
 					type: getSchemaTypeByName(extension.name, this.schema),
 				};
@@ -261,7 +265,7 @@ export class ExtensionManager {
 
 				plugins.push(keyMapPlugin);
 
-				const addInputRules = getExtensionField<AnyConfig['addInputRules']>(
+				const addInputRules = getExtensionField<AddInputRules>(
 					extension,
 					'addInputRules',
 					context,
@@ -271,7 +275,7 @@ export class ExtensionManager {
 					inputRules.push(...addInputRules());
 				}
 
-				const addPasteRules = getExtensionField<AnyConfig['addPasteRules']>(
+				const addPasteRules = getExtensionField<AddPasteRules>(
 					extension,
 					'addPasteRules',
 					context,
@@ -281,7 +285,7 @@ export class ExtensionManager {
 					pasteRules.push(...addPasteRules());
 				}
 
-				const addProseMirrorPlugins = getExtensionField<AnyConfig['addProseMirrorPlugins']>(
+				const addProseMirrorPlugins = getExtensionField<AddProseMirrorPlugins>(
 					extension,
 					'addProseMirrorPlugins',
 					context,
@@ -314,7 +318,7 @@ export class ExtensionManager {
 		return getAttributesFromExtensions(this.extensions);
 	}
 
-	get nodeViews() {
+	get nodeViews(): Record<string, NodeViewConstructor> {
 		const {editor} = this;
 		const {nodeExtensions} = splitExtensions(this.extensions);
 
@@ -327,8 +331,8 @@ export class ExtensionManager {
 					);
 					const context = {
 						name: extension.name,
-						options: extension.options,
-						storage: extension.storage,
+						options: extension.options as AnyRecord,
+						storage: extension.storage as AnyRecord,
 						editor,
 						type: getNodeType(extension.name, this.schema),
 					};
@@ -348,7 +352,8 @@ export class ExtensionManager {
 						getPos: (() => number) | boolean,
 						decorations: Decoration[],
 					) => {
-						const HTMLAttributes = getRenderedAttributes(node, extensionAttributes);
+						// node attribute values are strings/numbers/booleans, cast to Record<string, string>
+						const HTMLAttributes = getRenderedAttributes(node, extensionAttributes) as Record<string, string>;
 
 						return addNodeView()({
 							editor,
@@ -362,6 +367,6 @@ export class ExtensionManager {
 
 					return [extension.name, nodeview];
 				}),
-		);
+		) as Record<string, NodeViewConstructor>;
 	}
 }

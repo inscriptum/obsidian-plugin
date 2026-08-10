@@ -1,14 +1,16 @@
+import type { AnyFn, AnyRecord } from './@types';
+
 type StringKeyOf<T> = Extract<keyof T, string>;
 type CallbackType<
-	T extends Record<string, any>,
+	T extends AnyRecord,
 	EventName extends StringKeyOf<T>,
-> = T[EventName] extends any[] ? T[EventName] : [T[EventName]];
-type CallbackFunction<T extends Record<string, any>, EventName extends StringKeyOf<T>> = (
+> = T[EventName] extends unknown[] ? T[EventName] : [T[EventName]];
+type CallbackFunction<T extends AnyRecord, EventName extends StringKeyOf<T>> = (
 	...props: CallbackType<T, EventName>
-) => any;
+) => unknown;
 
-export class EventEmitter<T extends Record<string, any>> {
-	private callbacks: {[key: string]: ((...args: any) => any)[]} = {};
+export class EventEmitter<T extends AnyRecord> {
+	private callbacks: {[key: string]: AnyFn[]} = {};
 
 	public on<EventName extends StringKeyOf<T>>(event: EventName, fn: CallbackFunction<T, EventName>): this {
 		if (!this.callbacks[event]) {
@@ -27,7 +29,9 @@ export class EventEmitter<T extends Record<string, any>> {
 		const callbacks = this.callbacks[event];
 
 		if (callbacks) {
-			callbacks.forEach((callback) => callback.apply(this, args));
+			for (const callback of callbacks) {
+				callback.apply(this, args);
+			}
 		}
 
 		return this;

@@ -1,52 +1,44 @@
-import { getMarkAttributes, Mark, mergeAttributes } from '../../core'
+import { Mark, mergeAttributes } from "../../core";
+import type { AnyRecord } from "../../core/@types";
+import { addCommands } from "./commands";
 
 export interface TextStyleOptions {
-  HTMLAttributes: Record<string, any>
+  HTMLAttributes: AnyRecord;
 }
 
 export const TextStyle = Mark.create<TextStyleOptions>({
-  name: 'textStyle',
+  name: "textStyle",
 
   addOptions() {
     return {
       HTMLAttributes: {},
-    }
+    };
   },
 
   parseHTML() {
     return [
       {
-        tag: 'span',
-        getAttrs: element => {
-          const hasStyles = element.hasAttribute('style')
+        tag: "span",
+        getAttrs: (element) => {
+          const hasStyles = element.hasAttribute("style");
 
           if (!hasStyles) {
-            return false
+            return false;
           }
 
-          return {}
+          return {};
         },
       },
-    ]
+    ];
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['span', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
+    return [
+      "span",
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
+      0,
+    ];
   },
 
-  addCommands() {
-    return {
-      removeEmptyTextStyle: () => ({ state, commands }) => {
-        const attributes = getMarkAttributes(state, this.type)
-        const hasStyles = Object.entries(attributes).some(([, value]) => !!value)
-
-        if (hasStyles) {
-          return true
-        }
-
-        return commands.unsetMark(this.name)
-      },
-    }
-  },
-
-})
+  addCommands,
+});

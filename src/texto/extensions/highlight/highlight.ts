@@ -1,8 +1,10 @@
 import { Mark, markInputRule, markPasteRule, mergeAttributes } from '../../core'
+import type { AnyRecord } from '../../core/@types'
+import { addCommands } from './commands'
 
 export interface HighlightOptions {
   multicolor: boolean
-  HTMLAttributes: Record<string, any>
+  HTMLAttributes: AnyRecord
 }
 
 export const inputRegex = /(?:^|\s)(==(?!\s+==)((?:[^=]+))==(?!\s+==))$/
@@ -28,7 +30,7 @@ export const Highlight = Mark.create<HighlightOptions>({
       color: {
         default: null,
         parseHTML: element => element.getAttribute('data-color') || element.style.backgroundColor,
-        renderHTML: attributes => {
+        renderHTML: (attributes: { color?: string | null }) => {
           if (!attributes.color) {
             return {}
           }
@@ -54,19 +56,7 @@ export const Highlight = Mark.create<HighlightOptions>({
     return ['mark', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
   },
 
-  addCommands() {
-    return {
-      setHighlight: attributes => ({ commands }) => {
-        return commands.setMark(this.name, attributes)
-      },
-      toggleHighlight: attributes => ({ commands }) => {
-        return commands.toggleMark(this.name, attributes)
-      },
-      unsetHighlight: () => ({ commands }) => {
-        return commands.unsetMark(this.name)
-      },
-    }
-  },
+  addCommands,
 
   addKeyboardShortcuts() {
     return {

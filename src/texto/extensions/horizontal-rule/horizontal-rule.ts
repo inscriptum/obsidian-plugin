@@ -1,43 +1,36 @@
-import { mergeAttributes, Node, nodeInputRule } from '../../core'
+import { mergeAttributes, Node, nodeInputRule } from "../../core";
+import type { AnyRecord } from "../../core/@types";
+import { addCommands } from "./commands";
 
 export interface HorizontalRuleOptions {
-  HTMLAttributes: Record<string, any>
+  HTMLAttributes: AnyRecord;
 }
 
 export const HorizontalRule = Node.create<HorizontalRuleOptions>({
-  name: 'horizontalRule',
+  name: "horizontalRule",
 
   addOptions() {
     return {
       HTMLAttributes: {},
-    }
+    };
   },
 
-  group: 'block',
+  group: "block",
 
   parseHTML() {
-    return [{ tag: 'hr' }]
+    return [{ tag: "hr" }];
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['hr', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes)]
+    return ["hr", mergeAttributes(this.options.HTMLAttributes, HTMLAttributes)];
   },
 
-  addCommands() {
-    return {
-      setHorizontalRule:
-        () => ({ chain }) => {
-          return chain()
-            .insertContent({ type: this.name })
-            .run()
-        },
-    }
-  },
+  addCommands,
 
   addKeyboardShortcuts() {
     return {
-      'Mod-Alt--': () => (this.editor.commands as any).setHorizontalRule(),
-    }
+      "Mod-Alt--": () => this.editor.commands.setHorizontalRule(),
+    };
   },
 
   addInputRules() {
@@ -46,6 +39,6 @@ export const HorizontalRule = Node.create<HorizontalRuleOptions>({
         find: /^(?:---|—-|___\s|\*\*\*\s)$/,
         type: this.type,
       }),
-    ]
+    ];
   },
-})
+});

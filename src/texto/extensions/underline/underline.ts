@@ -1,7 +1,9 @@
 import { Mark, mergeAttributes } from '../../core'
+import type { AnyRecord } from '../../core/@types'
+import { addCommands } from './commands'
 
 export interface UnderlineOptions {
-  HTMLAttributes: Record<string, unknown>
+  HTMLAttributes: AnyRecord
 }
 
 export const Underline = Mark.create<UnderlineOptions>({
@@ -30,19 +32,7 @@ export const Underline = Mark.create<UnderlineOptions>({
     return ['u', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
   },
 
-  addCommands() {
-    return {
-      setUnderline: () => ({ commands }) => {
-        return commands.setMark(this.name)
-      },
-      toggleUnderline: () => ({ commands }) => {
-        return commands.toggleMark(this.name)
-      },
-      unsetUnderline: () => ({ commands }) => {
-        return commands.unsetMark(this.name)
-      },
-    }
-  },
+  addCommands,
 
   addKeyboardShortcuts() {
     return {

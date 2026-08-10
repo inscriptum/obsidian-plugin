@@ -11,7 +11,7 @@ type checkboxOff = string;
 
 export interface TaskItemOptions {
 	nested: boolean;
-	HTMLAttributes: Record<string, any>;
+	HTMLAttributes: Record<string, string>;
 	taskListTypeName: string;
 	onReadOnlyChecked?: (node: ProseMirrorNode, checked: boolean) => boolean;
 	checkboxIconLinks?: [checkboxOn, checkboxOff];
@@ -46,8 +46,8 @@ export const TaskItem = Node.create<TaskItemOptions>({
 			checked: {
 				default: false,
 				keepOnSplit: false,
-				parseHTML: (element) => element.getAttribute('data-checked') === 'true',
-				renderHTML: (attributes) => ({
+			parseHTML: (element) => element.getAttribute('data-checked') === 'true',
+			renderHTML: (attributes: { checked: boolean }) => ({
 					'data-checked': attributes.checked,
 				}),
 			},
@@ -57,7 +57,7 @@ export const TaskItem = Node.create<TaskItemOptions>({
 	parseHTML() {
 		return [
 			{
-				tag: VIEW_TAG,
+				tag: HTML_TAG,
 				priority: 51,
 			},
 			{
@@ -161,7 +161,7 @@ export const TaskItem = Node.create<TaskItemOptions>({
 				element.setAttribute(key, value);
 			});
 
-			element.dataset.checked = node.attrs.checked;
+			element.dataset.checked = String(node.attrs.checked);
 
 			Object.entries(HTMLAttributes).forEach(([key, value]) => {
 				element.setAttribute(key, value);
@@ -170,7 +170,7 @@ export const TaskItem = Node.create<TaskItemOptions>({
 			return {
 				dom: element,
 				contentDOM: contentEl,
-				ignoreMutation: (mutation: any) => {
+				ignoreMutation: (mutation: MutationRecord) => {
 					const ignoreMutationIOsResult = ignoreMutationIOS(mutation, this.editor, element);
 
 					if (ignoreMutationIOsResult.wasProcessed) {
@@ -190,11 +190,11 @@ export const TaskItem = Node.create<TaskItemOptions>({
 						return false;
 					}
 
-					element.dataset.checked = updatedNode.attrs.checked;
+					element.dataset.checked = String(updatedNode.attrs.checked);
 
 					element.props = {
 						...element.props,
-						checked: updatedNode.attrs.checked,
+						checked: !!updatedNode.attrs.checked,
 					};
 
 					return true;

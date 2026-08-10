@@ -1,6 +1,6 @@
 import type {MarkType, NodeType} from 'prosemirror-model';
 
-import type {Command} from '../@types';
+import type {AnyRecord, Command} from '../@types';
 import {getMarkType} from '../helpers/getMarkType';
 import {getNodeType} from '../helpers/getNodeType';
 import {getSchemaTypeNameByName} from '../helpers/getSchemaTypeNameByName';
@@ -10,7 +10,7 @@ import {getSchemaTypeNameByName} from '../helpers/getSchemaTypeNameByName';
  */
 export function updateAttributes(
 	typeOrName: string | NodeType | MarkType,
-	attributes: Record<string, any>,
+	attributes: AnyRecord,
 ): Command {
 	return ({tr, state, dispatch}) => {
 		let nodeType: NodeType | null = null;

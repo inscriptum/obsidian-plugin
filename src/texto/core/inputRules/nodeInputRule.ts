@@ -1,6 +1,6 @@
 import type {NodeType} from 'prosemirror-model';
 
-import type {ExtendedRegExpMatchArray} from '../@types';
+import type {AnyRecord, ExtendedRegExpMatchArray} from '../@types';
 import {type InputRuleFinder,InputRule} from '../InputRule';
 import {callOrReturn} from '../utilities/callOrReturn';
 
@@ -12,8 +12,8 @@ export function nodeInputRule(config: {
 	find: InputRuleFinder;
 	type: NodeType;
 	getAttributes?:
-		| Record<string, any>
-		| ((match: ExtendedRegExpMatchArray) => Record<string, any>)
+		| AnyRecord
+		| ((match: ExtendedRegExpMatchArray) => AnyRecord)
 		| false
 		| null;
 }) {

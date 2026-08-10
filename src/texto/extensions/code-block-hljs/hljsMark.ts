@@ -1,7 +1,8 @@
 import {Mark, mergeAttributes} from '../../core';
+import type { AnyRecord } from '../../core/@types';
 
 export interface HljsMarkOptions {
-	HTMLAttributes: Record<string, any>;
+	HTMLAttributes: AnyRecord;
 }
 
 export const HljsMark = Mark.create<HljsMarkOptions>({

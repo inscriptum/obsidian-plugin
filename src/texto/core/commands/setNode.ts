@@ -1,13 +1,13 @@
 import {setBlockType} from 'prosemirror-commands';
 import type {NodeType} from 'prosemirror-model';
 
-import type {Command} from '../@types';
+import type {AnyRecord, Command} from '../@types';
 import {getNodeType} from '../helpers/getNodeType';
 
 /**
  * Replace a given range with a node.
  */
-export function setNode(typeOrName: string | NodeType, attributes: Record<string, any> = {}): Command {
+export function setNode(typeOrName: string | NodeType, attributes: AnyRecord = {}): Command {
 	return ({state, dispatch, chain}) => {
 		const type = getNodeType(typeOrName, state.schema);
 

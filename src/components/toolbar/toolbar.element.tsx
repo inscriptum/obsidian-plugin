@@ -125,7 +125,7 @@ export const ToolbarElement = litView.element({
     saved = false;
     saveTimer = window.setTimeout(() => {
       saved = true;
-      this.next();
+      void this.next();
     }, 600);
   };
 
@@ -133,7 +133,7 @@ export const ToolbarElement = litView.element({
     state = getToolbarState(props.editor);
     wordCount = countWords(props.editor.getText());
     markDirty();
-    this.next();
+    void this.next();
   };
 
   props.editor.on("selectionUpdate", refreshState);

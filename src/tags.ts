@@ -1,3 +1,4 @@
+/* global process -- injected by Vite at build time */
 /**
  * Versioned custom element tags.
  *

@@ -1,142 +1,159 @@
-import {callOrReturn, getExtensionField, mergeAttributes, Node} from '../../core';
-import {columnResizing, tableEditing} from 'prosemirror-tables';
-import {NodeView} from 'prosemirror-view';
+import type { AnyRecord } from '../../core/@types';
 
-import {addCommands} from './commands';
-import {deleteTableWhenAllCellsSelected} from './helpers';
-import {createColGroup} from './helpers/createColGroup';
-import {handleCellSelection} from './helpers/handleCellSelection';
-import {TableView} from './tableView';
+import {
+  callOrReturn,
+  getExtensionField,
+  mergeAttributes,
+  Node,
+} from "../../core";
+import { columnResizing, tableEditing } from "prosemirror-tables";
+import { NodeView } from "prosemirror-view";
 
-interface TableOptions {
-	HTMLAttributes: Record<string, any>;
-	resizable: boolean;
-	handleWidth: number;
-	cellMinWidth: number;
-	View: NodeView;
-	lastColumnResizable: boolean;
-	allowTableNodeSelection: boolean;
-	isMobileView: boolean;
+import { addCommands } from "./commands";
+import { deleteTableWhenAllCellsSelected } from "./helpers";
+import { createColGroup } from "./helpers/createColGroup";
+import { handleCellSelection } from "./helpers/handleCellSelection";
+import { TableView } from "./tableView";
+import { AnyObject } from "src/texto/core/@types/AnyConfig";
+
+interface TableOptions extends AnyObject {
+  HTMLAttributes: AnyRecord;
+  resizable: boolean;
+  handleWidth: number;
+  cellMinWidth: number;
+  View: NodeView;
+  lastColumnResizable: boolean;
+  allowTableNodeSelection: boolean;
+  isMobileView: boolean;
 }
 
-export const Table = Node.create<TableOptions>({
-	name: 'table',
+export const Table = Node.create<TableOptions, AnyObject>({
+  name: "table",
 
-	addOptions() {
-		return {
-			HTMLAttributes: {},
-			resizable: false,
-			handleWidth: 5,
-			cellMinWidth: 25,
-			// TODO: deleted as ...
-			View: TableView as unknown as NodeView,
-			lastColumnResizable: true,
-			allowTableNodeSelection: false,
-			isMobileView: false,
-		};
-	},
+  addOptions() {
+    return {
+      HTMLAttributes: {},
+      resizable: false,
+      handleWidth: 5,
+      cellMinWidth: 25,
+      // TODO: deleted as ...
+      View: TableView as unknown as NodeView,
+      lastColumnResizable: true,
+      allowTableNodeSelection: false,
+      isMobileView: false,
+    };
+  },
 
-	addAttributes() {
-		return {
-			data: {
-				parseHTML: (element: HTMLElement) => ({
-					rowsCount: element.dataset['rowsCount'],
-					colsCount: element.dataset['colsCount'],
-				}),
-				renderHTML: (attributes) => ({
-					[`data-rowsCount`]: attributes.data?.rowsCount,
-					[`data-colsCount`]: attributes.data?.colsCount,
-				}),
-			},
-		};
-	},
+  addAttributes() {
+    return {
+      data: {
+        parseHTML: (element: HTMLElement) => ({
+          rowsCount: element.dataset["rowsCount"],
+          colsCount: element.dataset["colsCount"],
+        }),
+        renderHTML: (attributes: {
+          data?: { rowsCount: number; colsCount: number };
+        }) => ({
+          [`data-rowsCount`]: attributes.data?.rowsCount,
+          [`data-colsCount`]: attributes.data?.colsCount,
+        }),
+      },
+    };
+  },
 
-	content: 'tableRow+',
+  content: "tableRow+",
 
-	tableRole: 'table',
+  tableRole: "table",
 
-	isolating: true,
+  isolating: true,
 
-	group: 'block',
+  group: "block",
 
-	parseHTML() {
-		return [{tag: 'table'}];
-	},
+  parseHTML() {
+    return [{ tag: "table" }];
+  },
 
-	renderHTML({node, HTMLAttributes}) {
-		const {colgroup, tableWidth, tableMinWidth} = createColGroup(node, this.options.cellMinWidth);
+  renderHTML({ node, HTMLAttributes }) {
+    const { colgroup, tableWidth, tableMinWidth } = createColGroup(
+      node,
+      this.options.cellMinWidth,
+    );
 
-		return [
-			'div',
-			{
-				class: 'table-wrapper',
-			},
-			[
-				'table',
-				mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
-					style: tableWidth ? `width: ${tableWidth}` : `minWidth: ${tableMinWidth}`,
-				}),
-				colgroup,
-				['tbody', 0],
-			],
-		];
-	},
+    return [
+      "div",
+      {
+        class: "table-wrapper",
+      },
+      [
+        "table",
+        mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+          style: tableWidth
+            ? `width: ${tableWidth}`
+            : `minWidth: ${tableMinWidth}`,
+        }),
+        colgroup,
+        ["tbody", 0],
+      ],
+    ];
+  },
 
-	addCommands,
+  addCommands,
 
-	addKeyboardShortcuts() {
-		return {
-			Tab: () => {
-				if (this.editor.commands.goToNextCell()) {
-					return true;
-				}
+  addKeyboardShortcuts() {
+    return {
+      Tab: () => {
+        if (this.editor.commands.goToNextCell()) {
+          return true;
+        }
 
-				if (!this.editor.can().addRowAfter()) {
-					return false;
-				}
+        if (!this.editor.can().addRowAfter()) {
+          return false;
+        }
 
-				return this.editor.chain().addRowAfter().goToNextCell().run();
-			},
-			'Shift-Tab': () => this.editor.commands.goToPreviousCell(),
-			Backspace: deleteTableWhenAllCellsSelected,
-			'Mod-Backspace': deleteTableWhenAllCellsSelected,
-			Delete: deleteTableWhenAllCellsSelected,
-			'Mod-Delete': deleteTableWhenAllCellsSelected,
-		};
-	},
+        return this.editor.chain().addRowAfter().goToNextCell().run();
+      },
+      "Shift-Tab": () => this.editor.commands.goToPreviousCell(),
+      Backspace: deleteTableWhenAllCellsSelected,
+      "Mod-Backspace": deleteTableWhenAllCellsSelected,
+      Delete: deleteTableWhenAllCellsSelected,
+      "Mod-Delete": deleteTableWhenAllCellsSelected,
+    };
+  },
 
-	addProseMirrorPlugins() {
-		const isResizable = this.options.resizable && this.editor.isEditable;
-		const isMobileView = this.options.isMobileView;
+  addProseMirrorPlugins() {
+    const isResizable = this.options.resizable && this.editor.isEditable;
+    const isMobileView = this.options.isMobileView;
 
-		return [
-			handleCellSelection(isMobileView),
-			...(isResizable
-				? [
-						columnResizing({
-							handleWidth: this.options.handleWidth,
-							cellMinWidth: this.options.cellMinWidth,
-							View: this.options.View,
-							lastColumnResizable: this.options.lastColumnResizable,
-							// TODO: delete as ...
-						} as unknown as Parameters<typeof columnResizing>[0]),
-				  ]
-				: []),
-			tableEditing({
-				allowTableNodeSelection: this.options.allowTableNodeSelection,
-			}),
-		];
-	},
+    return [
+      handleCellSelection(isMobileView),
+      ...(isResizable
+        ? [
+            columnResizing({
+              handleWidth: this.options.handleWidth,
+              cellMinWidth: this.options.cellMinWidth,
+              View: this.options.View,
+              lastColumnResizable: this.options.lastColumnResizable,
+              // TODO: delete as ...
+            } as unknown as Parameters<typeof columnResizing>[0]),
+          ]
+        : []),
+      tableEditing({
+        allowTableNodeSelection: this.options.allowTableNodeSelection,
+      }),
+    ];
+  },
 
-	extendNodeSchema(this, extension) {
-		const context = {
-			name: this.name,
-			options: this.options,
-			storage: this.storage,
-		};
+  extendNodeSchema(this, extension) {
+    const context = {
+      name: this.name,
+      options: this.options,
+      storage: this.storage,
+    };
 
-		return {
-			tableRole: callOrReturn(getExtensionField(extension, 'tableRole', context)),
-		};
-	},
+    return {
+      tableRole: callOrReturn(
+        getExtensionField(extension, "tableRole", context),
+      ),
+    };
+  },
 });

@@ -1,7 +1,9 @@
 import { mergeAttributes, Node } from '../../core'
+import type { AnyRecord } from '../../core/@types'
+import { addCommands } from './commands'
 
 export interface ParagraphOptions {
-  HTMLAttributes: Record<string, any>
+  HTMLAttributes: AnyRecord
 }
 
 declare module '../../core' {
@@ -37,13 +39,7 @@ export const Paragraph = Node.create<ParagraphOptions>({
     return ['p', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
   },
 
-  addCommands() {
-    return {
-      setParagraph: () => ({ commands }) => {
-        return commands.setNode(this.name)
-      },
-    }
-  },
+  addCommands,
 
   addKeyboardShortcuts() {
     return {
