@@ -14,9 +14,9 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@web-companions/h": "0.3.3",
-    "@web-companions/gfc": "2.4.0",
-    "@web-companions/lit": "0.2.0",
+    "@web-companions/h": "0.3.4",
+    "@web-companions/gfc": "2.5.0",
+    "@web-companions/lit": "0.2.1",
     "highlight.js": "11.11.1",
     "linkifyjs": "4.3.3",
     "lit-html": "2.8.0",
