@@ -8,6 +8,7 @@
     "dev": "vite build --watch --mode development",
     "build": "vite build",
     "deploy": "cp dist/main.js manifest.json dist/styles.css .obsidian/plugins/inscriptum/",
+    "release": "node scripts/release.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",
