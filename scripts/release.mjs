@@ -58,7 +58,7 @@ async function main() {
     fail('Working tree is dirty. Commit or stash changes before releasing.');
   }
 
-  const tag = `v${nextVersion}`;
+  const tag = nextVersion;
   if (gitOutput('tag', '--list', tag) !== '') {
     fail(`Tag ${tag} already exists.`);
   }
