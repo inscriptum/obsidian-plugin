@@ -78,16 +78,8 @@ describe('updateChangelog', () => {
     expect(output).toContain('- a fix');
   });
 
-  it('inserts a new section before the first version heading', () => {
+  it('throws when there is no Unreleased section', () => {
     const input = '# Changelog\n\n<!-- ## [Unreleased] -->\n\n## [0.1.1] - 2026-08-10\n\n### Fixed\n\n- a fix\n';
-    const output = updateChangelog(input, '0.2.0', '2026-08-17');
-    const lines = output.split('\n');
-    const newHeading = lines.indexOf('## [0.2.0] - 2026-08-17');
-    const oldHeading = lines.indexOf('## [0.1.1] - 2026-08-10');
-    expect(newHeading).toBeGreaterThan(-1);
-    expect(newHeading).toBeLessThan(oldHeading);
-    expect(lines).toContain('### Added');
-    expect(lines).toContain('### Changed');
-    expect(lines).toContain('### Fixed');
+    expect(() => updateChangelog(input, '0.2.0', '2026-08-17')).toThrow(/Unreleased/);
   });
 });

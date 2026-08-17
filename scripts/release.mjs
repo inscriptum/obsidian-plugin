@@ -79,9 +79,14 @@ async function main() {
     'CHANGELOG.md': (content) => updateChangelog(content, nextVersion, date),
   };
 
+  const nextContents = {};
   for (const file of FILES) {
     const content = await readFile(new URL(file, ROOT), 'utf8');
-    await writeFile(new URL(file, ROOT), transform[file](content), 'utf8');
+    nextContents[file] = transform[file](content);
+  }
+
+  for (const file of FILES) {
+    await writeFile(new URL(file, ROOT), nextContents[file], 'utf8');
   }
 
   console.log(`Bumped version to ${nextVersion}`);

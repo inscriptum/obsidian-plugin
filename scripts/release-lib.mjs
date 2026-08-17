@@ -61,18 +61,12 @@ export function updateChangelog(content, newVersion, date) {
   const lines = content.split('\n');
 
   const unreleasedIndex = lines.findIndex((line) => line === '## [Unreleased]');
-  if (unreleasedIndex !== -1) {
-    lines[unreleasedIndex] = header;
-    return lines.join('\n');
+  if (unreleasedIndex === -1) {
+    throw new Error(
+      'No "## [Unreleased]" section found in CHANGELOG.md. Fill in the changes there before releasing.',
+    );
   }
 
-  const section = [header, '', '### Added', '', '### Changed', '', '### Fixed', ''];
-  const headingIndex = lines.findIndex((line) => line.startsWith('## ['));
-
-  if (headingIndex === -1) {
-    return `${lines.join('\n').trimEnd()}\n\n${section.join('\n')}\n`;
-  }
-
-  lines.splice(headingIndex, 0, ...section);
+  lines[unreleasedIndex] = header;
   return lines.join('\n');
 }
