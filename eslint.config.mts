@@ -9,6 +9,7 @@ export default defineConfig(
 		'local',
 		'demo',
 		'tests',
+		'scripts',
 		'docs',
 		'.kley',
 		'.github',
