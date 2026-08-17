@@ -25,3 +25,33 @@ export function bumpVersion(version, type) {
   }
   return `${major}.${minor}.${patch + 1}`;
 }
+
+function stringifyJson(value) {
+  return `${JSON.stringify(value, null, 2)}\n`;
+}
+
+export function bumpPackageJson(content, newVersion) {
+  const data = JSON.parse(content);
+  data.version = newVersion;
+  return stringifyJson(data);
+}
+
+export function bumpPackageLock(content, newVersion) {
+  const data = JSON.parse(content);
+  data.version = newVersion;
+  if (data.packages && data.packages['']) {
+    data.packages[''].version = newVersion;
+  }
+  return stringifyJson(data);
+}
+
+export function bumpManifest(content, newVersion) {
+  const data = JSON.parse(content);
+  data.version = newVersion;
+  return stringifyJson(data);
+}
+
+export function addVersionsEntry(content, newVersion, minAppVersion) {
+  const data = JSON.parse(content);
+  return stringifyJson({ [newVersion]: minAppVersion, ...data });
+}

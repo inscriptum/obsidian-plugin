@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { bumpVersion } from '../../scripts/release-lib.mjs';
+import {
+  bumpVersion,
+  bumpPackageJson,
+  bumpPackageLock,
+  bumpManifest,
+  addVersionsEntry,
+} from '../../scripts/release-lib.mjs';
 
 describe('bumpVersion', () => {
   it('bumps patch', () => {
@@ -20,5 +26,44 @@ describe('bumpVersion', () => {
 
   it('throws on malformed version', () => {
     expect(() => bumpVersion('not-a-version', 'patch')).toThrow(/Invalid semver version/);
+  });
+});
+
+describe('JSON file updates', () => {
+  it('bumpPackageJson sets version and preserves other fields', () => {
+    const input = '{\n  "name": "@inscriptum/obsidian-plugin",\n  "version": "0.1.1",\n  "license": "MIT"\n}\n';
+    const output = bumpPackageJson(input, '0.2.0');
+    const data = JSON.parse(output);
+    expect(data.version).toBe('0.2.0');
+    expect(data.name).toBe('@inscriptum/obsidian-plugin');
+    expect(data.license).toBe('MIT');
+    expect(output.endsWith('\n')).toBe(true);
+  });
+
+  it('bumpPackageLock sets top-level and root package version', () => {
+    const input = JSON.stringify({
+      version: '0.1.1',
+      packages: { '': { name: 'x', version: '0.1.1' } },
+    });
+    const output = bumpPackageLock(input, '0.2.0');
+    const data = JSON.parse(output);
+    expect(data.version).toBe('0.2.0');
+    expect(data.packages[''].version).toBe('0.2.0');
+  });
+
+  it('bumpManifest sets version', () => {
+    const input = JSON.stringify({ id: 'inscriptum', version: '0.1.1', minAppVersion: '1.6.6' });
+    const output = bumpManifest(input, '0.2.0');
+    expect(JSON.parse(output).version).toBe('0.2.0');
+    expect(JSON.parse(output).minAppVersion).toBe('1.6.6');
+  });
+
+  it('addVersionsEntry prepends the new version', () => {
+    const input = '{\n  "0.1.1": "1.5.0",\n  "0.1.0": "1.5.0"\n}\n';
+    const output = addVersionsEntry(input, '0.2.0', '1.6.6');
+    const data = JSON.parse(output);
+    expect(Object.keys(data)[0]).toBe('0.2.0');
+    expect(data['0.2.0']).toBe('1.6.6');
+    expect(Object.keys(data)).toHaveLength(3);
   });
 });
