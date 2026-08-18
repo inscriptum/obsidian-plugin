@@ -82,9 +82,23 @@
   background: color-mix(in srgb, var(--interactive-accent) 20%, transparent);
 }
 
-.note-toolbar .note-toolbar__btn svg {
+/* iOS Safari: SVG as the only flex child of a <button> can collapse to 0×0.
+   Force block display + no shrink, and wrap the icon in a span so the
+   button's flex layout never eats the SVG's size. */
+.note-toolbar__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 16px;
   height: 16px;
+  flex: 0 0 auto;
+}
+
+.note-toolbar .note-toolbar__btn svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
 }
 
 .note-toolbar__spacer {

@@ -1,15 +1,15 @@
-import { transform } from '@babel/core';
-import jsxToTt from 'babel-plugin-transform-jsx-to-tt';
-import type { Plugin } from 'vite';
+import { transform } from "@babel/core";
+import jsxToTt from "babel-plugin-transform-jsx-to-tt";
+import type { Plugin } from "vite";
 
-const svgPathRe = /\/view\/svg\//;
+const svgPathRe = /svgnode/;
 
 export function jsxToTtPlugin(): Plugin {
   return {
-    name: 'jsx-to-tt',
-    enforce: 'pre',
+    name: "jsx-to-tt",
+    enforce: "pre",
     transform(code, id) {
-      if (!id.endsWith('.tsx')) {
+      if (!id.endsWith(".tsx")) {
         return;
       }
 
@@ -19,49 +19,49 @@ export function jsxToTtPlugin(): Plugin {
         babelrc: false,
         configFile: false,
         sourceMaps: true,
-        presets: ['@babel/preset-typescript'],
+        presets: ["@babel/preset-typescript"],
         plugins: [
           [
             jsxToTt,
             isSvg
               ? {
-                  tag: 'svg',
-                  import: { module: 'lit-html', export: 'svg' },
+                  tag: "svg",
+                  import: { module: "lit-html", export: "svg" },
                   attributes: [
                     {
-                      prefix: '',
+                      prefix: "",
                       attributes: [
-                        'viewBox',
-                        'transform',
-                        'points',
-                        'markerStart',
-                        'markerEnd',
-                        'points',
-                        'fill',
-                        'stroke',
-                        'strokeWidth',
-                        'd',
-                        'width',
-                        'height',
-                        'x',
-                        'y',
-                        'href',
+                        "viewBox",
+                        "transform",
+                        "points",
+                        "markerStart",
+                        "markerEnd",
+                        "points",
+                        "fill",
+                        "stroke",
+                        "strokeWidth",
+                        "d",
+                        "width",
+                        "height",
+                        "x",
+                        "y",
+                        "href",
                       ],
                     },
-                    { preset: 'lit-html' },
+                    { preset: "lit-html" },
                   ],
                 }
               : {
-                  tag: 'html',
-                  import: { module: 'lit-html', export: 'html' },
-                  attributes: [{ preset: 'lit-html' }],
+                  tag: "html",
+                  import: { module: "lit-html", export: "html" },
+                  attributes: [{ preset: "lit-html" }],
                 },
           ],
         ],
       });
 
       return result
-        ? { code: result.code ?? '', map: result.map as any }
+        ? { code: result.code ?? "", map: result.map as any }
         : undefined;
     },
   };

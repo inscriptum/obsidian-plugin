@@ -114,7 +114,7 @@ export const ToolbarElement = litView.element({
   let state = getToolbarState(props.editor);
   let wordCount = countWords(props.editor.getText());
   let saved = true;
-  let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  let saveTimer: number | null = null;
 
   // Simulate autosave cycle (AUTOSAVE_DELAY = 500ms in NoteView):
   // on change — "Saving…", after 600ms — "Saved".
@@ -152,7 +152,7 @@ export const ToolbarElement = litView.element({
                 title={btn.label}
                 onclick={() => btn.action(props.editor)}
               >
-                {btn.ico()}
+                <span class="note-toolbar__icon">{btn.ico()}</span>
               </button>
             )),
           ])}
