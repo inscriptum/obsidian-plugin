@@ -5,7 +5,7 @@ import { Editor, isTextSelection, posToDOMRect } from "../../texto/core";
 import { elTag } from "../../tags";
 import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
 import { getBubbleMenuState, TEXT_COLORS, type BubbleMenuState } from "./bubbleMenuState";
-import { bbIcon } from "./icons";
+import { bubbleIconNodes } from "./icons.svgnode";
 
 type OpenLayer = "styles" | "link" | null;
 
@@ -306,7 +306,7 @@ export const BubbleMenuBarElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyMark("bold")}
             >
-              {bbIcon.bold()}
+              {bubbleIconNodes.bold()}
             </button>
             <button
               class={cls("bb-btn", state.italic && "is-active")}
@@ -315,7 +315,7 @@ export const BubbleMenuBarElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyMark("italic")}
             >
-              {bbIcon.italic()}
+              {bubbleIconNodes.italic()}
             </button>
             <button
               class={cls("bb-btn", state.underline && "is-active")}
@@ -324,7 +324,7 @@ export const BubbleMenuBarElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyMark("underline")}
             >
-              {bbIcon.underline()}
+              {bubbleIconNodes.underline()}
             </button>
             <button
               class={cls("bb-btn", state.strike && "is-active")}
@@ -333,7 +333,7 @@ export const BubbleMenuBarElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyMark("strike")}
             >
-              {bbIcon.strike()}
+              {bubbleIconNodes.strike()}
             </button>
             <button
               class={cls("bb-btn", state.code && "is-active")}
@@ -342,7 +342,7 @@ export const BubbleMenuBarElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyMark("code")}
             >
-              {bbIcon.code()}
+              {bubbleIconNodes.code()}
             </button>
             <button
               class={cls("bb-btn", state.mark && "is-active")}
@@ -350,7 +350,7 @@ export const BubbleMenuBarElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyMark("mark")}
             >
-              {bbIcon.mark()}
+              {bubbleIconNodes.mark()}
             </button>
             <span class="bubble-menu-sep"></span>
             <button
@@ -368,7 +368,7 @@ export const BubbleMenuBarElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={toggleLinkLayer}
             >
-              {bbIcon.link()}
+              {bubbleIconNodes.link()}
             </button>
             <span class="bubble-menu-sep"></span>
             <button
@@ -377,7 +377,7 @@ export const BubbleMenuBarElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={clearFormatting}
             >
-              {bbIcon.clear()}
+              {bubbleIconNodes.clear()}
             </button>
           </div>
 
@@ -397,9 +397,9 @@ export const BubbleMenuBarElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyBlock("paragraph")}
             >
-              {bbIcon.paragraph()}
+              {bubbleIconNodes.paragraph()}
               <span>Paragraph</span>
-              <span class="bb-tick">{bbIcon.check(15, 2.6)}</span>
+              <span class="bb-tick">{bubbleIconNodes.check()}</span>
             </button>
             <button
               class={cls("bb-mi", "bb-mi--h1", state.h1 && "is-active")}
@@ -407,9 +407,9 @@ export const BubbleMenuBarElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyBlock("h1")}
             >
-              {bbIcon.h1()}
+              {bubbleIconNodes.h1()}
               <span>Heading 1</span>
-              <span class="bb-tick">{bbIcon.check(15, 2.6)}</span>
+              <span class="bb-tick">{bubbleIconNodes.check()}</span>
             </button>
             <button
               class={cls("bb-mi", "bb-mi--h2", state.h2 && "is-active")}
@@ -417,9 +417,9 @@ export const BubbleMenuBarElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyBlock("h2")}
             >
-              {bbIcon.h2()}
+              {bubbleIconNodes.h2()}
               <span>Heading 2</span>
-              <span class="bb-tick">{bbIcon.check(15, 2.6)}</span>
+              <span class="bb-tick">{bubbleIconNodes.check()}</span>
             </button>
             <button
               class={cls("bb-mi", "bb-mi--h3", state.h3 && "is-active")}
@@ -427,9 +427,9 @@ export const BubbleMenuBarElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyBlock("h3")}
             >
-              {bbIcon.h3()}
+              {bubbleIconNodes.h3()}
               <span>Heading 3</span>
-              <span class="bb-tick">{bbIcon.check(15, 2.6)}</span>
+              <span class="bb-tick">{bubbleIconNodes.check()}</span>
             </button>
             <button
               class={cls("bb-mi", state.quote && "is-active")}
@@ -437,9 +437,9 @@ export const BubbleMenuBarElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyBlock("quote")}
             >
-              {bbIcon.blockquote()}
+              {bubbleIconNodes.blockquote()}
               <span>Blockquote</span>
-              <span class="bb-tick">{bbIcon.check(15, 2.6)}</span>
+              <span class="bb-tick">{bubbleIconNodes.check()}</span>
             </button>
             <button
               class={cls("bb-mi", state.list && "is-active")}
@@ -447,9 +447,9 @@ export const BubbleMenuBarElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyBlock("list")}
             >
-              {bbIcon.list()}
+              {bubbleIconNodes.list()}
               <span>List</span>
-              <span class="bb-tick">{bbIcon.check(15, 2.6)}</span>
+              <span class="bb-tick">{bubbleIconNodes.check()}</span>
             </button>
             <button
               class={cls("bb-mi", state.taskList && "is-active")}
@@ -457,9 +457,9 @@ export const BubbleMenuBarElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyBlock("taskList")}
             >
-              {bbIcon.taskList()}
+              {bubbleIconNodes.taskList()}
               <span>Checkbox</span>
-              <span class="bb-tick">{bbIcon.check(15, 2.6)}</span>
+              <span class="bb-tick">{bubbleIconNodes.check()}</span>
             </button>
 
             <div class="bb-layer-sep"></div>
@@ -510,7 +510,7 @@ export const BubbleMenuBarElement = litView.element({
                 onmousedown={(e: MouseEvent) => e.preventDefault()}
                 onclick={applyLink}
               >
-                {bbIcon.check(15, 2)}
+                {bubbleIconNodes.check()}
               </button>
             </div>
             <div class="bb-link-foot">

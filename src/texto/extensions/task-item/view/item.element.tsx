@@ -5,7 +5,7 @@ import {litView} from '@web-companions/lit';
 import {type Ref, createRef, ref} from 'lit-html/directives/ref.js';
 
 import type {TaskItemOptions} from '../task-item';
-import {itemIconNode} from './svg/itemIcon.node';
+import {itemIconNode} from './svg/itemIcon.svgnode';
 
 const ItemIconNode = itemIconNode();
 

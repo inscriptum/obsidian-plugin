@@ -48,6 +48,15 @@ export function jsxToTtPlugin(): Plugin {
                         "href",
                       ],
                     },
+                    // `xlink:href` is a namespaced JSX attribute, which the
+                    // underlying babel plugin drops — so we write `xlinkHref`
+                    // (a plain identifier) in JSX and rewrite it to the literal
+                    // `xlink:href` attribute here.
+                    {
+                      prefix: "xlink:href",
+                      replace: "xlinkHref",
+                      attributes: ["xlinkHref"],
+                    },
                     { preset: "lit-html" },
                   ],
                 }

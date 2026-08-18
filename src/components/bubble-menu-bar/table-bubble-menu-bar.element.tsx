@@ -6,7 +6,7 @@ import { elTag } from "../../tags";
 import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
 import { bgHexToAttr, getTableMenuState, TABLE_FILLS, type TableMenuState } from "./tableMenuState";
 import { TEXT_COLORS } from "./bubbleMenuState";
-import { bbIcon } from "./icons";
+import { bubbleIconNodes } from "./icons.svgnode";
 
 type OpenLayer = "table-color" | null;
 
@@ -215,7 +215,7 @@ export const TableBubbleMenuElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyTableAction("rowAbove")}
             >
-              {bbIcon.rowAbove()}
+              {bubbleIconNodes.rowAbove()}
             </button>
             <button
               class="bb-btn"
@@ -223,7 +223,7 @@ export const TableBubbleMenuElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyTableAction("rowBelow")}
             >
-              {bbIcon.rowBelow()}
+              {bubbleIconNodes.rowBelow()}
             </button>
             <button
               class="bb-btn"
@@ -231,7 +231,7 @@ export const TableBubbleMenuElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyTableAction("colLeft")}
             >
-              {bbIcon.colLeft()}
+              {bubbleIconNodes.colLeft()}
             </button>
             <button
               class="bb-btn"
@@ -239,7 +239,7 @@ export const TableBubbleMenuElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyTableAction("colRight")}
             >
-              {bbIcon.colRight()}
+              {bubbleIconNodes.colRight()}
             </button>
             <span class="bubble-menu-sep"></span>
             <button
@@ -248,7 +248,7 @@ export const TableBubbleMenuElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyTableAction("merge")}
             >
-              {bbIcon.merge()}
+              {bubbleIconNodes.merge()}
             </button>
             <button
               class={cls("bb-btn", !tableState.mergedCell && "is-disabled")}
@@ -256,7 +256,7 @@ export const TableBubbleMenuElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyTableAction("split")}
             >
-              {bbIcon.split()}
+              {bubbleIconNodes.split()}
             </button>
             <span class="bubble-menu-sep"></span>
             <button
@@ -265,7 +265,7 @@ export const TableBubbleMenuElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyTableAction("delRow")}
             >
-              {bbIcon.delRow()}
+              {bubbleIconNodes.delRow()}
             </button>
             <button
               class="bb-btn"
@@ -273,7 +273,7 @@ export const TableBubbleMenuElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyTableAction("delCol")}
             >
-              {bbIcon.delCol()}
+              {bubbleIconNodes.delCol()}
             </button>
             <span class="bubble-menu-sep"></span>
             <button
@@ -282,7 +282,7 @@ export const TableBubbleMenuElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyTableAction("header")}
             >
-              {bbIcon.header()}
+              {bubbleIconNodes.header()}
             </button>
             <button
               class={cls("bb-btn", openLayer === "table-color" && "is-active")}
@@ -300,7 +300,7 @@ export const TableBubbleMenuElement = litView.element({
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={() => applyTableAction("delTable")}
             >
-              {bbIcon.delTable()}
+              {bubbleIconNodes.delTable()}
             </button>
           </div>
 

@@ -126,9 +126,11 @@ never keep the menu invisible. */
   outline-offset: 1px;
 }
 .bubble-menu-bar button svg {
+  display: block;
   width: 16px;
   height: 16px;
   stroke-width: 1.8;
+  flex: 0 0 auto;
 }
 
 .bubble-menu-bar .bb-aa {
@@ -325,9 +327,11 @@ never keep the menu invisible. */
   opacity: 0;
 }
 .bubble-menu-bar .bb-mi .bb-tick svg {
+  display: block;
   width: 14px;
   height: 14px;
   stroke-width: 2.6;
+  flex: 0 0 auto;
 }
 .bubble-menu-bar .bb-mi.is-active {
   color: #c0b1ff;

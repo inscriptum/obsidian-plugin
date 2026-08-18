@@ -1,12 +1,15 @@
 import "./styles/editor.css";
 import { Plugin, WorkspaceLeaf, Notice } from "obsidian";
 import { NoteView, NOTE_VIEW_TYPE } from "./NoteView";
+import { installIconSprite } from "./components/icons/iconSprite";
 import { createEmptyNote } from "./storage/noteStorage";
 import { NewNoteModal } from "./ui/NewNoteModal";
 import type { JSONContent } from "./texto/core/@types";
 
 export default class NotesPlugin extends Plugin {
   async onload(): Promise<void> {
+    installIconSprite();
+
     this.registerExtensions(["note"], NOTE_VIEW_TYPE);
 
     this.registerView(

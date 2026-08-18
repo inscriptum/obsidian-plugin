@@ -3,13 +3,14 @@ import { p } from "@web-companions/gfc";
 import { Editor } from "../../texto/core";
 import { elTag } from "../../tags";
 import { getToolbarState, type ToolbarState } from "./toolbarState";
-import { toolbarIcon, type IconFn } from "./icons";
+import { iconNodes } from "../icons/icon.svgnode";
+import type { IconName } from "../icons/iconSprite";
 
 interface ToolbarButton {
   /** Key in ToolbarState for highlight, or null for action buttons (image/attach/table). */
   activeKey: keyof ToolbarState | null;
   label: string;
-  ico: IconFn;
+  icon: IconName;
   action: (editor: Editor) => void;
 }
 
@@ -24,25 +25,25 @@ const GROUPS: ToolbarButton[][] = [
     {
       activeKey: "paragraph",
       label: "Text",
-      ico: toolbarIcon.paragraph,
+      icon: "paragraph",
       action: (e) => e.chain().focus().clearNodes().run(),
     },
     {
       activeKey: "heading1",
       label: "Heading 1",
-      ico: toolbarIcon.h1,
+      icon: "h1",
       action: (e) => e.chain().focus().toggleHeading({ level: 1 }).run(),
     },
     {
       activeKey: "heading2",
       label: "Heading 2",
-      ico: toolbarIcon.h2,
+      icon: "h2",
       action: (e) => e.chain().focus().toggleHeading({ level: 2 }).run(),
     },
     {
       activeKey: "heading3",
       label: "Heading 3",
-      ico: toolbarIcon.h3,
+      icon: "h3",
       action: (e) => e.chain().focus().toggleHeading({ level: 3 }).run(),
     },
   ],
@@ -51,31 +52,31 @@ const GROUPS: ToolbarButton[][] = [
     {
       activeKey: "blockquote",
       label: "Quote",
-      ico: toolbarIcon.blockquote,
+      icon: "blockquote",
       action: (e) => e.chain().focus().toggleBlockquote().run(),
     },
     {
       activeKey: "taskList",
       label: "To-do list",
-      ico: toolbarIcon.taskList,
+      icon: "taskList",
       action: (e) => e.chain().focus().toggleTaskList().run(),
     },
     {
       activeKey: "bulletList",
       label: "Bullet list",
-      ico: toolbarIcon.bulletList,
+      icon: "bulletList",
       action: (e) => e.chain().focus().toggleBulletList().run(),
     },
     {
       activeKey: "orderedList",
       label: "Numbered list",
-      ico: toolbarIcon.orderedList,
+      icon: "orderedList",
       action: (e) => e.chain().focus().toggleOrderedList().run(),
     },
     {
       activeKey: "codeBlock",
       label: "Code block",
-      ico: toolbarIcon.code,
+      icon: "code",
       action: (e) => e.chain().focus().toggleHljsCodeBlock().run(),
     },
   ],
@@ -84,19 +85,19 @@ const GROUPS: ToolbarButton[][] = [
     {
       activeKey: null,
       label: "Image",
-      ico: toolbarIcon.image,
+      icon: "image",
       action: (e) => e.chain().focus().selectImageFile().run(),
     },
     {
       activeKey: null,
       label: "Attach",
-      ico: toolbarIcon.paperclip,
+      icon: "paperclip",
       action: (e) => e.chain().focus().setAttachment(true).run(),
     },
     {
       activeKey: null,
       label: "Table",
-      ico: toolbarIcon.table,
+      icon: "table",
       action: (e) => e.chain().focus().insertTable().run(),
     },
   ],
@@ -152,7 +153,7 @@ export const ToolbarElement = litView.element({
                 title={btn.label}
                 onclick={() => btn.action(props.editor)}
               >
-                <span class="note-toolbar__icon">{btn.ico()}</span>
+                <span class="note-toolbar__icon">{iconNodes[btn.icon]({})}</span>
               </button>
             )),
           ])}
