@@ -1,0 +1,32 @@
+/* ───────────────────────────────────────────────────────────────
+   Mobile overrides
+   Obsidian adds `is-mobile` to <body> on phones/tablets.
+   All mobile-specific tweaks live here so they are easy to find
+   and don't pollute the desktop stylesheets.
+   ─────────────────────────────────────────────────────────────── */
+
+/* ─── 1. Larger checkboxes for comfortable tapping ───
+   The checkbox is a custom SVG: #check_box_off_20 / #check_box_on_20 are
+   <g> groups (NOT <symbol>) defined in note.element.tsx inside an
+   <svg viewBox="0 0 16 16"> with fixed 16-unit coordinates. TaskItem
+   references them via <use>, so the icon scales with the outer <svg>'s
+   CSS size (its viewBox is "0 0 16 16" — see itemIcon.svgnode.tsx).
+   Desktop shows it at 16px; on mobile we bump it for easier tapping. ─── */
+body.is-mobile .texto-extension-task-item-host .custom-icon {
+  width: 22px;
+  height: 22px;
+}
+
+body.is-mobile .texto-extension-task-item-host .custom-icon svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+/* Vertically center the (now larger) checkbox with the first text line.
+   Base rule uses margin-top:.4em tuned for the 16px desktop box; for 22px
+   we need ~3px so the checkbox center meets the text line center
+   (~0.5 * 1.8 * 15.5px ≈ 14px). */
+body.is-mobile .ProseMirror ul[data-type=taskList] .texto-extension-task-item-host>label {
+  margin-top: 3px;
+}
