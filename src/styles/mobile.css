@@ -30,3 +30,11 @@ body.is-mobile .texto-extension-task-item-host .custom-icon svg {
 body.is-mobile .ProseMirror ul[data-type=taskList] .texto-extension-task-item-host>label {
   margin-top: 3px;
 }
+
+/* ─── 2. Reduce edge margins on mobile ───
+   Desktop uses 48px side padding (fine on wide screens, wasteful on a
+   phone). Pull the content closer to the screen edges and tighten the
+   top; keep generous bottom padding for the mobile keyboard/toolbar. ─── */
+body.is-mobile .texto-editor {
+  padding: 20px 16px 100px;
+}
