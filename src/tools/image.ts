@@ -68,7 +68,8 @@ async function onFileSelected(
 
 /**
  * onSetViewProps hook for Image:
- *  - restores src from data.id when opening a saved note;
+ *  - re-resolves src from data.id on every load (the stored `app://…` resource
+ *    URL embeds a vault hash that can go stale between launches);
  *  - injects onFileSelected for file selection via input.
  */
 export function imageOnSetViewProps(
@@ -76,15 +77,19 @@ export function imageOnSetViewProps(
   update: UpdateFn,
   ctx: ImageToolContext,
 ): ImageElementPublicProps | undefined {
-  // Restore src for an already saved image
-  if (props.state?.src == null && props.data?.id != null) {
+  let state = props.state;
+
+  if (props.data?.id != null) {
     const src = ctx.app.vault.adapter.getResourcePath(props.data.id);
-    update({ data: props.data, state: { ...props.state, src } }, true);
-    return props;
+    if (state?.src !== src) {
+      state = { ...state, src };
+      update({ data: props.data, state }, true);
+    }
   }
 
   return {
     ...props,
+    state,
     onFileSelected: (file: File | null) => {
       if (file) void onFileSelected(file, update, ctx);
     },
