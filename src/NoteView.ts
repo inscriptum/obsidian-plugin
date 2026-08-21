@@ -26,6 +26,7 @@ import {
   nextPhoneNavMode,
   parsePhoneNavMode,
 } from "./components/toolbar/phoneNavMode";
+import { setupScrollShadows } from "./components/toolbar/scrollShadow";
 import {
   bubbleMenuPlugin,
   type BubbleMenuView,
@@ -68,6 +69,7 @@ export class NoteView extends FileView {
   private navbarToggleEl: HTMLElement | null = null;
   private phoneNavIntegrated = false;
   private phoneNavMode: PhoneNavMode = DEFAULT_PHONE_NAV_MODE;
+  private scrollShadowCleanup: (() => void) | null = null;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -277,10 +279,17 @@ export class NoteView extends FileView {
     this.phoneNavMode = this.loadPhoneNavMode();
     this.phoneNavIntegrated = true;
     this.applyPhoneNavMode();
+
+    // Fade the scrollable toolbar/selection-bar edges when more items are
+    // reachable in that direction (see scrollShadow.ts).
+    this.scrollShadowCleanup?.();
+    this.scrollShadowCleanup = setupScrollShadows(navbar);
   }
 
   /** Remove our toggle + toolbar from the navbar and reset state. */
   private teardownPhoneNavbar(): void {
+    this.scrollShadowCleanup?.();
+    this.scrollShadowCleanup = null;
     const navbar = this.getPhoneNavbar();
     if (navbar) {
       navbar.classList.remove("mod-our-menu");

@@ -141,28 +141,43 @@
    no longer apply once the toolbar lives inside the navbar, so they are
    mirrored here, scoped to `.mobile-navbar`. ─── */
 
-/* Toggle injected into the native navbar (always visible in both modes). */
+/* The native pill is capped at `--navbar-max-width` (316px) which already fits
+   Obsidian's six actions; our toggle needs extra room, so widen it when our
+   elements are injected. The pill is `width: fit-content`, so it only grows
+   as much as its content actually needs. Drop the right padding so the toggle
+   sits flush against the pill's rounded edge (its own radius lines up). */
+.mobile-navbar.mod-raised:has(.inscriptum-nav-toggle) {
+  --navbar-max-width: calc(100vw - 16px);
+  padding-right: 0;
+}
+
+/* Toggle — styled like a native navbar action button (full navbar height,
+   24px icon), but visually separated from the native actions: a leading
+   divider and an accent icon so it clearly reads as "our" control. */
 .mobile-navbar .inscriptum-nav-toggle {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex: 0 0 40px;
-  align-self: center;
-  height: auto;
+  flex: 0 0 var(--navbar-height, 52px);
+  align-self: stretch;
+  height: 100%;
   box-sizing: border-box;
   margin: 0;
   padding: 0;
   border: none;
+  border-left: 1px solid var(--background-modifier-border);
+  border-radius: 0 var(--touch-size-l, 52px) var(--touch-size-l, 52px) 0;
   background: transparent;
-  color: var(--text-muted);
+  color: var(--interactive-accent);
   cursor: pointer;
 }
 .mobile-navbar .inscriptum-nav-toggle.is-active {
   color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 15%, transparent);
 }
 .mobile-navbar .inscriptum-nav-toggle svg {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   display: block;
 }
 
@@ -186,15 +201,16 @@
   display: none !important;
 }
 
-/* The default toolbar fills the navbar width (no top border inside navbar).
-   Explicit height (not 100%) so it never collapses when the navbar's own
-   height is content-driven; horizontal scroll keeps all buttons reachable
-   on narrow phones. */
+/* The toolbar fills the navbar and blends into the pill: transparent so the
+   native background shows through, no border, horizontal scroll for the
+   buttons that don't fit. */
 .mobile-navbar.mod-our-menu .note-toolbar {
   width: 100%;
-  height: 40px;
+  height: 100%;
+  gap: 0;
+  padding: 0 4px;
   border-bottom: none;
-  padding: 0 6px;
+  background: transparent;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -207,9 +223,48 @@
   display: none;
 }
 
-/* Selection bars (bubble menu) inside the navbar: full width, scrollable. */
+/* Toolbar buttons look like native navbar actions: large touch target,
+   24px icon, muted color, no raised/hover background. */
+.mobile-navbar .note-toolbar .note-toolbar__btn {
+  width: var(--touch-size-l, 52px);
+  height: var(--touch-size-l, 52px);
+  flex: 0 0 auto;
+  border-radius: var(--touch-size-l, 52px);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+.mobile-navbar .note-toolbar .note-toolbar__btn:hover {
+  background: transparent;
+  color: var(--text-normal);
+}
+.mobile-navbar .note-toolbar .note-toolbar__btn.is-active {
+  background: transparent;
+  color: var(--interactive-accent);
+}
+.mobile-navbar .note-toolbar .note-toolbar__icon,
+.mobile-navbar .note-toolbar .note-toolbar__btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Desktop-only chrome is meaningless inside the navbar: separators, the
+   flex spacer and the "Saved · N w." status are dropped. */
+.mobile-navbar .note-toolbar__sep,
+.mobile-navbar .note-toolbar__spacer,
+.mobile-navbar .note-toolbar__meta {
+  display: none;
+}
+
+/* Selection bars (bubble menu) inside the navbar: full width, scrollable.
+   The bar must shrink to the space left of the toggle and clip its content
+   (the inner row scrolls), otherwise it overflows under the toggle. */
 .mobile-navbar .mobile-sel-bar {
   display: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
 }
 .mobile-navbar .mobile-sel-bar.is-active {
   display: block;
@@ -222,12 +277,62 @@
   width: 100%;
   padding: 4px 6px;
 }
-.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-bar__row {
+.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-bar__row,
+.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-table-bar {
   flex-wrap: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
-.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-bar__row::-webkit-scrollbar {
+.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-bar__row::-webkit-scrollbar,
+.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-table-bar::-webkit-scrollbar {
   display: none;
+}
+
+/* Bubble-menu buttons match the native navbar: no dark hover/active fills,
+   muted icon color, 24px icons, no tooltip popovers. */
+.mobile-navbar .mobile-sel-bar .bubble-menu-bar button {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--text-muted);
+}
+.mobile-navbar .mobile-sel-bar .bubble-menu-bar button:hover {
+  background: transparent;
+  color: var(--text-normal);
+}
+.mobile-navbar .mobile-sel-bar .bubble-menu-bar button.is-active {
+  background: transparent;
+  box-shadow: none;
+  color: var(--interactive-accent);
+}
+.mobile-navbar .mobile-sel-bar .bubble-menu-bar button svg {
+  width: 24px;
+  height: 24px;
+}
+.mobile-navbar .mobile-sel-bar .bubble-menu-sep {
+  background: var(--background-modifier-border);
+}
+.mobile-navbar .mobile-sel-bar .bubble-menu-bar .bb-btn[data-tip]::after {
+  display: none;
+}
+
+/* ─── Horizontal scroll hint ────────────────────────────────────────────
+   The toolbar and selection bars scroll horizontally. Fade the leading /
+   trailing edge when more items are reachable in that direction. The
+   `can-scroll-left` / `can-scroll-right` classes are toggled from JS
+   (setupScrollShadows in NoteView). */
+.mobile-navbar :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar).can-scroll-right:not(.can-scroll-left) {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+}
+.mobile-navbar :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar).can-scroll-left:not(.can-scroll-right) {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px);
+  mask-image: linear-gradient(to right, transparent 0, #000 28px);
+}
+.mobile-navbar :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar).can-scroll-left.can-scroll-right {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px calc(100% - 28px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 28px calc(100% - 28px), transparent 100%);
 }
