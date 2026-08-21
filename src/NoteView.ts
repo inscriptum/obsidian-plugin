@@ -107,14 +107,13 @@ export class NoteView extends FileView {
     );
   }
 
-  /** Track the soft keyboard: toggle `is-keyboard-open` and reserve its
-      height as `--keyboard-offset` so our docked toolbar sits right above
-      the keyboard instead of being covered by it. */
+  /** Track the soft keyboard height and reserve it as `--keyboard-offset` so
+      our docked toolbar sits right above the keyboard instead of being
+      covered by it. */
   private setupKeyboardHandling(): void {
     const update = () => {
-      const { open, height } = this.keyboardState();
-      this.contentEl.classList.toggle("is-keyboard-open", open);
-      this.contentEl.setCssProps({ "--keyboard-offset": open ? `${height}px` : "" });
+      const height = this.keyboardHeight();
+      this.contentEl.setCssProps({ "--keyboard-offset": height > 0 ? `${height}px` : "" });
     };
     update();
 
@@ -132,12 +131,11 @@ export class NoteView extends FileView {
     }
   }
 
-  /** Keyboard geometry: open flag + height in CSS pixels. */
-  private keyboardState(): { open: boolean; height: number } {
+  /** Soft keyboard height in CSS pixels (0 when closed / not detected). */
+  private keyboardHeight(): number {
     const vv = window.visualViewport;
-    if (!vv) return { open: false, height: 0 };
-    const height = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-    return { open: height > 100, height };
+    if (!vv) return 0;
+    return Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
   }
 
   async onLoadFile(file: TFile): Promise<void> {
@@ -187,6 +185,17 @@ export class NoteView extends FileView {
         this.editor.on("blur", () => {
           void this.flushSave();
         });
+
+        // Mobile: show our toolbar only while editing — the native menu shows
+        // otherwise. Focus ≈ keyboard open on phones and works in emulation.
+        if (isMobile) {
+          const refreshEditing = () => {
+            this.contentEl.classList.toggle("is-editing", this.editor?.isFocused ?? false);
+          };
+          this.editor.on("focus", refreshEditing);
+          this.editor.on("blur", refreshEditing);
+          refreshEditing();
+        }
 
         this._skipNextReload = true;
 

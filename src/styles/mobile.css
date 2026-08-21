@@ -208,12 +208,12 @@
   display: none;
 }
 
-/* ─── 4. Keyboard visibility (phones) ───
-   On a phone the native navbar is shown while the keyboard is closed, so we
-   hide our toolbar then and show it only while editing (keyboard open). On
-   iPad there is no native navbar, so the toolbar always stays visible.
-   `is-keyboard-open` is toggled from NoteView.setupKeyboardHandling. ─── */
-body.is-phone .note-view-container.is-mobile:not(.is-keyboard-open) .note-toolbar-host {
+/* ─── 4. Editing visibility (phones) ───
+   On a phone the native navbar is shown while the editor is not focused, so
+   we hide our toolbar then and show it only while editing. On iPad there is
+   no native navbar, so the toolbar always stays visible. `is-editing` is
+   toggled from NoteView on editor focus/blur. ─── */
+body.is-phone .note-view-container.is-mobile:not(.is-editing) .note-toolbar-host {
   display: none;
 }
 
