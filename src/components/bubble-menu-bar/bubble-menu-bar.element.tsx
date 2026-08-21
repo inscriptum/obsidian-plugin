@@ -99,6 +99,17 @@ export const BubbleMenuBarElement = litView.element({
         openUp = spaceAbove >= spaceBelow;
       }
       bar.classList.toggle("layer-open-down", !openUp);
+      // Mobile only: cap the layer height to the space available on its side so
+      // it can never extend off-screen — e.g. on a short/landscape viewport where
+      // the bar sits near the screen bottom and the layer opens upward, its top
+      // would otherwise clip above the viewport (top items unreachable). Desktop
+      // keeps the natural layer height (floating popup, no scrolling).
+      const isMobileContext =
+        root.closest(".note-view-container.is-mobile, .mobile-navbar") != null;
+      if (isMobileContext) {
+        const available = (openUp ? spaceAbove : spaceBelow) - gap - 8;
+        layer.style.maxHeight = `${Math.max(140, Math.min(window.innerHeight - 24, available))}px`;
+      }
     });
   };
 

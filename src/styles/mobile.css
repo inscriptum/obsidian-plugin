@@ -1,6 +1,9 @@
 /* ───────────────────────────────────────────────────────────────
    Mobile overrides
-   Obsidian adds `is-mobile` to <body> on phones/tablets.
+   The mobile class is applied in JS (NoteView) to the note view's
+   content element: `.note-view-container.is-mobile`. We deliberately
+   do NOT rely on `body.is-mobile` because it is not reliably present
+   in every Obsidian mobile context here.
    All mobile-specific tweaks live here so they are easy to find
    and don't pollute the desktop stylesheets.
    ─────────────────────────────────────────────────────────────── */
@@ -12,12 +15,12 @@
    references them via <use>, so the icon scales with the outer <svg>'s
    CSS size (its viewBox is "0 0 16 16" — see itemIcon.svgnode.tsx).
    Desktop shows it at 16px; on mobile we bump it for easier tapping. ─── */
-body.is-mobile .texto-extension-task-item-host .custom-icon {
+.note-view-container.is-mobile .texto-extension-task-item-host .custom-icon {
   width: 22px;
   height: 22px;
 }
 
-body.is-mobile .texto-extension-task-item-host .custom-icon svg {
+.note-view-container.is-mobile .texto-extension-task-item-host .custom-icon svg {
   width: 22px;
   height: 22px;
   display: block;
@@ -27,14 +30,204 @@ body.is-mobile .texto-extension-task-item-host .custom-icon svg {
    Base rule uses margin-top:.4em tuned for the 16px desktop box; for 22px
    we need ~3px so the checkbox center meets the text line center
    (~0.5 * 1.8 * 15.5px ≈ 14px). */
-body.is-mobile .ProseMirror ul[data-type=taskList] .texto-extension-task-item-host>label {
+.note-view-container.is-mobile .ProseMirror ul[data-type=taskList] .texto-extension-task-item-host>label {
   margin-top: 3px;
 }
 
 /* ─── 2. Reduce edge margins on mobile ───
    Desktop uses 48px side padding (fine on wide screens, wasteful on a
    phone). Pull the content closer to the screen edges and tighten the
-   top; keep generous bottom padding for the mobile keyboard/toolbar. ─── */
-body.is-mobile .texto-editor {
-  padding: 20px 16px 100px;
+   top; a small bottom padding is enough since the toolbar is a normal
+   flex sibling now (it no longer overlaps the content). ─── */
+.note-view-container.is-mobile .texto-editor {
+  padding: 20px 16px 24px;
+}
+
+/* ─── 3 & 4. Mobile: single bottom toolbar, content swaps on selection ───
+   The note view becomes a vertical flex column: the editor host fills the
+   available space and scrolls, while the toolbar is a flex sibling pinned
+   to the bottom (order: 2). When a text/table selection is active its
+   content is replaced by the (former) bubble menu, rendered inside this
+   same toolbar (see ToolbarElement). The native selection callout is
+   suppressed via -webkit-touch-callout so only our bar shows. ─── */
+.note-view-container.is-mobile {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.note-view-container.is-mobile .texto-editor-host {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  order: 1;
+}
+.note-view-container.is-mobile .note-toolbar-host {
+  order: 2;
+  position: static;
+  flex-shrink: 0;
+  z-index: 50;
+  background: var(--background-primary);
+  border-top: 1px solid var(--background-modifier-border);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.note-view-container.is-mobile .note-toolbar {
+  position: static;
+  border-bottom: none;
+  height: auto;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+/* Suppress the native iOS selection callout while keeping the selection. */
+.note-view-container.is-mobile .texto-editor,
+.note-view-container.is-mobile .ProseMirror {
+  -webkit-touch-callout: none;
+}
+
+/* Swap visibility between the default toolbar and the selection bars */
+.note-view-container.is-mobile .note-toolbar.is-hidden {
+  display: none;
+}
+.note-view-container.is-mobile .mobile-sel-bar {
+  display: none;
+}
+.note-view-container.is-mobile .mobile-sel-bar.is-active {
+  display: block;
+}
+
+/* Let the (former) bubble menu fill the bottom bar and scroll if needed */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  width: 100%;
+  padding: 4px 6px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar__row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar__row::-webkit-scrollbar {
+  display: none;
+}
+/* No pointer-to-selection caret inside a docked bar */
+.note-view-container.is-mobile .bubble-menu-bar .bb-caret,
+.note-view-container.is-mobile .bubble-menu-layer .bb-layer-caret,
+.mobile-navbar .bubble-menu-bar .bb-caret,
+.mobile-navbar .bubble-menu-layer .bb-layer-caret {
+  display: none;
+}
+
+/* On short mobile viewports a layer ("Styles & color", "Fill & color") can be
+   taller than the screen and extend off-screen. Cap it and make it scroll so
+   every item stays reachable. Desktop keeps the natural (unbounded) height. */
+.note-view-container.is-mobile .bubble-menu-layer,
+.mobile-navbar .bubble-menu-layer {
+  max-height: calc(100vh - 24px);
+  overflow-y: auto;
+}
+
+/* ─── Phone: reuse Obsidian's native navbar as our toolbar container ───
+   On phones Obsidian shows a fixed `.mobile-navbar.mod-raised`. We relocate
+   our toolbar element inside it and inject a toggle (`.inscriptum-nav-toggle`).
+   `.mod-our-menu` on the navbar = our mode: native children are hidden and our
+   toolbar fills the navbar. Without it = native mode: Obsidian's own controls
+   show and our toolbar is hidden. The toggle is always visible so the user can
+   switch back. The docked-bar rules above (`.note-view-container.is-mobile`)
+   no longer apply once the toolbar lives inside the navbar, so they are
+   mirrored here, scoped to `.mobile-navbar`. ─── */
+
+/* Toggle injected into the native navbar (always visible in both modes). */
+.mobile-navbar .inscriptum-nav-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 40px;
+  align-self: center;
+  height: auto;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.mobile-navbar .inscriptum-nav-toggle.is-active {
+  color: var(--interactive-accent);
+}
+.mobile-navbar .inscriptum-nav-toggle svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+/* Our toolbar relocated inside the navbar — hidden by default (native mode). */
+.mobile-navbar .note-toolbar-host {
+  display: none;
+  order: 0;
+  position: static;
+  top: auto;
+  z-index: auto;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.mobile-navbar.mod-our-menu .note-toolbar-host {
+  display: flex;
+  align-items: center;
+}
+
+/* Hide every native navbar child except our toggle + our toolbar. */
+.mobile-navbar.mod-our-menu > *:not(.inscriptum-nav-toggle):not(.note-toolbar-host) {
+  display: none !important;
+}
+
+/* The default toolbar fills the navbar width (no top border inside navbar).
+   Explicit height (not 100%) so it never collapses when the navbar's own
+   height is content-driven; horizontal scroll keeps all buttons reachable
+   on narrow phones. */
+.mobile-navbar.mod-our-menu .note-toolbar {
+  width: 100%;
+  height: 40px;
+  border-bottom: none;
+  padding: 0 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.mobile-navbar.mod-our-menu .note-toolbar::-webkit-scrollbar {
+  display: none;
+}
+.mobile-navbar.mod-our-menu .note-toolbar.is-hidden {
+  display: none;
+}
+
+/* Selection bars (bubble menu) inside the navbar: full width, scrollable. */
+.mobile-navbar .mobile-sel-bar {
+  display: none;
+}
+.mobile-navbar .mobile-sel-bar.is-active {
+  display: block;
+}
+.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-bar {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  width: 100%;
+  padding: 4px 6px;
+}
+.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-bar__row {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-bar__row::-webkit-scrollbar {
+  display: none;
 }

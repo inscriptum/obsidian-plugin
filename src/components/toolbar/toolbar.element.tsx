@@ -1,6 +1,7 @@
 import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
-import { Editor } from "../../texto/core";
+import { Editor, isTextSelection } from "../../texto/core";
+import { CellSelection, isInTable } from "prosemirror-tables";
 import { elTag } from "../../tags";
 import { getToolbarState, type ToolbarState } from "./toolbarState";
 import { iconNodes } from "../icons/icon.svgnode";
@@ -110,12 +111,17 @@ function countWords(text: string): number {
 export const ToolbarElement = litView.element({
   props: {
     editor: p.req<Editor>(),
+    /** Mobile only: the (former) text bubble menu bar, shown on text selection. */
+    selectionBar: p.opt<HTMLElement>(),
+    /** Mobile only: the (former) table bubble menu bar, shown in a table. */
+    tableSelectionBar: p.opt<HTMLElement>(),
   },
 })(function* (props) {
   let state = getToolbarState(props.editor);
   let wordCount = countWords(props.editor.getText());
   let saved = true;
   let saveTimer: number | null = null;
+  let mode: "none" | "text" | "table" = "none";
 
   // Simulate autosave cycle (AUTOSAVE_DELAY = 500ms in NoteView):
   // on change — "Saving…", after 600ms — "Saved".
@@ -130,9 +136,19 @@ export const ToolbarElement = litView.element({
     }, 600);
   };
 
+  const computeMode = (): "none" | "text" | "table" => {
+    const { selection } = props.editor.state;
+    if (isInTable(props.editor.state)) {
+      if (selection.empty || selection instanceof CellSelection) return "table";
+    }
+    if (!selection.empty && isTextSelection(selection)) return "text";
+    return "none";
+  };
+
   const refreshState = () => {
     state = getToolbarState(props.editor);
     wordCount = countWords(props.editor.getText());
+    mode = computeMode();
     markDirty();
     void this.next();
   };
@@ -140,31 +156,46 @@ export const ToolbarElement = litView.element({
   props.editor.on("selectionUpdate", refreshState);
   props.editor.on("update", refreshState);
 
+  mode = computeMode();
+
   try {
     while (true) {
+      const isMobileSwap = !!props.selectionBar;
       props = yield (
-        <div class="note-toolbar">
-          {GROUPS.map((group, gi) => [
-            gi > 0 ? <div class="note-toolbar__sep"></div> : null,
-            group.map((btn) => (
-              <button
-                class={`note-toolbar__btn${btn.activeKey && state[btn.activeKey] ? " is-active" : ""}`}
-                aria-label={btn.label}
-                title={btn.label}
-                onclick={() => btn.action(props.editor)}
-              >
-                <span class="note-toolbar__icon">{iconNodes[btn.icon]({})}</span>
-              </button>
-            )),
-          ])}
-          <div class="note-toolbar__spacer"></div>
-          <div class="note-toolbar__meta">
-            <span class={`note-toolbar__dot${saved ? "" : " is-pending"}`}></span>
-            <span>{saved ? "Saved" : "Saving…"}</span>
-            <span>·</span>
-            <span>{wordCount} w.</span>
+        <>
+          <div class={`note-toolbar${isMobileSwap && mode !== "none" ? " is-hidden" : ""}`}>
+            {GROUPS.map((group, gi) => [
+              gi > 0 ? <div class="note-toolbar__sep"></div> : null,
+              group.map((btn) => (
+                <button
+                  class={`note-toolbar__btn${btn.activeKey && state[btn.activeKey] ? " is-active" : ""}`}
+                  aria-label={btn.label}
+                  title={btn.label}
+                  onclick={() => btn.action(props.editor)}
+                >
+                  <span class="note-toolbar__icon">{iconNodes[btn.icon]({})}</span>
+                </button>
+              )),
+            ])}
+            <div class="note-toolbar__spacer"></div>
+            <div class="note-toolbar__meta">
+              <span class={`note-toolbar__dot${saved ? "" : " is-pending"}`}></span>
+              <span>{saved ? "Saved" : "Saving…"}</span>
+              <span>·</span>
+              <span>{wordCount} w.</span>
+            </div>
           </div>
-        </div>
+          {isMobileSwap && props.selectionBar ? (
+            <div class={`mobile-sel-bar mobile-sel-bar--text${mode === "text" ? " is-active" : ""}`}>
+              {props.selectionBar}
+            </div>
+          ) : null}
+          {isMobileSwap && props.tableSelectionBar ? (
+            <div class={`mobile-sel-bar mobile-sel-bar--table${mode === "table" ? " is-active" : ""}`}>
+              {props.tableSelectionBar}
+            </div>
+          ) : null}
+        </>
       );
     }
   } finally {

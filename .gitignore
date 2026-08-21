@@ -2,6 +2,7 @@ node_modules/
 dist/
 local/
 *.log
+.playwright-mcp/
 .npmrc
 .obsidian
 .DS_Store
