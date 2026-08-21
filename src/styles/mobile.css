@@ -43,13 +43,15 @@
   padding: 20px 16px 24px;
 }
 
-/* ─── 3 & 4. Mobile: single bottom toolbar, content swaps on selection ───
+/* ─── 3. Our own bottom toolbar (native-styled) ───
    The note view becomes a vertical flex column: the editor host fills the
    available space and scrolls, while the toolbar is a flex sibling pinned
-   to the bottom (order: 2). When a text/table selection is active its
+   to the bottom (order: 2). When a text/table/media selection is active its
    content is replaced by the (former) bubble menu, rendered inside this
-   same toolbar (see ToolbarElement). The native selection callout is
-   suppressed via -webkit-touch-callout so only our bar shows. ─── */
+   same toolbar (see ToolbarElement). The toolbar is styled like Obsidian's
+   native mobile menu (52px touch targets, 24px icons), not the desktop bar.
+   The native selection callout is suppressed via -webkit-touch-callout so
+   only our bar shows. ─── */
 .note-view-container.is-mobile {
   display: flex;
   flex-direction: column;
@@ -71,12 +73,22 @@
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
+/* The toolbar fills the width, blends into the bar and scrolls horizontally. */
 .note-view-container.is-mobile .note-toolbar {
   position: static;
+  width: 100%;
+  height: 52px;
+  gap: 0;
+  padding: 0 4px;
   border-bottom: none;
-  height: auto;
-  padding-top: 6px;
-  padding-bottom: 6px;
+  background: transparent;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.note-view-container.is-mobile .note-toolbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* Suppress the native iOS selection callout while keeping the selection. */
@@ -85,7 +97,7 @@
   -webkit-touch-callout: none;
 }
 
-/* Swap visibility between the default toolbar and the selection bars */
+/* Swap visibility between the default toolbar and the selection bars. */
 .note-view-container.is-mobile .note-toolbar.is-hidden {
   display: none;
 }
@@ -96,7 +108,40 @@
   display: block;
 }
 
-/* Let the (former) bubble menu fill the bottom bar and scroll if needed */
+/* Toolbar buttons look like native menu actions: large touch target, 24px
+   icon, muted color, no raised/hover background. */
+.note-view-container.is-mobile .note-toolbar .note-toolbar__btn {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 auto;
+  border-radius: var(--radius-m);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+.note-view-container.is-mobile .note-toolbar .note-toolbar__btn:hover {
+  background: transparent;
+  color: var(--text-normal);
+}
+.note-view-container.is-mobile .note-toolbar .note-toolbar__btn.is-active {
+  background: transparent;
+  color: var(--interactive-accent);
+}
+.note-view-container.is-mobile .note-toolbar .note-toolbar__icon,
+.note-view-container.is-mobile .note-toolbar .note-toolbar__btn svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Desktop-only chrome is meaningless on mobile: separators, the flex spacer
+   and the "Saved · N w." status are dropped. */
+.note-view-container.is-mobile .note-toolbar__sep,
+.note-view-container.is-mobile .note-toolbar__spacer,
+.note-view-container.is-mobile .note-toolbar__meta {
+  display: none;
+}
+
+/* Selection bars (bubble menu) inside the toolbar: full width, scrollable. */
 .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar {
   background: transparent;
   border: none;
@@ -105,195 +150,37 @@
   width: 100%;
   padding: 4px 6px;
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar__row {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar__row,
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-table-bar,
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-media-bar {
   flex-wrap: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar__row::-webkit-scrollbar {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar__row::-webkit-scrollbar,
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-table-bar::-webkit-scrollbar,
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-media-bar::-webkit-scrollbar {
   display: none;
 }
-/* No pointer-to-selection caret inside a docked bar */
+
+/* No pointer-to-selection caret inside a docked bar. */
 .note-view-container.is-mobile .bubble-menu-bar .bb-caret,
-.note-view-container.is-mobile .bubble-menu-layer .bb-layer-caret,
-.mobile-navbar .bubble-menu-bar .bb-caret,
-.mobile-navbar .bubble-menu-layer .bb-layer-caret {
+.note-view-container.is-mobile .bubble-menu-layer .bb-layer-caret {
   display: none;
 }
 
 /* On short mobile viewports a layer ("Styles & color", "Fill & color") can be
    taller than the screen and extend off-screen. Cap it and make it scroll so
    every item stays reachable. Desktop keeps the natural (unbounded) height. */
-.note-view-container.is-mobile .bubble-menu-layer,
-.mobile-navbar .bubble-menu-layer {
+.note-view-container.is-mobile .bubble-menu-layer {
   max-height: calc(100vh - 24px);
   overflow-y: auto;
 }
 
-/* ─── Phone: reuse Obsidian's native navbar as our toolbar container ───
-   On phones Obsidian shows a fixed `.mobile-navbar.mod-raised`. We relocate
-   our toolbar element inside it and inject a toggle (`.inscriptum-nav-toggle`).
-   `.mod-our-menu` on the navbar = our mode: native children are hidden and our
-   toolbar fills the navbar. Without it = native mode: Obsidian's own controls
-   show and our toolbar is hidden. The toggle is always visible so the user can
-   switch back. The docked-bar rules above (`.note-view-container.is-mobile`)
-   no longer apply once the toolbar lives inside the navbar, so they are
-   mirrored here, scoped to `.mobile-navbar`. ─── */
-
-/* The native pill is capped at `--navbar-max-width` (316px) which already fits
-   Obsidian's six actions; our toggle needs extra room, so widen it when our
-   elements are injected. The pill is `width: fit-content`, so it only grows
-   as much as its content actually needs. Drop the right padding so the toggle
-   sits flush against the pill's rounded edge (its own radius lines up). */
-.mobile-navbar.mod-raised:has(.inscriptum-nav-toggle) {
-  --navbar-max-width: calc(100vw - 16px);
-  padding-right: 0;
-}
-
-/* Toggle — styled like a native navbar action button (full navbar height,
-   24px icon), but visually separated from the native actions: a leading
-   divider and an accent icon so it clearly reads as "our" control. */
-.mobile-navbar .inscriptum-nav-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 var(--navbar-height, 52px);
-  align-self: stretch;
-  height: 100%;
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  border: none;
-  border-left: 1px solid var(--background-modifier-border);
-  border-radius: 0 var(--touch-size-l, 52px) var(--touch-size-l, 52px) 0;
-  background: transparent;
-  color: var(--interactive-accent);
-  cursor: pointer;
-}
-.mobile-navbar .inscriptum-nav-toggle.is-active {
-  color: var(--interactive-accent);
-  background: color-mix(in srgb, var(--interactive-accent) 15%, transparent);
-}
-.mobile-navbar .inscriptum-nav-toggle svg {
-  width: 24px;
-  height: 24px;
-  display: block;
-}
-
-/* Our toolbar relocated inside the navbar — hidden by default (native mode). */
-.mobile-navbar .note-toolbar-host {
-  display: none;
-  order: 0;
-  position: static;
-  top: auto;
-  z-index: auto;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.mobile-navbar.mod-our-menu .note-toolbar-host {
-  display: flex;
-  align-items: center;
-}
-
-/* Hide every native navbar child except our toggle + our toolbar. */
-.mobile-navbar.mod-our-menu > *:not(.inscriptum-nav-toggle):not(.note-toolbar-host) {
-  display: none !important;
-}
-
-/* The toolbar fills the navbar and blends into the pill: transparent so the
-   native background shows through, no border, horizontal scroll for the
-   buttons that don't fit. */
-.mobile-navbar.mod-our-menu .note-toolbar {
-  width: 100%;
-  height: 100%;
-  gap: 0;
-  padding: 0 4px;
-  border-bottom: none;
-  background: transparent;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-.mobile-navbar.mod-our-menu .note-toolbar::-webkit-scrollbar {
-  display: none;
-}
-.mobile-navbar.mod-our-menu .note-toolbar.is-hidden {
-  display: none;
-}
-
-/* Toolbar buttons look like native navbar actions: large touch target,
-   24px icon, muted color, no raised/hover background. */
-.mobile-navbar .note-toolbar .note-toolbar__btn {
-  width: var(--touch-size-l, 52px);
-  height: var(--touch-size-l, 52px);
-  flex: 0 0 auto;
-  border-radius: var(--touch-size-l, 52px);
-  background: transparent;
-  box-shadow: none;
-  color: var(--text-muted);
-}
-.mobile-navbar .note-toolbar .note-toolbar__btn:hover {
-  background: transparent;
-  color: var(--text-normal);
-}
-.mobile-navbar .note-toolbar .note-toolbar__btn.is-active {
-  background: transparent;
-  color: var(--interactive-accent);
-}
-.mobile-navbar .note-toolbar .note-toolbar__icon,
-.mobile-navbar .note-toolbar .note-toolbar__btn svg {
-  width: 24px;
-  height: 24px;
-}
-
-/* Desktop-only chrome is meaningless inside the navbar: separators, the
-   flex spacer and the "Saved · N w." status are dropped. */
-.mobile-navbar .note-toolbar__sep,
-.mobile-navbar .note-toolbar__spacer,
-.mobile-navbar .note-toolbar__meta {
-  display: none;
-}
-
-/* Selection bars (bubble menu) inside the navbar: full width, scrollable.
-   The bar must shrink to the space left of the toggle and clip its content
-   (the inner row scrolls), otherwise it overflows under the toggle. */
-.mobile-navbar .mobile-sel-bar {
-  display: none;
-  flex: 1 1 auto;
-  min-width: 0;
-  width: 100%;
-  overflow: hidden;
-}
-.mobile-navbar .mobile-sel-bar.is-active {
-  display: block;
-}
-.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-bar {
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  width: 100%;
-  padding: 4px 6px;
-}
-.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-bar__row,
-.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-table-bar,
-.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-media-bar {
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-bar__row::-webkit-scrollbar,
-.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-table-bar::-webkit-scrollbar,
-.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-media-bar::-webkit-scrollbar {
-  display: none;
-}
-
-/* Bubble-menu buttons match the native navbar: no dark hover/active fills,
+/* Bubble-menu buttons match the native menu: no dark hover/active fills,
    muted icon color, 24px icons, no tooltip popovers. */
-.mobile-navbar .mobile-sel-bar .bubble-menu-bar button {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button {
   width: 44px;
   height: 44px;
   flex: 0 0 auto;
@@ -301,23 +188,32 @@
   background: transparent;
   color: var(--text-muted);
 }
-.mobile-navbar .mobile-sel-bar .bubble-menu-bar button:hover {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:hover {
   background: transparent;
   color: var(--text-normal);
 }
-.mobile-navbar .mobile-sel-bar .bubble-menu-bar button.is-active {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button.is-active {
   background: transparent;
   box-shadow: none;
   color: var(--interactive-accent);
 }
-.mobile-navbar .mobile-sel-bar .bubble-menu-bar button svg {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button svg {
   width: 24px;
   height: 24px;
 }
-.mobile-navbar .mobile-sel-bar .bubble-menu-sep {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-sep {
   background: var(--background-modifier-border);
 }
-.mobile-navbar .mobile-sel-bar .bubble-menu-bar .bb-btn[data-tip]::after {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-btn[data-tip]::after {
+  display: none;
+}
+
+/* ─── 4. Keyboard visibility (phones) ───
+   On a phone the native navbar is shown while the keyboard is closed, so we
+   hide our toolbar then and show it only while editing (keyboard open). On
+   iPad there is no native navbar, so the toolbar always stays visible.
+   `is-keyboard-open` is toggled from NoteView.setupKeyboardHandling. ─── */
+body.is-phone .note-view-container.is-mobile:not(.is-keyboard-open) .note-toolbar-host {
   display: none;
 }
 
@@ -326,15 +222,15 @@
    trailing edge when more items are reachable in that direction. The
    `can-scroll-left` / `can-scroll-right` classes are toggled from JS
    (setupScrollShadows in NoteView). */
-.mobile-navbar :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar, .bubble-menu-media-bar).can-scroll-right:not(.can-scroll-left) {
+.note-view-container.is-mobile :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar, .bubble-menu-media-bar).can-scroll-right:not(.can-scroll-left) {
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
   mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
 }
-.mobile-navbar :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar, .bubble-menu-media-bar).can-scroll-left:not(.can-scroll-right) {
+.note-view-container.is-mobile :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar, .bubble-menu-media-bar).can-scroll-left:not(.can-scroll-right) {
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px);
   mask-image: linear-gradient(to right, transparent 0, #000 28px);
 }
-.mobile-navbar :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar, .bubble-menu-media-bar).can-scroll-left.can-scroll-right {
+.note-view-container.is-mobile :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar, .bubble-menu-media-bar).can-scroll-left.can-scroll-right {
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px calc(100% - 28px), transparent 100%);
   mask-image: linear-gradient(to right, transparent 0, #000 28px calc(100% - 28px), transparent 100%);
 }
