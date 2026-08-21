@@ -7,7 +7,8 @@ import { deleteAttachmentFile } from "../storage/attachments";
 
 /** Open the selected media file with the OS default app. */
 export function openMediaFile(app: App, node: ProseMirrorNode): void {
-  const id = node.attrs.data?.id as string | undefined;
+  const data = node.attrs.data as { id?: string } | null | undefined;
+  const id = data?.id;
   if (!id) return;
   (app as { openWithDefaultApp?: (path: string) => void }).openWithDefaultApp?.(id);
 }
@@ -50,7 +51,8 @@ export function removeMediaNode(editor: Editor, app: App): void {
         .setMeta("addToHistory", false),
     );
   } else {
-    void deleteAttachmentFile(app, node.attrs.data?.id as string | undefined);
+    const data = node.attrs.data as { id?: string } | null | undefined;
+    void deleteAttachmentFile(app, data?.id);
     editor.view.dispatch(editor.state.tr.deleteRange(pos, to).setMeta("addToHistory", false));
   }
 }
