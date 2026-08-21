@@ -2,6 +2,7 @@ import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
 import { Editor, isTextSelection } from "../../texto/core";
 import { CellSelection, isInTable } from "prosemirror-tables";
+import { isMediaNodeSelection } from "../bubble-menu-bar/mediaMenuState";
 import { elTag } from "../../tags";
 import { getToolbarState, type ToolbarState } from "./toolbarState";
 import { iconNodes } from "../icons/icon.svgnode";
@@ -115,13 +116,15 @@ export const ToolbarElement = litView.element({
     selectionBar: p.opt<HTMLElement>(),
     /** Mobile only: the (former) table bubble menu bar, shown in a table. */
     tableSelectionBar: p.opt<HTMLElement>(),
+    /** Mobile only: the media (image/attachment) bubble menu bar. */
+    mediaSelectionBar: p.opt<HTMLElement>(),
   },
 })(function* (props) {
   let state = getToolbarState(props.editor);
   let wordCount = countWords(props.editor.getText());
   let saved = true;
   let saveTimer: number | null = null;
-  let mode: "none" | "text" | "table" = "none";
+  let mode: "none" | "text" | "table" | "media" = "none";
 
   // Simulate autosave cycle (AUTOSAVE_DELAY = 500ms in NoteView):
   // on change — "Saving…", after 600ms — "Saved".
@@ -136,8 +139,9 @@ export const ToolbarElement = litView.element({
     }, 600);
   };
 
-  const computeMode = (): "none" | "text" | "table" => {
+  const computeMode = (): "none" | "text" | "table" | "media" => {
     const { selection } = props.editor.state;
+    if (isMediaNodeSelection(props.editor.state)) return "media";
     if (isInTable(props.editor.state)) {
       if (selection.empty || selection instanceof CellSelection) return "table";
     }
@@ -193,6 +197,11 @@ export const ToolbarElement = litView.element({
           {isMobileSwap && props.tableSelectionBar ? (
             <div class={`mobile-sel-bar mobile-sel-bar--table${mode === "table" ? " is-active" : ""}`}>
               {props.tableSelectionBar}
+            </div>
+          ) : null}
+          {isMobileSwap && props.mediaSelectionBar ? (
+            <div class={`mobile-sel-bar mobile-sel-bar--media${mode === "media" ? " is-active" : ""}`}>
+              {props.mediaSelectionBar}
             </div>
           ) : null}
         </>
