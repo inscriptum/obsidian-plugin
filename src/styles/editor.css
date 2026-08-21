@@ -31,6 +31,9 @@
   height: 100%;
   overflow: hidden;
   padding: 0;
+  /* Reserved for the phone navbar height, set dynamically via --navbar-offset
+     (see NoteView.syncMobileNavbarOffset); 0 on desktop. */
+  padding-bottom: var(--navbar-offset, 0);
 }
 
 /* note-toolbar host — flex element, pinned to the top (see toolbar.css).

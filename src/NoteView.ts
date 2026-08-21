@@ -154,7 +154,7 @@ export class NoteView extends FileView {
       ".mobile-navbar, .mobile-navbar.mod-raised",
     );
     if (!navbar) {
-      this.contentEl.style.paddingBottom = "";
+      this.contentEl.setCssProps({ "--navbar-offset": "" });
       return;
     }
     const rect = navbar.getBoundingClientRect();
@@ -164,10 +164,10 @@ export class NoteView extends FileView {
     // whole note view (the container is height:100% + border-box). Only
     // reserve when the bar is genuinely laid out with a real size.
     if (rect.width === 0 || rect.height === 0) {
-      this.contentEl.style.paddingBottom = "";
+      this.contentEl.setCssProps({ "--navbar-offset": "" });
       return;
     }
-    this.contentEl.style.paddingBottom = `${rect.height}px`;
+    this.contentEl.setCssProps({ "--navbar-offset": `${rect.height}px` });
   }
 
   // ── Phone navbar: toggle + reuse as our toolbar container ──
