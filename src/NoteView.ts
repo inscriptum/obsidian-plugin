@@ -34,6 +34,8 @@ import {
 } from "./texto/extensions/bubble-menu";
 import { BubbleMenuBarElement } from "./components/bubble-menu-bar/bubble-menu-bar.element";
 import { TableBubbleMenuElement } from "./components/bubble-menu-bar/table-bubble-menu-bar.element";
+import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubble-menu-bar.element";
+import { isMediaNodeSelection } from "./components/bubble-menu-bar/mediaMenuState";
 import { setHighlightTheme } from "./theme/hljsTheme";
 
 export const NOTE_VIEW_TYPE = "note-view";
@@ -317,6 +319,8 @@ export class NoteView extends FileView {
     bubbleMenuBarEl.addClass("bubble-menu-bar-host");
     const tableBubbleMenuEl = new TableBubbleMenuElement();
     tableBubbleMenuEl.addClass("table-bubble-menu-bar-host");
+    const mediaBubbleMenuEl = new MediaBubbleMenuElement();
+    mediaBubbleMenuEl.addClass("bubble-menu-bar-host");
 
     window.requestAnimationFrame(() => {
       const isMobile = this.isMobileView();
@@ -359,6 +363,8 @@ export class NoteView extends FileView {
         toolbarEl.props.editor = this.editor;
         bubbleMenuBarEl.props.editor = this.editor;
         tableBubbleMenuEl.props.editor = this.editor;
+        mediaBubbleMenuEl.props.editor = this.editor;
+        mediaBubbleMenuEl.props.app = this.app;
 
         // Attach menus to the DOM AFTER setting props.editor: for the required prop,
         // connectedCallback starts the generator only when editor is already set.
@@ -367,9 +373,11 @@ export class NoteView extends FileView {
           // on selection (see ToolbarElement). No floating tippy popup.
           toolbarEl.props.selectionBar = bubbleMenuBarEl;
           toolbarEl.props.tableSelectionBar = tableBubbleMenuEl;
+          toolbarEl.props.mediaSelectionBar = mediaBubbleMenuEl;
         } else {
           this.contentEl.appendChild(bubbleMenuBarEl);
           this.contentEl.appendChild(tableBubbleMenuEl);
+          this.contentEl.appendChild(mediaBubbleMenuEl);
 
           // ── Text bubble menu ──
         // Show for non-empty text selection OUTSIDE tables.
@@ -398,6 +406,11 @@ export class NoteView extends FileView {
                 !editor.isEditable ||
                 this.isMousePressed
               ) {
+                return false;
+              }
+
+              // Media nodes have their own menu — hide the text menu for them.
+              if (isMediaNodeSelection(state)) {
                 return false;
               }
 
@@ -468,6 +481,41 @@ export class NoteView extends FileView {
                 isInTable(state) &&
                 (selection.empty || selection instanceof CellSelection)
               );
+            },
+            tippyOptions: {
+              placement: "top",
+              offset: [0, 8],
+              animation: "bubble-pop",
+              duration: [160, 120],
+            },
+          }),
+        );
+
+        // ── Media bubble menu (image / attachment) ──
+        if (!isMobile) this.editor.registerPlugin(
+          bubbleMenuPlugin({
+            pluginKey: "mediaBubbleMenu",
+            editor: this.editor,
+            element: mediaBubbleMenuEl,
+            shouldShow: function (
+              this: BubbleMenuView,
+              { editor, state }: ShouldShowProps,
+            ) {
+              const parentElement = this.tippy?.popper ?? this.element;
+              const isChildOfMenu = parentElement.contains(
+                document.activeElement,
+              );
+              const hasEditorFocus = editor.view.hasFocus() || isChildOfMenu;
+
+              if (
+                !hasEditorFocus ||
+                !editor.isEditable ||
+                this.isMousePressed
+              ) {
+                return false;
+              }
+
+              return isMediaNodeSelection(state);
             },
             tippyOptions: {
               placement: "top",
