@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- On mobile, the editor toolbar and bubble menus are now integrated into Obsidian's native bottom menu, with a toggle between native controls and the editor toolbar.
+- On mobile, the editor toolbar and bubble menus are now a dedicated bottom bar styled like the native menu; on phones it appears only while the keyboard is open (the native menu shows otherwise), and on iPad it is always visible.
 
 ### Fixed
 
