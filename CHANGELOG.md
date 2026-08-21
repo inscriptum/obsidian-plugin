@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Added a dedicated bubble menu for images and attachments (file name, Replace, Delete) instead of the text-formatting menu.
+
+### Changed
+
+- On mobile, the editor toolbar and bubble menus are now integrated into Obsidian's native bottom menu, with a toggle between native controls and the editor toolbar.
+
+### Fixed
+
+- Fixed images not loading after restarting Obsidian (stale resource URL).
+- Fixed attachments opening immediately on click instead of being selected first.
+
 ## [0.1.3] - 2026-08-18
 
 ### Changed
