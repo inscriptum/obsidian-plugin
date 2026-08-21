@@ -83,6 +83,34 @@ never keep the menu invisible. */
   display: flex;
 }
 
+/* Media menu (image/attachment) — filename + replace + delete */
+.bubble-menu-media-bar {
+  display: none;
+  align-items: center;
+  gap: 1px;
+}
+.bubble-menu-media-bar.show {
+  display: flex;
+}
+.bubble-menu-bar .bb-media-name {
+  width: auto;
+  max-width: 180px;
+  padding: 0 8px;
+  gap: 6px;
+  justify-content: flex-start;
+  color: #a9abb6;
+  font-size: 12px;
+}
+.bubble-menu-bar .bb-media-name:hover {
+  color: #e6e6ee;
+  background-color: transparent;
+}
+.bubble-menu-bar .bb-media-name__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .bubble-menu-bar button {
   all: unset;
   position: relative;

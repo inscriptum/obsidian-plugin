@@ -278,14 +278,16 @@
   padding: 4px 6px;
 }
 .mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-bar__row,
-.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-table-bar {
+.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-table-bar,
+.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-media-bar {
   flex-wrap: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
 .mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-bar__row::-webkit-scrollbar,
-.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-table-bar::-webkit-scrollbar {
+.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-table-bar::-webkit-scrollbar,
+.mobile-navbar.mod-our-menu .mobile-sel-bar .bubble-menu-media-bar::-webkit-scrollbar {
   display: none;
 }
 
@@ -324,15 +326,15 @@
    trailing edge when more items are reachable in that direction. The
    `can-scroll-left` / `can-scroll-right` classes are toggled from JS
    (setupScrollShadows in NoteView). */
-.mobile-navbar :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar).can-scroll-right:not(.can-scroll-left) {
+.mobile-navbar :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar, .bubble-menu-media-bar).can-scroll-right:not(.can-scroll-left) {
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
   mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
 }
-.mobile-navbar :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar).can-scroll-left:not(.can-scroll-right) {
+.mobile-navbar :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar, .bubble-menu-media-bar).can-scroll-left:not(.can-scroll-right) {
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px);
   mask-image: linear-gradient(to right, transparent 0, #000 28px);
 }
-.mobile-navbar :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar).can-scroll-left.can-scroll-right {
+.mobile-navbar :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar, .bubble-menu-media-bar).can-scroll-left.can-scroll-right {
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px calc(100% - 28px), transparent 100%);
   mask-image: linear-gradient(to right, transparent 0, #000 28px calc(100% - 28px), transparent 100%);
 }

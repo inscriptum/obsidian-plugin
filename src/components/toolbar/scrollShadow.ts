@@ -9,7 +9,7 @@
  */
 
 const SCROLL_CONTAINER_SELECTOR =
-  ".note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar";
+  ".note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar, .bubble-menu-media-bar";
 
 export interface ScrollShadowState {
   canScrollLeft: boolean;
