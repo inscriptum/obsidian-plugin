@@ -721,13 +721,6 @@ export class NoteView extends FileView {
         onRemove: (attrs) => {
           void deleteAttachmentFile(app, attrs.data?.id);
         },
-        onClick: (attrs) => {
-          const id = attrs.data?.id;
-          if (id) {
-            // openWithDefaultApp exists in Obsidian runtime but not in public types
-            (app as { openWithDefaultApp?: (path: string) => void }).openWithDefaultApp?.(id);
-          }
-        },
       },
     };
   }
