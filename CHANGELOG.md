@@ -5,11 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Fixed the mobile toolbar not appearing when the keyboard could not be detected (e.g. in desktop mobile emulation) by showing it on editor focus instead.
+
 ## [0.2.1] - 2026-08-21
 
 ### Changed
 
-- On mobile, replaced the native bottom-menu integration with a dedicated bottom toolbar: on phones it appears while editing (the native menu shows otherwise), and on iPad it is always visible.
+- On mobile, replaced the native bottom-menu integration with a dedicated bottom toolbar: on phones it appears only while the keyboard is open (the native menu shows otherwise), and on iPad it is always visible.
 
 ## [0.2.0] - 2026-08-21
 
