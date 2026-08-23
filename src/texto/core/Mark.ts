@@ -7,7 +7,6 @@ import {callOrReturn} from './utilities/callOrReturn';
 import {mergeDeep} from './utilities/mergeDeep';
 
 // Options/Storage default to `any` for covariance (Mark<CustomOptions> must stay assignable to Mark)
-/* eslint-disable @typescript-eslint/no-explicit-any -- deliberate covariance for extension generic parameters */
 export class Mark<
 	Options extends AnyRecord = any,
 	Storage extends AnyRecord = any,
@@ -136,4 +135,3 @@ export class Mark<
 		return false;
 	}
 }
-/* eslint-enable @typescript-eslint/no-explicit-any -- end: covariance defaults */

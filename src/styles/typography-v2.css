@@ -93,7 +93,7 @@
 
 /* ─── Inline elements ─── */
 .note :not(pre) > code {
-  font-family: var(--font-mono, 'JetBrains Mono', 'SF Mono', ui-monospace, monospace);
+  font-family: var(--font-mono, 'JetBrains Mono', 'SF Mono', monospace);
   font-size: .84em;
   color: var(--accent-2, #b3a3f7);
   background: #17171d;
@@ -275,7 +275,7 @@
 }
 
 .note .code-lang {
-  font-family: var(--font-mono, 'JetBrains Mono', 'SF Mono', ui-monospace, monospace);
+  font-family: var(--font-mono, 'JetBrains Mono', 'SF Mono', monospace);
   font-size: 11px;
   color: var(--accent-2, #b3a3f7);
   font-weight: 500;
@@ -287,7 +287,7 @@
   margin: 0;
   padding: 16px 18px;
   overflow-x: auto;
-  font-family: var(--font-mono, 'JetBrains Mono', 'SF Mono', ui-monospace, monospace);
+  font-family: var(--font-mono, 'JetBrains Mono', 'SF Mono', monospace);
   font-size: 13px;
   line-height: 1.75;
   color: #c7c9d4;

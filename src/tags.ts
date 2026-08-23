@@ -1,4 +1,9 @@
-/* global process -- injected by Vite at build time */
+// Vite replaces `process.env.EDITOR_VERSION` at build time.
+declare const process: {
+  env: {
+    EDITOR_VERSION?: string;
+  };
+};
 /**
  * Versioned custom element tags.
  *

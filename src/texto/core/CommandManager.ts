@@ -41,7 +41,6 @@ export class CommandManager {
 
 		return Object.fromEntries(
 			Object.entries(rawCommands).map(([name, command]) => {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic command proxy: args are forwarded to arbitrary command implementations
 				const method = (...args: any[]) => {
 					const callback = this.executeCommand(command, args, props);
 

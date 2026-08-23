@@ -8,9 +8,8 @@ import type { AnyCommands, AnyRecord, Extensions, KeyboardShortcutCommand } from
  * The `any` value provides structural compatibility with any options interface
  * (without it, interfaces like `BoldOptions` are not assignable to AnyObject).
  */
-export interface AnyObject extends AnyRecord {}
+export type AnyObject = AnyRecord;
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- extension configs are indexed dynamically (getExtensionField), precise typing is impossible */
 export interface AnyConfig<
   Options = AnyObject,
   Storage = any,
@@ -209,5 +208,3 @@ export interface AnyConfig<
       }) => void)
     | null;
 }
-
-/* eslint-enable @typescript-eslint/no-explicit-any -- end of AnyConfig block */

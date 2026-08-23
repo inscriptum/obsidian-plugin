@@ -6,7 +6,6 @@ import { callOrReturn } from "./utilities/callOrReturn";
 import { mergeDeep } from "./utilities/mergeDeep";
 
 // Options/Storage default to `any` for covariance (Node<CustomOptions> must stay assignable to Node)
-/* eslint-disable @typescript-eslint/no-explicit-any -- deliberate covariance for extension generic parameters */
 export class Node<
   Options extends AnyRecord = any,
   Storage extends AnyRecord = any,
@@ -113,4 +112,3 @@ export class Node<
     return extension;
   }
 }
-/* eslint-enable @typescript-eslint/no-explicit-any -- end: covariance defaults */

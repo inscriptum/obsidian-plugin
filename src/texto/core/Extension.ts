@@ -5,7 +5,6 @@ import {getExtensionField} from './helpers/getExtensionField';
 import {callOrReturn} from './utilities/callOrReturn';
 import {mergeDeep} from './utilities/mergeDeep';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Options/Storage default to `any` for covariance (Extension<CustomOptions> must stay assignable to Extension)
 export class Extension<Options extends AnyRecord = any, Storage = any> {
 	type = 'extension';
 
@@ -49,7 +48,7 @@ export class Extension<Options extends AnyRecord = any, Storage = any> {
 			) || {};
 	}
 
-	static create<O extends AnyRecord = any, S = any>(config: Partial<ExtensionConfig<O, S>> = {}) { // eslint-disable-line @typescript-eslint/no-explicit-any -- covariance default
+	static create<O extends AnyRecord = any, S = any>(config: Partial<ExtensionConfig<O, S>> = {}) {
 		return new Extension<O, S>(config);
 	}
 

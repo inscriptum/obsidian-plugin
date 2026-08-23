@@ -4,9 +4,14 @@
 	position: relative;
 	word-wrap: break-word;
 	white-space: pre-wrap;
-	white-space: break-spaces;
 	font-variant-ligatures: none;
 	font-feature-settings: 'liga' 0; /* the above doesn't seem to work in Edge */
+}
+
+@supports (white-space: break-spaces) {
+	.ProseMirror {
+		white-space: break-spaces;
+	}
 }
 
 .ProseMirror [contenteditable='false'] {

@@ -26,22 +26,17 @@ export type Extensions = AnyExtension[];
 // ── Shared type aliases ──────────────────────────────────────────────
 // Centralize `any` for repeated patterns, avoiding duplicate warnings.
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentional: matches any function signature in conditional types
 export type AnyFn = (...args: any[]) => any;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentional: matches any function signature in conditional types
 export type AnyFnVoid = (...args: any[]) => void;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentional: generic string-keyed record
 export type AnyRecord = Record<string, any>;
 
 /** Expansion of `keyof any` */
 export type KeyOfAny = string | number | symbol;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- mirrors prosemirror's DispatchFn
 export type DispatchFn = (args?: any) => any;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- intentional: any function returning a Command
 export type CommandFn = (...args: any[]) => Command;
 // ─────────────────────────────────────────────────────────────────────
 
@@ -113,7 +108,6 @@ export interface EditorOptions {
 
 export type HTMLContent = string;
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- JSON-like type: any is the correct type for arbitrary JSON values */
 export type JSONContent = {
   type?: string;
   attrs?: AnyRecord;
@@ -126,7 +120,6 @@ export type JSONContent = {
   text?: string;
   [key: string]: any;
 };
-/* eslint-enable @typescript-eslint/no-explicit-any -- end: JSONContent block */
 
 export type ContentType = HTMLContent | JSONContent | JSONContent[] | null;
 export type Content = ContentType | ReadonlyDeep<ContentType> | ProseMirrorNode;
@@ -148,7 +141,6 @@ export type CommandSpec = CommandFn;
 
 export type KeyboardShortcutCommand = (props: { editor: Editor }) => boolean;
 
-/* eslint-disable @typescript-eslint/no-explicit-any -- Attribute mirrors prosemirror types with intentional any for defaults and parseHTML */
 export type Attribute = {
   default: any;
   rendered?: boolean;
@@ -159,7 +151,6 @@ export type Attribute = {
   keepOnSplit: boolean;
   isRequired?: boolean;
 };
-/* eslint-enable @typescript-eslint/no-explicit-any -- end: Attribute block */
 
 export type Attributes = {
   [key: string]: Attribute;
@@ -181,7 +172,7 @@ export type GlobalAttributes = {
 export type PickValue<T, K extends keyof T> = T[K];
 
 export type UnionToIntersection<U> = (
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- standard distributive conditional pattern, must be any
+  // `any` keeps this conditional type distributive over unions.
   U extends any ? (k: U) => void : never
 ) extends (k: infer I) => void
   ? I
@@ -249,7 +240,7 @@ type AllCommands = UnionToIntersection<
 
 type AllCommandsByType<T> = Pick<
   AllCommands,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- generic conditional: must match any function returning T
+  // `any` matches every function signature returning T.
   KeysWithTypeOf<AllCommands, (...args: any) => T>
 >;
 
