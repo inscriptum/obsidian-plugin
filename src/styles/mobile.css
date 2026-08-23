@@ -40,7 +40,44 @@
    top; a small bottom padding is enough since the toolbar is a normal
    flex sibling now (it no longer overlaps the content). ─── */
 .note-view-container.is-mobile .texto-editor {
-  padding: 20px 16px 24px;
+  /* Obsidian's view header is fixed over the view content. The custom
+     FileView does not get MarkdownView's automatic top inset, so reserve
+     both shell header heights before rendering noteTitle. */
+  position: relative;
+  padding: calc(var(--header-height, 40px) + var(--view-header-height, 44px) + 16px) 16px 24px;
+}
+
+/* When content scrolls beneath the fixed shell controls, fade the top edge
+   instead of letting text visibly pass through the header. Put the overlay
+   on the non-scrolling host: an overlay on `.texto-editor` is clipped when
+   it is moved above that element's top padding edge. */
+.note-view-container.is-mobile .texto-editor-host {
+  position: relative;
+  /* Keep the overlay below Obsidian's fixed `.view-header` (z-index: 1),
+     while the overlay itself remains above editor content. */
+  z-index: 0;
+}
+.note-view-container.is-mobile .texto-editor-host::before {
+  content: "";
+  position: absolute;
+  z-index: 20;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--header-height, 40px) + var(--view-header-height, 44px) + 16px);
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    to bottom,
+    var(--background-primary) 0%,
+    var(--background-primary) 62%,
+    color-mix(in srgb, var(--background-primary) 78%, transparent) 84%,
+    transparent 100%
+  );
+  transition: opacity 120ms ease;
+}
+.note-view-container.is-mobile.is-scrolled .texto-editor-host::before {
+  opacity: 1;
 }
 
 /* ─── 3. Our own bottom toolbar (native-styled) ───
@@ -208,13 +245,20 @@
   display: none;
 }
 
-/* ─── 4. Editing visibility (phones) ───
-   On a phone the native navbar is shown while the editor is not focused, so
-   we hide our toolbar then and show it only while editing. On iPad there is
-   no native navbar, so the toolbar always stays visible. `is-editing` is
-   toggled from NoteView on editor focus/blur. ─── */
-body.is-phone .note-view-container.is-mobile:not(.is-editing) .note-toolbar-host {
+/* ─── 4. Keyboard visibility (phones) ───
+   Focus is not a reliable proxy for keyboard visibility: the keyboard can be
+   dismissed while a contenteditable element remains focused. On phones our
+   toolbar is visible only while visualViewport reports a keyboard; iPad keeps
+   the toolbar visible. ─── */
+.note-view-container.is-mobile.is-phone:not(.is-keyboard-open) .note-toolbar-host {
   display: none;
+}
+
+/* The filename in Obsidian's fixed view header duplicates our document
+   noteTitle. Keep the shell actions/navigation, but remove only its title. */
+.workspace-leaf-content:has(.note-view-container) .view-header-title,
+.workspace-leaf-content:has(.note-view-container) .view-header-title-parent {
+  display: none !important;
 }
 
 /* ─── Horizontal scroll hint ────────────────────────────────────────────

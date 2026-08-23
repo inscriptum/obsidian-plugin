@@ -126,6 +126,18 @@ export const ToolbarElement = litView.element({
   let saveTimer: number | null = null;
   let mode: "none" | "text" | "table" | "media" = "none";
 
+  // Do not let a toolbar tap steal focus from ProseMirror. On mobile that can
+  // dismiss the selection before the command runs; pointerdown is used in
+  // addition to mousedown because touch browsers focus controls earlier.
+  const preventButtonFocus = (event: Event) => {
+    const target = event.target as Element | null;
+    if (target?.closest("button")) event.preventDefault();
+  };
+  // eslint-disable-next-line @typescript-eslint/no-this-alias -- generator component
+  const root: HTMLElement = this;
+  root.addEventListener("pointerdown", preventButtonFocus, true);
+  root.addEventListener("mousedown", preventButtonFocus, true);
+
   // Simulate autosave cycle (AUTOSAVE_DELAY = 500ms in NoteView):
   // on change — "Saving…", after 600ms — "Saved".
   const markDirty = () => {
@@ -167,7 +179,9 @@ export const ToolbarElement = litView.element({
       const isMobileSwap = !!props.selectionBar;
       props = yield (
         <>
-          <div class={`note-toolbar${isMobileSwap && mode !== "none" ? " is-hidden" : ""}`}>
+          <div
+            class={`note-toolbar${isMobileSwap && mode !== "none" ? " is-hidden" : ""}`}
+          >
             {GROUPS.map((group, gi) => [
               gi > 0 ? <div class="note-toolbar__sep"></div> : null,
               group.map((btn) => (
@@ -177,30 +191,40 @@ export const ToolbarElement = litView.element({
                   title={btn.label}
                   onclick={() => btn.action(props.editor)}
                 >
-                  <span class="note-toolbar__icon">{iconNodes[btn.icon]({})}</span>
+                  <span class="note-toolbar__icon">
+                    {iconNodes[btn.icon]({})}
+                  </span>
                 </button>
               )),
             ])}
             <div class="note-toolbar__spacer"></div>
             <div class="note-toolbar__meta">
-              <span class={`note-toolbar__dot${saved ? "" : " is-pending"}`}></span>
+              <span
+                class={`note-toolbar__dot${saved ? "" : " is-pending"}`}
+              ></span>
               <span>{saved ? "Saved" : "Saving…"}</span>
               <span>·</span>
               <span>{wordCount} w.</span>
             </div>
           </div>
           {isMobileSwap && props.selectionBar ? (
-            <div class={`mobile-sel-bar mobile-sel-bar--text${mode === "text" ? " is-active" : ""}`}>
+            <div
+              class={`mobile-sel-bar mobile-sel-bar--text${mode === "text" ? " is-active" : ""}`}
+            >
               {props.selectionBar}
             </div>
           ) : null}
           {isMobileSwap && props.tableSelectionBar ? (
-            <div class={`mobile-sel-bar mobile-sel-bar--table${mode === "table" ? " is-active" : ""}`}>
+            <div
+              class={`mobile-sel-bar mobile-sel-bar--table${mode === "table" ? " is-active" : ""}`}
+            >
               {props.tableSelectionBar}
             </div>
           ) : null}
           {isMobileSwap && props.mediaSelectionBar ? (
-            <div class={`mobile-sel-bar mobile-sel-bar--media${mode === "media" ? " is-active" : ""}`}>
+            <div
+              class={`mobile-sel-bar mobile-sel-bar--media${mode === "media" ? " is-active" : ""}`}
+            >
               {props.mediaSelectionBar}
             </div>
           ) : null}
@@ -210,6 +234,8 @@ export const ToolbarElement = litView.element({
   } finally {
     props.editor.off("selectionUpdate", refreshState);
     props.editor.off("update", refreshState);
+    root.removeEventListener("pointerdown", preventButtonFocus, true);
+    root.removeEventListener("mousedown", preventButtonFocus, true);
     if (saveTimer) {
       window.clearTimeout(saveTimer);
     }

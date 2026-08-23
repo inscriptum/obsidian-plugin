@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Improved mobile keyboard detection on Android and iOS.
+- Fixed mobile toolbar buttons losing the editor selection or focus.
+- Fixed mobile note titles being hidden behind Obsidian's fixed view header.
+- Fixed Obsidian's mobile navigation not hiding and showing while scrolling custom notes.
+- Added a subtle top fade when scrolling content beneath the fixed mobile controls.
+- Removed the duplicate file name from the mobile view header.
+
 ## [0.2.2] - 2026-08-21
 
 ### Fixed

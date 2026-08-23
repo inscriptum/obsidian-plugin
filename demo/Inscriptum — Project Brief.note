@@ -66,7 +66,7 @@
       "content": [
         {
           "type": "text",
-          "text": "The goal is simple: keep your information "
+          "text": "The goal is simple: "
         },
         {
           "type": "text",
@@ -75,11 +75,11 @@
               "type": "bold"
             }
           ],
-          "text": "local, structured, and $ to work with"
+          "text": "keep your information local, structured, and to work without requiring a separate cloud service"
         },
         {
           "type": "text",
-          "text": " without requiring a separate cloud service."
+          "text": "."
         }
       ]
     },
@@ -94,12 +94,20 @@
               "marks": [
                 {
                   "type": "bold"
+                },
+                {
+                  "type": "italic"
                 }
               ],
               "text": "Principle:"
             },
             {
               "type": "text",
+              "marks": [
+                {
+                  "type": "italic"
+                }
+              ],
               "text": " your documents should remain useful even without the application that created them."
             }
           ]

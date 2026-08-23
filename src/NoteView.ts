@@ -55,11 +55,14 @@ export class NoteView extends FileView {
   private _skipNextReload = true;
 
   // ── Mobile: our own bottom toolbar (native-styled) ──
-  // Our toolbar is always a separate docked bar (not injected into Obsidian's
-  // native navbar, which the OS hides while the keyboard is open). On phones
-  // it is shown only while the soft keyboard is open (the native navbar shows
-  // otherwise); on iPad it is always visible. See mobile.css.
+  // Our toolbar is always a separate docked bar. On phones it is shown only
+  // while the soft keyboard is open; on iPad it stays visible.
   private scrollShadowCleanup: (() => void) | null = null;
+  private mobileScrollCleanup: (() => void) | null = null;
+  private mobileNavWasHidden: boolean | null = null;
+  private keyboardListenerHandles: Array<{ remove: () => Promise<void> | void }> = [];
+  private keyboardListenerGeneration = 0;
+  private keyboardViewportCleanup: (() => void) | null = null;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -107,38 +110,126 @@ export class NoteView extends FileView {
     );
   }
 
-  /** Track the soft keyboard height and reserve it as `--keyboard-offset` so
-      our docked toolbar sits right above the keyboard instead of being
-      covered by it. */
-  private setupKeyboardHandling(): void {
-    const update = () => {
-      const height = this.keyboardHeight();
-      this.contentEl.setCssProps({ "--keyboard-offset": height > 0 ? `${height}px` : "" });
+  /** Mirror Obsidian's mobile navigation behavior for our inner scroll area.
+      Obsidian listens to the Markdown scroller; our FileView has a separate
+      `.texto-editor` scroller, so the shell would otherwise never receive the
+      hide/show navigation state. */
+  private setupMobileScrollBehavior(scrollEl: HTMLElement): void {
+    this.mobileScrollCleanup?.();
+    const body = document.body;
+    const wasHidden = body.classList.contains("is-hidden-nav");
+    this.mobileNavWasHidden = wasHidden;
+    let lastTop = scrollEl.scrollTop;
+
+    const onScroll = () => {
+      const top = scrollEl.scrollTop;
+      this.contentEl.classList.toggle("is-scrolled", top > 2);
+
+      if (top <= 2 || top < lastTop - 1) {
+        body.classList.remove("is-hidden-nav");
+      } else if (top > lastTop + 1) {
+        body.classList.add("is-hidden-nav");
+      }
+      lastTop = top;
     };
-    update();
 
-    if (window.visualViewport) {
-      this.registerDomEvent(window.visualViewport, "resize", update);
-      this.registerDomEvent(window.visualViewport, "scroll", update);
-    }
-    this.registerDomEvent(window, "resize", update);
-    this.registerEvent(this.app.workspace.on("resize", update));
-
-    // Belt-and-suspenders: the keyboard can appear slightly after the view
-    // opens — re-check a few times.
-    for (const delay of [120, 300, 600, 1000, 1800, 3000]) {
-      window.setTimeout(update, delay);
-    }
+    scrollEl.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    this.mobileScrollCleanup = () => {
+      scrollEl.removeEventListener("scroll", onScroll);
+      this.contentEl.classList.remove("is-scrolled");
+      if (this.mobileNavWasHidden) body.classList.add("is-hidden-nav");
+      else body.classList.remove("is-hidden-nav");
+      this.mobileNavWasHidden = null;
+    };
   }
 
-  /** Soft keyboard height in CSS pixels (0 when closed / not detected). */
-  private keyboardHeight(): number {
+  /** Track the soft keyboard and reserve its height so the toolbar sits
+      immediately above it. Focus is deliberately not used here: dismissing
+      the keyboard does not necessarily blur a contenteditable element. */
+  private setupKeyboardHandling(): void {
+    this.clearKeyboardListeners();
+    const generation = this.keyboardListenerGeneration;
+    const update = (height: number, reserveSpace: boolean) => {
+      const open = height > 0;
+      this.contentEl.classList.toggle("is-keyboard-open", open);
+      // Capacitor/Obsidian already resizes the view above the keyboard. The
+      // viewport fallback may overlay it, so only that path needs padding.
+      this.contentEl.setCssProps({
+        "--keyboard-offset": reserveSpace && open ? `${height}px` : "",
+      });
+    };
+
+    // Obsidian Android/iOS exposes Capacitor's Keyboard plugin. Unlike
+    // visualViewport, it also works when Android draws the keyboard as an
+    // overlay (the emulator and Android 15+ commonly do this).
+    type KeyboardPlugin = {
+      addListener?: (
+        event: string,
+        listener: (info: { keyboardHeight?: number }) => void,
+      ) => Promise<{ remove: () => Promise<void> | void }>;
+    };
+    const capacitor = (window as unknown as {
+      Capacitor?: { Plugins?: { Keyboard?: KeyboardPlugin } };
+    }).Capacitor;
+    const keyboard = capacitor?.Plugins?.Keyboard;
+
+    if (keyboard?.addListener) {
+      update(0, false);
+      for (const event of ["keyboardWillShow", "keyboardDidShow", "keyboardWillHide", "keyboardDidHide"]) {
+        void keyboard.addListener(event, (info) => {
+          const height = event.endsWith("Hide") ? 0 : Number(info.keyboardHeight ?? 0);
+          update(Number.isFinite(height) ? height : 0, false);
+        }).then((handle) => {
+          if (generation === this.keyboardListenerGeneration) {
+            this.keyboardListenerHandles.push(handle);
+          } else {
+            void handle.remove();
+          }
+        });
+      }
+      return;
+    }
+
+    // Fallback for desktop mobile emulation and browsers without Capacitor.
+    const updateFromViewport = () => {
+      const { height } = this.keyboardState();
+      update(height, true);
+    };
+    updateFromViewport();
+    if (window.visualViewport) {
+      const viewport = window.visualViewport;
+      viewport.addEventListener("resize", updateFromViewport);
+      viewport.addEventListener("scroll", updateFromViewport);
+      this.keyboardViewportCleanup = () => {
+        viewport.removeEventListener("resize", updateFromViewport);
+        viewport.removeEventListener("scroll", updateFromViewport);
+      };
+    }
+    this.registerDomEvent(window, "resize", updateFromViewport);
+    this.registerEvent(this.app.workspace.on("resize", updateFromViewport));
+  }
+
+  private clearKeyboardListeners(): void {
+    this.keyboardListenerGeneration += 1;
+    this.keyboardViewportCleanup?.();
+    this.keyboardViewportCleanup = null;
+    for (const handle of this.keyboardListenerHandles) {
+      void handle.remove();
+    }
+    this.keyboardListenerHandles = [];
+  }
+
+  private keyboardState(): { open: boolean; height: number } {
     const vv = window.visualViewport;
-    if (!vv) return 0;
-    return Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    if (!vv) return { open: false, height: 0 };
+    const height = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+    return { open: height > 120, height };
   }
 
   async onLoadFile(file: TFile): Promise<void> {
+    this.mobileScrollCleanup?.();
+    this.mobileScrollCleanup = null;
     this.destroyEditor();
     this.contentEl.empty();
 
@@ -158,6 +249,7 @@ export class NoteView extends FileView {
       const isMobile = this.isMobileView();
       if (isMobile) {
         this.contentEl.addClass("is-mobile");
+        if (Platform.isPhone) this.contentEl.addClass("is-phone");
       }
       const editorEl = noteEl.props.editorContainerEl?.value;
 
@@ -182,20 +274,13 @@ export class NoteView extends FileView {
 
         editorRef.current = this.editor;
 
+        if (isMobile) {
+          this.setupMobileScrollBehavior(editorEl);
+        }
+
         this.editor.on("blur", () => {
           void this.flushSave();
         });
-
-        // Mobile: show our toolbar only while editing — the native menu shows
-        // otherwise. Focus ≈ keyboard open on phones and works in emulation.
-        if (isMobile) {
-          const refreshEditing = () => {
-            this.contentEl.classList.toggle("is-editing", this.editor?.isFocused ?? false);
-          };
-          this.editor.on("focus", refreshEditing);
-          this.editor.on("blur", refreshEditing);
-          refreshEditing();
-        }
 
         this._skipNextReload = true;
 
@@ -381,12 +466,17 @@ export class NoteView extends FileView {
   }
 
   async onUnloadFile(file: TFile): Promise<void> {
+    this.mobileScrollCleanup?.();
+    this.mobileScrollCleanup = null;
     await this.flushSave();
     this.destroyEditor();
     this.contentEl.empty();
   }
 
   async onClose(): Promise<void> {
+    this.mobileScrollCleanup?.();
+    this.mobileScrollCleanup = null;
+    this.clearKeyboardListeners();
     this.scrollShadowCleanup?.();
     this.scrollShadowCleanup = null;
     await this.flushSave();

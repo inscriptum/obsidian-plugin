@@ -8,7 +8,7 @@ Write structured documents with headings, lists, todo items, tables, images, lin
 
 Your documents stay **local and under your control**. No cloud storage, no account, and no lock-in.
 
-![Rich text editing example](demo/example-note.png)
+![Rich text editing example](demo/example.png)
 
 The Obsidian plugin brings Inscriptum to your Obsidian vault, allowing you to use the editor alongside your existing notes and workflow.
 

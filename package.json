@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite build --watch --mode development",
     "build": "vite build",
+    "android:debug": "node scripts/android-debug.mjs",
     "deploy": "cp dist/main.js manifest.json dist/styles.css .obsidian/plugins/inscriptum/",
     "release": "node scripts/release.mjs",
     "test": "vitest run",
