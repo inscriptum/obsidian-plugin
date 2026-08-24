@@ -41,7 +41,7 @@ export class CommandManager {
 
 		return Object.fromEntries(
 			Object.entries(rawCommands).map(([name, command]) => {
-				const method = (...args: any[]) => {
+				const method = (...args: never[]) => {
 					const callback = this.executeCommand(command, args, props);
 
 					if (!tr.getMeta('preventDispatch') && !this.hasCustomState) {

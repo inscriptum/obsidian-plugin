@@ -26,18 +26,19 @@ export type Extensions = AnyExtension[];
 // ── Shared type aliases ──────────────────────────────────────────────
 // Centralize `any` for repeated patterns, avoiding duplicate warnings.
 
-export type AnyFn = (...args: any[]) => any;
+// `any[]` is required here because this type stores callbacks with arbitrary parameter lists.
+export type AnyFn = (...args: any[]) => unknown;
 
-export type AnyFnVoid = (...args: any[]) => void;
+export type AnyFnVoid = (...args: never[]) => void;
 
 export type AnyRecord = Record<string, any>;
 
 /** Expansion of `keyof any` */
 export type KeyOfAny = string | number | symbol;
 
-export type DispatchFn = (args?: any) => any;
+export type DispatchFn = (transaction: Transaction) => void;
 
-export type CommandFn = (...args: any[]) => Command;
+export type CommandFn = (...args: never[]) => Command;
 // ─────────────────────────────────────────────────────────────────────
 
 export type ParentConfig<T> = Partial<{
@@ -173,7 +174,7 @@ export type PickValue<T, K extends keyof T> = T[K];
 
 export type UnionToIntersection<U> = (
   // `any` keeps this conditional type distributive over unions.
-  U extends any ? (k: U) => void : never
+  U extends unknown ? (k: U) => void : never
 ) extends (k: infer I) => void
   ? I
   : never;
@@ -241,7 +242,7 @@ type AllCommands = UnionToIntersection<
 type AllCommandsByType<T> = Pick<
   AllCommands,
   // `any` matches every function signature returning T.
-  KeysWithTypeOf<AllCommands, (...args: any) => T>
+  KeysWithTypeOf<AllCommands, (...args: never[]) => T>
 >;
 
 export type UnionCommands<
