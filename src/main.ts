@@ -1,5 +1,5 @@
 import "./styles/editor.css";
-import { Plugin, WorkspaceLeaf, Notice } from "obsidian";
+import { Notice, normalizePath, Plugin, WorkspaceLeaf } from "obsidian";
 import { NoteView, NOTE_VIEW_TYPE } from "./NoteView";
 import { installIconSprite } from "./components/icons/iconSprite";
 import { createEmptyNote } from "./storage/noteStorage";
@@ -34,9 +34,17 @@ export default class NotesPlugin extends Plugin {
     new NewNoteModal(this.app, async (name) => {
       if (!name) return;
 
-      const path = `${name}.note`;
+      const newFilePath = `${name}.note`;
 
       try {
+        const activeFilePath = this.app.workspace.getActiveFile()?.path ?? "";
+        const parent = this.app.fileManager.getNewFileParent(
+          activeFilePath,
+          newFilePath,
+        );
+        const path = normalizePath(
+          parent.path ? `${parent.path}/${newFilePath}` : newFilePath,
+        );
         const initialContent = JSON.stringify(
           createNoteWithTitle(name),
           null,

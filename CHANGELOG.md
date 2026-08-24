@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Improved TypeScript typings for commands, callbacks, dispatch, and conditional types.
+- Replaced broad CSS selectors with explicit component classes where practical.
+- Improved CSS compatibility with older Obsidian versions.
+
+### Fixed
+
+- New `.note` documents now follow Obsidian's configured new-file location, including nested folders.
+- Removed obsolete custom-element and browser-feature CSS warnings.
+
 ## [0.2.4] - 2026-08-23
 
 ### Fixed
