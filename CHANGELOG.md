@@ -7,15 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added a folder selector to the new Inscriptum note dialog.
+- Added a **New inscriptum** action to folder context menus.
+
 ### Changed
 
+- New notes default to the active file's folder, while still allowing another folder to be selected.
+- Improved the new note dialog layout and clarified Inscriptum action labels.
 - Improved TypeScript typings for commands, callbacks, dispatch, and conditional types.
 - Replaced broad CSS selectors with explicit component classes where practical.
 - Improved CSS compatibility with older Obsidian versions.
 
 ### Fixed
 
-- New `.note` documents now follow Obsidian's configured new-file location, including nested folders.
+- New `.note` documents now follow the selected folder, including nested folders.
 - Removed obsolete custom-element and browser-feature CSS warnings.
 
 ## [0.2.4] - 2026-08-23

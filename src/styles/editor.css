@@ -22,6 +22,24 @@
   -webkit-appearance: none;
 }
 
+/* New Inscriptum modal: keep the name input and folder selector equally wide. */
+.modal-content .inscriptum-new-note-setting .setting-item-info {
+  flex: 0 0 220px;
+}
+
+.modal-content .inscriptum-new-note-setting .setting-item-control {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+  max-width: none;
+}
+
+.modal-content .inscriptum-new-note-setting .setting-item-control input,
+.modal-content .inscriptum-new-note-setting .setting-item-control select {
+  width: 100%;
+  max-width: none;
+}
+
 /* contentEl FileView — this is Obsidian's .view-content, which by default
    has padding (var(--size-4-4)). Increase specificity to remove it
    and let the scroll container reach the very edge of the screen. */

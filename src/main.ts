@@ -1,5 +1,11 @@
 import "./styles/editor.css";
-import { Notice, normalizePath, Plugin, WorkspaceLeaf } from "obsidian";
+import {
+  Notice,
+  normalizePath,
+  Plugin,
+  TFolder,
+  WorkspaceLeaf,
+} from "obsidian";
 import { NoteView, NOTE_VIEW_TYPE } from "./NoteView";
 import { installIconSprite } from "./components/icons/iconSprite";
 import { createEmptyNote } from "./storage/noteStorage";
@@ -17,7 +23,7 @@ export default class NotesPlugin extends Plugin {
       (leaf: WorkspaceLeaf) => new NoteView(leaf),
     );
 
-    this.addRibbonIcon("notebook-pen", "New note", () => {
+    this.addRibbonIcon("notebook-pen", "New inscriptum", () => {
       this.createNewNote();
     });
 
@@ -28,37 +34,63 @@ export default class NotesPlugin extends Plugin {
         this.createNewNote();
       },
     });
+
+    this.registerEvent(
+      this.app.workspace.on("file-menu", (menu, file) => {
+        if (!(file instanceof TFolder)) return;
+
+        menu.addItem((item) =>
+          item
+            .setTitle("New inscriptum")
+            .setIcon("notebook-pen")
+            .onClick(() => this.createNewNote(file.path)),
+        );
+      }),
+    );
   }
 
-  private createNewNote() {
-    new NewNoteModal(this.app, async (name) => {
-      if (!name) return;
+  private createNewNote(initialFolderPath?: string) {
+    const activeFile = this.app.workspace.getActiveFile();
+    const defaultFolder =
+      initialFolderPath !== undefined
+        ? this.app.vault.getFolderByPath(initialFolderPath) ??
+          this.app.vault.getRoot()
+        : activeFile?.parent ??
+          this.app.fileManager.getNewFileParent(
+            "",
+            "Untitled.note",
+          );
+    const defaultFolderPath = defaultFolder?.path ?? "";
 
-      const newFilePath = `${name}.note`;
+    new NewNoteModal(
+      this.app,
+      this.app.vault.getAllFolders(true),
+      defaultFolderPath,
+      async (result) => {
+        if (!result) return;
 
-      try {
-        const activeFilePath = this.app.workspace.getActiveFile()?.path ?? "";
-        const parent = this.app.fileManager.getNewFileParent(
-          activeFilePath,
-          newFilePath,
-        );
-        const path = normalizePath(
-          parent.path ? `${parent.path}/${newFilePath}` : newFilePath,
-        );
-        const initialContent = JSON.stringify(
-          createNoteWithTitle(name),
-          null,
-          2,
-        );
-        const file = await this.app.vault.create(path, initialContent);
-        await this.app.workspace.getLeaf("tab").openFile(file);
-      } catch (error) {
-        new Notice(
-          `Failed to create note: ${error instanceof Error ? error.message : String(error)}`,
-        );
-        console.error("Failed to create note:", error);
-      }
-    }).open();
+        const { name, folderPath } = result;
+        const newFilePath = `${name}.note`;
+
+        try {
+          const path = normalizePath(
+            folderPath ? `${folderPath}/${newFilePath}` : newFilePath,
+          );
+          const initialContent = JSON.stringify(
+            createNoteWithTitle(name),
+            null,
+            2,
+          );
+          const file = await this.app.vault.create(path, initialContent);
+          await this.app.workspace.getLeaf("tab").openFile(file);
+        } catch (error) {
+          new Notice(
+            `Failed to create note: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          console.error("Failed to create note:", error);
+        }
+      },
+    ).open();
   }
 }
 
