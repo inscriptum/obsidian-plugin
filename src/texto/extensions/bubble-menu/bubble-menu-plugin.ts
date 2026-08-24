@@ -177,6 +177,7 @@ export class BubbleMenuView implements PluginView {
       hideOnClick: "toggle",
       ...this.tippyOptions,
     });
+    this.tippy.popper.classList.add("bubble-menu-popper");
 
     // Send a tippy object to save inside the plugin's state
     this.editor.view.dispatch(

@@ -18,15 +18,15 @@ never keep the menu invisible. */
   visibility: visible;
 }
 
-/* tippy: remove default background and padding around menu content.
-   :has() scopes only to our element, not touching Obsidian tippy-tooltips. */
-.tippy-box:has(> .tippy-content > .bubble-menu-bar-host) {
+/* tippy: remove default background and padding around bubble-menu content.
+   BubbleMenuView marks each of its Tippy roots with .bubble-menu-popper. */
+.bubble-menu-popper .tippy-box {
   background: transparent;
   color: inherit;
   border-radius: 0;
   box-shadow: none;
 }
-.tippy-content:has(> .bubble-menu-bar-host) {
+.bubble-menu-popper .tippy-content {
   padding: 0;
 }
 
@@ -112,7 +112,14 @@ never keep the menu invisible. */
 }
 
 .bubble-menu-bar button {
-  all: unset;
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
   position: relative;
   display: flex;
   align-items: center;
@@ -313,8 +320,7 @@ never keep the menu invisible. */
   gap: 9px;
   width: 100%;
   padding: 4px 9px;
-  /* all:unset from .bubble-menu-bar button resets box-sizing to content-box,
-     causing width:100% + padding to overflow the layer — restore border-box */
+  /* Include this item's horizontal padding in its full-width layout. */
   box-sizing: border-box;
   border-radius: 6px;
   color: #a9abb6;

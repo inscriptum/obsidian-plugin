@@ -63,6 +63,7 @@ export class NoteView extends FileView {
   private keyboardListenerHandles: Array<{ remove: () => Promise<void> | void }> = [];
   private keyboardListenerGeneration = 0;
   private keyboardViewportCleanup: (() => void) | null = null;
+  private leafContentWithNoteClass: HTMLElement | null = null;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -94,6 +95,10 @@ export class NoteView extends FileView {
   async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("note-view-container");
+
+    this.leafContentWithNoteClass =
+      this.contentEl.closest<HTMLElement>(".workspace-leaf-content");
+    this.leafContentWithNoteClass?.classList.add("has-inscriptum-note-view");
 
     if (this.isMobileView()) {
       this.setupKeyboardHandling();
@@ -477,6 +482,8 @@ export class NoteView extends FileView {
     this.mobileScrollCleanup?.();
     this.mobileScrollCleanup = null;
     this.clearKeyboardListeners();
+    this.leafContentWithNoteClass?.classList.remove("has-inscriptum-note-view");
+    this.leafContentWithNoteClass = null;
     this.scrollShadowCleanup?.();
     this.scrollShadowCleanup = null;
     await this.flushSave();

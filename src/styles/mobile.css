@@ -256,9 +256,9 @@
 
 /* The filename in Obsidian's fixed view header duplicates our document
    noteTitle. Keep the shell actions/navigation, but remove only its title. */
-.workspace-leaf-content:has(.note-view-container) .view-header-title,
-.workspace-leaf-content:has(.note-view-container) .view-header-title-parent {
-  display: none !important;
+.workspace-leaf-content.has-inscriptum-note-view .view-header-title,
+.workspace-leaf-content.has-inscriptum-note-view .view-header-title-parent {
+  display: none;
 }
 
 /* ─── Horizontal scroll hint ────────────────────────────────────────────
