@@ -26,6 +26,7 @@ export class NewNoteModal extends Modal {
   }
 
   onOpen(): void {
+    this.modalEl.addClass("inscriptum-new-note-modal");
     this.titleEl.setText("New inscriptum");
 
     const nameSetting = new Setting(this.contentEl)

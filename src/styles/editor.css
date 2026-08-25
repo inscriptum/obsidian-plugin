@@ -23,9 +23,14 @@
   -webkit-appearance: none;
 }
 
-/* New Inscriptum modal: keep the name input and folder selector equally wide. */
-.modal-content .inscriptum-new-note-setting .setting-item-info {
-  flex: 0 0 220px;
+/* New Inscriptum modal: keep the name input and folder selector equally wide.
+   The fixed label width only makes sense on desktop, where the setting row is
+   laid out horizontally (flex-direction: row). On mobile the row is vertical,
+   so a flex-basis here would be interpreted as a height and stretch the row. */
+@media (min-width: 600px) {
+  .modal-content .inscriptum-new-note-setting .setting-item-info {
+    flex: 0 0 220px;
+  }
 }
 
 .modal-content .inscriptum-new-note-setting .setting-item-control {
@@ -39,6 +44,20 @@
 .modal-content .inscriptum-new-note-setting .setting-item-control select {
   width: 100%;
   max-width: none;
+}
+
+/* Mobile: keep the modal compact instead of stretching to the full screen with
+   a large empty gap between the title and the fields. */
+.modal.inscriptum-new-note-modal {
+  height: auto;
+  max-height: 90vh;
+  align-self: center;
+  margin: auto;
+}
+
+.modal.inscriptum-new-note-modal .modal-content {
+  justify-content: flex-start;
+  padding-bottom: var(--size-4-4);
 }
 
 /* contentEl FileView — this is Obsidian's .view-content, which by default

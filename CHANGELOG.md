@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Added in-note document search with highlighted matches and match navigation (previous/next).
+- Added a **Find in note** action to the mobile More options (three-dot) menu.
+- Added the `inscriptum:find-in-note` command, opened with `Cmd/Ctrl+F`, that opens the in-note search bar.
+
+### Fixed
+
+- Fixed in-note search not scrolling the active match into view.
+- Fixed the mobile search bar overlapping the view header by placing it below the header.
+- Fixed the mobile new-note dialog stretching to full screen with empty space; it is now a compact card with the fields directly under the title.
+
 ## [0.3.0] - 2026-08-24
 
 ### Added
