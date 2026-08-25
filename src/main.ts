@@ -3,6 +3,7 @@ import {
   Notice,
   normalizePath,
   Plugin,
+  setIcon,
   TFolder,
   WorkspaceLeaf,
 } from "obsidian";
@@ -13,6 +14,8 @@ import { NewNoteModal } from "./ui/NewNoteModal";
 import type { JSONContent } from "./texto/core/@types";
 
 export default class NotesPlugin extends Plugin {
+  private fileExplorerObserver: MutationObserver | null = null;
+
   async onload(): Promise<void> {
     installIconSprite();
 
@@ -59,6 +62,67 @@ export default class NotesPlugin extends Plugin {
         );
       }),
     );
+
+    // Add a "New inscriptum" button next to the standard "New note" button in
+    // the file explorer (visible on both desktop and mobile). The ribbon icon
+    // is hidden inside the left sidebar on mobile, and the folder context-menu
+    // item is only reachable by long-pressing a folder, so a direct button is
+    // the discoverable entry point.
+    this.app.workspace.onLayoutReady(() => {
+      this.ensureFileExplorerButton();
+      this.observeFileExplorer();
+    });
+  }
+
+  /** Insert (once) a "New inscriptum" button right after the file explorer's
+   *  standard "New note" button. Re-adds itself if Obsidian re-renders the bar. */
+  private ensureFileExplorerButton(): void {
+    const container = document.querySelector<HTMLElement>(
+      '.workspace-leaf-content[data-type="file-explorer"] .nav-buttons-container',
+    );
+    if (!container) return;
+    if (container.querySelector(".inscriptum-nav-new-note")) return;
+
+    const button = document.createElement("div");
+    button.className = "clickable-icon nav-action-button inscriptum-nav-new-note";
+    button.setAttribute("aria-label", "New inscriptum");
+    button.setAttribute("type", "button");
+    setIcon(button, "notebook-pen");
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      this.createNewNote();
+    });
+
+    const newNoteBtn = container.querySelector<HTMLElement>(".nav-action-button");
+    if (newNoteBtn?.nextSibling) {
+      container.insertBefore(button, newNoteBtn.nextSibling);
+    } else {
+      container.appendChild(button);
+    }
+  }
+
+  /** Re-add the file explorer button whenever Obsidian rebuilds the nav bar. */
+  private observeFileExplorer(): void {
+    if (this.fileExplorerObserver) return;
+    let scheduled = false;
+    this.fileExplorerObserver = new MutationObserver(() => {
+      if (scheduled) return;
+      scheduled = true;
+      window.setTimeout(() => {
+        scheduled = false;
+        this.ensureFileExplorerButton();
+      }, 200);
+    });
+    this.fileExplorerObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+  }
+
+  async onunload(): Promise<void> {
+    this.fileExplorerObserver?.disconnect();
+    this.fileExplorerObserver = null;
+    document.querySelector(".inscriptum-nav-new-note")?.remove();
   }
 
   private createNewNote(initialFolderPath?: string) {
