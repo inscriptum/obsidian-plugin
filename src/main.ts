@@ -35,6 +35,18 @@ export default class NotesPlugin extends Plugin {
       },
     });
 
+    this.addCommand({
+      id: "find-in-note",
+      name: "Find in current note",
+      icon: "search",
+      checkCallback: (checking) => {
+        const view = this.app.workspace.getActiveViewOfType(NoteView);
+        if (!view) return false;
+        if (!checking) view.openSearch();
+        return true;
+      },
+    });
+
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {
         if (!(file instanceof TFolder)) return;

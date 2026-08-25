@@ -1,4 +1,11 @@
-import { FileView, WorkspaceLeaf, TFile, Notice, Platform } from "obsidian";
+import {
+  FileView,
+  WorkspaceLeaf,
+  TFile,
+  Notice,
+  Platform,
+  Menu,
+} from "obsidian";
 import { CellSelection, isInTable } from "prosemirror-tables";
 import { Editor, isTextSelection } from "./texto/core";
 import { readNote, writeNote } from "./storage/noteStorage";
@@ -17,8 +24,10 @@ import type { JSONContent } from "./texto/core/@types";
 import "./styles/bubble-menu.css";
 import "./components/note/note.element";
 import "./components/toolbar/toolbar.element";
+import "./components/search/search.element";
 import { NoteElement } from "./components/note/note.element";
 import { ToolbarElement } from "./components/toolbar/toolbar.element";
+import { SearchElement } from "./components/search/search.element";
 import { setupScrollShadows } from "./components/toolbar/scrollShadow";
 import {
   bubbleMenuPlugin,
@@ -30,6 +39,7 @@ import { TableBubbleMenuElement } from "./components/bubble-menu-bar/table-bubbl
 import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubble-menu-bar.element";
 import { isMediaNodeSelection } from "./components/bubble-menu-bar/mediaMenuState";
 import { setHighlightTheme } from "./theme/hljsTheme";
+import { createDocumentSearchPlugin } from "./search/documentSearch";
 
 export const NOTE_VIEW_TYPE = "note-view";
 
@@ -64,6 +74,7 @@ export class NoteView extends FileView {
   private keyboardListenerGeneration = 0;
   private keyboardViewportCleanup: (() => void) | null = null;
   private leafContentWithNoteClass: HTMLElement | null = null;
+  private searchEl: HTMLElement | null = null;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -85,6 +96,18 @@ export class NoteView extends FileView {
     return extension === "note";
   }
 
+  /** Populate the view's "More options" (three-dot) menu. Keeps the default
+      FileView items and adds a shortcut to the in-document search. */
+  onPaneMenu(menu: Menu, source: "more-options" | "tab-header" | string): void {
+    super.onPaneMenu(menu, source);
+    menu.addItem((item) =>
+      item
+        .setTitle("Find in note")
+        .setIcon("search")
+        .onClick(() => this.openSearch()),
+    );
+  }
+
   /** Mobile layout is gated on Platform.isMobile ("UI is in mobile mode").
       It is true on real mobile and also when Obsidian runs in mobile emulation
       (`app.emulateMobile(true)`), so it reflects the actual UI mode. */
@@ -99,6 +122,31 @@ export class NoteView extends FileView {
     this.leafContentWithNoteClass =
       this.contentEl.closest<HTMLElement>(".workspace-leaf-content");
     this.leafContentWithNoteClass?.classList.add("has-inscriptum-note-view");
+
+    this.registerDomEvent(
+      window,
+      "keydown",
+      (event) => this.handleSearchShortcut(event),
+      true,
+    );
+
+    // Obsidian's global Search current file command owns Mod+F and can
+    // consume the native macOS shortcut before it reaches the DOM. Register
+    // a scope handler with a null key so keyboard layouts are handled by the
+    // physical key code instead of the translated character.
+    for (const modifier of ["Meta", "Ctrl"] as const) {
+      const handler = this.app.scope.register([modifier], null, (event) => {
+        if (this.app.workspace.getActiveViewOfType(NoteView) !== this) {
+          return;
+        }
+        if (event.code !== "KeyF" && event.key.toLowerCase() !== "f") {
+          return;
+        }
+        this.openSearch();
+        return false;
+      });
+      this.register(() => this.app.scope.unregister(handler));
+    }
 
     if (this.isMobileView()) {
       this.setupKeyboardHandling();
@@ -236,6 +284,7 @@ export class NoteView extends FileView {
     this.mobileScrollCleanup?.();
     this.mobileScrollCleanup = null;
     this.destroyEditor();
+    this.destroySearchBar();
     this.contentEl.empty();
 
     const content = await readNote(file, this.app.vault);
@@ -278,6 +327,8 @@ export class NoteView extends FileView {
         });
 
         editorRef.current = this.editor;
+        this.editor.registerPlugin(createDocumentSearchPlugin());
+        this.createSearchBar();
 
         if (isMobile) {
           this.setupMobileScrollBehavior(editorEl);
@@ -473,6 +524,7 @@ export class NoteView extends FileView {
   async onUnloadFile(file: TFile): Promise<void> {
     this.mobileScrollCleanup?.();
     this.mobileScrollCleanup = null;
+    this.destroySearchBar();
     await this.flushSave();
     this.destroyEditor();
     this.contentEl.empty();
@@ -482,6 +534,7 @@ export class NoteView extends FileView {
     this.mobileScrollCleanup?.();
     this.mobileScrollCleanup = null;
     this.clearKeyboardListeners();
+    this.destroySearchBar();
     this.leafContentWithNoteClass?.classList.remove("has-inscriptum-note-view");
     this.leafContentWithNoteClass = null;
     this.scrollShadowCleanup?.();
@@ -489,6 +542,43 @@ export class NoteView extends FileView {
     await this.flushSave();
     this.destroyEditor();
     this.contentEl.empty();
+  }
+
+  public openSearch(): void {
+    if (!this.editor || !this.searchEl) return;
+    this.searchEl.dispatchEvent(new Event("open-search"));
+  }
+
+  private handleSearchShortcut(event: KeyboardEvent): void {
+    if (this.app.workspace.getActiveViewOfType(NoteView) !== this) return;
+
+    const isFindKey =
+      event.code === "KeyF" || event.key.toLowerCase() === "f";
+    if (!(event.metaKey || event.ctrlKey) || !isFindKey) {
+      if (event.key === "Escape") {
+        this.searchEl?.dispatchEvent(new Event("close-search"));
+      }
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    this.openSearch();
+  }
+
+  private createSearchBar(): void {
+    this.destroySearchBar();
+    if (!this.editor) return;
+
+    const searchEl = new SearchElement();
+    searchEl.props.editor = this.editor;
+    this.searchEl = searchEl;
+    this.contentEl.appendChild(searchEl);
+  }
+
+  private destroySearchBar(): void {
+    this.searchEl?.remove();
+    this.searchEl = null;
   }
 
   private scheduleSave(): void {

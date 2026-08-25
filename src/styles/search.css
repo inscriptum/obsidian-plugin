@@ -1,0 +1,114 @@
+.note-view-container {
+  position: relative;
+}
+
+.inscriptum-search-bar {
+  z-index: 100;
+  display: none;
+  position: absolute;
+  top: 8px;
+  right: 16px;
+  align-items: center;
+  gap: 6px;
+  box-sizing: border-box;
+  max-width: calc(100% - 32px);
+  padding: 6px;
+  color: var(--text-normal);
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-s);
+}
+
+.inscriptum-search-bar.is-open {
+  display: flex;
+}
+
+.inscriptum-search-bar input {
+  width: min(260px, 38vw);
+  min-width: 120px;
+  height: 28px;
+  padding: 0 8px;
+  color: var(--text-normal);
+  background: var(--background-primary-alt);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  outline: none;
+  font: inherit;
+  font-size: var(--font-ui-small);
+}
+
+.inscriptum-search-bar input:focus {
+  border-color: var(--interactive-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+}
+
+.inscriptum-search-count {
+  min-width: 68px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.inscriptum-search-button {
+  appearance: none;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.inscriptum-search-button:hover:not(:disabled) {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.inscriptum-search-button:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: -2px;
+}
+
+.inscriptum-search-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.inscriptum-search-match {
+  color: inherit;
+  background: color-mix(in srgb, var(--interactive-accent) 28%, transparent);
+  border-radius: 3px;
+}
+
+.inscriptum-search-match-active {
+  background: var(--text-accent);
+  color: var(--text-on-accent);
+}
+
+@media (max-width: 600px) {
+  .inscriptum-search-bar {
+    right: 8px;
+    max-width: calc(100% - 16px);
+  }
+
+  .inscriptum-search-bar input {
+    width: min(220px, 42vw);
+  }
+}
+
+/* Mobile: place the search bar below Obsidian's view header (the row with
+   the three-dot / navigation controls) instead of near the top system UI.
+   Same offset the editor uses so it clears the header and status bar. */
+.note-view-container.is-mobile .inscriptum-search-bar {
+  top: calc(var(--header-height, 40px) + var(--view-header-height, 44px) + 12px);
+}

@@ -7,6 +7,7 @@
 @import './table.css';
 @import './task-item.css';
 @import './mobile.css';
+@import './search.css';
 
 /* Hidden container for SVG checkbox icons (see note.element.tsx). */
 .texto-editor-host .visually-hidden {
