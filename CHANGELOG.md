@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Fixed the tablet mobile layout: the editor no longer reserves the phone-only fixed header height (no big empty gap on top), and the top scroll-fade mask is no longer shown; both now apply to phones only. The in-note search bar also keeps its normal position on tablets.
+
 ## [0.4.0] - 2026-08-25
 
 ### Added

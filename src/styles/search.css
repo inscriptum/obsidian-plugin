@@ -106,9 +106,10 @@
   }
 }
 
-/* Mobile: place the search bar below Obsidian's view header (the row with
+/* Phones: place the search bar below Obsidian's view header (the row with
    the three-dot / navigation controls) instead of near the top system UI.
-   Same offset the editor uses so it clears the header and status bar. */
-.note-view-container.is-mobile .inscriptum-search-bar {
+   Same offset the editor uses so it clears the header and status bar.
+   On tablets the headers are in flow, so the default top offset applies. */
+.note-view-container.is-mobile.is-phone .inscriptum-search-bar {
   top: calc(var(--header-height, 40px) + var(--view-header-height, 44px) + 12px);
 }

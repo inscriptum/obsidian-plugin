@@ -40,24 +40,31 @@
    top; a small bottom padding is enough since the toolbar is a normal
    flex sibling now (it no longer overlaps the content). ─── */
 .note-view-container.is-mobile .texto-editor {
-  /* Obsidian's view header is fixed over the view content. The custom
-     FileView does not get MarkdownView's automatic top inset, so reserve
-     both shell header heights before rendering noteTitle. */
   position: relative;
-  padding: calc(var(--header-height, 40px) + var(--view-header-height, 44px) + 16px) 16px 24px;
+  padding: 16px 16px 24px;
 }
 
-/* When content scrolls beneath the fixed shell controls, fade the top edge
-   instead of letting text visibly pass through the header. Put the overlay
-   on the non-scrolling host: an overlay on `.texto-editor` is clipped when
-   it is moved above that element's top padding edge. */
-.note-view-container.is-mobile .texto-editor-host {
+/* Phones only: Obsidian's shell headers (app nav + view header) are fixed
+   over the view content. The custom FileView does not get MarkdownView's
+   automatic top inset, so reserve both header heights before noteTitle.
+   On tablets the headers stay in flow (desktop-like layout), so reserving
+   their height would leave a big empty gap above the content. ─── */
+.note-view-container.is-mobile.is-phone .texto-editor {
+  padding-top: calc(var(--header-height, 40px) + var(--view-header-height, 44px) + 16px);
+}
+
+/* Phones only: when content scrolls beneath the fixed shell controls, fade
+   the top edge instead of letting text visibly pass through the header. On
+   tablets nothing overlaps the content, so the mask is not needed. Put the
+   overlay on the non-scrolling host: an overlay on `.texto-editor` is
+   clipped when it is moved above that element's top padding edge. */
+.note-view-container.is-mobile.is-phone .texto-editor-host {
   position: relative;
   /* Keep the overlay below Obsidian's fixed `.view-header` (z-index: 1),
      while the overlay itself remains above editor content. */
   z-index: 0;
 }
-.note-view-container.is-mobile .texto-editor-host::before {
+.note-view-container.is-mobile.is-phone .texto-editor-host::before {
   content: "";
   position: absolute;
   z-index: 20;
@@ -76,7 +83,7 @@
   );
   transition: opacity 120ms ease;
 }
-.note-view-container.is-mobile.is-scrolled .texto-editor-host::before {
+.note-view-container.is-mobile.is-phone.is-scrolled .texto-editor-host::before {
   opacity: 1;
 }
 
