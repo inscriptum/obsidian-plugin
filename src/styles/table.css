@@ -72,8 +72,11 @@
   position: absolute;
   width: 14px;
   height: 14px;
-  right: -7px;
-  bottom: -7px;
+  /* Кружок держится внутри угла выделения: он не должен выходить за границы
+     таблицы, иначе его клипает .table-wrapper (overflow) у последней
+     колонки/строки и при горизонтальной прокрутке широкой таблицы. */
+  right: 0;
+  bottom: 0;
   cursor: nwse-resize;
   pointer-events: all;
   display: flex;

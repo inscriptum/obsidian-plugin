@@ -42,7 +42,15 @@ export interface ExtensionHooks {
   attachment?: AttachmentOptionsHooks;
 }
 
-export function getExtensions(hooks: ExtensionHooks = {}): Extensions {
+export interface GetExtensionsOptions {
+  /** Мобильная версия Obsidian (тач-жесты, хэндлы ресайза таблиц). */
+  isMobileView?: boolean;
+}
+
+export function getExtensions(
+  hooks: ExtensionHooks = {},
+  options: GetExtensionsOptions = {},
+): Extensions {
   return [
     State.configure({ nodeTypes: ['image', 'attachment'], hooks: hooks.state }),
     NoteDoc,
@@ -54,7 +62,10 @@ export function getExtensions(hooks: ExtensionHooks = {}): Extensions {
     HljsCodeBlock,
     HljsCodeBlockRow,
     HljsMark,
-    Table.configure({ resizable: true }),
+    Table.configure({
+      resizable: true,
+      isMobileView: options.isMobileView ?? false,
+    }),
     TableCell,
     TableHeader,
     TableRow,

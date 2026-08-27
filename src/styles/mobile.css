@@ -285,3 +285,60 @@
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px calc(100% - 28px), transparent 100%);
   mask-image: linear-gradient(to right, transparent 0, #000 28px calc(100% - 28px), transparent 100%);
 }
+
+/* ─── 5. Tables: touch selection & column resize ───────────────────────
+   Multi-cell selection is started by dragging the overlay circle, column
+   width is changed by dragging the resize handle (both rendered by the
+   handleCellSelection plugin, see src/texto/extensions/table). */
+
+/* Enlarge the touch target of the selection circle without changing its
+   visual size (the pseudo-element stays part of the circle, so it is the
+   circle that receives touchstart). */
+.note-view-container.is-mobile .texto-table__overlay_overlay-circle::before {
+  content: '';
+  position: absolute;
+  inset: -10px;
+}
+
+/* Column resize handle: a visible line on the column's right border with a
+   wide touch zone around it. Rendered only in the mobile view, positioned
+   relative to the cell (td/th are position: relative). */
+.note-view-container.is-mobile .texto-table__resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -12px;
+  width: 24px;
+  z-index: 3;
+  pointer-events: all;
+  touch-action: none;
+}
+
+/* Кружок выделения в том же углу, что и хэндл ресайза: поднимаем его выше,
+   чтобы угловое касание доставалось drag-выделению ячеек; хэндл остаётся
+   доступен по всей высоте границы колонки выше кружка.
+   ВАЖНО: z-index задаётся оверлею, а не самому кружку — кружок находится
+   внутри stacking-контекста оверлея, и его собственный z-index не может
+   конкурировать с хэндлом вне этого контекста. */
+.note-view-container.is-mobile .texto-table__overlay {
+  z-index: 4;
+}
+
+.note-view-container.is-mobile .texto-table__overlay_overlay-circle {
+  z-index: 4;
+  /* Без этого реальный тач-драг от кружка браузер забирает в прокрутку
+     документа (touchcancel) — выделение ячеек умирает на первом движении. */
+  touch-action: none;
+}
+
+.note-view-container.is-mobile .texto-table__resize-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(124, 106, 247, .55);
+  border-radius: 1px;
+}

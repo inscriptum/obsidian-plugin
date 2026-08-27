@@ -1,6 +1,7 @@
 import {Command} from '../../core/@types';
 import {AnyConfig} from '../../core/@types/AnyConfig';
 import {TextSelection} from 'prosemirror-state';
+import {TextoCellSelection} from './helpers/TextoCellSelection';
 import {
 	addColumnAfter,
 	addColumnBefore,
@@ -101,7 +102,7 @@ function clearTable(this: AddCommandsThis): Command {
 		const lastCellSize = anchor.node(-1).content.lastChild?.content.lastChild?.nodeSize ?? 0;
 		const $head = state.doc.resolve(anchor.before(-1) + anchor.node(-1).nodeSize - lastCellSize - 2);
 		const $anchor = state.doc.resolve(anchor.start(-1) + 1);
-		const selection = new CellSelection($anchor, $head);
+		const selection = new TextoCellSelection($anchor, $head);
 
 		tr.setSelection(selection).deleteSelection();
 
@@ -214,7 +215,7 @@ function fixTablesOverride(this: AddCommandsThis): Command {
 function setCellSelection(this: AddCommandsThis, position: {anchorCell: number; headCell: number}): Command {
 	return ({tr, dispatch}) => {
 		if (dispatch) {
-			const selection = CellSelection.create(tr.doc, position.anchorCell, position.headCell);
+			const selection = new TextoCellSelection(tr.doc.resolve(position.anchorCell), tr.doc.resolve(position.headCell));
 			tr.setSelection(selection);
 		}
 

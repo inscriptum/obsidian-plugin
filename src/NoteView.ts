@@ -322,6 +322,7 @@ export class NoteView extends FileView {
           },
           extensions: getExtensions(
             this.buildExtensionHooks(file, editorRef, ctx),
+            { isMobileView: isMobile },
           ),
           autofocus: "start",
         });
