@@ -1,6 +1,6 @@
 {
   "name": "@inscriptum/obsidian-plugin",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Local-first rich text editor for Obsidian",
   "license": "MIT",
   "main": "main.js",
