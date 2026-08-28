@@ -43,7 +43,7 @@ export interface ExtensionHooks {
 }
 
 export interface GetExtensionsOptions {
-  /** Мобильная версия Obsidian (тач-жесты, хэндлы ресайза таблиц). */
+  /** Mobile version of Obsidian (touch gestures, table resize handles). */
   isMobileView?: boolean;
 }
 

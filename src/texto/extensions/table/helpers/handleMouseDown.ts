@@ -2,30 +2,34 @@ import type {ResolvedPos} from 'prosemirror-model';
 import type {EditorView} from 'prosemirror-view';
 import {tableEditingKey, TableMap} from 'prosemirror-tables';
 
+import {beginCellDrag, endCellDrag, isJustAfterCellDrag} from './cellDragFreeze';
+import {scheduleOverlayRefresh} from './overlay';
 import {TextoCellSelection} from './TextoCellSelection';
 
 /**
- * Сдвиг точки влево-вверх на первом движении drag: указатель стоит на кружке
- * выделения (в углу ячейки, поверх контента и не в дереве документа).
- * Кружок имеет touch-зону, расширенную на 10px (::before, inset: -10px,
- * см. mobile.css), поэтому clearance должен превышать её.
+ * Shift of the point up-left on the first move of a drag: the pointer stands
+ * on the selection circle (in the corner of a cell, on top of the content and
+ * outside the document tree).
+ * The circle has a touch zone enlarged by 10px (::before, inset: -10px,
+ * see mobile.css), so the clearance must exceed it.
  *
- * На узких колонках (телефон) фиксированный сдвиг может выбросить точку
- * за пределы ячейки, поэтому точка берётся с прогрессирующе уменьшающимся
- * сдвигом — до первого попадания в ячейку (см. cellAtPoint).
+ * On narrow columns (phone) a fixed shift can throw the point outside the
+ * cell, so the point is taken with a progressively decreasing shift — until
+ * the first hit inside a cell (see cellAtPoint).
  */
 const CIRCLE_CLEARANCE = 18;
 
-/** Доли clearance для перебора в cellAtPoint. */
+/** Fractions of the clearance tried in cellAtPoint. */
 const CLEARANCE_STEPS = [1, 0.66, 0.33, 0] as const;
 
 /**
- * Ячейка, содержащая позицию (включая сам уровень ячейки).
+ * The cell containing the position (including the cell level itself).
  *
- * В отличие от cellAround из prosemirror-tables, который начинает подъём
- * с depth − 1, здесь учитывается и уровень самой ячейки: posAtCoords может
- * вернуть позицию ровно на границе содержимого ячейки — например, позицию
- * виджета-хэндла ресайза (на телефоне хэндлы перекрывают часть ячеек).
+ * Unlike cellAround from prosemirror-tables, which starts walking up from
+ * depth − 1, this also takes the cell level itself into account: posAtCoords
+ * may return a position exactly on the border of the cell content — for
+ * example, the position of the resize-handle widget (on the phone the handles
+ * overlap parts of the cells).
  */
 function cellContaining($pos: ResolvedPos): ResolvedPos | null {
 	for (let depth = $pos.depth; depth > 0; depth -= 1) {
@@ -38,12 +42,13 @@ function cellContaining($pos: ResolvedPos): ResolvedPos | null {
 }
 
 /**
- * Находит ячейку под указанной точкой экрана.
+ * Finds the cell under the given screen point.
  *
- * `offset` сдвигает точку влево-вверх: используется на первом движении drag,
- * когда указатель стоит на кружке выделения (в углу ячейки) и его нужно
- * завести внутрь anchor-ячейки. Если с полным сдвигом точка уходит мимо
- * ячейки (узкая колонка на телефоне), сдвиг уменьшается пошагово.
+ * `offset` shifts the point up-left: used on the first move of a drag,
+ * when the pointer stands on the selection circle (in the corner of a cell)
+ * and must be moved inside the anchor cell. If the full shift throws the
+ * point outside the cell (narrow column on the phone), the shift decreases
+ * step by step.
  */
 export function cellAtPoint(view: EditorView, clientX: number, clientY: number, offset = 0) {
 	for (const step of CLEARANCE_STEPS) {
@@ -51,9 +56,10 @@ export function cellAtPoint(view: EditorView, clientX: number, clientY: number, 
 		const x = clientX - shift;
 		const y = clientY - shift;
 
-		// Точки на оверлее выделения (кружок, его расширенная touch-зона) не
-		// резолвим: posAtCoords вернёт позицию виджета, которая схлопнет head
-		// в anchor-ячейку и заблокирует рост прямоугольника выделения.
+		// Points on the selection overlay (the circle and its enlarged touch
+		// zone) are not resolved: posAtCoords would return the widget position,
+		// which collapses head into the anchor cell and blocks the growth of
+		// the selection rect.
 		const hit = view.dom.ownerDocument.elementFromPoint(x, y);
 		if (hit?.closest('.texto-table__overlay')) continue;
 
@@ -64,8 +70,8 @@ export function cellAtPoint(view: EditorView, clientX: number, clientY: number, 
 		const cell = $pos.nodeAfter;
 		if (cell && (cell.type.name === 'tableCell' || cell.type.name === 'tableHeader')) return $pos;
 
-		// posAtCoords обычно указывает внутрь текста абзаца или на границу
-		// содержимого ячейки — поднимаемся по иерархии до ячейки.
+		// posAtCoords usually points inside the paragraph text or on the border
+		// of the cell content — walk up the hierarchy to the cell.
 		const around = cellContaining($pos);
 		if (around) return around;
 	}
@@ -73,12 +79,12 @@ export function cellAtPoint(view: EditorView, clientX: number, clientY: number, 
 }
 
 /**
- * Ячейка таблицы anchor-ячейки, чей прямоугольник содержит точку.
+ * The cell of the anchor cell's table whose rect contains the point.
  *
- * Резолв по прямоугольникам DOM не использует elementFromPoint, поэтому
- * работает даже когда workspace-drawer-backdrop (подложка мобильных drawer'ов
- * Obsidian) перехватывает hit-testing и posAtCoords деградирует. Используется
- * как фолбэк для head-ячейки при drag-выделении.
+ * The rect-based DOM lookup does not use elementFromPoint, so it works even
+ * when workspace-drawer-backdrop (the mobile drawer backdrop of Obsidian)
+ * intercepts hit-testing and posAtCoords degrades. Used as a fallback for
+ * the head cell during drag selection.
  */
 export function cellInTableAtPoint(
 	view: EditorView,
@@ -98,7 +104,7 @@ export function cellInTableAtPoint(
 	for (let row = 0; row < map.height; row += 1) {
 		for (let col = 0; col < map.width; col += 1) {
 			const index = row * map.width + col;
-			// Ячейка с rowspan тянется из предыдущей строки — пропускаем повтор.
+			// Skip a cell stretched from the previous row (rowspan).
 			if (row > 0 && map.map[index] === map.map[index - map.width]) {
 				continue;
 			}
@@ -110,14 +116,22 @@ export function cellInTableAtPoint(
 			}
 
 			const cellPos = start + cellOffset;
-			const dom = view.domAtPos(cellPos);
-			const element =
-				dom.node.nodeType === 1 ? (dom.node.childNodes[dom.offset] as HTMLElement | undefined) : (dom.node.parentElement as HTMLElement | null);
-			if (!element?.getBoundingClientRect) {
+			// Take the DOM of the cell itself (td/th), not of its first child
+			// paragraph: its rect is smaller than the cell (does not account for
+		// the inner padding), so a point in the cell padding did not hit the
+		// rect and head was not updated — the selection did not grow toward
+		// the side where the finger hovered over the overlay and cellAtPoint
+		// fell back here. nodeDOM returns the whole cell node element, so its
+		// rect covers the entire cell.
+			const cellEl = (view.nodeDOM(cellPos) as HTMLElement | null) ?? (() => {
+				const dom = view.domAtPos(cellPos);
+				return (dom.node.nodeType === 1 ? dom.node.childNodes[dom.offset] : dom.node.parentElement) as HTMLElement | null;
+			})();
+			if (!cellEl?.getBoundingClientRect) {
 				continue;
 			}
 
-			const rect = element.getBoundingClientRect();
+			const rect = cellEl.getBoundingClientRect();
 			if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
 				return view.state.doc.resolve(cellPos);
 			}
@@ -127,23 +141,37 @@ export function cellInTableAtPoint(
 }
 
 /**
- * Обработчик `mousedown` для выделения ячеек таблицы.
+ * `mousedown` handler for table cell selection.
  *
- * Если клик пришёлся на кружок выделения (`.texto-table__overlay_overlay-circle`),
- * запускает drag-выделение: движение мыши строит `TextoCellSelection` от
- * anchor-ячейки до ячейки под курсором. Обычные клики внутри ячеек
- * пропускаются дальше (курсор/редактирование).
+ * If the click hit the selection circle (`.texto-table__overlay_overlay-circle`),
+ * starts a drag selection: mouse movement builds a `TextoCellSelection` from
+ * the anchor cell to the cell under the cursor. Regular clicks inside cells
+ * pass through (cursor placement / editing).
  */
 export function handleMouseDown(view: EditorView, startEvent: MouseEvent): boolean {
+	// A touch cell drag that just ended must not let its synthetic mousedown
+	// (dispatched by the browser right after touchend) collapse the freshly
+	// built cell selection back to a text cursor.
+	if (isJustAfterCellDrag()) {
+		startEvent.preventDefault();
+		return true;
+	}
+
 	const target = startEvent.target as HTMLElement;
-	// classList, а не точное сравнение className: Obsidian может добавлять
-	// элементу собственные классы (например, mobile-tap).
+	// classList instead of an exact className match: Obsidian may add its own
+	// classes to the element (e.g. mobile-tap).
 	if (!target?.classList?.contains('texto-table__overlay_overlay-circle')) {
 		return false;
 	}
 
-	// Anchor-ячейка записана декорацией в data-cell-pos кружка — это надёжнее
-	// геометрии: posAtCoords на мобильной версии может деградировать.
+	// Freeze the overlay decoration for the duration of the drag so the circle
+	// (touch/pointer target) is not recreated on every dispatch, which would
+	// cancel the gesture.
+	beginCellDrag();
+
+	// The anchor cell position is recorded by the decoration in the circle's
+	// data-cell-pos — this is more reliable than geometry: posAtCoords can
+	// degrade on mobile (workspace-drawer-backdrop).
 	let topLeftAnchor = Number(target.dataset.cellPos) || null;
 	let isFirstMove = true;
 
@@ -162,9 +190,11 @@ export function handleMouseDown(view: EditorView, startEvent: MouseEvent): boole
 
 		const selection = new TextoCellSelection($anchor, $head);
 		view.dispatch(view.state.tr.setSelection(selection).setMeta(tableEditingKey, selection));
+		scheduleOverlayRefresh(view);
 	}
 
 	function stop() {
+		endCellDrag();
 		win.removeEventListener('mousemove', move);
 		win.removeEventListener('mouseup', stop);
 		if (tableEditingKey.getState(view.state) != null) {

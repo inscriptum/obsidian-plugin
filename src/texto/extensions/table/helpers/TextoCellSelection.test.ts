@@ -34,7 +34,7 @@ describe('TextoCellSelection', () => {
 		const selection = new TextoCellSelection(doc.resolve(p1), doc.resolve(p4));
 
 		expect(selection.$head.pos).toBe(selection.$anchor.pos);
-		// Anchor стоит в начале контента head-ячейки.
+		// The anchor stands at the start of the head cell's content.
 		expect(selection.$anchor.pos).toBe(p4 + 1);
 	});
 
@@ -70,7 +70,7 @@ describe('handleCellSelection appendTransaction', () => {
 
 		expect(next.selection).toBeInstanceOf(TextoCellSelection);
 		expect(next.selection.$head.pos).toBe(next.selection.$anchor.pos);
-		// Диапазон ячеек сохраняется.
+		// The cell range is preserved.
 		expect((next.selection as CellSelection).$anchorCell.pos).toBe(p1);
 		expect((next.selection as CellSelection).$headCell.pos).toBe(p4);
 	});
@@ -105,7 +105,7 @@ describe('resize handle decorations (mobile view)', () => {
 	});
 
 	it('adds a resize handle per row segment on mobile (caret in cell)', () => {
-		// 2x2: overlay + 2 сегмента хэндла (по одному на строку).
+		// 2x2: overlay + 2 handle segments (one per row).
 		expect(decorations(true, caretInFirstCell)).toHaveLength(3);
 	});
 
@@ -115,7 +115,7 @@ describe('resize handle decorations (mobile view)', () => {
 			return CellSelection.create(doc, p1, p4);
 		};
 
-		// Overlay + 2 сегмента хэндла (класс .selectedCell добавляет tableEditing).
+		// Overlay + 2 handle segments (the .selectedCell class is added by tableEditing).
 		expect(decorations(true, cellRange)).toHaveLength(3);
 	});
 });

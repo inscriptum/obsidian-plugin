@@ -72,9 +72,10 @@
   position: absolute;
   width: 14px;
   height: 14px;
-  /* Кружок держится внутри угла выделения: он не должен выходить за границы
-     таблицы, иначе его клипает .table-wrapper (overflow) у последней
-     колонки/строки и при горизонтальной прокрутке широкой таблицы. */
+  /* Keep the circle inside the corner of the selection: it must not go
+     beyond the table, otherwise .table-wrapper (overflow) clips it in the
+     last column/row and it disappears when scrolling a wide table
+     horizontally. */
   right: 0;
   bottom: 0;
   cursor: nwse-resize;

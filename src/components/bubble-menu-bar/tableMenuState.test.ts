@@ -8,7 +8,7 @@ import { bgHexToAttr, getTableMenuState, TABLE_BG_RGBA } from './tableMenuState'
 
 const schema = buildSchema();
 
-/** Позиции всех ячеек таблицы. */
+/** Positions of all table cells. */
 function cellPositions(doc: Node): number[] {
   const positions: number[] = [];
   doc.descendants((node, pos) => {

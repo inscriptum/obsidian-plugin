@@ -1,96 +1,18 @@
-import {TEXTO_ERROR, TextoError} from '../../../core';
 import {EditorState, Plugin} from 'prosemirror-state';
-import {cellAround, CellSelection, columnResizingPluginKey, isInTable, TableMap} from 'prosemirror-tables';
+import {cellAround, CellSelection, columnResizingPluginKey, TableMap} from 'prosemirror-tables';
 import {Decoration, DecorationSet, DecorationSource} from 'prosemirror-view';
 
-import {findTableAnchor} from './findTableAnchor';
-import {getSelectedTableRect} from './getTableRect';
+import {isCellDragActive, overlayForDraw} from './cellDragFreeze';
 import {handleMouseDown} from './handleMouseDown';
 import {handleTouchStart} from './handleTouchStart';
 import {TextoCellSelection} from './TextoCellSelection';
 
-function getOverlayElement(rect: {top: number; left: number; width: number; height: number}, anchorCellPos: number) {
-	const element = createDiv();
-	const overlayCircle = createDiv();
-	const circle = createDiv();
-	element.className = 'texto-table__overlay';
-	overlayCircle.className = 'texto-table__overlay_overlay-circle';
-	circle.className = 'texto-table__overlay_circle';
-
-	// Позиция anchor-ячейки выделения: touch/mouse-обработчики начинают drag
-	// отсюда, не полагаясь на posAtCoords (который на мобильной версии может
-	// деградировать из-за workspace-drawer-backdrop). См. handleTouchStart.
-	overlayCircle.dataset.cellPos = String(anchorCellPos);
-
-	element.setAttribute(
-		'style',
-		`top: ${rect.top.toFixed(2)}px; left: ${rect.left.toFixed(2)}px; width: ${rect.width.toFixed(
-			2,
-		)}px; height: ${rect.height.toFixed(2)}px;`,
-	);
-
-	overlayCircle.appendChild(circle);
-	element.appendChild(overlayCircle);
-	return element;
-}
-
-function getMoreCellsSelectingDecoration(state: EditorState) {
-	if (!(state.selection instanceof CellSelection)) {
-		return null;
-	}
-
-	const selection = state.selection;
-	const tableStart = state.selection.$anchorCell.start(-1);
-	return Decoration.widget(tableStart, (view) => {
-		try {
-			const rect = getSelectedTableRect(view, selection);
-			return getOverlayElement(rect, selection.$anchorCell.pos);
-		} catch {
-			return createDiv();
-		}
-	});
-}
-
-function getOneCellSelectingDecoration(state: EditorState) {
-	if (state.selection instanceof CellSelection || !isInTable(state)) {
-		return null;
-	}
-
-	const cell = cellAround(state.selection.$anchor);
-
-	if (!cell) {
-		return;
-	}
-
-	const start = findTableAnchor(state);
-	if (!start) {
-		return null;
-	}
-
-	return Decoration.widget(start.pos - start.parentOffset, (view) => {
-		try {
-			const anchor = findTableAnchor(view.state, -1);
-			if (!anchor) {
-				throw new TextoError(
-					TEXTO_ERROR.KNOWN_ERROR,
-					'[Table Error] The table anchor was not found',
-				);
-			}
-			const selection = new CellSelection(anchor);
-			const rect = getSelectedTableRect(view, selection);
-			return getOverlayElement(rect, selection.$anchorCell.pos);
-		} catch {
-			return createDiv();
-		}
-	});
-}
-
 /**
- * Хэндлы ресайза колонок для мобильной версии: виджеты на правом краю
- * каждого видимого сегмента колонки текущей ячейки (учитывает rowspan).
+ * Column resize handles for the mobile view: widgets on the right edge of
+ * every visible segment of the current cell's column (rowspan-aware).
  *
- * Позиция ячейки сегмента записывается в `data-cell-pos` — touch-обработчик
- * использует её, чтобы определить ресайзимую колонку.
+ * The segment cell position is recorded in `data-cell-pos` — the touch
+ * handler uses it to determine the column being resized.
  */
 function getResizeHandleDecorations(state: EditorState, cellPos: number): Decoration[] {
 	const $cell = state.doc.resolve(cellPos);
@@ -132,14 +54,18 @@ function getResizeHandleDecorations(state: EditorState, cellPos: number): Decora
 }
 
 export function drawCellSelection(state: EditorState, isMobileView: boolean): DecorationSource | null {
-	const decorations: Decoration[] = [
-		getMoreCellsSelectingDecoration(state),
-		getOneCellSelectingDecoration(state),
-	].filter(Boolean) as Decoration[];
+	// While a drag is active, overlayForDraw returns the SAME instance as in
+	// the previous frame — ProseMirror reuses the circle's DOM node, so the
+	// touch target is not removed (otherwise the browser cancels the gesture,
+	// see cellDragFreeze.ts).
+	const overlay = overlayForDraw(state);
+	const decorations: Decoration[] = overlay ? [overlay] : [];
 
-	// Мобильная версия: хэндл ресайза колонки рядом с текущей ячейкой
-	// (ячейка под курсором или head-ячейка выделения).
-	if (isMobileView) {
+	// Mobile view: a column resize handle next to the current cell (the cell
+	// under the cursor or the head cell of the selection). During a selection
+	// drag the handles are not needed and recreating them repaints the table
+	// subtree, removing the circle (the touch target) — so they are skipped.
+	if (isMobileView && !isCellDragActive()) {
 		const {selection} = state;
 		const cellPos =
 			selection instanceof CellSelection
@@ -161,7 +87,6 @@ export function handleCellSelection(isMobileView: boolean) {
 
 			handleDOMEvents: {
 				mousedown: handleMouseDown,
-				touchstart: handleTouchStart,
 				mousemove: (view) => {
 					const pluginState = columnResizingPluginKey.getState(view.state);
 					const className = 'texto-table__cell-dragging';
@@ -181,10 +106,45 @@ export function handleCellSelection(isMobileView: boolean) {
 			},
 		},
 
-		// CellSelection может появиться минуя наши обработчики (undo/redo,
-		// normalizeSelection из tableEditing, fixTables). Заменяем его на
-		// TextoCellSelection, чтобы DOM-выделение не растягивалось на текст
-		// head-ячейки (см. TextoCellSelection).
+		// Touch handlers are registered as our own NON-passive listener on
+		// view.dom instead of handleDOMEvents.touchstart: ProseMirror adds
+		// touch listeners on view.dom as passive (passiveHandlers =
+		// { touchstart: true, touchmove: true } in prosemirror-view), so a
+		// preventDefault call inside such a listener throws
+		// "Unable to preventDefault inside passive event listener" and is
+		// ignored. Because of that the drag selection / resize never took the
+		// gesture away from document scrolling (the document scrolled during
+		// the gesture — "broken" scrolling, and the selection only grew along
+		// the scroll path, i.e. diagonally down-right).
+		// Our own non-passive listener allows a working preventDefault.
+		view(editorView) {
+			const onTouchStart = (event: TouchEvent) => {
+				handleTouchStart(editorView, event);
+			};
+
+			// Suppress the native context menu while a cell drag is active:
+			// on Android a long-press fires contextmenu right after the
+			// long-press threshold and would interrupt the ongoing selection drag.
+			const onContextMenu = (event: MouseEvent) => {
+				if (isCellDragActive()) {
+					event.preventDefault();
+				}
+			};
+
+			editorView.dom.addEventListener('touchstart', onTouchStart, { passive: false });
+			editorView.dom.addEventListener('contextmenu', onContextMenu);
+			return {
+				destroy() {
+					editorView.dom.removeEventListener('touchstart', onTouchStart);
+					editorView.dom.removeEventListener('contextmenu', onContextMenu);
+				},
+			};
+		},
+
+		// A CellSelection can appear without going through our handlers
+		// (undo/redo, normalizeSelection from tableEditing, fixTables). Replace
+		// it with TextoCellSelection so the DOM selection does not stretch over
+		// the head cell's text (see TextoCellSelection).
 		appendTransaction(_transactions, _oldState, newState) {
 			const {selection} = newState;
 			if (selection instanceof CellSelection && !(selection instanceof TextoCellSelection)) {

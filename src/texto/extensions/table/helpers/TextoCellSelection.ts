@@ -2,25 +2,28 @@ import type {ResolvedPos} from 'prosemirror-model';
 import {CellSelection} from 'prosemirror-tables';
 
 /**
- * CellSelection, который не растягивает DOM-выделение на весь контент head-ячейки.
+ * A CellSelection that does not stretch the DOM selection over the whole
+ * content of the head cell.
  *
- * ProseMirror синхронизирует DOM-выделение с `selection.$anchor..$head`
- * (`selectionToDOM` → `docView.setSelection`). Обычный `CellSelection` задаёт их
- * как начало и конец контента head-ячейки, поэтому текст внутри head-ячейки
- * оказывается выделен: DOM-выделение не collapsed и визуально подсвечивается.
+ * ProseMirror syncs the DOM selection with `selection.$anchor..$head`
+ * (`selectionToDOM` → `docView.setSelection`). A regular `CellSelection` sets
+ * them to the start and end of the head cell's content, so the text inside
+ * the head cell becomes selected: the DOM selection is not collapsed and is
+ * visually highlighted.
  *
- * Здесь `$head` схлопывается в `$anchor`: DOM-выделение становится collapsed-
- * курсором в начале контента head-ячейки и скрывается классом
- * `ProseMirror-hideselection` (`CellSelection.visible === false`).
+ * Here `$head` is collapsed into `$anchor`: the DOM selection becomes a
+ * collapsed caret at the start of the head cell's content and is hidden with
+ * the `ProseMirror-hideselection` class (`CellSelection.visible === false`).
  *
- * Диапазоны ячеек (`ranges`), `$anchorCell`/`$headCell`, `content()`, `eq()`,
- * `getBookmark()` наследуются без изменений, поэтому копирование/вставка
- * ячеек, декорации `.selectedCell` и undo/history работают как раньше.
+ * Cell ranges (`ranges`), `$anchorCell`/`$headCell`, `content()`, `eq()`,
+ * `getBookmark()` are inherited unchanged, so cell copy/paste, the
+ * `.selectedCell` decorations and undo/history work as before.
  */
 export class TextoCellSelection extends CellSelection {
 	constructor($anchorCell: ResolvedPos, $headCell: ResolvedPos = $anchorCell) {
 		super($anchorCell, $headCell);
-		// Схлопываем DOM-выделение: $head === $anchor (начало контента head-ячейки).
+		// Collapse the DOM selection: $head === $anchor (start of the head cell's
+		// content).
 		(this as {$head: ResolvedPos}).$head = this.$anchor;
 	}
 }

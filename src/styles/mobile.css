@@ -314,20 +314,33 @@
   touch-action: none;
 }
 
-/* Кружок выделения в том же углу, что и хэндл ресайза: поднимаем его выше,
-   чтобы угловое касание доставалось drag-выделению ячеек; хэндл остаётся
-   доступен по всей высоте границы колонки выше кружка.
-   ВАЖНО: z-index задаётся оверлею, а не самому кружку — кружок находится
-   внутри stacking-контекста оверлея, и его собственный z-index не может
-   конкурировать с хэндлом вне этого контекста. */
+/* While a finger is down on a table cell, disable native text selection:
+   the long-press is taken over by the cell-selection gesture (see
+   handleTouchStart.ts), and the native text-selection handles would
+   otherwise fight with it. The class is added on touchstart and removed
+   when the gesture ends or turns into scrolling. */
+.texto-table__cell-selecting .ProseMirror .table-wrapper table td,
+.texto-table__cell-selecting .ProseMirror .table-wrapper table th {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Keep the selection circle above the column resize handle: both sit in the
+   same corner, and the corner touch must go to cell drag-selection; the
+   handle remains available along the rest of the column border above the
+   circle.
+   NOTE: z-index is set on the overlay, not on the circle itself — the circle
+   lives inside the overlay's stacking context, so its own z-index cannot
+   compete with the handle outside of it. */
 .note-view-container.is-mobile .texto-table__overlay {
   z-index: 4;
 }
 
 .note-view-container.is-mobile .texto-table__overlay_overlay-circle {
   z-index: 4;
-  /* Без этого реальный тач-драг от кружка браузер забирает в прокрутку
-     документа (touchcancel) — выделение ячеек умирает на первом движении. */
+  /* Without this a real touch drag from the circle is taken by the browser
+     into document scrolling (touchcancel) — cell selection dies on the first
+     move. */
   touch-action: none;
 }
 
@@ -337,8 +350,11 @@
   top: 0;
   bottom: 0;
   left: 50%;
-  width: 2px;
-  margin-left: -1px;
-  background: rgba(124, 106, 247, .55);
-  border-radius: 1px;
+  /* Thicker and more opaque than on desktop: on a small screen the 2px line
+     is hard to see and hard to aim at. The touch zone is still the 24px-wide
+     handle itself. */
+  width: 4px;
+  margin-left: -2px;
+  background: rgba(124, 106, 247, .85);
+  border-radius: 2px;
 }

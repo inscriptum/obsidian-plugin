@@ -8,15 +8,13 @@ function checkRectEnabled(node: Node) {
 
 export function getSelectedTableRect(view: EditorView, selection: CellSelection) {
 	const table = selection.$anchorCell.node(-1);
-	// Before calculating the coordinates, we need to wait for the DOM update
-	// Therefore, we specifically trigger the update of the state
-	// I also checked the throttle x6 CPU - there are no freezes
-	if (!view.state.schema.cached.stateUpdatingCalled) {
-		view.state.schema.cached.stateUpdatingCalled = true;
-		view.updateState(view.state);
-	} else {
-		view.state.schema.cached.stateUpdatingCalled = false;
-	}
+	// IMPORTANT: this function is called AFTER the render has finished (see
+	// refreshOverlayPosition in overlay.ts) — the DOM is up to date, so reading
+	// geometry is safe. There used to be a view.updateState(view.state) hack
+	// here "to wait for the DOM update", but it was called from inside the
+	// widget's toDOM and recreated the whole docView — together with the
+	// selection circle (the touch target), which made the browser cancel an
+	// active touch gesture (touchcancel).
 
 	const tableStart = selection.$anchorCell.start(-1);
 	const map = TableMap.get(table);

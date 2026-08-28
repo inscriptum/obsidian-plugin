@@ -58,10 +58,11 @@ img.ProseMirror-separator {
 	}
 }
 
-/* Скрываем DOM-выделение, когда ProseMirror рисует нетекстовое выделение
-   (например, CellSelection). Повышенная специфичность (.ProseMirror.ProseMirror-…):
-   правило не должно перекрываться `.note ::selection` из typography-v2.css,
-   иначе текст head-ячейки визуально выделяется вместе с ячейками. */
+/* Hide the DOM selection while ProseMirror draws a non-text selection
+   (e.g. CellSelection). The increased specificity (.ProseMirror.ProseMirror-…)
+   keeps the rule from being overridden by `.note ::selection` from
+   typography-v2.css, otherwise the head cell's text would be visually
+   highlighted along with the cells. */
 .ProseMirror.ProseMirror-hideselection *::selection {
 	background: transparent;
 }

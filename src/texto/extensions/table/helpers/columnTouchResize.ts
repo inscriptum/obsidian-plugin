@@ -8,12 +8,12 @@ const CELL_MIN_WIDTH = 25;
 const DRAGGING_CLASS = 'texto-table__cell-dragging';
 
 /**
- * Ресайз колонки таблицы перетаскиванием хэндла на тач-экране.
+ * Column resize of a table by dragging the handle on a touchscreen.
  *
- * Хэндл рендерится декорацией (см. `handleCellSelection`) и несёт в
- * `data-cell-pos` позицию своей ячейки. Во время drag ширина превьюится
- * напрямую в DOM (colgroup), при отпускании — коммитится в документ
- * через `colwidth` ячеек колонки.
+ * The handle is rendered by a decoration (see `handleCellSelection`) and
+ * carries its cell position in `data-cell-pos`. During the drag the width is
+ * previewed directly in the DOM (colgroup); on release it is committed to the
+ * document via the `colwidth` of the column's cells.
  */
 export function startColumnTouchResize(view: EditorView, startEvent: TouchEvent, handle: HTMLElement): boolean {
 	if (startEvent.touches.length !== 1) {
@@ -59,7 +59,7 @@ export function startColumnTouchResize(view: EditorView, startEvent: TouchEvent,
 	}
 
 	function move(event: TouchEvent) {
-		// Не даём drag превратиться в прокрутку документа.
+		// Keep the drag from turning into document scrolling.
 		event.preventDefault();
 
 		const touch = event.touches[0];
@@ -92,7 +92,7 @@ export function startColumnTouchResize(view: EditorView, startEvent: TouchEvent,
 }
 
 /**
- * Текущая ширина последней колонки, которую занимает ячейка.
+ * Current width of the last column the cell spans.
  */
 function currentColWidth(
 	view: EditorView,
@@ -123,7 +123,7 @@ function currentColWidth(
 }
 
 /**
- * Находит TABLE-элемент по позиции ячейки.
+ * Finds the TABLE element for the given cell position.
  */
 function findTableDom(view: EditorView, cellPos: number): HTMLTableElement | null {
 	const dom = view.domAtPos(cellPos);
@@ -135,8 +135,8 @@ function findTableDom(view: EditorView, cellPos: number): HTMLTableElement | nul
 }
 
 /**
- * Транзакция, проставляющая новую ширину последней колонке ячейки
- * во всех строках (аналог updateColumnWidth из prosemirror-tables).
+ * A transaction that applies the new width to the last column of the cell
+ * in every row (a re-implementation of updateColumnWidth from prosemirror-tables).
  */
 function updateColumnWidth(state: EditorState, cellPos: number, width: number) {
 	const $cell = state.doc.resolve(cellPos);
@@ -148,7 +148,7 @@ function updateColumnWidth(state: EditorState, cellPos: number, width: number) {
 
 	for (let row = 0; row < map.height; row += 1) {
 		const mapIndex = row * map.width + col;
-		// Ячейка с rowspan тянется из предыдущей строки — пропускаем.
+		// Skip a cell stretched from the previous row (rowspan).
 		if (row && map.map[mapIndex] === map.map[mapIndex - map.width]) {
 			continue;
 		}
