@@ -14,24 +14,49 @@ let lastOverlay: Decoration | null = null;
 let lastOverlayTableKey: object | null = null;
 
 let dragActive = false;
-let dragEndedAt = 0;
 
 /**
- * Grace window after a touch cell drag during which the synthetic mousedown
- * (dispatched by the browser right after touchend) is swallowed. Otherwise it
- * would collapse the freshly built cell selection back to a text cursor.
+ * Suppression window for the synthetic compatibility mouse events
+ * (mousedown/mouseup/click) that Android dispatches right after a touch cell
+ * drag ends.
+ *
+ * Why a window instead of a touchend-based grace: on Android the synthetic
+ * `touchend` is not reliably delivered to our document listener (the WebView
+ * cancels the touch once the long-press gesture takes over), so a
+ * touchend-keyed grace never opens and the compat mousedown collapses the
+ * freshly built TextoCellSelection back to a caret. The circle drag avoids
+ * this only because it calls preventDefault() on touchstart, which suppresses
+ * the compat events entirely — the long-press gesture must not preventDefault
+ * touchstart (otherwise a plain tap could no longer place the caret for
+ * editing), so we suppress the compat mouse events here instead.
+ *
+ * The window opens when the gesture starts (beginCellDrag) and is renewed on
+ * a bounded grace when the gesture ends (endCellDrag), covering the compat
+ * events that arrive right after the finger lifts. Consuming the first
+ * synthetic mousedown narrows the window to cover just the following
+ * mouseup/click. The window always expires on its own, so no legitimate
+ * later tap is ever swallowed.
  */
-const DRAG_END_GRACE_MS = 200;
+let touchCompatSuppressUntil = 0;
 
-/** Start of a cell drag gesture: freeze the overlay (reuse the same instance). */
+/** Grace that covers the compatibility mouse events after a gesture ends. */
+const TOUCH_COMPAT_GRACE_MS = 400;
+
+/** Start of a cell drag gesture: freeze the overlay and open the suppress window. */
 export function beginCellDrag(): void {
 	dragActive = true;
+	touchCompatSuppressUntil = Number.MAX_SAFE_INTEGER;
 }
 
 /** End of a cell drag: the overlay follows the selection again. */
 export function endCellDrag(): void {
 	dragActive = false;
-	dragEndedAt = Date.now();
+	// The gesture is over, but the compatibility mouse events of the touch may
+	// still arrive (they are only guaranteed absent when the touchstart was
+	// preventDefault'ed, like in the circle drag). Keep the suppression window
+	// open for a short grace that covers them; it expires on its own, so a
+	// later legitimate tap is never swallowed.
+	touchCompatSuppressUntil = Date.now() + TOUCH_COMPAT_GRACE_MS;
 }
 
 /** Whether a cell drag gesture is currently running. */
@@ -40,11 +65,19 @@ export function isCellDragActive(): boolean {
 }
 
 /**
- * Whether the synthetic mousedown that follows a just-ended touch drag should
- * be swallowed (see handleMouseDown).
+ * Whether a synthetic compatibility mouse event from a just-finished touch
+ * cell drag should be swallowed (see handleMouseDown).
  */
-export function isJustAfterCellDrag(): boolean {
-	return Date.now() - dragEndedAt < DRAG_END_GRACE_MS;
+export function isTouchCompatMouseSuppressed(): boolean {
+	return Date.now() < touchCompatSuppressUntil;
+}
+
+/**
+ * Mark the first synthetic mouse event of the sequence as consumed, closing
+ * the window after a short grace (covers the following mouseup/click).
+ */
+export function consumeTouchCompatMouse(): void {
+	touchCompatSuppressUntil = Date.now() + TOUCH_COMPAT_GRACE_MS;
 }
 
 /**
@@ -69,4 +102,24 @@ export function overlayForDraw(state: EditorState): Decoration | null {
 	lastOverlay = buildSelectionOverlayDecoration(state);
 	lastOverlayTableKey = overlayTableKey(state);
 	return lastOverlay;
+}
+
+/**
+ * Hook for cancelling a pending (not yet activated) long-press cell gesture.
+ *
+ * A compatibility mousedown is only dispatched after the finger has lifted,
+ * so when handleMouseDown sees one it can safely cancel the long-press timer:
+ * the finger is gone, the gesture can no longer be a long press. This rescues
+ * plain taps whose pointerup was lost to a mid-gesture DOM reconciliation.
+ */
+let pendingGestureCancel: (() => void) | null = null;
+
+export function setPendingCellGestureCancel(fn: (() => void) | null): void {
+	pendingGestureCancel = fn;
+}
+
+export function cancelPendingCellGesture(): void {
+	const fn = pendingGestureCancel;
+	pendingGestureCancel = null;
+	fn?.();
 }

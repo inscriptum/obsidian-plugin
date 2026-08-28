@@ -1,10 +1,10 @@
 import {EditorState, Plugin} from 'prosemirror-state';
-import {cellAround, CellSelection, columnResizingPluginKey, TableMap} from 'prosemirror-tables';
-import {Decoration, DecorationSet, DecorationSource} from 'prosemirror-view';
+import {cellAround, CellSelection, columnResizingPluginKey, tableEditingKey, TableMap} from 'prosemirror-tables';
+import {Decoration, DecorationSet, DecorationSource, EditorView} from 'prosemirror-view';
 
-import {isCellDragActive, overlayForDraw} from './cellDragFreeze';
+import {endCellDrag, isCellDragActive, isTouchCompatMouseSuppressed, consumeTouchCompatMouse, overlayForDraw} from './cellDragFreeze';
 import {handleMouseDown} from './handleMouseDown';
-import {handleTouchStart} from './handleTouchStart';
+import {handlePointerDown, handleTouchMoveDuringDrag, handleTouchStart} from './handleTouchStart';
 import {TextoCellSelection} from './TextoCellSelection';
 
 /**
@@ -80,6 +80,22 @@ export function drawCellSelection(state: EditorState, isMobileView: boolean): De
 	return DecorationSet.create(state.doc, decorations);
 }
 
+/**
+ * Swallow a synthetic compatibility mouse event from a just-finished touch
+ * cell drag, mirroring handleMouseDown (which also clears the drag state).
+ */
+function swallowTouchCompatMouse(view: EditorView): boolean {
+	if (isTouchCompatMouseSuppressed() && view.state.selection instanceof TextoCellSelection) {
+		endCellDrag();
+		consumeTouchCompatMouse();
+		if (tableEditingKey.getState(view.state) != null) {
+			view.dispatch(view.state.tr.setMeta(tableEditingKey, -1));
+		}
+		return true;
+	}
+	return false;
+}
+
 export function handleCellSelection(isMobileView: boolean) {
 	return new Plugin({
 		props: {
@@ -87,6 +103,11 @@ export function handleCellSelection(isMobileView: boolean) {
 
 			handleDOMEvents: {
 				mousedown: handleMouseDown,
+				// Swallow the synthetic compatibility mouse events (mouseup/click)
+				// that Android dispatches after a touch cell drag: a click would
+				// otherwise set a text cursor and collapse the TextoCellSelection.
+				mouseup: (view) => swallowTouchCompatMouse(view),
+				click: (view) => swallowTouchCompatMouse(view),
 				mousemove: (view) => {
 					const pluginState = columnResizingPluginKey.getState(view.state);
 					const className = 'texto-table__cell-dragging';
@@ -122,6 +143,20 @@ export function handleCellSelection(isMobileView: boolean) {
 				handleTouchStart(editorView, event);
 			};
 
+			// Long-press cell selection runs on Pointer Events: see
+			// handlePointerDown for why touch events cannot be used here.
+			const onPointerDown = (event: PointerEvent) => {
+				handlePointerDown(editorView, event);
+			};
+
+			// While a cell-selection drag is active, touchmove must be
+			// prevented or the still-alive touch stream scrolls the document
+			// instead of dragging. Registered non-passive for the same reason
+			// as touchstart above.
+			const onTouchMove = (event: TouchEvent) => {
+				handleTouchMoveDuringDrag(event);
+			};
+
 			// Suppress the native context menu while a cell drag is active:
 			// on Android a long-press fires contextmenu right after the
 			// long-press threshold and would interrupt the ongoing selection drag.
@@ -132,10 +167,14 @@ export function handleCellSelection(isMobileView: boolean) {
 			};
 
 			editorView.dom.addEventListener('touchstart', onTouchStart, { passive: false });
+			editorView.dom.addEventListener('touchmove', onTouchMove, { passive: false });
+			editorView.dom.addEventListener('pointerdown', onPointerDown);
 			editorView.dom.addEventListener('contextmenu', onContextMenu);
 			return {
 				destroy() {
 					editorView.dom.removeEventListener('touchstart', onTouchStart);
+					editorView.dom.removeEventListener('touchmove', onTouchMove);
+					editorView.dom.removeEventListener('pointerdown', onPointerDown);
 					editorView.dom.removeEventListener('contextmenu', onContextMenu);
 				},
 			};

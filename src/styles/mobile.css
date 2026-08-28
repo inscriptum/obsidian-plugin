@@ -325,6 +325,15 @@
   user-select: none;
 }
 
+/* Table cells own their touches: without this, at the first move the browser
+   takes the gesture for scrolling and fires pointercancel, which kills the
+   long-press cell-selection drag right after activation. Scrolling that
+   starts on a cell is emulated manually in handleTouchStart.ts. */
+.note-view-container.is-mobile .ProseMirror .table-wrapper table td,
+.note-view-container.is-mobile .ProseMirror .table-wrapper table th {
+  touch-action: none;
+}
+
 /* Keep the selection circle above the column resize handle: both sit in the
    same corner, and the corner touch must go to cell drag-selection; the
    handle remains available along the rest of the column border above the

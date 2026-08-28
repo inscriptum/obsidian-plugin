@@ -176,6 +176,21 @@
   pointer-events: none;
 }
 
+/* The rectangle of cells being picked by the long-press drag (mobile): same
+   visual as .selectedCell, but drawn by a plain fixed overlay div on
+   document.body during the gesture — no ProseMirror dispatch happens until
+   the finger lifts, because a mid-gesture document change invalidates the
+   resolved cell positions (see handleTouchStart.ts). The div must live
+   outside the editor DOM: ProseMirror reconciles foreign mutations there. */
+body > .texto-table__cell-picking-rect {
+  position: fixed;
+  z-index: 30;
+  display: block;
+  background: rgba(124, 106, 247, .18);
+  box-shadow: inset 0 0 0 1.5px rgba(124, 106, 247, .6);
+  pointer-events: none;
+}
+
 .ProseMirror.resize-cursor {
   cursor: col-resize;
 }

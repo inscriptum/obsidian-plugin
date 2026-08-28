@@ -2,7 +2,7 @@ import type {ResolvedPos} from 'prosemirror-model';
 import type {EditorView} from 'prosemirror-view';
 import {tableEditingKey, TableMap} from 'prosemirror-tables';
 
-import {beginCellDrag, endCellDrag, isJustAfterCellDrag} from './cellDragFreeze';
+import {beginCellDrag, cancelPendingCellGesture, consumeTouchCompatMouse, endCellDrag, isTouchCompatMouseSuppressed} from './cellDragFreeze';
 import {scheduleOverlayRefresh} from './overlay';
 import {TextoCellSelection} from './TextoCellSelection';
 
@@ -149,14 +149,23 @@ export function cellInTableAtPoint(
  * pass through (cursor placement / editing).
  */
 export function handleMouseDown(view: EditorView, startEvent: MouseEvent): boolean {
-	// A touch cell drag that just ended must not let its synthetic mousedown
-	// (dispatched by the browser right after touchend) collapse the freshly
-	// built cell selection back to a text cursor.
-	if (isJustAfterCellDrag()) {
+	// The synthetic compatibility mousedown that Android dispatches right after
+	// a touch cell drag would collapse the freshly built TextoCellSelection
+	// back to a text cursor. Swallow it while the cell selection is still
+	// active and end the drag so the column-resize handles reappear.
+	if (isTouchCompatMouseSuppressed() && view.state.selection instanceof TextoCellSelection) {
 		startEvent.preventDefault();
+		endCellDrag();
+		consumeTouchCompatMouse();
+		if (tableEditingKey.getState(view.state) != null) {
+			view.dispatch(view.state.tr.setMeta(tableEditingKey, -1));
+		}
 		return true;
 	}
 
+	// A mousedown proves the finger has lifted (compat mouse events are only
+	// dispatched after the touch ends) — a pending long-press can no longer be.
+	cancelPendingCellGesture();
 	const target = startEvent.target as HTMLElement;
 	// classList instead of an exact className match: Obsidian may add its own
 	// classes to the element (e.g. mobile-tap).

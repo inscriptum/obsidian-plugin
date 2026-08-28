@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Added long-press cell selection on mobile: press and hold a table cell, then drag to select a rectangular range of cells. A subtle highlight shows the cells being picked while dragging, and a haptic tick confirms the gesture.
+
+### Fixed
+
+- Fixed mobile cell-selection gestures dying after the first move: a re-render during the gesture destroyed the touched element, and the WebView silently dropped the whole touch stream. The gesture now runs on pointer events captured to the editor root and no longer touches the document mid-gesture.
+- Fixed the selection circle ignoring touches on its inner dot; the whole circle area (including its enlarged touch zone) now starts the cell-selection drag.
+- Fixed column-resize and cell-selection gestures being interrupted by native scrolling: table cells own their touches, and swiping from a cell scrolls the note manually.
+- Fixed the freshly built cell selection collapsing right after the finger lifts (the browser's synthetic mouse events no longer revert it to a caret).
+- Fixed the first tap on a cell occasionally doing nothing after a cell-selection gesture.
+
+### Changed
+
+- Selection is now applied once, on finger lift; while dragging, the picked range is previewed with a lightweight overlay outside the editor DOM.
+
 ## [0.4.1] - 2026-08-27
 
 ### Fixed
