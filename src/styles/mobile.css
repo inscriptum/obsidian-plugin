@@ -193,6 +193,10 @@
   box-shadow: none;
   width: 100%;
   padding: 4px 6px;
+  /* The bar is a flex column so the docked layer (a static row) stacks
+     above the action rows instead of being an inline block beside them. */
+  display: flex;
+  flex-direction: column;
 }
 .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar__row,
 .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-table-bar,
@@ -214,17 +218,57 @@
   display: none;
 }
 
-/* On short mobile viewports a layer ("Styles & color", "Fill & color") can be
-   taller than the screen and extend off-screen. Cap it and make it scroll so
-   every item stays reachable. Desktop keeps the natural (unbounded) height. */
+/* Layers ("Styles & color", "Fill & color", table "Cell fill & text color")
+   are NOT floating popups on mobile. The desktop layer is absolutely
+   positioned above the bar — on a phone that geometry is fragile: it depends
+   on the bar's on-screen position, which shifts with the soft keyboard, and a
+   stale measurement (e.g. the layer opened while the bar was hidden) can
+   strand the popup anywhere on the screen. Instead the layer DOCKS as a full
+   width row directly above the actions inside the same toolbar: static
+   position, no absolute math, nothing can float away. */
 .note-view-container.is-mobile .bubble-menu-layer {
-  max-height: calc(100vh - 24px);
+  position: static;
+  min-width: 0;
+  width: 100%;
+  /* Docked ABOVE the action rows: in the DOM the layer comes after them
+     (and after .bb-caret), so pull it to the front of the column. */
+  order: -1;
+  margin: 0 0 2px;
+  /* Static ⇒ bottom/top/transform from the desktop rules are inert, but keep
+     them neutralized explicitly in case of a specificity slip. */
+  bottom: auto;
+  top: auto;
+  transform: none;
+  /* Docked row: cover the rounded bar surface. */
+  border-radius: var(--radius-m);
+  box-shadow: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+.note-view-container.is-mobile .bubble-menu-bar.layer-open-down .bubble-menu-layer,
+.note-view-container.is-mobile .bubble-menu-layer.show {
+  transform: none;
+}
+/* The hidden layer must not keep its row space in the docked bar. */
+.note-view-container.is-mobile .bubble-menu-layer:not(.show) {
+  display: none;
+}
+
+/* On short mobile viewports a docked layer can be taller than the visible
+   area above the toolbar. Cap it and make it scroll so every swatch stays
+   reachable. Desktop keeps the natural (unbounded) height. */
+.note-view-container.is-mobile .bubble-menu-layer {
+  max-height: calc(100vh - 120px);
   overflow-y: auto;
 }
 
 /* Bubble-menu buttons match the native menu: no dark hover/active fills,
-   muted icon color, 24px icons, no tooltip popovers. */
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button {
+   muted icon color, 24px icons, no tooltip popovers. Color swatches (.bb-sw)
+   are EXCLUDED: they are buttons too, but their round shape and palette
+   color come from bubble-menu.css — the generic button overrides below
+   (transparent background, square radius, 44px size) used to flatten them
+   into black squares on mobile. */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:not(.bb-sw) {
   width: 44px;
   height: 44px;
   flex: 0 0 auto;
@@ -232,18 +276,28 @@
   background: transparent;
   color: var(--text-muted);
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:hover {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:not(.bb-sw):hover {
   background: transparent;
   color: var(--text-normal);
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button.is-active {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:not(.bb-sw).is-active {
   background: transparent;
   box-shadow: none;
   color: var(--interactive-accent);
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button svg {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:not(.bb-sw) svg {
   width: 24px;
   height: 24px;
+}
+/* Swatches: keep the round shape and colors, but scale the touch target up
+   from the desktop 18px (still round — border-radius 50%). */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-sw {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-sw.is-active {
+  outline: 1px solid #e6e6f0;
 }
 .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-sep {
   background: var(--background-modifier-border);

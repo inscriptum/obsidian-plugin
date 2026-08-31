@@ -131,16 +131,22 @@ never keep the menu invisible. */
   cursor: pointer;
   transition: color .1s, background-color .1s;
 }
-.bubble-menu-bar button:hover {
+/* Hover fill applies to action buttons; swatches hover with their own scale
+   effect (see .bb-sw:hover), not a dark fill. */
+.bubble-menu-bar button:hover:not(.bb-sw) {
   color: #e6e6ee;
   background-color: #23232a;
 }
-.bubble-menu-bar button.is-active {
+/* The generic active-button fill is for ACTION buttons only: color swatches
+   (.bb-sw) must keep their palette color even when active (e.g. the "No
+   fill" swatch was repainted violet by this rule). Swatches indicate the
+   active state with their own outline (see .bb-sw.is-active below). */
+.bubble-menu-bar button.is-active:not(.bb-sw) {
   color: #c0b1ff;
   background-color: rgba(124, 106, 247, .16);
   box-shadow: inset 0 0 0 1px rgba(124, 106, 247, .35);
 }
-.bubble-menu-bar button.is-active:hover {
+.bubble-menu-bar button.is-active:not(.bb-sw):hover {
   background-color: rgba(124, 106, 247, .24);
 }
 /* Unavailable table operation (merge/split) */

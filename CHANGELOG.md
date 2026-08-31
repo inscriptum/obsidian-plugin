@@ -9,13 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixed the selection frame around selected table cells staying visible during a column resize on desktop: the hiding rule never matched (the dragging class is set on `body`, not inside the table wrapper), and it now hides from the very start of a mouse resize drag instead of after the first move.
+- Fixed the selection frame around selected table cells.
+- Fixed color swatches rendering as black squares on mobile.
+- Fixed the active color swatch being repainted with the generic active-button fill.
 
 ### Changed
 
 - The selection rectangle around table cells is now drawn in the accent color instead of the near-black table border, on both desktop and mobile.
 - Mobile: the drag-selection circle in the corner of the selected cell is no longer shown; cell selection is done with a long-press anywhere in the cell.
-- Mobile: the column-resize handle is now a wider, purely overlay grip (48px touch zone) that does not extend the table's scroll area, with a subtle square translucent guide line.
+- Mobile: the column-resize handle is now a wider, purely overlay grip that does not extend the table's scroll area, with a subtle square translucent guide line.
+- Mobile: the "Fill & color" panel no longer floats above the toolbar as a popup. It now docks as a full-width row directly above the toolbar actions, like a native menu.
 
 ## [0.4.2] - 2026-08-28
 
