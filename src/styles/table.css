@@ -58,10 +58,13 @@
   background: #15151a !important;
 }
 
-/* ─── Overlay (resize) ─── */
+/* ─── Overlay (selection frame + resize) ───
+   The frame color is the plugin's accent (same as .selectedCell), not the
+   near-black table border: the selection rectangle must read as selection,
+   not as a table grid line. */
 .ProseMirror .table-wrapper .texto-table__overlay {
   border-radius: 4px;
-  border: 1.5px solid #2c2d2e;
+  border: 1.5px solid rgba(124, 106, 247, .85);
   box-sizing: border-box;
   position: absolute;
   z-index: 1;
@@ -86,7 +89,7 @@
 }
 
 .ProseMirror .table-wrapper .texto-table__overlay_circle {
-  border: 1.5px solid #2c2d2e;
+  border: 1.5px solid rgba(124, 106, 247, .85);
   box-sizing: border-box;
   border-radius: 8px;
   width: 8px;
@@ -95,7 +98,13 @@
   pointer-events: none;
 }
 
-.ProseMirror .table-wrapper .texto-table__cell-dragging .texto-table__overlay {
+/* Hide the selection overlay while a column resize drag is running: the
+   frame would float over the moving column edge. The `texto-table__cell-dragging`
+   class is added on `document.body` (by the mousemove guard below for the
+   desktop columnResizing drag and by columnTouchResize for touch), so the
+   selector must start at body — NOT inside .table-wrapper (the old selector
+   never matched, and the frame stayed visible during a resize). */
+body.texto-table__cell-dragging .ProseMirror .table-wrapper .texto-table__overlay {
   visibility: hidden;
 }
 

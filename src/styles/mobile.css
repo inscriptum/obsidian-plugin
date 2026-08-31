@@ -287,28 +287,43 @@
 }
 
 /* ─── 5. Tables: touch selection & column resize ───────────────────────
-   Multi-cell selection is started by dragging the overlay circle, column
-   width is changed by dragging the resize handle (both rendered by the
-   handleCellSelection plugin, see src/texto/extensions/table). */
+   Multi-cell selection is started by a long-press on a cell (see
+   handleTouchStart.ts), column width is changed by dragging the resize
+   handle (rendered by the handleCellSelection plugin, see
+   src/texto/extensions/table). */
 
-/* Enlarge the touch target of the selection circle without changing its
-   visual size (the pseudo-element stays part of the circle, so it is the
-   circle that receives touchstart). */
-.note-view-container.is-mobile .texto-table__overlay_overlay-circle::before {
-  content: '';
-  position: absolute;
-  inset: -10px;
+/* Hide the drag-selection circle on mobile: cell selection is done with a
+   long-press anywhere in the cell, so the circle is only clutter (and a
+   touch trap in the cell corner). Its container (.texto-table__overlay_overlay-circle)
+   is display:none'd entirely, so touches pass through to the cell below
+   (long-press selection / resize handle). Desktop keeps the circle drag. */
+.note-view-container.is-mobile .texto-table__overlay_overlay-circle {
+  display: none;
 }
 
-/* Column resize handle: a visible line on the column's right border with a
-   wide touch zone around it. Rendered only in the mobile view, positioned
-   relative to the cell (td/th are position: relative). */
+/* The resize handle is a pure overlay: it is absolutely positioned over the
+   column border and must not affect the table's own width. The wrapper gets a
+   right padding on mobile (see below) so the handle of the last column fits
+   inside the scroll area instead of extending it (the desktop wrapper has
+   padding-right: 0, and a protruding absolute element would widen the
+   scrollable overflow, acting as if the table grew). */
+.note-view-container.is-mobile .ProseMirror .table-wrapper {
+  padding-right: 26px;
+}
+
+/* Touch zone over the column's right border: 48px (the Android minimum touch
+   target) — half of it over the cell, half over the next column, centered on
+   the border itself. The handle stays a pure overlay: the table width is set
+   only by the colgroup. Adjacent handles do not overlap while a column is at
+   least 48px wide (columnResizing enforces cellMinWidth: 25; for narrower
+   columns the border tap may pick the neighbor's handle — acceptable on the
+   smallest columns, the line stays visible to correct the aim). */
 .note-view-container.is-mobile .texto-table__resize-handle {
   position: absolute;
   top: 0;
   bottom: 0;
-  right: -12px;
-  width: 24px;
+  right: -24px;
+  width: 48px;
   z-index: 3;
   pointer-events: all;
   touch-action: none;
@@ -334,23 +349,12 @@
   touch-action: none;
 }
 
-/* Keep the selection circle above the column resize handle: both sit in the
-   same corner, and the corner touch must go to cell drag-selection; the
-   handle remains available along the rest of the column border above the
-   circle.
+/* The selection frame stays above the column resize handle.
    NOTE: z-index is set on the overlay, not on the circle itself — the circle
    lives inside the overlay's stacking context, so its own z-index cannot
    compete with the handle outside of it. */
 .note-view-container.is-mobile .texto-table__overlay {
   z-index: 4;
-}
-
-.note-view-container.is-mobile .texto-table__overlay_overlay-circle {
-  z-index: 4;
-  /* Without this a real touch drag from the circle is taken by the browser
-     into document scrolling (touchcancel) — cell selection dies on the first
-     move. */
-  touch-action: none;
 }
 
 .note-view-container.is-mobile .texto-table__resize-handle::before {
@@ -359,11 +363,13 @@
   top: 0;
   bottom: 0;
   left: 50%;
-  /* Thicker and more opaque than on desktop: on a small screen the 2px line
-     is hard to see and hard to aim at. The touch zone is still the 24px-wide
-     handle itself. */
-  width: 4px;
-  margin-left: -2px;
-  background: rgba(124, 106, 247, .85);
-  border-radius: 2px;
+  /* The visible grip bar: wide enough to see and aim at on a small screen
+     (a 4px/.45 line was barely visible, and users aim at what they see, not
+     at the invisible 48px touch zone), but kept SUBTLE: a light translucent
+     hint that does not fight the table content. Square ends (no
+     border-radius) — user preference. The touch zone is the whole 48px
+     handle centered on the border. */
+  width: 8px;
+  margin-left: -4px;
+  background: rgba(124, 106, 247, .5);
 }

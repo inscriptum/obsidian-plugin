@@ -9,7 +9,7 @@
 	margin: 10px 0 12px;
 
 	--border-style: 1px solid #dadce0aa;
-	--overlay-border-style: 1.5px solid #2c2d2e;
+	--overlay-border-style: 1.5px solid rgba(124, 106, 247, .85);
 	--overlay-border-radius: 4px;
 	--overlay-circle-background-color: white;
 

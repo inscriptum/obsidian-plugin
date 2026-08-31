@@ -102,7 +102,21 @@ export function handleCellSelection(isMobileView: boolean) {
 			decorations: (state) => drawCellSelection(state, isMobileView),
 
 			handleDOMEvents: {
-				mousedown: handleMouseDown,
+				mousedown: (view, event) => {
+					// Hide the selection overlay from the very START of a desktop
+					// column-resize drag. columnResizing begins its drag in its own
+					// mousedown handler (dispatching setDragging), which runs AFTER ours
+					// (plugin order in table.ts), so check the plugin state in a
+					// microtask, once all mousedown handlers have had their turn. The
+					// mousemove branch below then keeps the class up to date (and
+					// removes it after mouseup).
+					queueMicrotask(() => {
+						if (columnResizingPluginKey.getState(view.state)?.dragging) {
+							document.body.classList.add('texto-table__cell-dragging');
+						}
+					});
+					return handleMouseDown(view, event);
+				},
 				// Swallow the synthetic compatibility mouse events (mouseup/click)
 				// that Android dispatches after a touch cell drag: a click would
 				// otherwise set a text cursor and collapse the TextoCellSelection.

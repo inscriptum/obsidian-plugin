@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Fixed the selection frame around selected table cells staying visible during a column resize on desktop: the hiding rule never matched (the dragging class is set on `body`, not inside the table wrapper), and it now hides from the very start of a mouse resize drag instead of after the first move.
+
+### Changed
+
+- The selection rectangle around table cells is now drawn in the accent color instead of the near-black table border, on both desktop and mobile.
+- Mobile: the drag-selection circle in the corner of the selected cell is no longer shown; cell selection is done with a long-press anywhere in the cell.
+- Mobile: the column-resize handle is now a wider, purely overlay grip (48px touch zone) that does not extend the table's scroll area, with a subtle square translucent guide line.
+
 ## [0.4.2] - 2026-08-28
 
 ### Added
