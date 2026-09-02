@@ -258,6 +258,14 @@ export class ExtensionManager {
 						}),
 					);
 
+					// Remember every registered shortcut so a host app can intercept
+					// the physical key combo at the platform level (see
+					// src/tools/isPressedCommand.ts) and forward it here when the
+					// OS language/keyboard layout would otherwise swallow it.
+					for (const shortcut of Object.keys(bindings)) {
+						editor.registeredShortcuts.add(shortcut);
+					}
+
 					defaultBindings = {...defaultBindings, ...bindings};
 				}
 

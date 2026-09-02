@@ -51,6 +51,11 @@ export class Editor extends EventEmitter<EditorEvents> {
 
 	public extensionStorage: AnyRecord = {};
 
+	/** Shortcut names (tiptap format, e.g. "Mod-b") registered by extension
+	 * `addKeyboardShortcuts` hooks. Populated by ExtensionManager; used for
+	 * layout-independent physical key handling (src/tools/isPressedCommand.ts). */
+	public registeredShortcuts: Set<string> = new Set();
+
 	public options: EditorOptions = {
 		element: createDiv(),
 		content: '',

@@ -38,6 +38,13 @@ import { BubbleMenuBarElement } from "./components/bubble-menu-bar/bubble-menu-b
 import { TableBubbleMenuElement } from "./components/bubble-menu-bar/table-bubble-menu-bar.element";
 import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubble-menu-bar.element";
 import { isMediaNodeSelection } from "./components/bubble-menu-bar/mediaMenuState";
+import {
+  createPhysicalShortcutPlugin,
+  isForwardedShortcut,
+  markForwardedShortcut,
+  matchPressedCommand,
+  nameToKeyboardEvent,
+} from "./tools/isPressedCommand";
 import { setHighlightTheme } from "./theme/hljsTheme";
 import { createDocumentSearchPlugin } from "./search/documentSearch";
 
@@ -60,8 +67,24 @@ themeObserver.observe(document.body, {
   attributeFilter: ["class"],
 });
 
+/** True while a forwarded `editor.commands.keyboardShortcut()` dispatch is in
+ *  flight; see NoteView.handleEditorShortcut for the re-entrancy rationale. */
+let dispatchingEditorShortcut = false;
+
 export class NoteView extends FileView {
   private editor: Editor | null = null;
+
+  /** Whether the editor is created. The host plugin routes hotkey combos
+   *  only through views with a live editor (see main.ts routeToNoteView). */
+  get hasEditor(): boolean {
+    return this.editor != null;
+  }
+
+  /** Called whenever an editor is created; lets the plugin host sync the set
+   *  of physically intercepted shortcut keys (see main.ts and
+   *  src/tools/isPressedCommand.ts). */
+  static onEditorCreated: ((editor: Editor) => void) | null = null;
+
   private _skipNextReload = true;
 
   // ── Mobile: our own bottom toolbar (native-styled) ──
@@ -129,24 +152,6 @@ export class NoteView extends FileView {
       (event) => this.handleSearchShortcut(event),
       true,
     );
-
-    // Obsidian's global Search current file command owns Mod+F and can
-    // consume the native macOS shortcut before it reaches the DOM. Register
-    // a scope handler with a null key so keyboard layouts are handled by the
-    // physical key code instead of the translated character.
-    for (const modifier of ["Meta", "Ctrl"] as const) {
-      const handler = this.app.scope.register([modifier], null, (event) => {
-        if (this.app.workspace.getActiveViewOfType(NoteView) !== this) {
-          return;
-        }
-        if (event.code !== "KeyF" && event.key.toLowerCase() !== "f") {
-          return;
-        }
-        this.openSearch();
-        return false;
-      });
-      this.register(() => this.app.scope.unregister(handler));
-    }
 
     if (this.isMobileView()) {
       this.setupKeyboardHandling();
@@ -299,15 +304,30 @@ export class NoteView extends FileView {
     const mediaBubbleMenuEl = new MediaBubbleMenuElement();
     mediaBubbleMenuEl.addClass("bubble-menu-bar-host");
 
-    window.requestAnimationFrame(() => {
+    // The custom element may not have rendered its container by the time the
+    // view opens — retry on a timer instead of a single rAF check. A timer
+    // (unlike rAF) also fires when the window is occluded, so opening a note
+    // in a background window still creates the editor.
+    window.setTimeout(() => {
       const isMobile = this.isMobileView();
       if (isMobile) {
         this.contentEl.addClass("is-mobile");
         if (Platform.isPhone) this.contentEl.addClass("is-phone");
       }
+      // The custom element may not have rendered its container by the first
+      // frame (reliably reproducible after an app reload with restored tabs);
+      // retry on a timer instead of silently skipping editor creation. A
+      // timer (not rAF) also keeps working when the window is occluded.
+      let editorInitTries = 120;
+      const initEditor = (): void => {
       const editorEl = noteEl.props.editorContainerEl?.value;
 
-      if (editorEl != null) {
+      if (editorEl == null) {
+        if (editorInitTries-- > 0) window.setTimeout(initEditor, 50);
+        else console.error("Editor creation failed: editor container never rendered");
+        return;
+      }
+      {
         const editorRef: { current: Editor | null } = { current: null };
         const ctx: ImageToolContext = { app: this.app, noteFile: file };
 
@@ -329,7 +349,19 @@ export class NoteView extends FileView {
 
         editorRef.current = this.editor;
         this.editor.registerPlugin(createDocumentSearchPlugin());
+        // Layout-transformed Ctrl/Cmd+letter events (non-Latin keyboard
+        // layouts) never match the PM keymap's `event.key` bindings; this
+        // direct plugin resolves them by physical key code — see
+        // src/tools/isPressedCommand.ts.
+        this.editor.registerPlugin(
+          createPhysicalShortcutPlugin({
+            getCommands: () => this.editor?.registeredShortcuts ?? [],
+            handleShortcut: (event) =>
+              this.handleEditorShortcut(event) === false,
+          }),
+        );
         this.createSearchBar();
+        NoteView.onEditorCreated?.(this.editor);
 
         if (isMobile) {
           this.setupMobileScrollBehavior(editorEl);
@@ -510,13 +542,13 @@ export class NoteView extends FileView {
         );
         }
 
-        window.requestAnimationFrame(() => {
-          window.setTimeout(() => {
-            this.editor?.view?.focus();
-            this.contentEl.insertAdjacentElement("afterbegin", toolbarEl);
-          }, 100);
-        });
+        window.setTimeout(() => {
+          this.editor?.view?.focus();
+          this.contentEl.insertAdjacentElement("afterbegin", toolbarEl);
+        }, 100);
       }
+      };
+      initEditor();
     });
 
     this.contentEl.appendChild(noteEl);
@@ -565,6 +597,102 @@ export class NoteView extends FileView {
     event.preventDefault();
     event.stopPropagation();
     this.openSearch();
+  }
+
+  /** Obsidian-scope / PM interception of editor shortcuts (Cmd/Ctrl combos).
+   *  Consuming paths stop DOM propagation so ProseMirror's own keymap does
+   *  not apply the same shortcut a second time. Returns false to consume the
+   *  event; undefined lets Obsidian proceed. */
+  public handleEditorShortcut(event: KeyboardEvent): false | undefined {
+    if (this.app.workspace.getActiveViewOfType(NoteView) !== this) return;
+    if (isForwardedShortcut(event)) return;
+    // editor.commands.keyboardShortcut() re-dispatches a synthetic Latin
+    // keydown through the editor's handleKeyDown props (PM keymap and our
+    // physical-shortcut plugin). While it runs no real event can arrive
+    // (synchronous JS), so any call in that window originates from our own
+    // dispatch — skip it or the keymap miss would re-enter unbounded.
+    if (dispatchingEditorShortcut) return;
+    const editor = this.editor;
+    if (!editor) return;
+
+    // Find in note owns Mod+F (previously handled by its own scope hook).
+    if (
+      event.code === "KeyF" &&
+      (event.metaKey || event.ctrlKey) &&
+      !event.altKey &&
+      !event.shiftKey
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.openSearch();
+      return false;
+    }
+
+    // Mod+K opens the link layer. The bubble menu listens for it on document
+    // with a layout-dependent `event.key` check; re-dispatch a Latin-keyed
+    // synthetic event so it works on any keyboard layout.
+    if (
+      event.code === "KeyK" &&
+      (event.metaKey || event.ctrlKey) &&
+      !event.altKey &&
+      !event.shiftKey
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.forwardLatinShortcut(event);
+      return false;
+    }
+
+    // Forward whenever the active NoteView has an editor. Not gated on
+    // `view.hasFocus()`: Obsidian's Keymap runs before ProseMirror, so when
+    // the editor is focused it is this handler (not PM) that must win; and
+    // when focus is elsewhere in our view we still want the editor to
+    // receive the shortcut, matching editor behavior.
+    const shortcut = matchPressedCommand(event, editor.registeredShortcuts);
+    if (!shortcut) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    dispatchingEditorShortcut = true;
+    try {
+      // Run the resolved shortcut through the editor's own handleKeyDown
+      // props (ProseMirror keymap) via a marked, Latin-keyed event carrying
+      // the real keyCode. This applies the command through the normal
+      // native path (correct undo grouping, wrapIn steps, and keymap
+      // keyCode fallback resolution). `editor.commands.keyboardShortcut()`
+      // is NOT used: its captureTransaction wrapper drops wrapIn steps
+      // (e.g. Mod+Shift+b blockquote), and a DOM re-dispatch would be
+      // swallowed by Obsidian's own patched command hotkeys. The forwarded
+      // marker makes our physical-shortcut plugin inert for this event, so
+      // the dispatch cannot re-enter this handler.
+      const reDispatch = nameToKeyboardEvent(shortcut);
+      if (reDispatch) {
+        markForwardedShortcut(reDispatch);
+        editor.view.someProp("handleKeyDown", (f) => {
+          return f(editor.view, reDispatch);
+        });
+      }
+    } finally {
+      dispatchingEditorShortcut = false;
+    }
+    return false;
+  }
+
+  /** Re-dispatch a key event with a Latin `key` so layout-dependent
+   *  document-level handlers (bubble menu Mod+K) still see it. */
+  private forwardLatinShortcut(event: KeyboardEvent): void {
+    const forwarded = new KeyboardEvent("keydown", {
+      key: "k",
+      code: "KeyK",
+      metaKey: event.metaKey,
+      ctrlKey: event.ctrlKey,
+      altKey: event.altKey,
+      shiftKey: event.shiftKey,
+      bubbles: true,
+      cancelable: true,
+    });
+    markForwardedShortcut(forwarded);
+    document.dispatchEvent(forwarded);
   }
 
   private createSearchBar(): void {

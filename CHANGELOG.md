@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Editor keyboard shortcuts are now layout-independent: `Cmd/Ctrl+B`, `I`, `U`, `E`, lists, headings and other formatting shortcuts work on any OS language and keyboard layout, including non-Latin ones.
+
+### Fixed
+
+- Fixed formatting shortcuts (bold, italic, underline, etc.) not working inside notes: Obsidian's own command hotkeys consumed `Cmd/Ctrl` combos before they reached the editor, and ProseMirror bindings never matched layout-transformed keys.
+- Fixed `Cmd/Ctrl+Shift+B` toggling bold instead of blockquote on non-Latin layouts.
+- Fixed a possible freeze when pressing a shortcut that cannot be applied in the current context (e.g. bold inside a code block).
+
+### Changed
+
+- While a note is open, colliding Obsidian commands (Toggle bold/italics, Find in note, Insert link, Toggle preview) route their hotkeys into the note editor; outside notes they behave as before.
+
 ## [0.4.3] - 2026-08-31
 
 ### Fixed

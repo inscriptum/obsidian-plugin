@@ -11,10 +11,25 @@ import { NoteView, NOTE_VIEW_TYPE } from "./NoteView";
 import { installIconSprite } from "./components/icons/iconSprite";
 import { createEmptyNote } from "./storage/noteStorage";
 import { NewNoteModal } from "./ui/NewNoteModal";
+import {
+  findCommandsCollidingWith,
+  nameToKeyboardEvent,
+  type CommandLike,
+} from "./tools/isPressedCommand";
 import type { JSONContent } from "./texto/core/@types";
+
+/** Runtime shape of the command registry. Obsidian's public typings omit
+ *  `App.commands`, but it exists at runtime: `app.commands.commands`
+ *  maps command id → Command. */
+type CommandRegistry = { commands: Record<string, CommandLike> };
 
 export default class NotesPlugin extends Plugin {
   private fileExplorerObserver: MutationObserver | null = null;
+  private patchedCommands: Array<{
+    command: CommandLike;
+    kind: "checkCallback" | "callback" | "editorCallback";
+    original: unknown;
+  }> = [];
 
   async onload(): Promise<void> {
     installIconSprite();
@@ -25,6 +40,20 @@ export default class NotesPlugin extends Plugin {
       NOTE_VIEW_TYPE,
       (leaf: WorkspaceLeaf) => new NoteView(leaf),
     );
+
+    // Obsidian's own command hotkeys (e.g. "Toggle bold" on Mod+b) match by
+    // `event.key` and swallow Cmd/Ctrl+letter combos before they reach the
+    // editor DOM — on macOS the key under Meta is always Latin, so this hits
+    // every layout. Patch the colliding commands: while a NoteView is active
+    // they route the combo into our editor, otherwise the original behavior
+    // runs. See src/tools/isPressedCommand.ts for the full rationale.
+    NoteView.onEditorCreated = (editor) => {
+      this.patchCollidingCommands(editor.registeredShortcuts);
+    };
+    this.register(() => {
+      NoteView.onEditorCreated = null;
+      this.restorePatchedCommands();
+    });
 
     this.addRibbonIcon("notebook-pen", "New inscriptum", () => {
       this.createNewNote();
@@ -74,6 +103,80 @@ export default class NotesPlugin extends Plugin {
     });
   }
 
+  /** Patch every command whose hotkey physically collides with an editor
+   *  shortcut so NoteView can handle the combo (idempotent). */
+  private patchCollidingCommands(shortcuts: Set<string>): void {
+    if (this.patchedCommands.length) return;
+    // "Mod-f" (find in note) and "Mod-k" (link layer) are handled by
+    // NoteView.handleEditorShortcut but are not extension shortcuts.
+    // Obsidian's public typings omit `App.commands`, but it exists at runtime.
+    // NOTE: app.commands is the registry wrapper; the id → Command record is
+    // app.commands.commands — do not drop the second `.commands`.
+    const registry = (this.app as unknown as { commands: CommandRegistry })
+      .commands.commands;
+    const collisions = findCommandsCollidingWith(registry, [
+      ...shortcuts,
+      "Mod-f",
+      "Mod-k",
+    ]);
+    for (const [id, ownedNames] of collisions) {
+      const command = registry[id];
+      if (!command) continue;
+
+      if (typeof command.checkCallback === "function") {
+        const original = command.checkCallback;
+        command.checkCallback = (checking: boolean): boolean => {
+          if (this.routeToNoteView(ownedNames, checking)) return true;
+          return original.call(command, checking);
+        };
+        this.patchedCommands.push({ command, kind: "checkCallback", original });
+      } else if (typeof command.callback === "function") {
+        const original = command.callback;
+        command.callback = (): void => {
+          if (!this.routeToNoteView(ownedNames, false)) original.call(command);
+        };
+        this.patchedCommands.push({ command, kind: "callback", original });
+      } else if (typeof command.editorCallback === "function") {
+        const original = command.editorCallback;
+        command.editorCallback = (editor: unknown, view: unknown): void => {
+          if (!this.routeToNoteView(ownedNames, false))
+            original.call(command, editor, view);
+        };
+
+        this.patchedCommands.push({
+          command,
+          kind: "editorCallback",
+          original,
+        });
+      }
+    }
+  }
+
+  /** Route a colliding command into the active NoteView editor. Returns true
+   *  when the combo was consumed (or is claimable while checking). */
+  private routeToNoteView(ownedNames: string[], checking: boolean): boolean {
+    const view = this.app.workspace.getActiveViewOfType(NoteView);
+    if (!view?.hasEditor) return false;
+    if (checking) return true;
+    for (const name of ownedNames) {
+      const event = nameToKeyboardEvent(name);
+      if (event) view.handleEditorShortcut(event);
+    }
+    return true;
+  }
+
+  private restorePatchedCommands(): void {
+    for (const { command, kind, original } of this.patchedCommands) {
+      if (kind === "checkCallback")
+        command.checkCallback = original as CommandLike["checkCallback"];
+      else if (kind === "callback")
+        command.callback = original as CommandLike["callback"];
+      else if (kind === "editorCallback")
+        command.editorCallback = original as CommandLike["editorCallback"];
+    }
+    this.patchedCommands = [];
+  }
+
   /** Insert (once) a "New inscriptum" button right after the file explorer's
    *  standard "New note" button. Re-adds itself if Obsidian re-renders the bar. */
   private ensureFileExplorerButton(): void {
@@ -84,7 +187,8 @@ export default class NotesPlugin extends Plugin {
     if (container.querySelector(".inscriptum-nav-new-note")) return;
 
     const button = document.createElement("div");
-    button.className = "clickable-icon nav-action-button inscriptum-nav-new-note";
+    button.className =
+      "clickable-icon nav-action-button inscriptum-nav-new-note";
     button.setAttribute("aria-label", "New inscriptum");
     button.setAttribute("type", "button");
     setIcon(button, "notebook-pen");
@@ -93,7 +197,8 @@ export default class NotesPlugin extends Plugin {
       this.createNewNote();
     });
 
-    const newNoteBtn = container.querySelector<HTMLElement>(".nav-action-button");
+    const newNoteBtn =
+      container.querySelector<HTMLElement>(".nav-action-button");
     if (newNoteBtn?.nextSibling) {
       container.insertBefore(button, newNoteBtn.nextSibling);
     } else {
@@ -129,13 +234,10 @@ export default class NotesPlugin extends Plugin {
     const activeFile = this.app.workspace.getActiveFile();
     const defaultFolder =
       initialFolderPath !== undefined
-        ? this.app.vault.getFolderByPath(initialFolderPath) ??
-          this.app.vault.getRoot()
-        : activeFile?.parent ??
-          this.app.fileManager.getNewFileParent(
-            "",
-            "Untitled.note",
-          );
+        ? (this.app.vault.getFolderByPath(initialFolderPath) ??
+          this.app.vault.getRoot())
+        : (activeFile?.parent ??
+          this.app.fileManager.getNewFileParent("", "Untitled.note"));
     const defaultFolderPath = defaultFolder?.path ?? "";
 
     new NewNoteModal(

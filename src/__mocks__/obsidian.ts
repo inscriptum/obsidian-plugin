@@ -69,3 +69,4 @@ export abstract class ItemView {
   abstract onOpen(): Promise<void>;
   abstract onClose(): Promise<void>;
 }
+
