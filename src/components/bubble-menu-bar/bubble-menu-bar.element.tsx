@@ -38,6 +38,13 @@ export const BubbleMenuBarElement = litView.element({
   const root: HTMLElement = this;
   const barEl = () => root.querySelector<HTMLElement>(".bubble-menu-bar")!;
 
+  // Mobile (phone/tablet): the keyboard hints (Enter/Esc) are meaningless —
+  // there are no such keys on touch devices, so the link layer renders
+  // without the kbd footer. Detected once: the host does not move between
+  // mobile and desktop containers during a view's lifetime.
+  const isMobileContext =
+    root.closest(".note-view-container.is-mobile, .mobile-navbar") != null;
+
   /** Plugin instances expose a private `key` field holding the PluginKey name. */
   type KeyedPlugin = { key?: { key?: string } };
 
@@ -104,8 +111,6 @@ export const BubbleMenuBarElement = litView.element({
       // the bar sits near the screen bottom and the layer opens upward, its top
       // would otherwise clip above the viewport (top items unreachable). Desktop
       // keeps the natural layer height (floating popup, no scrolling).
-      const isMobileContext =
-        root.closest(".note-view-container.is-mobile, .mobile-navbar") != null;
       if (isMobileContext) {
         const available = (openUp ? spaceAbove : spaceBelow) - gap - 8;
         layer.style.maxHeight = `${Math.max(140, Math.min(window.innerHeight - 24, available))}px`;
@@ -145,6 +150,22 @@ export const BubbleMenuBarElement = litView.element({
       return;
     }
     openLinkLayer();
+  };
+
+  /** Remove the link mark from the current selection (trash button).
+   * unsetLink is not exposed in the ChainedCommands type (see applyLink),
+   * so use its underlying equivalent: unsetMark('link', extendEmptyMarkRange). */
+  const removeLink = () => {
+    const sel = props.editor.state.selection;
+    if (!sel.empty && isTextSelection(sel)) {
+      props.editor
+        .chain()
+        .focus()
+        .unsetMark("link", { extendEmptyMarkRange: true })
+        .setMeta("preventAutolink", true)
+        .run();
+    }
+    closeLayer();
   };
 
   const applyLink = () => {
@@ -523,10 +544,22 @@ export const BubbleMenuBarElement = litView.element({
               >
                 {bubbleIconNodes.check()}
               </button>
+              <button
+                class="bb-go bb-del"
+                aria-label="Remove link"
+                onmousedown={(e: MouseEvent) => e.preventDefault()}
+                onclick={removeLink}
+              >
+                {bubbleIconNodes.trash()}
+              </button>
             </div>
-            <div class="bb-link-foot">
-              <kbd>Enter</kbd> apply · <kbd>Esc</kbd> cancel
-            </div>
+            {/* Keyboard hints are desktop-only: touch devices (phones, tablets)
+                have no Enter/Esc keys and no way to trigger them. */}
+            {isMobileContext ? null : (
+              <div class="bb-link-foot">
+                <kbd>Enter</kbd> apply · <kbd>Esc</kbd> cancel
+              </div>
+            )}
           </div>
 
         </div>

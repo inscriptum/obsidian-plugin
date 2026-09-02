@@ -481,6 +481,19 @@ never keep the menu invisible. */
   height: 15px;
   stroke-width: 2;
 }
+/* Trash button (remove link) — same shape as bb-go, destructive (danger) color */
+.bubble-menu-bar .bb-go.bb-del {
+  background: rgba(248, 113, 113, .12);
+  border-color: rgba(248, 113, 113, .35);
+  color: #e07a7a;
+}
+.bubble-menu-bar .bb-go.bb-del:hover {
+  background: rgba(248, 113, 113, .22);
+  color: #f8a0a0;
+}
+.bubble-menu-bar .bb-go.bb-del svg {
+  stroke-width: 1.8;
+}
 .bubble-menu-bar .bb-link-foot {
   display: flex;
   align-items: center;

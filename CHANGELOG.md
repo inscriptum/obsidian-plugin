@@ -10,16 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Editor keyboard shortcuts are now layout-independent: `Cmd/Ctrl+B`, `I`, `U`, `E`, lists, headings and other formatting shortcuts work on any OS language and keyboard layout, including non-Latin ones.
+- Added a trash (remove link) button next to the apply (check) button in the link menu, on both desktop and mobile. Removing a link is undoable with the standard undo.
 
 ### Fixed
 
 - Fixed formatting shortcuts (bold, italic, underline, etc.) not working inside notes: Obsidian's own command hotkeys consumed `Cmd/Ctrl` combos before they reached the editor, and ProseMirror bindings never matched layout-transformed keys.
 - Fixed `Cmd/Ctrl+Shift+B` toggling bold instead of blockquote on non-Latin layouts.
 - Fixed a possible freeze when pressing a shortcut that cannot be applied in the current context (e.g. bold inside a code block).
+- Fixed the link menu action buttons (apply check, trash) being flattened into gray 44px squares on mobile by the generic mobile button overrides.
 
 ### Changed
 
 - While a note is open, colliding Obsidian commands (Toggle bold/italics, Find in note, Insert link, Toggle preview) route their hotkeys into the note editor; outside notes they behave as before.
+- Mobile (phones and tablets): the link menu no longer shows the "Enter apply · Esc cancel" keyboard hints — touch devices have no such keys. Desktop keeps the hints.
 
 ## [0.4.3] - 2026-08-31
 

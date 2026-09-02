@@ -264,11 +264,12 @@
 
 /* Bubble-menu buttons match the native menu: no dark hover/active fills,
    muted icon color, 24px icons, no tooltip popovers. Color swatches (.bb-sw)
-   are EXCLUDED: they are buttons too, but their round shape and palette
-   color come from bubble-menu.css — the generic button overrides below
-   (transparent background, square radius, 44px size) used to flatten them
-   into black squares on mobile. */
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:not(.bb-sw) {
+   and the link-layer action buttons (.bb-go: apply check, trash) are
+   EXCLUDED: they keep their own look from bubble-menu.css — the generic
+   overrides below (transparent background, square radius, 44px size,
+   muted color) would flatten the swatches into black squares and turn the
+   31px link actions into gray 44px squares. */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:not(.bb-sw, .bb-go) {
   width: 44px;
   height: 44px;
   flex: 0 0 auto;
@@ -276,19 +277,22 @@
   background: transparent;
   color: var(--text-muted);
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:not(.bb-sw):hover {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:not(.bb-sw, .bb-go):hover {
   background: transparent;
   color: var(--text-normal);
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:not(.bb-sw).is-active {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:not(.bb-sw, .bb-go).is-active {
   background: transparent;
   box-shadow: none;
   color: var(--interactive-accent);
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:not(.bb-sw) svg {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:not(.bb-sw, .bb-go) svg {
   width: 24px;
   height: 24px;
 }
+/* Touch targets: the link-layer actions keep their 31px desktop shape but a
+   taller hit area is welcome — keep the desktop sizing (31px) for layout
+   fidelity inside the layer row; the row has enough padding for a tap. */
 /* Swatches: keep the round shape and colors, but scale the touch target up
    from the desktop 18px (still round — border-radius 50%). */
 .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-sw {
@@ -303,6 +307,14 @@
   background: var(--background-modifier-border);
 }
 .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-btn[data-tip]::after {
+  display: none;
+}
+
+/* Link layer: the "Enter apply · Esc cancel" kbd hints are meaningless on
+   touch devices (phones, tablets) — they have no such keys. The TSX already
+   skips the footer in a mobile context; this CSS guard also covers a stale
+   host that was mounted before its container got .is-mobile. */
+.note-view-container.is-mobile .bubble-menu-bar .bb-link-foot {
   display: none;
 }
 
