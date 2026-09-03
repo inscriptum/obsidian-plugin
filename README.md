@@ -1,5 +1,9 @@
 # Inscriptum — local-first rich text editor
 
+[![Obsidian plugin](https://img.shields.io/badge/Obsidian-plugin-blueviolet?logo=obsidian&logoColor=white)](https://community.obsidian.md/plugins/inscriptum)
+[![Latest release](https://img.shields.io/github/v/release/inscriptum/obsidian-plugin?logo=github)](https://github.com/inscriptum/obsidian-plugin/releases/latest)
+[![License](https://img.shields.io/github/license/inscriptum/obsidian-plugin)](LICENSE)
+
 **A comfortable WYSIWYG editor for creating structured documents.**
 
 Inscriptum lets you create and edit rich documents without having to write Markdown.
@@ -33,9 +37,18 @@ There is no cloud service, no account, and no external storage required. Your do
 
 ## Installation
 
+### Via Community Plugins (recommended)
+
+1. Open **Settings → Community plugins** in Obsidian.
+2. Disable Restricted mode if it is on.
+3. Click **Browse** and search for **Inscriptum**.
+4. Install and enable it.
+
+Alternatively, open the plugin page directly: [Inscriptum on Obsidian Plugins](https://community.obsidian.md/plugins/inscriptum).
+
 ### Via BRAT
 
-For the latest development versions, install Inscriptum using [BRAT](https://obsidian.md/plugins?id=obsidian42-brat).
+If you want to try the latest development versions before they are released, install Inscriptum using [BRAT](https://obsidian.md/plugins?id=obsidian42-brat).
 
 1. Install **BRAT** in Obsidian.
 
