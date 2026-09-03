@@ -22,6 +22,7 @@ import { Code } from './extensions/code';
 import { Gapcursor } from './extensions/gapcursor';
 import { HardBreak } from './extensions/hard-break';
 import { Heading } from './extensions/heading';
+import { HeadingFolding } from './extensions/heading/folding';
 import { Highlight } from './extensions/highlight';
 import { History } from './extensions/history';
 import { HorizontalRule } from './extensions/horizontal-rule';
@@ -77,6 +78,12 @@ export function getExtensions(
     Paragraph,
     Text,
     Heading,
+    // Desktop-only first iteration: fold sections under headings (chevron,
+    // decoration-based hiding; no document mutation). NoteView passes
+    // isMobileView so mobile keeps the previous behavior.
+    HeadingFolding.configure({
+      enabled: options.isMobileView !== true,
+    }),
     Blockquote,
     BulletList,
     OrderedList,

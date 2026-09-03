@@ -9,11 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added folding (collapsing) of sections under headings, like native Obsidian notes: a chevron appears to the left of a heading that has content below it; clicking it hides everything up to the next heading of the same or higher level. The heading itself stays visible and editable, and the caret is moved out of the hidden region. Desktop only in this first iteration; mobile behavior is unchanged.
 - Editor keyboard shortcuts are now layout-independent: `Cmd/Ctrl+B`, `I`, `U`, `E`, lists, headings and other formatting shortcuts work on any OS language and keyboard layout, including non-Latin ones.
 - Added a trash (remove link) button next to the apply (check) button in the link menu, on both desktop and mobile. Removing a link is undoable with the standard undo.
 
 ### Fixed
 
+- Fixed `Failed to reload note content: Cannot read properties of null (reading 'commands')` — a race where the view was unloaded (leaf switch/close) while the note file was being read; the editor is now re-checked after the read before applying external changes.
 - Fixed formatting shortcuts (bold, italic, underline, etc.) not working inside notes: Obsidian's own command hotkeys consumed `Cmd/Ctrl` combos before they reached the editor, and ProseMirror bindings never matched layout-transformed keys.
 - Fixed `Cmd/Ctrl+Shift+B` toggling bold instead of blockquote on non-Latin layouts.
 - Fixed a possible freeze when pressing a shortcut that cannot be applied in the current context (e.g. bold inside a code block).

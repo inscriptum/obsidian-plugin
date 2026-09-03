@@ -1,0 +1,85 @@
+/* ═══════════════════════════════════════════════════════════════
+   Heading folding — collapsible sections under headings
+   Mirrors Obsidian's native heading fold: a small chevron appears to
+   the left of a heading; clicking hides the section body (everything
+   up to the next heading of the same or higher level).
+   Implementation: the headingFolding extension adds
+   - a widget decoration inside each foldable heading rendering the
+     chevron custom element (texto-extension-heading-fold-chevron-<version>,
+     see view/chevron.element.tsx) with the host class below,
+   - a node decoration `is-folded` on collapsed headings,
+   - node decorations `texto-folded-content` on hidden body blocks.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Hide folded section bodies. */
+.note .texto-folded-content {
+  display: none !important;
+}
+
+/* The chevron host sits inside the heading's inline content, pulled out to
+   the left margin like Obsidian's collapse indicator. The custom element
+   renders its light DOM inside itself, so the host carries the layout. */
+.note .texto-heading-fold-chevron-host {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: -26px;
+  padding-right: 8px;
+  vertical-align: middle;
+  color: var(--text-faint, #8a8a98);
+  cursor: pointer;
+  user-select: none;
+  border-radius: 4px;
+  background: transparent;
+  transition: color 120ms ease;
+  /* Quiet by default; revealed on heading hover and while collapsed. */
+  opacity: 0;
+}
+
+.note .texto-heading-fold-chevron-host svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+  transform: rotate(0deg);
+  transition: transform 100ms ease-in-out;
+}
+
+/* Collapsed heading: rotate the chevron 90° clockwise (Obsidian points
+   down-right; a right chevron rotating to point "down" reads as collapsed). */
+.note .is-folded > .texto-heading-fold-chevron-host svg {
+  transform: rotate(90deg);
+}
+
+/* Collapsed headings are dimmed slightly, like Obsidian's fold state. */
+.note h1.is-folded,
+.note h2.is-folded,
+.note h3.is-folded,
+.note h4.is-folded,
+.note h5.is-folded,
+.note h6.is-folded {
+  color: var(--text-faint, #8a8a98);
+}
+
+/* Show the chevron on heading hover (Obsidian behavior), on its own hover,
+   and always while collapsed. */
+.note h1:hover > .texto-heading-fold-chevron-host,
+.note h2:hover > .texto-heading-fold-chevron-host,
+.note h3:hover > .texto-heading-fold-chevron-host,
+.note h4:hover > .texto-heading-fold-chevron-host,
+.note h5:hover > .texto-heading-fold-chevron-host,
+.note h6:hover > .texto-heading-fold-chevron-host,
+.note .texto-heading-fold-chevron-host:hover,
+.note .is-folded > .texto-heading-fold-chevron-host {
+  opacity: 1;
+}
+
+.note .texto-heading-fold-chevron-host:hover {
+  color: var(--text-muted, #a4a5b2);
+}
+
+/* While collapsed, tint the chevron like Obsidian's collapsed indicator. */
+.note .is-folded > .texto-heading-fold-chevron-host {
+  color: var(--text-accent, #b3a3f7);
+}

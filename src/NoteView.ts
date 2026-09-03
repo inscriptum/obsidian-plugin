@@ -16,6 +16,10 @@ import {
 } from "./storage/attachments";
 import { getExtensions, type ExtensionHooks } from "./texto/getExtensions";
 import {
+  getFoldedHeadingPositions,
+  restoreFoldedHeadings,
+} from "./texto/extensions/heading/folding";
+import {
   handleAddImg,
   imageOnSetViewProps,
   type ImageToolContext,
@@ -98,6 +102,8 @@ export class NoteView extends FileView {
   private keyboardViewportCleanup: (() => void) | null = null;
   private leafContentWithNoteClass: HTMLElement | null = null;
   private searchEl: HTMLElement | null = null;
+  /** Last fold positions saved to localStorage; guards redundant writes. */
+  private lastSavedFolds: number[] | null = null;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -340,6 +346,9 @@ export class NoteView extends FileView {
           onUpdate: () => {
             this.scheduleSave();
           },
+          onTransaction: ({ transaction }) => {
+            this.syncFoldState(transaction);
+          },
           extensions: getExtensions(
             this.buildExtensionHooks(file, editorRef, ctx),
             { isMobileView: isMobile },
@@ -362,6 +371,12 @@ export class NoteView extends FileView {
         );
         this.createSearchBar();
         NoteView.onEditorCreated?.(this.editor);
+
+        // Restore heading folds saved for this note (desktop only; mirrors
+        // Obsidian's own note-fold localStorage persistence).
+        if (!isMobile) {
+          this.restoreFoldState(this.editor);
+        }
 
         if (isMobile) {
           this.setupMobileScrollBehavior(editorEl);
@@ -720,6 +735,107 @@ export class NoteView extends FileView {
     }, AUTOSAVE_DELAY);
   }
 
+  /** localStorage key for this note's heading folds. Mirrors the storage
+   *  approach of Obsidian's own foldManager (`note-fold-<path>`): the fold
+   *  state is vault-local metadata, never part of the note document. Uses
+   *  app.loadLocalStorage/saveLocalStorage when available (v1.8.7+) and
+   *  falls back to window.localStorage on older builds (minAppVersion is
+   *  below 1.8.7, so both paths must work). */
+  private foldStorageKey(): string | null {
+    const path = this.file?.path;
+    return path ? `inscriptum-note-fold-${path}` : null;
+  }
+
+  private loadFoldStorage(key: string): unknown {
+    // app.loadLocalStorage exists since v1.8.7 (typed API), but minAppVersion
+    // is older — access it structurally so both paths are used and the
+    // version rule stays satisfied. It namespaces the value per vault like
+    // Obsidian's own foldManager does.
+    const app = this.app as unknown as {
+      loadLocalStorage?: (k: string) => unknown;
+    };
+    if (typeof app.loadLocalStorage === "function") {
+      return app.loadLocalStorage(key);
+    }
+    try {
+      const raw = window.localStorage.getItem(key);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private saveFoldStorage(key: string, data: unknown): void {
+    const app = this.app as unknown as {
+      saveLocalStorage?: (k: string, value: unknown) => void;
+    };
+    if (typeof app.saveLocalStorage === "function") {
+      app.saveLocalStorage(key, data);
+      return;
+    }
+    try {
+      if (data == null) {
+        window.localStorage.removeItem(key);
+      } else {
+        window.localStorage.setItem(key, JSON.stringify(data));
+      }
+    } catch {
+      // localStorage unavailable (private mode etc.) — folds just won't
+      // persist, the editor itself is unaffected.
+    }
+  }
+
+  /** Persist folded heading positions whenever they change. Called from
+   *  the editor's onTransaction; the folding extension keeps the current
+   *  positions in editor.storage.headingFolding.positions. */
+  private syncFoldState(_transaction: unknown): void {
+    if (this.isMobileView() || !this.editor) return;
+
+    const positions = (this.editor.storage.headingFolding as
+      | { positions?: number[] }
+      | undefined)?.positions;
+    if (positions == null || positions === this.lastSavedFolds) return;
+
+    const key = this.foldStorageKey();
+    if (!key) return;
+
+    // Same guard as Obsidian's foldManager: an empty fold list clears the
+    // stored value instead of persisting `[]`.
+    this.lastSavedFolds = positions;
+    this.saveFoldStorage(key, positions.length > 0 ? { folds: positions } : null);
+  }
+
+  /** Restore folds saved for this note into a freshly created editor. */
+  private restoreFoldState(editor: Editor): void {
+    const key = this.foldStorageKey();
+    if (!key) return;
+
+    const saved = this.loadFoldStorage(key) as
+      | { folds?: number[] }
+      | null
+      | undefined;
+    const folds = saved?.folds;
+    if (!Array.isArray(folds) || folds.length === 0) return;
+
+    // Positions saved from a previous session may not match this doc if the
+    // note was edited elsewhere; keep only positions that still point at
+    // headings. (The plugin also drops them on later edits via mapping.)
+    const valid = folds.filter((pos) => {
+      if (typeof pos !== "number" || !Number.isFinite(pos)) return false;
+      const node = editor.state.doc.nodeAt(pos);
+      return node?.type.name === "heading";
+    });
+    if (valid.length === 0) return;
+
+    restoreFoldedHeadings(editor.view, valid);
+    const positions = getFoldedHeadingPositions(editor.state);
+    const storage = editor.storage.headingFolding as
+      | { positions?: number[] }
+      | undefined;
+    if (storage) storage.positions = positions;
+    this.lastSavedFolds = positions;
+  }
+
   private async flushSave(): Promise<void> {
     if (!this.editor || !this.file) {
       return;
@@ -742,6 +858,10 @@ export class NoteView extends FileView {
     }
     try {
       const content = await readNote(this.file, this.app.vault);
+      // The view may have been unloaded while the file was being read
+      // (onUnloadFile/onClose destroy the editor) — re-check before use,
+      // otherwise this.editor.commands throws on null.
+      if (!this.editor || this.editor.isDestroyed) return;
       this.editor.commands.setContent(content);
     } catch (err) {
       console.error("Failed to reload note content:", err);
