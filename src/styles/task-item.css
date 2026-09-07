@@ -34,8 +34,10 @@ ul.chk,
 		-webkit-appearance: none;
 	}
 
-	/* Checked state text strikethrough matching .chk li.on */
-	&[data-checked="true"] .content {
+	/* Checked state text strikethrough matching .chk li.on.
+	   Scoped to the item's own paragraph(s) so that nested subtasks
+	   are not struck through when the parent item is checked. */
+	&[data-checked="true"] .content > p {
 		color: #8d8f9b;
 		text-decoration: line-through;
 		text-decoration-color: rgba(141, 143, 155, .45);
@@ -45,9 +47,67 @@ ul.chk,
 }
 
 /* Light theme adjustments matching typography-v2.html .theme-light .note .chk */
-.theme-light .texto-extension-task-item-host[data-checked="true"] .content {
+.theme-light .texto-extension-task-item-host[data-checked="true"] .content > p {
 	color: #8f8f99;
 	text-decoration-color: rgba(143, 143, 153, .5);
+}
+
+/* ─── Subtask fold chevron (task-item-folding) ───
+   The chevron is rendered by the item's node view inside the label (the
+   label anchors its absolute position in the left gutter, like Obsidian's
+   collapse indicator). The folded state comes from the `is-folded` node
+   decoration on the item (see taskFoldingPlugin.ts); hidden nested content
+   gets `texto-folded-content` (see heading-folding.css). */
+.texto-extension-task-item-host > label {
+	position: relative;
+}
+
+.texto-extension-task-item-host .texto-task-fold-chevron {
+	position: absolute;
+	right: calc(100% + 4px);
+	top: 50%;
+	transform: translateY(-50%);
+	width: 18px;
+	height: 18px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	user-select: none;
+	color: var(--text-faint, #8a8a98);
+	border-radius: 4px;
+	background: transparent;
+	/* Quiet by default; revealed on item hover, own hover and while collapsed. */
+	opacity: 0;
+	transition: opacity 120ms ease;
+}
+
+.texto-extension-task-item-host .texto-task-fold-chevron svg {
+	width: 12px;
+	height: 12px;
+	display: block;
+	transform: rotate(0deg);
+	transition: transform 100ms ease-in-out;
+}
+
+.texto-extension-task-item-host:hover .texto-task-fold-chevron,
+.texto-extension-task-item-host .texto-task-fold-chevron:hover,
+.texto-extension-task-item-host.is-folded .texto-task-fold-chevron {
+	opacity: 1;
+}
+
+.texto-extension-task-item-host .texto-task-fold-chevron:hover {
+	color: var(--text-muted, #a4a5b2);
+}
+
+/* Collapsed item: rotate the chevron to point "down" and tint it like the
+   heading fold indicator. */
+.texto-extension-task-item-host.is-folded .texto-task-fold-chevron {
+	color: var(--text-accent, #b3a3f7);
+}
+
+.texto-extension-task-item-host.is-folded .texto-task-fold-chevron svg {
+	transform: rotate(90deg);
 }
 
 /* ─── Custom SVG checkboxes (checkboxIconLinks) ───

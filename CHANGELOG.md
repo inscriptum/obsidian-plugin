@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Nested task items (subtasks): pressing `Tab` inside a task item sinks it under the previous one, `Shift-Tab` lifts it back, and Enter continues the list at the same nesting level. Checking a parent item no longer strikes through its subtasks.
+- Folding (collapsing) of subtasks, like native Obsidian outlines: a chevron to the left of a task item with nested content hides its subtasks; the item itself stays visible and editable. Fold state persists per note (like heading folds) and survives edits. Desktop only in this first iteration; on mobile subtasks can still be created and edited, without the fold chevron.
+- Heading and task folding now survive aggressive edits correctly: deleting a collapsed section drops its fold instead of silently transferring it to the next section, and the caret is pushed out of a hidden region on *any* edit that lands it there (e.g. sinking a task under a collapsed parent with `Tab`), not only when folding from inside it.
+
 ## [0.5.0] - 2026-09-03
 
 ### Added

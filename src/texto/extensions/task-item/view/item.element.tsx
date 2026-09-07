@@ -17,7 +17,11 @@ export const itemElement = litView.element({
 	props: {
 		checked: p.req<boolean>(),
 		content: p.req<HTMLDivElement>(),
+		/** Whether the item has nested content (subtasks) and can be folded. */
+		foldable: p.req<boolean>(),
 		handleCheckboxClick: p.req<(checkboxEl: HTMLInputElement) => void>(),
+		/** Dispatched on chevron click; the node view toggles the fold state. */
+		handleChevronClick: p.req<() => void>(),
 		editor: p.req<Editor>(),
 		options: p.req<TaskItemOptions>(),
 	},
@@ -60,6 +64,39 @@ export const itemElement = litView.element({
 					onclick={onClick}
 					onmousedown={preventDefault} // prevent autofocus, because focus fires when mousedown is successful
 				>
+					{/* Fold chevron: rendered by the item itself (the label is the
+					    anchor for its absolute position in the left gutter); the
+					    folded state comes from the `is-folded` node decoration + CSS,
+					    exactly like the heading fold chevron. */}
+					{is(params.foldable,
+						<span
+							class="texto-task-fold-chevron"
+							contentEditable="false"
+							role="button"
+							aria-label="Toggle subtasks folding"
+							data-testid="task-fold-chevron"
+							onpointerdown={preventDefault}
+							onclick={(event: Event) => {
+								// Must not reach the label's checkbox toggle handler.
+								event.stopPropagation();
+								event.preventDefault();
+								params.handleChevronClick();
+							}}
+						>
+							<svg
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								stroke-width="2.4"
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								aria-hidden="true"
+							>
+								<path d="m9 6 6 6-6 6" />
+							</svg>
+						</span>,
+					)}
+
 					{is(
 						isCustomSvgIcons,
 						<div class="custom-icon">

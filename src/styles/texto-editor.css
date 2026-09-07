@@ -151,3 +151,14 @@ img.ProseMirror-separator {
 .ProseMirror ul[data-type='taskList'] .texto-extension-task-item-host > div {
 	flex: 1 1 auto;
 }
+
+/* Nested lists inside a task item (subtasks): the flex layout already aligns
+   them with the parent text; drop extra vertical margins/padding so subtasks
+   sit tight under their parent. A left gutter is reserved so a nested item's
+   fold chevron (see task-item.css) doesn't overlap the parent's text. */
+.ProseMirror ul[data-type='taskList'] .texto-extension-task-item-host .content ul,
+.ProseMirror ul[data-type='taskList'] .texto-extension-task-item-host .content ol {
+	margin: 0;
+	padding-top: 0;
+	padding-bottom: 0;
+}

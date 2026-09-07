@@ -82,14 +82,22 @@ export function createHeadingFoldingPlugin(
         let folded = value.folded;
 
         // Map positions through the transaction (keeps folds while editing).
+        // mapResult (not map): when the mapped-from range was deleted the
+        // result is flagged `deleted` — the folded node is gone, so the fold
+        // must be dropped. Plain `map(pos, -1)` would return the position of
+        // the *next* node and silently transfer the fold onto it (deleting a
+        // folded heading then folded its next sibling).
         if (tr.docChanged) {
           const next = new Set<number>();
           for (const pos of folded) {
-            const mapped = tr.mapping.map(pos, -1);
-            const node = tr.doc.resolve(mapped).nodeAfter;
+            const result = tr.mapping.mapResult(pos);
+            if (result.deleted) {
+              continue;
+            }
+            const node = tr.doc.resolve(result.pos).nodeAfter;
             // Drop folds whose heading was deleted.
             if (node != null && node.type.name === headingTypeName) {
-              next.add(mapped);
+              next.add(result.pos);
             }
           }
           folded = next;
@@ -142,19 +150,26 @@ export function createHeadingFoldingPlugin(
       _oldState: EditorState,
       newState: EditorState,
     ): Transaction | null {
+      const pluginState = headingFoldingKey.getState(newState);
+      if (pluginState == null || pluginState.folded.size === 0) {
+        return null;
+      }
+
+      // The caret must never end up inside a hidden region. Folding with the
+      // caret inside the body is one path; any transaction that moved the
+      // selection (paste, drop, programmatic jumps) is checked too while
+      // folds exist — same guard as the task folding plugin.
       const foldMeta = transactions.some(
         (tr) => tr.getMeta(headingFoldingKey) != null,
       );
-      if (!foldMeta) {
+      const selectionMoved = transactions.some(
+        (tr) => tr.docChanged || tr.selectionSet,
+      );
+      if (!foldMeta && !selectionMoved) {
         return null;
       }
 
-      const pluginState = headingFoldingKey.getState(newState);
-      if (pluginState == null) {
-        return null;
-      }
-
-      // Push the caret out of the newly hidden region — back into the
+      // Push the caret out of the hidden region — back into the
       // heading itself (the heading stays visible and editable, like
       // Obsidian's collapsed headings).
       const sections = collectHeadingSections(newState.doc, headingTypeName);

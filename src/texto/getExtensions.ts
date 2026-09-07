@@ -12,6 +12,7 @@ import { HljsCodeBlock, HljsCodeBlockRow, HljsMark } from './extensions/code-blo
 import { Table, TableCell, TableHeader, TableRow } from './extensions/table';
 import { TaskList } from './extensions/task-list';
 import { TaskItem } from './extensions/task-item';
+import { TaskItemFolding } from './extensions/task-item-folding';
 import { BubbleMenu } from './extensions/bubble-menu';
 import { State } from './extensions/state';
 
@@ -73,7 +74,19 @@ export function getExtensions(
     TaskList,
     // Custom SVG checkbox icons instead of native input[type=checkbox],
     // Icons are declared hidden in note.element.tsx and referenced by id.
-    TaskItem.configure({ checkboxIconLinks: ['check_box_on_20', 'check_box_off_20'] }),
+    // nested: true — Tab/Shift-Tab sink/lift task items into subtasks
+    // (Tiptap TaskItem behavior); content becomes "paragraph block*".
+    TaskItem.configure({
+      nested: true,
+      // Chevron only where the folding plugin is active — on mobile the
+      // plugin is off and the chevron would be a dead control.
+      taskFolding: options.isMobileView !== true,
+      checkboxIconLinks: ['check_box_on_20', 'check_box_off_20'],
+    }),
+    // Collapse subtasks of a task item (desktop-only, like heading folding).
+    TaskItemFolding.configure({
+      enabled: options.isMobileView !== true,
+    }),
     BubbleMenu.configure({ element: null }),
     Paragraph,
     Text,

@@ -1,4 +1,5 @@
 import {isFunction, mergeAttributes, Node, wrappingInputRule} from '../../core';
+import type {Editor} from '../../core';
 import {elTag} from '../../../tags';
 import type {KeyboardShortcutCommand} from '../../core/@types/index';
 import {ignoreMutationIOS} from '../../core/helpers';
@@ -11,6 +12,9 @@ type checkboxOff = string;
 
 export interface TaskItemOptions {
 	nested: boolean;
+	/** Whether subtask folding (chevron) is enabled — the TaskItemFolding
+	 *  extension must be active for the toggle to have any effect. */
+	taskFolding: boolean;
 	HTMLAttributes: Record<string, string>;
 	taskListTypeName: string;
 	onReadOnlyChecked?: (node: ProseMirrorNode, checked: boolean) => boolean;
@@ -18,6 +22,21 @@ export interface TaskItemOptions {
 }
 
 export const inputRegex = /^\s*(\[([( |x])?])\s$/;
+
+/** Whether this item has nested content (subtasks) and shows a fold chevron.
+ *  Gated on both `nested` (schema allows nested lists) and `taskFolding`
+ *  (the folding plugin is active): without the plugin the chevron would
+ *  render but its click would be a silent no-op. */
+function isFoldableItem(options: TaskItemOptions, node: ProseMirrorNode): boolean {
+	return options.nested && options.taskFolding && node.childCount > 1;
+}
+
+/** Dispatch the fold toggle for the item at the given position. The
+ *  toggleTaskFold command validates that the position still points at a
+ *  task item before dispatching the fold meta. */
+function toggleFoldAt(editor: Editor, pos: number | undefined): boolean {
+	return pos != null && editor.commands.toggleTaskFold(pos);
+}
 
 export const VIEW_TAG = elTag('texto-extension-task-item');
 /** Static tag used in HTML serialization (clipboard/export) — stays version-independent. */
@@ -32,6 +51,7 @@ export const TaskItem = Node.create<TaskItemOptions>({
 	addOptions() {
 		return {
 			nested: false,
+			taskFolding: false,
 			HTMLAttributes: {},
 			taskListTypeName: 'taskList',
 		};
@@ -128,6 +148,12 @@ export const TaskItem = Node.create<TaskItemOptions>({
 			element.props = {
 				checked: !!node.attrs.checked,
 				content: contentEl,
+				foldable: isFoldableItem(this.options, node),
+				handleChevronClick: () => {
+					if (editor.isEditable && isFunction(getPos)) {
+						toggleFoldAt(editor, getPos());
+					}
+				},
 				editor,
 				options: this.options,
 				handleCheckboxClick: (checkboxEl) => {
@@ -195,6 +221,7 @@ export const TaskItem = Node.create<TaskItemOptions>({
 					element.props = {
 						...element.props,
 						checked: !!updatedNode.attrs.checked,
+						foldable: isFoldableItem(this.options, updatedNode),
 					};
 
 					return true;

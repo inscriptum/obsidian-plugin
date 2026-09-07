@@ -359,3 +359,69 @@ describe('heading folding plugin', () => {
     expect(el.querySelector('[data-testid="heading-fold-chevron"]')).toBeNull();
   });
 });
+
+describe('heading folding regressions', () => {
+  it('deleting a folded heading drops the fold instead of transferring it to the next heading', () => {
+    // Regression: mapping.map(pos, -1) mapped a deleted heading's fold onto
+    // the position of the NEXT heading (type check passed) — after deleting
+    // a collapsed "Section A", "Section B" would collapse on its own.
+    const fixture = useFixture();
+    const { editor, headings } = fixture;
+
+    editor.commands.foldHeading(headings[0]); // fold "Section A"
+    expect(getFoldedHeadingPositions(editor.state)).toEqual([headings[0]]);
+
+    // Delete the folded "Section A" heading node.
+    editor.commands.command(({ tr }) => {
+      tr.delete(
+        headings[0],
+        headings[0] + editor.state.doc.nodeAt(headings[0])!.nodeSize,
+      );
+      return true;
+    });
+
+    expect(getFoldedHeadingPositions(editor.state)).toEqual([]);
+    expect(fixture.el.querySelector('.texto-folded-content')).toBeNull();
+  });
+
+  it('deleting an earlier heading keeps later folds mapped onto their own headings', () => {
+    const fixture = useFixture();
+    const { editor, headings } = fixture;
+
+    editor.commands.foldHeading(headings[2]); // fold "Section B"
+
+    // Delete "Section A" — "Section B" must stay folded, on its own node.
+    editor.commands.command(({ tr }) => {
+      tr.delete(
+        headings[0],
+        headings[0] + editor.state.doc.nodeAt(headings[0])!.nodeSize,
+      );
+      return true;
+    });
+
+    const positions = getFoldedHeadingPositions(editor.state);
+    expect(positions).toHaveLength(1);
+    const node = editor.state.doc.nodeAt(positions[0]);
+    expect(node?.type.name).toBe('heading');
+    expect(node?.textContent).toBe('Section B');
+  });
+
+  it('moves the caret out of the hidden body when a transaction lands it there', () => {
+    // Regression: only fold-meta transactions pushed the caret out; a
+    // programmatic jump (or paste/drop) into a hidden body left the caret
+    // typing invisibly. Sink a selection into the hidden region without
+    // fold meta and expect the plugin to push it out.
+    const fixture = useFixture();
+    const { editor, headings, aOnePos } = fixture;
+
+    editor.commands.foldHeading(headings[0]); // fold "Section A"
+
+    // Jump straight into the hidden body (no fold meta on this tr).
+    editor.commands.setTextSelection(aOnePos + 2);
+
+    const { from, to } = editor.state.selection;
+    const sections = collectHeadingSections(editor.state.doc, 'heading');
+    const body = sections[0].body!;
+    expect(to <= body.from || from >= body.to).toBe(true);
+  });
+});

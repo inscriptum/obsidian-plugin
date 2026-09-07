@@ -20,6 +20,10 @@ import {
   restoreFoldedHeadings,
 } from "./texto/extensions/heading/folding";
 import {
+  getFoldedTaskPositions,
+  restoreFoldedTasks,
+} from "./texto/extensions/task-item-folding";
+import {
   handleAddImg,
   imageOnSetViewProps,
   type ImageToolContext,
@@ -102,8 +106,12 @@ export class NoteView extends FileView {
   private keyboardViewportCleanup: (() => void) | null = null;
   private leafContentWithNoteClass: HTMLElement | null = null;
   private searchEl: HTMLElement | null = null;
-  /** Last fold positions saved to localStorage; guards redundant writes. */
-  private lastSavedFolds: number[] | null = null;
+  /** Last fold positions saved to localStorage, per fold kind; guards
+   *  redundant writes. */
+  private lastSavedFolds: { heading: number[] | null; task: number[] | null } = {
+    heading: null,
+    task: null,
+  };
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -735,15 +743,16 @@ export class NoteView extends FileView {
     }, AUTOSAVE_DELAY);
   }
 
-  /** localStorage key for this note's heading folds. Mirrors the storage
-   *  approach of Obsidian's own foldManager (`note-fold-<path>`): the fold
-   *  state is vault-local metadata, never part of the note document. Uses
-   *  app.loadLocalStorage/saveLocalStorage when available (v1.8.7+) and
-   *  falls back to window.localStorage on older builds (minAppVersion is
-   *  below 1.8.7, so both paths must work). */
-  private foldStorageKey(): string | null {
+  /** localStorage key for a note's fold state of the given kind. Mirrors the
+   *  storage approach of Obsidian's own foldManager (`note-fold-<path>`): the
+   *  fold state is vault-local metadata, never part of the note document.
+   *  Kind prefixes: `inscriptum-note-fold-` (headings, existing key),
+   *  `inscriptum-task-fold-` (task subtasks). */
+  private foldStorageKey(kind: "heading" | "task"): string | null {
     const path = this.file?.path;
-    return path ? `inscriptum-note-fold-${path}` : null;
+    if (!path) return null;
+    const prefix = kind === "heading" ? "inscriptum-note-fold-" : "inscriptum-task-fold-";
+    return `${prefix}${path}`;
   }
 
   private loadFoldStorage(key: string): unknown {
@@ -785,29 +794,57 @@ export class NoteView extends FileView {
     }
   }
 
-  /** Persist folded heading positions whenever they change. Called from
-   *  the editor's onTransaction; the folding extension keeps the current
-   *  positions in editor.storage.headingFolding.positions. */
+  /** Persist folded positions for both foldable node kinds (headings and
+   *  task items). Called from the editor's onTransaction; the folding
+   *  extensions keep the current positions in their storages. */
   private syncFoldState(_transaction: unknown): void {
     if (this.isMobileView() || !this.editor) return;
 
-    const positions = (this.editor.storage.headingFolding as
+    this.syncFoldTarget("heading", "headingFolding");
+    this.syncFoldTarget("task", "taskItemFolding");
+  }
+
+  private syncFoldTarget(
+    kind: "heading" | "task",
+    storageName: string,
+  ): void {
+    if (!this.editor) return;
+
+    const positions = (this.editor.storage[storageName] as
       | { positions?: number[] }
       | undefined)?.positions;
-    if (positions == null || positions === this.lastSavedFolds) return;
+    if (positions == null || positions === this.lastSavedFolds[kind]) return;
 
-    const key = this.foldStorageKey();
+    const key = this.foldStorageKey(kind);
     if (!key) return;
 
     // Same guard as Obsidian's foldManager: an empty fold list clears the
     // stored value instead of persisting `[]`.
-    this.lastSavedFolds = positions;
+    this.lastSavedFolds[kind] = positions;
     this.saveFoldStorage(key, positions.length > 0 ? { folds: positions } : null);
   }
 
   /** Restore folds saved for this note into a freshly created editor. */
   private restoreFoldState(editor: Editor): void {
-    const key = this.foldStorageKey();
+    this.restoreFoldTarget(editor, "heading", "headingFolding", "heading", (view, positions) =>
+      restoreFoldedHeadings(view, positions),
+    );
+    this.restoreFoldTarget(editor, "task", "taskItemFolding", "taskItem", (view, positions) =>
+      restoreFoldedTasks(view, positions),
+    );
+  }
+
+  private restoreFoldTarget(
+    editor: Editor,
+    kind: "heading" | "task",
+    storageName: string,
+    nodeTypeName: string,
+    restore: (
+      view: Editor["view"],
+      positions: number[],
+    ) => void,
+  ): void {
+    const key = this.foldStorageKey(kind);
     if (!key) return;
 
     const saved = this.loadFoldStorage(key) as
@@ -818,22 +855,26 @@ export class NoteView extends FileView {
     if (!Array.isArray(folds) || folds.length === 0) return;
 
     // Positions saved from a previous session may not match this doc if the
-    // note was edited elsewhere; keep only positions that still point at
-    // headings. (The plugin also drops them on later edits via mapping.)
+    // note was edited elsewhere; keep only positions that still point at the
+    // expected node kind. (The plugin also drops them on later edits via
+    // mapping.)
     const valid = folds.filter((pos) => {
       if (typeof pos !== "number" || !Number.isFinite(pos)) return false;
       const node = editor.state.doc.nodeAt(pos);
-      return node?.type.name === "heading";
+      return node?.type.name === nodeTypeName;
     });
     if (valid.length === 0) return;
 
-    restoreFoldedHeadings(editor.view, valid);
-    const positions = getFoldedHeadingPositions(editor.state);
-    const storage = editor.storage.headingFolding as
+    restore(editor.view, valid);
+    const positions =
+      kind === "heading"
+        ? getFoldedHeadingPositions(editor.state)
+        : getFoldedTaskPositions(editor.state);
+    const storage = editor.storage[storageName] as
       | { positions?: number[] }
       | undefined;
     if (storage) storage.positions = positions;
-    this.lastSavedFolds = positions;
+    this.lastSavedFolds[kind] = positions;
   }
 
   private async flushSave(): Promise<void> {
