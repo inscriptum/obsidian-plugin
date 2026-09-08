@@ -8,7 +8,8 @@ import {
 } from "obsidian";
 import { CellSelection, isInTable } from "prosemirror-tables";
 import { Editor, isTextSelection } from "./texto/core";
-import { readNote, writeNote } from "./storage/noteStorage";
+import { readNoteWithRaw, writeNote, parseNoteDoc } from "./storage/noteStorage";
+import { FileChangedModal } from "./ui/FileChangedModal";
 import { getDesiredFileName } from "./storage/fileNaming";
 import {
   saveAttachmentFile,
@@ -61,6 +62,10 @@ export const NOTE_VIEW_TYPE = "note-view";
 let saveTimer: number | null = null;
 const AUTOSAVE_DELAY = 500;
 
+/** Coalescing window for vault "modify" events: git sync and similar tools
+ *  often touch a file several times in quick succession. */
+const EXTERNAL_CHANGE_DEBOUNCE = 300;
+
 function isLightTheme(): boolean {
   return document.body.classList.contains("theme-light");
 }
@@ -112,6 +117,21 @@ export class NoteView extends FileView {
     heading: null,
     task: null,
   };
+
+  // ── External file change watching ──
+  /** Whether the editor holds changes not yet written to disk. */
+  private dirty = false;
+  /** Raw file contents the editor currently reflects — either our own last
+   *  write or the last externally loaded version. Used to tell our own
+   *  autosave writes (which also fire vault "modify") apart from external
+   *  modifications. */
+  private syncedRaw: string | null = null;
+  private externalChangeTimer: number | null = null;
+  /** True while the conflict dialog is up; further external events wait. */
+  private conflictModalOpen = false;
+  /** True while replacing the editor doc from disk, so the autosave path
+   *  doesn't immediately write it back. */
+  private applyingRemoteChange = false;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -178,6 +198,15 @@ export class NoteView extends FileView {
         if (leaf?.view === this) {
           await this.reloadFromDisk();
         }
+      }),
+    );
+
+    // Watch the note file for external modifications (git sync, another
+    // editor, …). Registered once per view and filtered by this.file at
+    // event time, so it survives renames handled by renameToTitleIfNeeded.
+    this.registerEvent(
+      this.app.vault.on("modify", (file) => {
+        if (file === this.file) this.onFileMaybeExternallyChanged();
       }),
     );
   }
@@ -306,7 +335,8 @@ export class NoteView extends FileView {
     this.destroySearchBar();
     this.contentEl.empty();
 
-    const content = await readNote(file, this.app.vault);
+    const { doc: content, raw } = await readNoteWithRaw(file, this.app.vault);
+    this.syncedRaw = raw;
     const noteEl = new NoteElement();
     noteEl.addClass("texto-editor-host");
     const toolbarEl = new ToolbarElement();
@@ -352,6 +382,8 @@ export class NoteView extends FileView {
             console.error("Editor creation failed:", err);
           },
           onUpdate: () => {
+            if (this.applyingRemoteChange) return;
+            this.dirty = true;
             this.scheduleSave();
           },
           onTransaction: ({ transaction }) => {
@@ -883,10 +915,106 @@ export class NoteView extends FileView {
     }
     try {
       const json = this.editor.getJSON();
+      const raw = JSON.stringify(json, null, 2);
       await writeNote(this.file, this.app.vault, json);
+      // Remember exactly what we wrote: the vault "modify" event fired by
+      // our own save must not be treated as an external change.
+      this.syncedRaw = raw;
+      this.dirty = false;
       await this.renameToTitleIfNeeded(json);
     } catch (err) {
       new Notice(`Failed to save note: ${String(err)}`);
+    }
+  }
+
+  /** Vault "modify" fired for this file — coalesce and inspect. */
+  private onFileMaybeExternallyChanged(): void {
+    if (this.externalChangeTimer != null) {
+      window.clearTimeout(this.externalChangeTimer);
+    }
+    this.externalChangeTimer = window.setTimeout(() => {
+      this.externalChangeTimer = null;
+      void this.processExternalChange();
+    }, EXTERNAL_CHANGE_DEBOUNCE);
+  }
+
+  /** Decide what an observed file modification means:
+   *  - raw identical to what the editor last reflected → our own write, no-op;
+   *  - no unsaved local edits → silently reload the editor from disk;
+   *  - unsaved local edits (conflict) → ask the user which version wins. */
+  private async processExternalChange(): Promise<void> {
+    const file = this.file;
+    if (!file || !this.editor || this.editor.isDestroyed) return;
+    if (this.conflictModalOpen || this.applyingRemoteChange) return;
+
+    let raw: string;
+    try {
+      raw = await this.app.vault.read(file);
+    } catch (err) {
+      console.error("Failed to read note for external change check:", err);
+      return;
+    }
+    if (!this.editor || this.editor.isDestroyed) return;
+    if (raw === this.syncedRaw) return; // our own autosave
+    if (raw === JSON.stringify(this.editor.getJSON(), null, 2)) {
+      // Content matches the editor (formatting-only difference, or an edit
+      // that was already mirrored): adopt it without touching the doc.
+      this.syncedRaw = raw;
+      return;
+    }
+
+    if (this.dirty) {
+      this.conflictModalOpen = true;
+      new FileChangedModal(this.app, {
+        onKeepLocal: () => {
+          void this.overwriteFileFromEditor();
+        },
+        onTakeDisk: () => {
+          void this.applyExternalContent(raw);
+        },
+        onClose: () => {
+          this.conflictModalOpen = false;
+        },
+      }).open();
+      return;
+    }
+
+    await this.applyExternalContent(raw);
+  }
+
+  /** Conflict resolution: the user chose the local version — write the
+   *  editor doc over the file on disk. */
+  private async overwriteFileFromEditor(): Promise<void> {
+    if (!this.editor || !this.file || this.editor.isDestroyed) return;
+    try {
+      const json = this.editor.getJSON();
+      const raw = JSON.stringify(json, null, 2);
+      await writeNote(this.file, this.app.vault, json);
+      this.syncedRaw = raw;
+      this.dirty = false;
+    } catch (err) {
+      new Notice(`Failed to overwrite note: ${String(err)}`);
+    }
+  }
+
+  /** Conflict resolution / silent sync: replace the editor doc with the
+   *  current disk content. */
+  private async applyExternalContent(raw: string): Promise<void> {
+    if (!this.editor || this.editor.isDestroyed) return;
+    try {
+      const doc = parseNoteDoc(raw);
+      // setContent with emitUpdate=false does not fire onUpdate, but guard
+      // anyway so any incidental transaction can't trigger a write-back.
+      this.applyingRemoteChange = true;
+      try {
+        this.editor.commands.setContent(doc);
+      } finally {
+        this.applyingRemoteChange = false;
+      }
+      this.syncedRaw = raw;
+      this.dirty = false;
+    } catch (err) {
+      console.error("Failed to apply external note content:", err);
     }
   }
 
@@ -898,12 +1026,18 @@ export class NoteView extends FileView {
       return;
     }
     try {
-      const content = await readNote(this.file, this.app.vault);
+      const { doc: content, raw } = await readNoteWithRaw(this.file, this.app.vault);
       // The view may have been unloaded while the file was being read
       // (onUnloadFile/onClose destroy the editor) — re-check before use,
       // otherwise this.editor.commands throws on null.
       if (!this.editor || this.editor.isDestroyed) return;
-      this.editor.commands.setContent(content);
+      this.applyingRemoteChange = true;
+      try {
+        this.editor.commands.setContent(content);
+      } finally {
+        this.applyingRemoteChange = false;
+      }
+      this.syncedRaw = raw;
     } catch (err) {
       console.error("Failed to reload note content:", err);
     }

@@ -61,6 +61,35 @@
   padding-bottom: var(--size-4-4);
 }
 
+/* File conflict dialog (see src/ui/FileChangedModal.ts): compact stack of
+   explanation + two choice buttons + a plain-text consequence hint. */
+.modal.inscriptum-file-changed-modal {
+  height: auto;
+  max-height: 90vh;
+  align-self: center;
+  margin: auto;
+}
+
+.modal.inscriptum-file-changed-modal .modal-content {
+  padding-bottom: var(--size-4-4);
+}
+
+.modal.inscriptum-file-changed-modal .inscriptum-file-changed-setting {
+  border: none;
+  padding: 0;
+}
+
+.modal.inscriptum-file-changed-modal .inscriptum-file-changed-setting
+  .setting-item-control {
+  justify-content: flex-end;
+}
+
+.modal.inscriptum-file-changed-modal .inscriptum-file-changed-hint {
+  margin: var(--size-4-2) 0 0;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
 /* contentEl FileView — this is Obsidian's .view-content, which by default
    has padding (var(--size-4-4)). Increase specificity to remove it
    and let the scroll container reach the very edge of the screen. */

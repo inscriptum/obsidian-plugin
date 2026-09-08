@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- External change watching for open notes: when a `.note` file is modified outside the editor (e.g. by a git sync), the open document now updates automatically. If the editor has unsaved changes at that moment (conflict), a dialog asks which version wins: "Keep my changes" overwrites the file with the editor content, "Load from disk" reloads the document from disk and discards the unsaved edits. Closing the dialog without a choice changes nothing — local edits stay in the editor and the file stays untouched. The plugin's own autosave writes are never mistaken for external changes.
+
 ## [0.6.0] - 2026-09-07
 
 ### Added

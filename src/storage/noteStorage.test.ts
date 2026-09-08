@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Vault as ObsidianVault } from 'obsidian';
 import { Vault, TFile } from '../__mocks__/obsidian';
-import { readNote, writeNote, createEmptyNote, EMPTY_DOC } from './noteStorage';
+import { readNote, readNoteWithRaw, writeNote, createEmptyNote, parseNoteDoc, EMPTY_DOC } from './noteStorage';
 
 describe('noteStorage', () => {
   describe('createEmptyNote', () => {
@@ -41,6 +41,44 @@ describe('noteStorage', () => {
 
       expect(result.type).toBe('noteDoc');
       expect(result.content).toHaveLength(2);
+    });
+  });
+
+  describe('readNoteWithRaw', () => {
+    it('returns the parsed doc and the exact raw string', async () => {
+      const file = new TFile('test.note');
+      const vault = new Vault();
+      const content = { type: 'noteDoc', content: [] };
+      const raw = JSON.stringify(content, null, 2);
+      vault.read.mockResolvedValue(raw);
+
+      const result = await readNoteWithRaw(file, vault as unknown as ObsidianVault);
+
+      expect(result.doc).toEqual(content);
+      expect(result.raw).toBe(raw);
+    });
+
+    it('returns the empty doc and raw fallback on invalid JSON', async () => {
+      const file = new TFile('test.note');
+      const vault = new Vault();
+      const raw = 'not valid json {{{';
+      vault.read.mockResolvedValue(raw);
+
+      const result = await readNoteWithRaw(file, vault as unknown as ObsidianVault);
+
+      expect(result.doc).toEqual(createEmptyNote());
+      expect(result.raw).toBe(raw);
+    });
+  });
+
+  describe('parseNoteDoc', () => {
+    it('parses valid JSON', () => {
+      const content = { type: 'noteDoc', content: [] };
+      expect(parseNoteDoc(JSON.stringify(content))).toEqual(content);
+    });
+
+    it('falls back to an empty note on invalid JSON', () => {
+      expect(parseNoteDoc('{{{')).toEqual(createEmptyNote());
     });
   });
 
