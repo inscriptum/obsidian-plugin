@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - External change watching for open notes: when a `.note` file is modified outside the editor (e.g. by a git sync), the open document now updates automatically. If the editor has unsaved changes at that moment (conflict), a dialog asks which version wins: "Keep my changes" overwrites the file with the editor content, "Load from disk" reloads the document from disk and discards the unsaved edits. Closing the dialog without a choice changes nothing — local edits stay in the editor and the file stays untouched. The plugin's own autosave writes are never mistaken for external changes.
 
+### Fixed
+
+- Data-loss protection: a note file can no longer be silently wiped with an empty note body. Previously, if the file could not be read/parsed (e.g. a partially hydrated read right after opening the vault with restored tabs, or a truncated sync write), the editor silently fell back to an empty document which was then autosaved over the real content. Now: the note load is retried briefly, on failure an error state is shown instead of an editor (nothing is saved), and a last-resort write guard blocks saving an empty document over a file that still has content.
+
 ## [0.6.0] - 2026-09-07
 
 ### Added

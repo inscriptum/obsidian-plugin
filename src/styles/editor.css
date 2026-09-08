@@ -90,6 +90,26 @@
   font-size: var(--font-ui-smaller);
 }
 
+/* Unreadable-note error state (see NoteView.renderUnreadableFileState):
+   shown instead of the editor when the file could not be parsed, so the
+   empty editor can never autosave over the real content. */
+.inscriptum-unreadable-note {
+  max-width: 40rem;
+  margin: 15vh auto 0;
+  padding: 0 var(--size-4-4);
+  color: var(--text-normal);
+}
+
+.inscriptum-unreadable-note .inscriptum-unreadable-note-title {
+  font-weight: var(--font-semibold);
+  margin-bottom: var(--size-4-2);
+}
+
+.inscriptum-unreadable-note p {
+  margin: var(--size-2-2) 0;
+  color: var(--text-muted);
+}
+
 /* contentEl FileView — this is Obsidian's .view-content, which by default
    has padding (var(--size-4-4)). Increase specificity to remove it
    and let the scroll container reach the very edge of the screen. */

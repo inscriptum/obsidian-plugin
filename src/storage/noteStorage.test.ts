@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Vault as ObsidianVault } from 'obsidian';
 import { Vault, TFile } from '../__mocks__/obsidian';
-import { readNote, readNoteWithRaw, writeNote, createEmptyNote, parseNoteDoc, EMPTY_DOC } from './noteStorage';
+import { readNote, readNoteWithRaw, writeNote, createEmptyNote, parseNoteDoc, isEmptyNoteDoc, EMPTY_DOC } from './noteStorage';
 
 describe('noteStorage', () => {
   describe('createEmptyNote', () => {
@@ -32,15 +32,16 @@ describe('noteStorage', () => {
       expect(result).toEqual(content);
     });
 
-    it('returns empty doc on invalid JSON', async () => {
+    it('throws on invalid JSON instead of faking an empty doc', async () => {
       const file = new TFile('test.note');
       const vault = new Vault();
       vault.read.mockResolvedValue('not valid json {{{');
 
-      const result = await readNote(file, vault as unknown as ObsidianVault);
-
-      expect(result.type).toBe('noteDoc');
-      expect(result.content).toHaveLength(2);
+      // The silent empty-doc fallback was a data-loss path: the empty doc
+      // got autosaved over the real file content.
+      await expect(
+        readNote(file, vault as unknown as ObsidianVault),
+      ).rejects.toThrow();
     });
   });
 
@@ -58,16 +59,15 @@ describe('noteStorage', () => {
       expect(result.raw).toBe(raw);
     });
 
-    it('returns the empty doc and raw fallback on invalid JSON', async () => {
+    it('throws on invalid JSON (no silent empty fallback)', async () => {
       const file = new TFile('test.note');
       const vault = new Vault();
       const raw = 'not valid json {{{';
       vault.read.mockResolvedValue(raw);
 
-      const result = await readNoteWithRaw(file, vault as unknown as ObsidianVault);
-
-      expect(result.doc).toEqual(createEmptyNote());
-      expect(result.raw).toBe(raw);
+      await expect(
+        readNoteWithRaw(file, vault as unknown as ObsidianVault),
+      ).rejects.toThrow();
     });
   });
 
@@ -77,8 +77,66 @@ describe('noteStorage', () => {
       expect(parseNoteDoc(JSON.stringify(content))).toEqual(content);
     });
 
-    it('falls back to an empty note on invalid JSON', () => {
-      expect(parseNoteDoc('{{{')).toEqual(createEmptyNote());
+    it('throws on invalid JSON (no silent empty fallback)', () => {
+      expect(() => parseNoteDoc('{{{')).toThrow();
+    });
+  });
+
+  describe('isEmptyNoteDoc', () => {
+    it('is true for the pristine empty note', () => {
+      expect(isEmptyNoteDoc(createEmptyNote())).toBe(true);
+    });
+
+    it('is true for an empty title and empty paragraphs', () => {
+      const doc = {
+        type: 'noteDoc',
+        content: [
+          { type: 'noteTitle' },
+          { type: 'paragraph' },
+          { type: 'paragraph', content: [] },
+        ],
+      };
+      expect(isEmptyNoteDoc(doc as never)).toBe(true);
+    });
+
+    it('is false when the title has text', () => {
+      const doc = JSON.parse(JSON.stringify(EMPTY_DOC)) as {
+        content: Array<{ type: string; content?: unknown }>;
+      };
+      doc.content[0] = {
+        type: 'noteTitle',
+        content: [{ type: 'text', text: 'Hello' }],
+      };
+      expect(isEmptyNoteDoc(doc as never)).toBe(false);
+    });
+
+    it('is false when a paragraph has text', () => {
+      const doc = {
+        type: 'noteDoc',
+        content: [
+          { type: 'noteTitle' },
+          { type: 'paragraph', content: [{ type: 'text', text: 'keep me' }] },
+        ],
+      };
+      expect(isEmptyNoteDoc(doc as never)).toBe(false);
+    });
+
+    it('is false when a node carries attrs (image, code block, etc.)', () => {
+      const doc = {
+        type: 'noteDoc',
+        content: [
+          { type: 'noteTitle' },
+          {
+            type: 'paragraph',
+            content: [{ type: 'image', attrs: { data: { id: 'x' } } }],
+          },
+        ],
+      };
+      expect(isEmptyNoteDoc(doc as never)).toBe(false);
+    });
+
+    it('is false for a non-noteDoc root', () => {
+      expect(isEmptyNoteDoc({ type: 'paragraph' })).toBe(false);
     });
   });
 

@@ -8,7 +8,7 @@ import {
 } from "obsidian";
 import { CellSelection, isInTable } from "prosemirror-tables";
 import { Editor, isTextSelection } from "./texto/core";
-import { readNoteWithRaw, writeNote, parseNoteDoc } from "./storage/noteStorage";
+import { readNoteWithRaw, writeNote, parseNoteDoc, isEmptyNoteDoc } from "./storage/noteStorage";
 import { FileChangedModal } from "./ui/FileChangedModal";
 import { getDesiredFileName } from "./storage/fileNaming";
 import {
@@ -335,7 +335,16 @@ export class NoteView extends FileView {
     this.destroySearchBar();
     this.contentEl.empty();
 
-    const { doc: content, raw } = await readNoteWithRaw(file, this.app.vault);
+    const { doc: content, raw } = await this.readNoteWithRetries(file);
+    if (content == null) {
+      // The file exists but its content could not be parsed (e.g. a partially
+      // hydrated read right after vault startup, or actual corruption).
+      // Load NOTHING into the editor: an empty doc here would be persisted
+      // by autosave on blur/close and wipe the real content — the exact bug
+      // this guard exists for. Show an error state instead.
+      this.renderUnreadableFileState(file);
+      return;
+    }
     this.syncedRaw = raw;
     const noteEl = new NoteElement();
     noteEl.addClass("texto-editor-host");
@@ -607,6 +616,53 @@ export class NoteView extends FileView {
     });
 
     this.contentEl.appendChild(noteEl);
+  }
+
+  /** Read and parse the note file, retrying briefly on parse failure.
+   *  Right after vault startup (restored tabs) a read can return truncated
+   *  or not-yet-hydrated content; a short retry covers that race. Returns
+   *  { doc: null } if every attempt fails (content is NOT faked). */
+  private async readNoteWithRetries(
+    file: TFile,
+    attempts = 3,
+    delayMs = 400,
+  ): Promise<{ doc: JSONContent | null; raw: string }> {
+    for (let i = 0; i < attempts; i++) {
+      try {
+        return await readNoteWithRaw(file, this.app.vault);
+      } catch (err) {
+        console.error(
+          `Failed to parse note file "${file.path}"` +
+            ` (attempt ${i + 1}/${attempts}):`,
+          err,
+        );
+        if (i < attempts - 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+        }
+      }
+    }
+    return { doc: null, raw: "" };
+  }
+
+  /** Static error state for a note whose file could not be parsed. No
+   *  editor is created, so nothing can be saved over the file. */
+  private renderUnreadableFileState(file: TFile): void {
+    this.contentEl.empty();
+    const box = this.contentEl.createDiv({
+      cls: "inscriptum-unreadable-note",
+    });
+    box.createEl("p", {
+      cls: "inscriptum-unreadable-note-title",
+      text: "This note could not be opened.",
+    });
+    box.createEl("p", {
+      text:
+        `The file "${file.path}" is empty, incomplete or not valid JSON. ` +
+        "Nothing was loaded or saved — the file on disk was not modified.",
+    });
+    box.createEl("p", {
+      text: "Try reopening the note; if sync is still running, let it finish first.",
+    });
   }
 
   async onUnloadFile(file: TFile): Promise<void> {
@@ -916,6 +972,7 @@ export class NoteView extends FileView {
     try {
       const json = this.editor.getJSON();
       const raw = JSON.stringify(json, null, 2);
+      if (await this.blockEmptyOverwrite(json)) return;
       await writeNote(this.file, this.app.vault, json);
       // Remember exactly what we wrote: the vault "modify" event fired by
       // our own save must not be treated as an external change.
@@ -984,11 +1041,44 @@ export class NoteView extends FileView {
 
   /** Conflict resolution: the user chose the local version — write the
    *  editor doc over the file on disk. */
+  /** Last-resort data-loss guard: refuse to write a pristine empty doc over
+   *  a file whose current disk content is a real document. Covers the wipe
+   *  scenario where the editor somehow ended up empty (failed/partial load,
+   *  schema failure) while the file still holds content. Returns true when
+   *  the write was blocked (notice shown, file untouched). */
+  private async blockEmptyOverwrite(json: JSONContent): Promise<boolean> {
+    if (!isEmptyNoteDoc(json)) return false;
+    const file = this.file;
+    if (!file) return false;
+
+    // Unreadable disk → assume it has content and block (safe direction).
+    let diskHasContent = true;
+    try {
+      const raw = await this.app.vault.read(file);
+      diskHasContent = !isEmptyNoteDoc(parseNoteDoc(raw));
+    } catch (err) {
+      console.error(
+        `[inscriptum] Could not verify disk content of "${file.path}" while blocking an empty save:`,
+        err,
+      );
+    }
+
+    if (!diskHasContent) return false;
+
+    new Notice(
+      "Save blocked: the editor is empty but the file on disk has content. Reopen the note to restore it.",
+      8000,
+    );
+    console.warn(`[inscriptum] Blocked an empty-note overwrite of "${file.path}"`);
+    return true;
+  }
+
   private async overwriteFileFromEditor(): Promise<void> {
     if (!this.editor || !this.file || this.editor.isDestroyed) return;
     try {
       const json = this.editor.getJSON();
       const raw = JSON.stringify(json, null, 2);
+      if (await this.blockEmptyOverwrite(json)) return;
       await writeNote(this.file, this.app.vault, json);
       this.syncedRaw = raw;
       this.dirty = false;
