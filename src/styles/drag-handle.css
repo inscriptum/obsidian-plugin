@@ -1,0 +1,91 @@
+/* ═══════════════════════════════════════════════════════════════
+   Block drag & drop (desktop only) — floating drag handle + drop
+   line indicator. The handle is appended to the .texto-editor scroll
+   container (see extensions/drag-handle/dragHandlePlugin.ts), so
+   the container must be positioned; the handle is placed in content
+   coordinates and scrolls glued to its block.
+   ═══════════════════════════════════════════════════════════════ */
+
+.texto-editor {
+  position: relative;
+}
+
+.note .texto-drag-handle {
+  position: absolute;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  /* Height comes from the unit's first text line (inline style, see
+     dragHandlePlugin.ts positionHandle); this is the fallback. */
+  height: 24px;
+  box-sizing: border-box;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-faint, #8a8a98);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  /* Hidden handle must never intercept clicks in the gutter. */
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 100ms ease;
+}
+
+.note .texto-drag-handle.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.note .texto-drag-handle.is-dragging {
+  cursor: grabbing;
+  color: var(--text-normal, #dadada);
+}
+
+.note .texto-drag-handle svg {
+  width: 16px;
+  height: 16px;
+  display: block;
+  pointer-events: none;
+}
+
+.note .texto-drag-handle:hover {
+  color: var(--text-normal, #dadada);
+  background: rgba(128, 128, 140, .16);
+}
+
+/* Drop line — widget decoration at the snapped insertion position
+   (see dragHandlePlugin.ts decorations). Zero height so it never
+   shifts the layout; drawn as a horizontal line between blocks. */
+.note .texto-drag-drop-line {
+  display: block;
+  width: 100%;
+  height: 0;
+  border-top: 2px solid var(--accent-2, #b3a3f7);
+  border-radius: 1px;
+  margin: -1px 0;
+  pointer-events: none;
+}
+
+/* The dragged unit itself: outline + ghost dim, so it is always clear
+   what is being carried and where it will land (node decoration,
+   see dragHandlePlugin.ts decorations). */
+.note .texto-drag-source {
+  outline: 2px solid var(--accent-2, #b3a3f7);
+  outline-offset: -2px;
+  border-radius: 4px;
+  opacity: .55;
+}
+
+/* prosemirror-dropcursor overlay (see extensions/dropcursor) — used by
+   native drags (files, text from other apps). Color comes from the theme;
+   the plugin element carries .texto-drop-cursor plus
+   prosemirror-dropcursor-block/inline. */
+.ProseMirror-dropcursor.texto-drop-cursor {
+  background: var(--accent-2, #b3a3f7);
+  border-radius: 1px;
+}

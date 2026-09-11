@@ -21,6 +21,8 @@ import { Bold } from './extensions/bold';
 import { BulletList } from './extensions/bullet-list';
 import { Code } from './extensions/code';
 import { Gapcursor } from './extensions/gapcursor';
+import { Dropcursor } from './extensions/dropcursor';
+import { DragHandle } from './extensions/drag-handle';
 import { HardBreak } from './extensions/hard-break';
 import { Heading } from './extensions/heading';
 import { HeadingFolding } from './extensions/heading/folding';
@@ -97,6 +99,11 @@ export function getExtensions(
     HeadingFolding.configure({
       enabled: options.isMobileView !== true,
     }),
+    // Desktop-only: drag & drop reordering of top-level blocks (floating
+    // drag handle; canonical PM move-drag + dropcursor insertion indicator).
+    DragHandle.configure({
+      enabled: options.isMobileView !== true,
+    }),
     Blockquote,
     BulletList,
     OrderedList,
@@ -110,6 +117,9 @@ export function getExtensions(
     Code,
     Underline,
     Gapcursor,
+    // Insertion indicator while dragging (canonical prosemirror-dropcursor;
+    // harmless on mobile where no drag ever starts).
+    Dropcursor,
     Highlight.configure({ multicolor: true }),
     HorizontalRule,
     History,
