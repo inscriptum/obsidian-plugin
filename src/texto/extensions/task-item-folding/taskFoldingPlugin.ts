@@ -39,7 +39,13 @@ export type TaskFoldingMeta =
   | { type: 'toggle'; pos: number }
   | { type: 'fold'; pos: number }
   | { type: 'unfold'; pos: number }
-  | { type: 'restore'; positions: number[] };
+  | { type: 'restore'; positions: number[] }
+  /** Complete replacement of the fold set for one transaction: positions
+   *  are already computed against the transaction's NEW doc. Sent by the
+   *  drag & drop block move (see extensions/drag-handle) — a move deletes
+   *  the folded unit and re-inserts it elsewhere, which plain position
+   *  mapping cannot follow. */
+  | { type: 'setFolds'; positions: number[] };
 
 export interface TaskFoldingState {
   /** Positions (doc offsets, before the node) of folded task items. */
@@ -81,6 +87,27 @@ export function createTaskFoldingPlugin(
       init: (): TaskFoldingState => ({ folded: new Set() }),
 
       apply(tr, value): TaskFoldingState {
+        const meta = tr.getMeta(taskFoldingKey) as TaskFoldingMeta | undefined;
+
+        // setFolds: the sender already mapped every fold against this
+        // transaction's new doc — skip the generic remap below, which
+        // cannot follow content that was deleted and re-inserted
+        // elsewhere (the drag & drop block move).
+        if (meta?.type === 'setFolds') {
+          const next = new Set<number>();
+          for (const pos of meta.positions) {
+            const node = tr.doc.nodeAt(pos);
+            if (
+              node != null &&
+              node.type.name === taskItemTypeName &&
+              node.childCount > 1
+            ) {
+              next.add(pos);
+            }
+          }
+          return { folded: next };
+        }
+
         let folded = value.folded;
 
         // Map positions through the transaction (keeps folds while editing).
@@ -111,8 +138,6 @@ export function createTaskFoldingPlugin(
           }
           folded = next;
         }
-
-        const meta = tr.getMeta(taskFoldingKey) as TaskFoldingMeta | undefined;
 
         if (meta != null) {
           const next = new Set(folded);

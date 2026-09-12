@@ -35,7 +35,14 @@ export type HeadingFoldingMeta =
   | { type: 'toggle'; pos: number }
   | { type: 'fold'; pos: number }
   | { type: 'unfold'; pos: number }
-  | { type: 'restore'; positions: number[] };
+  | { type: 'restore'; positions: number[] }
+  /** Complete replacement of the fold set for one transaction: positions
+   *  are already computed against the transaction's NEW doc. Sent by the
+   *  drag & drop block move (see extensions/drag-handle) — a move deletes
+   *  the folded unit and re-inserts it elsewhere, which plain position
+   *  mapping cannot follow (a fold at the vacated position would
+   *  silently transfer onto whatever node lands there). */
+  | { type: 'setFolds'; positions: number[] };
 
 export interface HeadingFoldingState {
   /** Positions (doc offsets) of folded heading nodes. */
@@ -79,6 +86,25 @@ export function createHeadingFoldingPlugin(
       init: (): HeadingFoldingState => ({ folded: new Set() }),
 
       apply(tr, value): HeadingFoldingState {
+        const meta = tr.getMeta(headingFoldingKey) as
+          | HeadingFoldingMeta
+          | undefined;
+
+        // setFolds: the sender already mapped every fold against this
+        // transaction's new doc — skip the generic remap below, which
+        // cannot follow content that was deleted and re-inserted
+        // elsewhere (the drag & drop block move).
+        if (meta?.type === 'setFolds') {
+          const next = new Set<number>();
+          for (const pos of meta.positions) {
+            const node = tr.doc.nodeAt(pos);
+            if (node != null && node.type.name === headingTypeName) {
+              next.add(pos);
+            }
+          }
+          return { folded: next };
+        }
+
         let folded = value.folded;
 
         // Map positions through the transaction (keeps folds while editing).
@@ -102,10 +128,6 @@ export function createHeadingFoldingPlugin(
           }
           folded = next;
         }
-
-        const meta = tr.getMeta(headingFoldingKey) as
-          | HeadingFoldingMeta
-          | undefined;
 
         if (meta != null) {
           const next = new Set(folded);

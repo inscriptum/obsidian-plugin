@@ -84,8 +84,9 @@
 /* prosemirror-dropcursor overlay (see extensions/dropcursor) — used by
    native drags (files, text from other apps). Color comes from the theme;
    the plugin element carries .texto-drop-cursor plus
-   prosemirror-dropcursor-block/inline. */
-.ProseMirror-dropcursor.texto-drop-cursor {
+   prosemirror-dropcursor-block/inline (no ProseMirror-dropcursor class —
+   the canonical upstream name — is ever set, so don't target it). */
+.note .texto-drop-cursor {
   background: var(--accent-2, #b3a3f7);
   border-radius: 1px;
 }

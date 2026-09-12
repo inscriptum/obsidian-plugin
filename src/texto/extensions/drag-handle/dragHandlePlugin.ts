@@ -1,7 +1,24 @@
 import type { Node as PMNode } from 'prosemirror-model';
 import { dropPoint } from 'prosemirror-transform';
-import { NodeSelection, Plugin, PluginKey, Selection } from 'prosemirror-state';
+import {
+  NodeSelection,
+  Plugin,
+  PluginKey,
+  Selection,
+  type EditorState,
+  type Transaction,
+} from 'prosemirror-state';
 import { Decoration, DecorationSet, type EditorView } from 'prosemirror-view';
+import {
+  collectHeadingSections,
+  headingFoldingKey,
+  type HeadingFoldingMeta,
+  type HeadingSectionRange,
+} from '../heading/foldingPlugin';
+import {
+  taskFoldingKey,
+  type TaskFoldingMeta,
+} from '../task-item-folding/taskFoldingPlugin';
 
 /**
  * Block drag & drop — a floating drag handle for top-level blocks.
@@ -21,8 +38,16 @@ import { Decoration, DecorationSet, type EditorView } from 'prosemirror-view';
  *  - list items (listItem / taskItem) drag INDIVIDUALLY — dropping an item
  *    between items of another list inserts it there (dropPoint), dropping
  *    it onto the doc level wraps it into a new list (dropPoint pass 2);
- *    a source list emptied by the move disappears (deleteSelection trims it);
- *  - everything else drags as the whole top-level block.
+ *    a source list emptied by the move disappears (deleteRange trims it);
+ *  - everything else drags as the whole top-level block;
+ *  - a COLLAPSED heading drags together with its (hidden) section body —
+ *    folding is decoration-based (the doc is never mutated, see
+ *    heading/foldingPlugin.ts), so a section's body is ordinary sibling
+ *    content and must be included in the move manually (expandThroughFolds).
+ *    Task item bodies live INSIDE the item node, so they move with it
+ *    automatically; their fold positions are re-seated by the move
+ *    (remapFoldsAfterMove) — plain position mapping cannot follow content
+ *    that is deleted and re-inserted elsewhere.
  *
  * Drop indicator: while dragging, the plugin draws a thin line at the
  * snapped insertion position via a widget decoration (the canonical
@@ -123,21 +148,131 @@ function findItemAncestor(doc: PMNode, pos: number): { node: PMNode; from: numbe
   return null;
 }
 
+interface FoldedHeadingInfo {
+  block: DraggableBlock;
+  /** Doc range of the collapsed section (heading + hidden body). */
+  range: { from: number; to: number };
+  section: HeadingSectionRange;
+}
+
+/** The collapsed heading section that CONTAINS `pos` (pos inside the
+ *  heading or inside its hidden body), null when no fold covers it.
+ *  Heading folding is decoration-based, so from the drag plugin's view a
+ *  collapsed section is state in headingFoldingKey plus a doc range. */
+function foldedHeadingAt(
+  doc: PMNode,
+  folded: Set<number> | undefined,
+  pos: number,
+  excludedTypes: readonly string[],
+): FoldedHeadingInfo | null {
+  if (folded == null || folded.size === 0) {
+    return null;
+  }
+  for (const section of collectHeadingSections(doc, 'heading')) {
+    if (!folded.has(section.headingPos)) {
+      continue;
+    }
+    const from = section.headingPos;
+    const to = section.body != null ? section.body.to : section.headingEnd;
+    if (pos >= from && pos <= to) {
+      const node = doc.nodeAt(from);
+      if (node == null || excludedTypes.includes(node.type.name)) {
+        return null;
+      }
+      return {
+        block: { node, from, to: from + node.nodeSize },
+        range: { from, to },
+        section,
+      };
+    }
+  }
+  return null;
+}
+
+/** Extend a resolved unit through collapsed regions so the whole visible
+ *  unit moves as one:
+ *  - a folded heading extends to its section body end (the body is
+ *    sibling content hidden by decorations — see heading/foldingPlugin.ts);
+ *  - a unit inside another heading's collapsed body extends up to that
+ *    section's range; dragging a hidden block must carry its whole section
+ *    (the visible unit is the folded heading).
+ *
+ * `node` stays the section's heading: the dragged unit is identified by
+ * what the user sees and grabs (the collapsed heading), while `from`/`to`
+ * cover the full range that must move. */
+function expandThroughFolds(
+  doc: PMNode,
+  folded: Set<number> | undefined,
+  block: DraggableBlock,
+  excludedTypes: readonly string[],
+): DraggableBlock {
+  const info = foldedHeadingAt(doc, folded, block.from, excludedTypes);
+  if (info == null) {
+    return block;
+  }
+  // block.from is inside the collapsed section: whether it is the folded
+  // heading itself or a block of its hidden body, the whole section is the
+  // draggable unit (the heading is what the user sees and grabs).
+  return { node: info.block.node, from: info.range.from, to: info.range.to };
+}
+
+/** The collapsed heading section covering `pos` as a plain range, for the
+ *  gutter lookup: null when no fold covers the position; `headingPos` is
+ *  the section's heading start, `from`/`to` the full section range. */
+function collapsedHeadingRange(
+  doc: PMNode,
+  folded: Set<number> | undefined,
+  pos: number,
+): { headingPos: number; from: number; to: number } | null {
+  if (folded == null || folded.size === 0) {
+    return null;
+  }
+  for (const section of collectHeadingSections(doc, 'heading')) {
+    if (!folded.has(section.headingPos)) {
+      continue;
+    }
+    const from = section.headingPos;
+    const to = section.body != null ? section.body.to : section.headingEnd;
+    if (pos >= from && pos < to) {
+      return { headingPos: from, from, to };
+    }
+  }
+  return null;
+}
+
 /**
  * The draggable unit at the given doc position:
  *  - a position inside a list/task item resolves to that individual item;
  *  - any other nested structure (table cell, blockquote) resolves up to
  *    the whole top-level block;
  *  - a position on the border between two top-level blocks picks the
- *    following one (or the last block at doc end).
+ *    following one (or the last block at doc end);
+ *  - a collapsed heading (or a position inside its hidden body) resolves
+ *    to the whole section: the heading plus the hidden body move together.
  */
 export function findDraggableBlock(
   doc: PMNode,
   pos: number,
   excludedTypes: readonly string[] = DRAG_HANDLE_EXCLUDED_TYPES,
+  state?: EditorState,
 ): DraggableBlock | null {
   if (pos < 0 || pos > doc.content.size) {
     return null;
+  }
+
+  // A collapsed heading section owns every position it covers — check
+  // BEFORE the general resolution, which would otherwise pick an inner
+  // block of the hidden body.
+  if (state != null) {
+    const folded = foldedHeadingAt(
+      doc,
+      headingFoldingKey.getState(state)?.folded,
+      pos,
+      excludedTypes,
+    );
+    if (folded != null) {
+      return { node: folded.block.node, from: folded.range.from, to: folded.range.to };
+    }
   }
 
   const $pos = doc.resolve(pos);
@@ -166,7 +301,16 @@ export function findDraggableBlock(
     return null;
   }
 
-  return { node, from, to: from + node.nodeSize };
+  const block: DraggableBlock = { node, from, to: from + node.nodeSize };
+  if (state == null) {
+    return block;
+  }
+  return expandThroughFolds(
+    doc,
+    headingFoldingKey.getState(state)?.folded,
+    block,
+    excludedTypes,
+  );
 }
 
 export interface DragHandleState {
@@ -191,7 +335,6 @@ type DragHandleMeta =
 export function startDragWithBlock(
   view: EditorView,
   block: DraggableBlock,
-  _dataTransfer: DataTransfer | null,
 ): boolean {
   const { from } = block;
 
@@ -210,11 +353,76 @@ export function startDragWithBlock(
   return true;
 }
 
+/** Re-seat fold state for a finished block move — delete + re-insert
+ *  defeats the folding plugins' position mapping (a fold at the vacated
+ *  position would silently transfer onto whatever node lands there, and
+ *  folds inside the moved unit would be lost). Runs against the move
+ *  transaction's FINAL doc:
+ *  - folds inside the dragged unit follow it to its new location, anchored
+ *    by finding the moved unit in tr.doc (wrapping — an item dropped at the
+ *    doc level lands inside a new list — shifts the anchor by ±1);
+ *  - all other folds map through the transaction normally.
+ *  Returns the metas to attach to the SAME transaction (setFolds), or null
+ *  when there is nothing to fix. */
+function buildFoldRemapMetas(
+  state: EditorState,
+  tr: Transaction,
+  block: DraggableBlock,
+  insertPos: number,
+): { heading: HeadingFoldingMeta; task: TaskFoldingMeta } | null {
+  const headingFolds = headingFoldingKey.getState(state)?.folded;
+  const taskFolds = taskFoldingKey.getState(state)?.folded;
+  if (
+    (headingFolds == null || headingFolds.size === 0) &&
+    (taskFolds == null || taskFolds.size === 0)
+  ) {
+    return null;
+  }
+
+  // Find the moved unit in tr.doc: the slice's first node, searched in the
+  // insertion neighborhood (+2: a wrapper node may have been added).
+  const first = block.node;
+  let anchor: number | null = null;
+  const searchEnd = Math.min(insertPos + block.to - block.from + 2, tr.doc.content.size);
+  if (insertPos <= tr.doc.content.size) {
+    tr.doc.nodesBetween(insertPos, searchEnd, (node, pos) => {
+      if (anchor == null && node.eq(first)) {
+        anchor = pos;
+      }
+      return anchor == null;
+    });
+  }
+
+  const headingNext = new Set<number>();
+  const taskNext = new Set<number>();
+  const seat = (folds: Set<number>, next: Set<number>) => {
+    for (const pos of folds) {
+      if (pos >= block.from && pos < block.to) {
+        if (anchor != null) {
+          next.add(anchor + (pos - block.from));
+        }
+        continue;
+      }
+      const result = tr.mapping.mapResult(pos);
+      if (!result.deleted) {
+        next.add(result.pos);
+      }
+    }
+  };
+  if (headingFolds != null) seat(headingFolds, headingNext);
+  if (taskFolds != null) seat(taskFolds, taskNext);
+
+  return {
+    heading: { type: 'setFolds', positions: Array.from(headingNext) },
+    task: { type: 'setFolds', positions: Array.from(taskNext) },
+  };
+}
+
 /**
  * Apply the block move — the same steps as ProseMirror's default drop
- * (editHandlers.drop): snap with dropPoint, delete the source selection,
+ * (editHandlers.drop): snap with dropPoint, delete the source range,
  * insert the slice at the mapped position, then set the selection to the
- * inserted node.
+ * inserted node. The move carries fold state along (buildFoldRemapMetas).
  */
 export function performBlockMove(
   view: EditorView,
@@ -230,11 +438,12 @@ export function performBlockMove(
   const slice = doc.slice(block.from, block.to);
   const tr = view.state.tr;
 
-  // Move semantics (like `view.dragging = { slice, move: true }`): select
-  // the dragged unit and delete it — deleteSelection trims empty ancestors
-  // (a source list emptied by the move disappears).
-  tr.setSelection(NodeSelection.create(doc, block.from));
-  tr.deleteSelection();
+  // Move semantics (like `view.dragging = { slice, move: true }`): delete
+  // the dragged unit's whole range — deleteRange (not deleteSelection)
+  // because a collapsed heading section spans several sibling blocks;
+  // deleteRange also trims empty ancestors (a source list emptied by the
+  // move disappears).
+  tr.deleteRange(block.from, block.to);
 
   // Insert at the snapped position (mapped through the deletion).
   // replaceRange (not replaceRangeWith): it fits/wraps the content into
@@ -258,6 +467,13 @@ export function performBlockMove(
     tr.setSelection(Selection.near($after));
   }
 
+  // Fold state must follow the moved content (see buildFoldRemapMetas).
+  const remap = buildFoldRemapMetas(view.state, tr, block, pos);
+  if (remap != null) {
+    tr.setMeta(headingFoldingKey, remap.heading);
+    tr.setMeta(taskFoldingKey, remap.task);
+  }
+
   tr.setMeta(dragHandleKey, { type: 'dragEnd' } satisfies DragHandleMeta);
   view.focus();
   view.dispatch(tr);
@@ -266,6 +482,29 @@ export function performBlockMove(
 
 export interface DragHandlePluginOptions {
   excludedTypes: readonly string[];
+}
+
+/** Outline decorations for the dragged unit: one node decoration per
+ *  whole top-level block inside [from, to) (a collapsed heading section
+ *  spans several siblings; node decorations must cover exactly one node).
+ *  Non-heading units are single nodes, so this yields one decoration. */
+function dragSourceDecorations(
+  doc: PMNode,
+  block: DraggableBlock,
+): Decoration[] {
+  const decorations: Decoration[] = [];
+  doc.nodesBetween(block.from, block.to, (node, pos) => {
+    if (node.isBlock && pos >= block.from && pos + node.nodeSize <= block.to) {
+      decorations.push(
+        Decoration.node(pos, pos + node.nodeSize, {
+          class: DRAG_HANDLE_CSS.dragSource,
+        }),
+      );
+      return false;
+    }
+    return true;
+  });
+  return decorations;
 }
 
 /**
@@ -302,7 +541,7 @@ export function createDragHandlePlugin(
 
     state: {
       init: (): DragHandleState => ({ drag: null }),
-      apply(tr, value): DragHandleState {
+      apply(tr, value, oldState): DragHandleState {
         const meta = tr.getMeta(dragHandleKey) as DragHandleMeta | undefined;
         if (meta?.type === 'dragStart') {
           return { drag: { block: meta.block, insertPos: meta.block.from } };
@@ -320,11 +559,45 @@ export function createDragHandlePlugin(
           if (fromResult.deleted) {
             return { drag: null };
           }
-          const block = {
-            node: tr.doc.nodeAt(fromResult.pos)!,
+          // The unit may itself have been edited into a different node —
+          // nodeAt can return null at the doc end or a text node there;
+          // either way the drag target is gone, drop the drag instead of
+          // crashing inside apply (a thrown error would brick the editor).
+          const mappedNode = tr.doc.nodeAt(fromResult.pos);
+          if (mappedNode == null || !mappedNode.eq(value.drag.block.node)) {
+            return { drag: null };
+          }
+          let block: DraggableBlock = {
+            node: mappedNode,
             from: fromResult.pos,
-            to: fromResult.pos + tr.doc.nodeAt(fromResult.pos)!.nodeSize,
+            to: fromResult.pos + mappedNode.nodeSize,
           };
+          // A collapsed heading section spans several sibling blocks, so
+          // only its heading range maps cleanly here — re-expand the range
+          // through the folds (mapped through this transaction, the same
+          // mapResult rule the heading folding plugin itself uses) to keep
+          // covering the whole section.
+          if (block.to < value.drag.block.to && mappedNode.type.name === 'heading') {
+            const prevFolded = headingFoldingKey.getState(oldState)?.folded;
+            const mapped = new Set<number>();
+            if (prevFolded != null) {
+              for (const pos of prevFolded) {
+                const result = tr.mapping.mapResult(pos);
+                if (!result.deleted) {
+                  mapped.add(result.pos);
+                }
+              }
+            }
+            const expanded = expandThroughFolds(
+              tr.doc,
+              mapped,
+              block,
+              [] as readonly string[],
+            );
+            if (expanded.to > block.to) {
+              block = expanded;
+            }
+          }
           const insertPos = value.drag.insertPos == null
             ? null
             : tr.mapping.map(value.drag.insertPos);
@@ -353,12 +626,13 @@ export function createDragHandlePlugin(
             { side: -1, key: `texto-drag-drop-line-${drag.insertPos}` },
           ),
           // Outline around the dragged unit while it moves — the user must
-          // always see what is being carried and where it will land.
-          Decoration.node(
-            drag.block.from,
-            drag.block.to,
-            { class: DRAG_HANDLE_CSS.dragSource },
-          ),
+          // always see what is being carried and where it will land. A
+          // collapsed heading section spans several SIBLING blocks, and a
+          // node decoration must cover exactly one whole node (view's
+          // NodeType.valid rejects partial ranges) — so outline every
+          // top-level block of the range, like the fold plugin's own hide
+          // decorations; the hidden blocks carry no visual box anyway.
+          ...dragSourceDecorations(state.doc, drag.block),
         ];
         return DecorationSet.create(state.doc, decorations);
       },
@@ -436,10 +710,15 @@ function createDragHandleView(
 
   /** The block at the pointer Y in the gutter — the deepest list item whose
    *  line contains Y, else the top-level block whose rect contains Y.
-   *  Items are collected at EVERY nesting level (subtasks included). */
+   *  Items are collected at EVERY nesting level (subtasks included).
+   *  Collapsed heading sections resolve to the whole section (heading +
+   *  hidden body): the hidden blocks carry no DOM box (display:none), so
+   *  they are skipped as lookup targets and the heading's strip owns the
+   *  section; dragging it must carry the hidden body along. */
   const blockByVerticalLookup = (y: number): DraggableBlock | null => {
     const doc = view.state.doc;
     const units: { block: DraggableBlock; top: number; bottom: number }[] = [];
+    const folded = headingFoldingKey.getState(view.state)?.folded;
 
     const pushItemStrip = (block: DraggableBlock) => {
       units.push({ block, top: Number.NaN, bottom: Number.NaN });
@@ -477,11 +756,17 @@ function createDragHandleView(
       const dom = blockDomAt(view, pos);
       if (dom != null) {
         const rect = dom.getBoundingClientRect();
-        units.push({
-          block: { node, from: pos, to: pos + node.nodeSize },
-          top: rect.top,
-          bottom: rect.bottom,
-        });
+        // Skip blocks hidden inside a collapsed heading section (they
+        // have no visible box; the section's heading below owns them). A
+        // section's own heading is added AFTER, expanded to the full range.
+        const section = collapsedHeadingRange(doc, folded, pos);
+        if (section == null || section.headingPos === pos) {
+          const block: DraggableBlock =
+            section != null
+              ? { node, from: section.from, to: section.to }
+              : { node, from: pos, to: pos + node.nodeSize };
+          units.push({ block, top: rect.top, bottom: rect.bottom });
+        }
       }
       collectItems(node, pos);
     });
@@ -568,6 +853,7 @@ function createDragHandleView(
           view.state.doc,
           posResult.pos,
           options.excludedTypes,
+          view.state,
         );
         // Only an enclosing-list resolution (the parent list of an item)
         // must not steal the hover from the item while on its line.
@@ -601,6 +887,7 @@ function createDragHandleView(
       view.state.doc,
       posResult.pos,
       options.excludedTypes,
+      view.state,
     );
     if (block == null) {
       hide();
@@ -643,19 +930,160 @@ function createDragHandleView(
     event.preventDefault();
   };
 
+  /** The drop target position for a pointer at (clientX, clientY).
+   *
+   *  Like PM's default drop, the target snaps to block boundaries via
+   *  dropPoint; the raw position comes from two sources:
+   *   1. posAtCoords when the pointer is over the content — the canonical
+   *      path (same as editHandlers.drop);
+   *   2. the gutter-fallback when posAtCoords returns null: the pointer is
+   *      LEFT of the content (where the handle lives and where drags are
+   *      usually held). The top-level block whose vertical strip contains
+   *      the pointer Y is found geometrically (like blockByVerticalLookup,
+   *      but boundaries-only and outside the dragged range: hidden blocks
+   *      of collapsed sections have no box and must not become targets),
+   *      and the boundary before/after it by the half of its height. */
   const resolveInsertPos = (
     block: DraggableBlock,
     clientX: number,
     clientY: number,
   ): number | null => {
+    const doc = view.state.doc;
+    let pos: number | null = null;
+
     const posResult = view.posAtCoords({ left: clientX, top: clientY });
-    if (posResult == null) {
+    if (posResult != null) {
+      pos = posResult.pos;
+    } else {
+      pos = gutterDropPos(block, clientY);
+    }
+    if (pos == null) {
       return null;
     }
-    const doc = view.state.doc;
+
     const slice = doc.slice(block.from, block.to);
-    // Same snap as PM's default drop: block boundaries via dropPoint.
-    return dropPoint(doc, posResult.pos, slice);
+    // A collapsed heading section hides its body (posAtCoords may hit
+    // the hidden blocks' stale rects), so the raw position is biased back
+    // to the nearest boundary OUTSIDE the dragged range — dropping onto
+    // the dragged section itself must cancel, not split it.
+    if (pos > block.from && pos < block.to) {
+      pos = pos - block.from <= block.to - pos ? block.from : block.to;
+    }
+    return dropPoint(doc, pos, slice);
+  };
+
+  /** Boundary position for a pointer in the gutter (posAtCoords is null
+   *  there): the unit whose vertical strip contains Y — top-level blocks
+   *  and, deeper, list/task items at every nesting level (their strips are
+   *  resolved like the hover lookup) — then the boundary before/after the
+   *  found unit by the half of its height. Collapsed section members have
+   *  no visible box and resolve through their section's heading; units
+   *  inside the dragged range yield no target (the drop cancels). */
+  const gutterDropPos = (
+    block: DraggableBlock,
+    clientY: number,
+  ): number | null => {
+    const doc = view.state.doc;
+    const folded = headingFoldingKey.getState(view.state)?.folded;
+
+    type DropTarget = { pos: number; size: number; top: number; bottom: number; isItem: boolean };
+    const targets: DropTarget[] = [];
+    const consider = (
+      pos: number,
+      size: number,
+      rect: { top: number; bottom: number },
+      isItem: boolean,
+    ) => {
+      if (
+        clientY < rect.top - LINE_STICKY_TOLERANCE ||
+        clientY > rect.bottom + LINE_STICKY_TOLERANCE
+      ) {
+        return;
+      }
+      targets.push({ pos, size, top: rect.top, bottom: rect.bottom, isItem });
+    };
+
+    const itemDomRect = (block: DraggableBlock): { top: number; bottom: number } | null => {
+      // An item's own DOM rect covers its nested content too (the hidden
+      // subtask list is display:none inside it) — the first LINE is the
+      // grab strip, resolved like hoveredStrip.
+      return hoveredStrip(block);
+    };
+
+    const collectItems = (node: PMNode, pos: number) => {
+      if (
+        node.type.name === 'bulletList' ||
+        node.type.name === 'orderedList' ||
+        node.type.name === 'taskList'
+      ) {
+        let itemPos = pos + 1;
+        node.content.content.forEach((item) => {
+          const rect = itemDomRect({ node: item, from: itemPos, to: itemPos + item.nodeSize });
+          if (rect != null) {
+            consider(itemPos, item.nodeSize, rect, true);
+          }
+          item.content.content.forEach((child, i) => {
+            if (
+              child.type.name === 'bulletList' ||
+              child.type.name === 'orderedList' ||
+              child.type.name === 'taskList'
+            ) {
+              collectItems(
+                child,
+                itemPos + 1 + item.content.content.slice(0, i).reduce((s, n) => s + n.nodeSize, 0),
+              );
+            }
+          });
+          itemPos += item.nodeSize;
+        });
+      }
+    };
+
+    doc.forEach((node, pos) => {
+      if (options.excludedTypes.includes(node.type.name)) {
+        return;
+      }
+      // A block inside a collapsed section has no visible box; the
+      // section's heading owns its strip (dragging that whole section
+      // cancels via the inside-range check).
+      const section = collapsedHeadingRange(doc, folded, pos);
+      if (section != null && section.headingPos !== pos) {
+        return;
+      }
+      const dom = blockDomAt(view, pos);
+      if (dom != null) {
+        consider(pos, node.nodeSize, dom.getBoundingClientRect(), false);
+      }
+      collectItems(node, pos);
+    });
+
+    // Pick the drop target: the deepest item wins; among items (and among
+    // blocks) the one whose strip center is closest to Y.
+    let best: DropTarget | null = null;
+    for (const target of targets) {
+      if (best == null) {
+        best = target;
+        continue;
+      }
+      const targetDist = Math.abs((target.top + target.bottom) / 2 - clientY);
+      const bestDist = Math.abs((best.top + best.bottom) / 2 - clientY);
+      if (
+        (target.isItem && !best.isItem) ||
+        (target.isItem === best.isItem && targetDist < bestDist)
+      ) {
+        best = target;
+      }
+    }
+    if (best == null) {
+      return null;
+    }
+    const isAfter = clientY > (best.top + best.bottom) / 2;
+    const boundary = isAfter ? best.pos + best.size : best.pos;
+    // Dropping onto the dragged unit's own range cancels (finishDrag).
+    if (boundary >= block.from && boundary <= block.to) {
+      return null;
+    }
+    return boundary;
   };
 
   const onHandlePointerMove = (event: PointerEvent) => {
@@ -698,9 +1126,7 @@ function createDragHandleView(
     const wasActive = dragActive;
     dragBlock = null;
     dragStartPoint = null;
-    if (dragActive) {
-      dragActive = false;
-    }
+    dragActive = false;
     try {
       handle.releasePointerCapture(event.pointerId);
     } catch {
@@ -716,8 +1142,7 @@ function createDragHandleView(
         insertPos != null &&
         insertPos >= block.from &&
         insertPos <= block.to;
-      if (insertPos != null && !insideSelf) {
-        performBlockMove(view, block, insertPos);
+      if (insertPos != null && !insideSelf && performBlockMove(view, block, insertPos)) {
         return;
       }
     }
@@ -803,13 +1228,13 @@ function blockDomAt(view: EditorView, from: number): Element | null {
   return child != null && child.instanceOf(Element) ? child : null;
 }
 
-  /**
-   * The left edge of the unit's CONTENT (viewport x): for list/task items the
-   * text start of their first line, for everything else the block's own left
-   * edge. The hover-sticky left zone spans from the content edge leftwards —
-   * it covers the gutter, list markers and the checkbox/label column.
-   */
-  function contentLeftOf(view: EditorView, from: number, node: PMNode): number {
+/**
+ * The left edge of the unit's CONTENT (viewport x): for list/task items the
+ * text start of their first line, for everything else the block's own left
+ * edge. The hover-sticky left zone spans from the content edge leftwards —
+ * it covers the gutter, list markers and the checkbox/label column.
+ */
+function contentLeftOf(view: EditorView, from: number, node: PMNode): number {
     if (DRAG_HANDLE_ITEM_TYPES.includes(node.type.name)) {
       const block: DraggableBlock = { node, from, to: from + node.nodeSize };
       const textPos = firstTextPos(block);

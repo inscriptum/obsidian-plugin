@@ -189,30 +189,13 @@ describe('findDraggableBlock', () => {
 });
 
 describe('pointer drag flow', () => {
-  function fakeDataTransfer(): DataTransfer {
-    const store = new Map<string, string>();
-    return {
-      effectAllowed: 'uninitialized',
-      dropEffect: 'none',
-      files: [] as unknown as FileList,
-      items: [] as unknown as DataTransferItemList,
-      types: [],
-      setData: (type: string, value: string) => {
-        store.set(type, value);
-      },
-      getData: (type: string) => store.get(type) ?? '',
-      setDragImage: () => undefined,
-      clearData: () => store.clear(),
-    } as unknown as DataTransfer;
-  }
-
   it('startDragWithBlock selects the unit and activates the drag state', () => {
     const { editor, positions } = useFixture();
     const view = editor.view;
     const doc = editor.state.doc;
 
-    const block = findDraggableBlock(doc, positions[1] + 1)!;
-    const started = startDragWithBlock(view, block, fakeDataTransfer());
+    const block = findDraggableBlock(doc, positions[1] + 1, undefined, editor.state)!;
+    const started = startDragWithBlock(view, block);
 
     expect(started).toBe(true);
     // The dragged unit is selected (visible feedback like PM's move-drag).
