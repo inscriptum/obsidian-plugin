@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>drag handle harness</title>
+<link rel="stylesheet" href="../dist-harness/styles.css">
+<style>
+  /* Minimal stand-ins for the Obsidian theme variables the styles use. */
+  :root {
+    --text-faint: #8a8a98;
+    --text-normal: #dadada;
+    --accent-2: #b3a3f7;
+    --font-semibold: 600;
+    --size-2-2: 8px;
+    --size-4-2: 16px;
+    --size-4-4: 16px;
+  }
+  body { background: #1e1e1e; color: #dadada; margin: 0; font-family: sans-serif; }
+  #app { max-width: 720px; margin: 40px auto; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script type="module">
+  const { getExtensions, Editor, headingFoldingKey, taskFoldingKey } =
+    await import('../dist-harness/harness.js');
+
+  const content = {
+    type: 'noteDoc',
+    content: [
+      { type: 'noteTitle', content: [{ type: 'text', text: 'Title' }] },
+      { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'S1' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: 'one one one' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: 'one-b one-b one-b' }] },
+      { type: 'heading', attrs: { level: 1 }, content: [{ type: 'text', text: 'S2' }] },
+      { type: 'paragraph', content: [{ type: 'text', text: 'two two two' }] },
+    ],
+  };
+
+  const host = document.querySelector('#app');
+  const note = document.createElement('div');
+  note.className = 'note';
+  const article = document.createElement('article');
+  article.className = 'texto-editor';
+  note.appendChild(article);
+  host.appendChild(note);
+
+  const editor = new Editor({
+    element: article,
+    content,
+    extensions: getExtensions({}, {}),
+    editable: true,
+    onError: (err) => console.error('EDITOR ERROR:', err),
+  });
+
+  const positions = [];
+  editor.state.doc.forEach((_, pos) => positions.push(pos));
+  console.info('HARNESS READY positions:', JSON.stringify(positions));
+
+  window.__harness = {
+    editor,
+    view: editor.view,
+    positions,
+    docJson: () => JSON.stringify(editor.state.doc.toJSON()),
+    headingFolds: () => Array.from(headingFoldingKey.getState(editor.view.state)?.folded ?? []),
+    taskFolds: () => Array.from(taskFoldingKey.getState(editor.view.state)?.folded ?? []),
+    foldHeading(pos) {
+      editor.view.dispatch(
+        editor.view.state.tr.setMeta(headingFoldingKey, { type: 'fold', pos }),
+      );
+    },
+    foldTask(pos) {
+      editor.view.dispatch(
+        editor.view.state.tr.setMeta(taskFoldingKey, { type: 'fold', pos }),
+      );
+    },
+  };
+</script>
+</body>
+</html>

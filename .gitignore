@@ -9,3 +9,5 @@ local/
 /kley.lock
 /.kley
 /docs/superpowers/
+# Browser-test harness build output (see scripts/build-harness.mjs)
+dist-harness/
