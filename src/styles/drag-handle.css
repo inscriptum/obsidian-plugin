@@ -81,6 +81,31 @@
   opacity: .55;
 }
 
+/* Fold chevrons double as drag handles (see dragHandlePlugin.ts):
+   click folds, press-and-hold turns the chevron into the drag handle,
+   press-and-move drags.
+   - is-grabbed: held (hold timer or first movement below the drag
+     threshold) — the dots handle overlay takes the chevron's place, so
+     the chevron itself hides;
+   - is-dragging: the drag is armed — grabbing cursor, accent tint.
+   The class lands on the closest .texto-*-fold-chevron / -chevron-host
+   element (either the host or the inner span, depending on hit target). */
+.note .texto-heading-fold-chevron-host.is-grabbed,
+.note .texto-heading-fold-chevron-host .texto-heading-fold-chevron.is-grabbed,
+.note .texto-task-fold-chevron.is-grabbed {
+  opacity: 0;
+  pointer-events: none; /* the dots-handle overlay owns the pointer now */
+}
+
+.note .texto-heading-fold-chevron-host.is-dragging,
+.note .texto-heading-fold-chevron-host .texto-heading-fold-chevron.is-dragging,
+.note .texto-task-fold-chevron.is-dragging {
+  cursor: grabbing;
+  color: var(--text-normal, #dadada);
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* prosemirror-dropcursor overlay (see extensions/dropcursor) — used by
    native drags (files, text from other apps). Color comes from the theme;
    the plugin element carries .texto-drop-cursor plus

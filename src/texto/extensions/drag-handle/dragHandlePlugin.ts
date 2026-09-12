@@ -83,11 +83,19 @@ export const DRAG_HANDLE_CSS = {
   dropLine: 'texto-drag-drop-line',
   /** Outline class on the dragged unit while moving. */
   dragSource: 'texto-drag-source',
-  /** Left-gutter controls that the handle must not overlap (fold chevrons). */
+  /** Left-gutter fold chevrons that double as drag grab points: a click
+   *  folds, pressing and MOVING starts a drag (see createDragHandleView).
+   *  The dots handle is hidden next to these blocks — the chevron IS the
+   *  handle there, which also solves the gutter overlap entirely. */
   gutterControls: [
     'texto-heading-fold-chevron-host',
     'texto-task-fold-chevron',
   ],
+  /** Class toggled on a fold chevron while a pointer drag from it is held:
+   *  `is-grabbed` — pressed (before the drag threshold): the chevron dims
+   *  and the dots handle takes its place; `is-dragging` — armed drag. */
+  chevronGrabbed: 'is-grabbed',
+  chevronDragging: 'is-dragging',
 } as const;
 
 /** Handle geometry — mirrored in styles/drag-handle.css. */
@@ -98,10 +106,6 @@ const HANDLE_GAP = 2;
 const HANDLE_MIN_HEIGHT = 28;
 /** Fallback line height for units whose first line cannot be measured. */
 const HANDLE_DEFAULT_HEIGHT = 24;
-/** Width of the fold-chevron strip left of a taskList (chevron host is
- *  18px + 4px offset from the label edge) — reserved so item handles never
- *  overlap the chevron and never shift between foldable/plain items. */
-const TASK_CHEVRON_ZONE = 22;
 /** Vertical tolerance when matching a pointer line to a hovered unit (px). */
 const LINE_STICKY_TOLERANCE = 6;
 /** Horizontal tolerance around the handle's left edge (px) — the sticky
@@ -675,8 +679,40 @@ function createDragHandleView(
   };
 
   const show = (block: DraggableBlock) => {
+    // Fold-chevron blocks grab by the chevron itself (click folds, press &
+    // move drags — see the delegated chevron handlers below); the dots
+    // handle would sit right next to it and duplicate the affordance.
+    if (hasGrabChevron(block)) {
+      hide();
+      return;
+    }
     positionHandle(view, handle, block, container);
     handle.classList.add(DRAG_HANDLE_CSS.visible);
+  };
+
+  /** Does the unit own a fold chevron that doubles as its drag handle?
+   *  Headings always (foldable until proven otherwise by the plugin's own
+   * state); task items only when their node view renders the chevron
+   *  (foldable: nested content present). */
+  const hasGrabChevron = (block: DraggableBlock): boolean => {
+    if (block.node.type.name === 'heading') {
+      return true;
+    }
+    if (block.node.type.name === 'taskItem') {
+      return block.node.childCount > 1;
+    }
+    return false;
+  };
+
+  /** The chevron element inside the unit's DOM, if it renders one. */
+  const findChevron = (dom: Element): Element | null => {
+    for (const className of DRAG_HANDLE_CSS.gutterControls) {
+      const el = dom.querySelector(`.${className}`);
+      if (el != null) {
+        return el;
+      }
+    }
+    return null;
   };
 
   /** The vertical hover strip of the hovered unit (viewport coords):
@@ -915,12 +951,20 @@ function createDragHandleView(
 
   // ── Pointer drag (Notion-style, no native HTML5 DnD) ──
 
+  // The element the drag was pressed on (handle or a fold chevron); needed
+  // to release capture and to style the chevron while dragging.
+  let dragSource: HTMLElement | null = null;
+  // Suppress the fold-toggle click right after a chevron-initiated drag:
+  // the DOM fires click on pointerup in the same spot even after a move.
+  let suppressChevronClickUntil = 0;
+
   const onHandlePointerDown = (event: PointerEvent) => {
     if (event.button !== 0 || hoveredBlock == null || view.isDestroyed || !view.editable) {
       return;
     }
     dragBlock = hoveredBlock;
     dragStartPoint = { x: event.clientX, y: event.clientY };
+    dragSource = handle;
     // Capture on the handle so pointermove/up keep arriving even outside.
     try {
       handle.setPointerCapture(event.pointerId);
@@ -928,6 +972,120 @@ function createDragHandleView(
       // Some environments refuse capture — document handlers cover it.
     }
     event.preventDefault();
+  };
+
+  /** Delegated on view.dom: pointerdown on a fold chevron arms a drag of
+   *  the chevron's own unit. A plain click (press+release without movement)
+   *  still folds — the fold handlers run on click, and this only records
+   *  the pending drag, canceling it on pointerup if the pointer never
+   *  crossed the drag threshold. */
+  /** After holding a chevron this long without moving, it visually turns
+ *  into the drag handle (grab look) — the user expects feedback while
+ *  holding, before any movement. Below this window a press+release is a
+ *  plain fold click. */
+  const CHEVRON_HOLD_GRAB_MS = 150;
+
+  const onChevronPointerDown = (event: PointerEvent) => {
+    if (event.button !== 0 || view.isDestroyed || !view.editable) {
+      return;
+    }
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+    const chevron = target.closest(
+      DRAG_HANDLE_CSS.gutterControls.map((c) => `.${c}`).join(', '),
+    );
+    if (chevron == null) {
+      return;
+    }
+    const block = blockByChevron(chevron);
+    if (block == null) {
+      return;
+    }
+    dragBlock = block;
+    dragStartPoint = { x: event.clientX, y: event.clientY };
+    dragSource = chevron as HTMLElement;
+    // Hold feedback: after a short hold the chevron turns into the drag
+    // handle look even before any movement. Cancelled on move/drag start.
+    scheduleHoldGrab();
+    try {
+      (chevron as HTMLElement).setPointerCapture(event.pointerId);
+    } catch {
+      // Some environments refuse capture — document handlers cover it.
+    }
+    // No preventDefault here: a plain click must still reach the fold
+    // handlers (they listen for click and check for movement themselves
+      // via the suppressed-click window below).
+  };
+
+  /** Show the grab look on the held chevron after the hold window. */
+  let holdGrabTimer: ReturnType<typeof setTimeout> | null = null;
+  /** True while the dots-handle overlay is shown over a held chevron: the
+   *  pending DOM click on release would hit the OVERLAY instead of the
+   *  chevron, so finishDrag re-dispatches it (see there). */
+  let holdGrabShown = false;
+  const scheduleHoldGrab = (): void => {
+    clearHoldGrab();
+    holdGrabTimer = setTimeout(() => {
+      holdGrabTimer = null;
+      if (dragBlock == null || dragActive || dragSource == null) {
+        return;
+      }
+      holdGrabShown = true;
+      dragSource.classList.add(DRAG_HANDLE_CSS.chevronGrabbed);
+      showHandleAtChevron(dragBlock, dragSource);
+    }, CHEVRON_HOLD_GRAB_MS);
+  };
+  const clearHoldGrab = (): void => {
+    if (holdGrabTimer != null) {
+      clearTimeout(holdGrabTimer);
+      holdGrabTimer = null;
+    }
+  };
+
+  /** The draggable unit owning a fold chevron element (viewport DOM ->
+   *  doc position -> DraggableBlock, fold-expanded like any other path).
+   *  The chevron's center is inline content of its heading/item, so
+   *  posAtCoords there resolves into the unit — the canonical path. */
+  const blockByChevron = (chevron: Element): DraggableBlock | null => {
+    if (!view.dom.contains(chevron)) {
+      return null;
+    }
+    const rect = chevron.getBoundingClientRect();
+    const center = { left: rect.left + rect.width / 2, top: rect.top + rect.height / 2 };
+    const posResult = view.posAtCoords(center);
+    let pos = posResult?.pos ?? posResult?.inside ?? null;
+    if (pos == null) {
+      return null;
+    }
+    // A chevron sits in contenteditable=false chrome (the task item's
+    // label column): posAtCoords may resolve to the doc position of the
+    // ITEM itself (its before-boundary), where resolve() has no item
+    // ancestor — findDraggableBlock would hand back the whole list.
+    // Step one position forward in that case: inside the item.
+    const doc = view.state.doc;
+    const nodeAtPos = doc.nodeAt(pos);
+    if (nodeAtPos != null && DRAG_HANDLE_ITEM_TYPES.includes(nodeAtPos.type.name)) {
+      pos = pos + 1;
+    }
+    return findDraggableBlock(doc, pos, options.excludedTypes, view.state);
+  };
+
+  /** Delegated on view.dom (capture): swallow the fold-toggle click that
+   *  the browser fires on a chevron after a completed drag. */
+  const onChevronClickCapture = (event: MouseEvent) => {
+    if (Date.now() >= suppressChevronClickUntil) {
+      return;
+    }
+    const target = event.target;
+    if (!(target instanceof Element)) {
+      return;
+    }
+    if (target.closest(DRAG_HANDLE_CSS.gutterControls.map((c) => `.${c}`).join(', ')) != null) {
+      event.stopPropagation();
+      event.preventDefault();
+    }
   };
 
   /** The drop target position for a pointer at (clientX, clientY).
@@ -1086,18 +1244,26 @@ function createDragHandleView(
     return boundary;
   };
 
-  const onHandlePointerMove = (event: PointerEvent) => {
+  const onPointerMove = (event: PointerEvent) => {
     if (dragBlock == null || dragStartPoint == null) {
       return;
     }
     const dx = event.clientX - dragStartPoint.x;
     const dy = event.clientY - dragStartPoint.y;
     if (!dragActive) {
+      // Grab feedback while still below the drag threshold: the held
+      // chevron has already turned into the drag-handle look (by the hold
+      // timer or on first movement) — nothing more to do until it arms.
       if (Math.hypot(dx, dy) < DRAG_START_THRESHOLD) {
         return;
       }
+      clearHoldGrab();
       dragActive = true;
       handle.classList.add(DRAG_HANDLE_CSS.dragging);
+      dragSource?.classList.add(DRAG_HANDLE_CSS.chevronDragging);
+      // Arm fold-click suppression: the browser will fire a click on the
+      // chevron after pointerup, and it must NOT toggle the fold.
+      suppressChevronClickUntil = Date.now() + 500;
       // Show the drag in plugin state (drop line at the source position).
       view.dispatch(
         view.state.tr.setMeta(dragHandleKey, {
@@ -1118,7 +1284,20 @@ function createDragHandleView(
     }
   };
 
+  /** Place the dots handle over a fold chevron (the chevron is hidden via
+   *  the grabbed class, the handle takes its place): the visible drag
+   *  affordance while a chevron-initiated drag is held. */
+  const showHandleAtChevron = (block: DraggableBlock, chevron: HTMLElement): void => {
+    const chevronRect = chevron.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    handle.style.left = `${chevronRect.left - containerRect.left + container.scrollLeft}px`;
+    handle.style.top = `${chevronRect.top - containerRect.top + container.scrollTop}px`;
+    handle.style.height = `${chevronRect.height}px`;
+    handle.classList.add(DRAG_HANDLE_CSS.visible);
+  };
+
   const finishDrag = (event: PointerEvent, apply: boolean) => {
+    clearHoldGrab();
     if (dragBlock == null) {
       return;
     }
@@ -1127,12 +1306,41 @@ function createDragHandleView(
     dragBlock = null;
     dragStartPoint = null;
     dragActive = false;
+    const source = dragSource;
+    dragSource = null;
     try {
-      handle.releasePointerCapture(event.pointerId);
+      if (source != null && event.pointerId != null) {
+        source.releasePointerCapture(event.pointerId);
+      }
     } catch {
       // pointer capture may already be gone
     }
     handle.classList.remove(DRAG_HANDLE_CSS.dragging);
+    if (source != null && source !== handle) {
+      source.classList.remove(DRAG_HANDLE_CSS.chevronDragging);
+      source.classList.remove(DRAG_HANDLE_CSS.chevronGrabbed);
+      // The dots-handle overlay took the chevron's place; take it away and
+      // let the normal hover flow decide the handle's next position.
+      handle.classList.remove(DRAG_HANDLE_CSS.visible);
+      if (!wasActive && holdGrabShown) {
+        // Held (the overlay showed) but released without crossing the drag
+        // threshold — a held click. The overlay swallowed the browser's
+        // own click (it sat on top of the chevron at up time), so
+        // re-dispatch it: the fold must toggle like on a quick click.
+        const pending = source;
+        setTimeout(() => {
+          pending.dispatchEvent(
+            new MouseEvent('click', { bubbles: true, cancelable: true }),
+          );
+        }, 0);
+      }
+    }
+    holdGrabShown = false;
+    // Keep the suppression window armed briefly after a drag so the
+    // trailing click (fired right after pointerup) is swallowed.
+    if (wasActive) {
+      suppressChevronClickUntil = Date.now() + 500;
+    }
 
     if (wasActive && apply) {
       const insertPos = resolveInsertPos(block, event.clientX, event.clientY);
@@ -1154,19 +1362,28 @@ function createDragHandleView(
     );
   };
 
-  const onHandlePointerUp = (event: PointerEvent) => {
+  const onPointerUp = (event: PointerEvent) => {
     finishDrag(event, true);
   };
-  const onHandlePointerCancel = (event: PointerEvent) => {
+  const onPointerCancel = (event: PointerEvent) => {
     finishDrag(event, false);
   };
 
   container.addEventListener('mousemove', onMouseMove);
   container.addEventListener('mouseleave', hide);
   handle.addEventListener('pointerdown', onHandlePointerDown);
-  handle.addEventListener('pointermove', onHandlePointerMove);
-  handle.addEventListener('pointerup', onHandlePointerUp);
-  handle.addEventListener('pointercancel', onHandlePointerCancel);
+  // Chevron drags start inside view.dom (fold widgets / item labels); the
+  // move/up handlers live on the document so a drag started anywhere —
+  // handle or chevron — follows the same flow (pointer capture routes the
+  // events to the source element, the document still sees them bubbling).
+  // The chevron pointerdown is a CAPTURE listener: the chevron's own
+  // handlers stopPropagation() on pointerdown (heading chevron: keep PM
+  // from starting a selection), which would kill a bubble-phase listener.
+  view.dom.addEventListener('pointerdown', onChevronPointerDown, true);
+  view.dom.addEventListener('click', onChevronClickCapture, true);
+  document.addEventListener('pointermove', onPointerMove);
+  document.addEventListener('pointerup', onPointerUp);
+  document.addEventListener('pointercancel', onPointerCancel);
 
   return {
     handle,
@@ -1174,9 +1391,11 @@ function createDragHandleView(
       container.removeEventListener('mousemove', onMouseMove);
       container.removeEventListener('mouseleave', hide);
       handle.removeEventListener('pointerdown', onHandlePointerDown);
-      handle.removeEventListener('pointermove', onHandlePointerMove);
-      handle.removeEventListener('pointerup', onHandlePointerUp);
-      handle.removeEventListener('pointercancel', onHandlePointerCancel);
+      view.dom.removeEventListener('pointerdown', onChevronPointerDown, true);
+      view.dom.removeEventListener('click', onChevronClickCapture, true);
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+      document.removeEventListener('pointercancel', onPointerCancel);
       handle.remove();
     },
   };
@@ -1263,20 +1482,6 @@ function contentLeftOf(view: EditorView, from: number, node: PMNode): number {
   }
 
 /** Leftmost x of the fold chevrons inside the block's DOM, if any (viewport). */
-function gutterControlsLeft(blockDom: Element, blockRectLeft: number): number {
-  let left = blockRectLeft;
-  for (const className of DRAG_HANDLE_CSS.gutterControls) {
-    for (const el of blockDom.querySelectorAll(`.${className}`)) {
-      const rect = el.getBoundingClientRect();
-      if (rect.width === 0 && rect.height === 0) {
-        continue;
-      }
-      left = Math.min(left, rect.left);
-    }
-  }
-  return left;
-}
-
 /**
  * Position the handle next to the dragged unit's first text line, in the
  * container's content coordinates (absolute positioning inside a scroll
@@ -1285,9 +1490,11 @@ function gutterControlsLeft(blockDom: Element, blockRectLeft: number): number {
  *
  *  - Height/top follow the unit's first line (caret rect via coordsAtPos),
  *    so the handle is exactly as tall as a text line and vertically
- *    centered on it; non-text units fall back to the default height.
- *  - Left clears the fold chevrons (heading/task folding) that live in the
- *    same gutter, so the two never overlap.
+ *    centered on it; non-text units (image/attachment atoms) anchor to
+ *    their DOM top — coordsAtPos(from+1) resolves to their END boundary,
+ *    which used to drop the handle to the block bottom.
+ *  - Units with a fold chevron (headings, foldable task items) never show
+ *    the dots handle — their chevron is the grab point (see show()).
  */
 function positionHandle(
   view: EditorView,
@@ -1309,37 +1516,53 @@ function positionHandle(
   // list/task items the caret at the unit start is degenerate (their
   // label/checkbox is contenteditable=false), so resolve the first
   // paragraph's inner position — the same rule as hoveredStrip.
-  let top: number;
-  let height: number;
-  try {
-    const textPos = firstTextPos(block);
-    const coordsPos = textPos != null ? textPos : from + 1;
-    const coords = view.coordsAtPos(coordsPos);
-    height = Math.max(
-      coords.bottom - coords.top,
-      HANDLE_MIN_HEIGHT,
-    );
-    // Center on the first line even when the minimum height wins.
-    top = toContentY((coords.top + coords.bottom) / 2 - height / 2);
-    if (!Number.isFinite(top) || !Number.isFinite(height) || height <= 0) {
-      throw new Error('invalid caret rect');
+  // Non-text units (image/attachment atoms) have no inner text position:
+  // coordsAtPos(from + 1) resolves to the boundary AFTER the node, putting
+  // the caret rect at the block's BOTTOM edge — anchor such units to
+  // their DOM top instead, so the handle hugs the block start.
+  const blockRect = blockDom.getBoundingClientRect();
+  let top = toContentY(blockRect.top);
+  let height = HANDLE_DEFAULT_HEIGHT;
+  const textPos = firstTextPos(block);
+  const anchorCaret = (coordsPos: number, firstLineOnly: boolean): boolean => {
+    try {
+      const coords = view.coordsAtPos(coordsPos);
+      if (firstLineOnly) {
+        // Reject caret rects that sit at an atom's END boundary (from + 1
+        // resolves to the node's far side): they must hug the block's first
+        // line. A text block's own caret is inside its first line — offset
+        // from the DOM top only by the block's own margin — while an atom's
+        // end-boundary caret lies a whole block height below the top.
+        // Allow up to two line heights of slack, measured against the caret
+        // itself, which tolerates any sane line-height/margin ratio.
+        const slack = 2 * Math.max(coords.bottom - coords.top, 1);
+        if (coords.top - blockRect.top > slack) {
+          return false;
+        }
+      }
+      const caretHeight = Math.max(coords.bottom - coords.top, HANDLE_MIN_HEIGHT);
+      const caretTop = toContentY((coords.top + coords.bottom) / 2 - caretHeight / 2);
+      if (!Number.isFinite(caretTop) || !Number.isFinite(caretHeight) || caretHeight <= 0) {
+        return false;
+      }
+      top = caretTop;
+      height = caretHeight;
+      return true;
+    } catch {
+      return false;
     }
-  } catch {
-    const blockRect = blockDom.getBoundingClientRect();
-    top = toContentY(blockRect.top);
-    height = HANDLE_DEFAULT_HEIGHT;
+  };
+  if (textPos != null) {
+    anchorCaret(textPos, false);
+  } else {
+    anchorCaret(from + 1, true);
   }
 
   // Left: a stable base per unit kind so the handle never shifts between
-  // neighbors and always clears the surrounding chrome:
-  //  - units inside (or being) a list anchor to the list's left edge —
-  //    markers and the checkbox/label column live in its padding;
-  //  - task lists additionally reserve the fold-chevron strip, so the
-  //    handle sits just left of it for EVERY item of the list (foldable or
-  //    not) and the whole-list handle lands at the same X as item handles
-  //    (no jump on list promotion);
-  //  - other blocks keep their own left edge, cleared of fold chevrons.
-  const blockRect = blockDom.getBoundingClientRect();
+  // neighbors. Fold-chevron units (headings, foldable task items) never
+  // reach here — they grab by their chevron and the dots handle stays
+  // hidden — so the remaining gutter chrome to clear is just list markers
+  // and the checkbox column: anchor to the enclosing list's left edge.
   let base = blockRect.left;
   const isItem = DRAG_HANDLE_ITEM_TYPES.includes(node.type.name);
   const isListNode = node.type.name.endsWith('List');
@@ -1348,14 +1571,12 @@ function positionHandle(
     : isListNode
       ? block
       : null;
-  const listDom = listBlock != null ? blockDomAt(view, listBlock.from) : null;
-  if (listDom != null) {
-    const chevronZone = listBlock!.node.type.name === 'taskList'
-      ? TASK_CHEVRON_ZONE
-      : 0;
-    base = Math.min(base, listDom.getBoundingClientRect().left - chevronZone);
+  if (listBlock != null) {
+    const listDom = blockDomAt(view, listBlock.from);
+    if (listDom != null) {
+      base = Math.min(base, listDom.getBoundingClientRect().left);
+    }
   }
-  base = Math.min(base, gutterControlsLeft(blockDom, blockRect.left));
   const left = base - HANDLE_GAP - HANDLE_WIDTH;
 
   handle.style.top = `${top}px`;

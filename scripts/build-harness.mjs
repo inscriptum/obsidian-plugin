@@ -16,8 +16,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // Minimal `obsidian` module shim: src/texto only imports Platform from it
 // (isiOS/isMacOS helpers). Everything else the editor core needs is DOM
-// globals (createDiv etc.), injected by the harness itself.
-const obsidianShim = path.join(root, 'src/browser-harness/obsidian-shim.js');
+// globals (createDiv etc.), injected by the harness entry. Generated into
+// .harness/ (gitignored scratch), NOT src/ — eslint/tsc scan src/**.
+const obsidianShim = path.join(root, '.harness/obsidian-shim.js');
 fs.mkdirSync(path.dirname(obsidianShim), { recursive: true });
 fs.writeFileSync(
   obsidianShim,

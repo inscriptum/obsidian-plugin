@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Block drag & drop on desktop: a floating grip handle in the left gutter
+  reorders top-level blocks (Notion-style, pointer-driven — no native HTML5
+  drag). A thin accent drop line marks the insertion point and the carried
+  block is outlined while dragging. List and task items drag individually;
+  dragging an item to the document level wraps it into a new list, and a
+  source list emptied by the move disappears. The note title is not draggable.
+- Fold chevrons double as drag handles: click still folds, but press and
+  hold briefly or press and move turns the chevron into the drag grip at
+  the same spot and drags the unit (the redundant dots handle is not shown
+  next to chevrons, which also removes the gutter spacing hacks).
+- A collapsed section (folded heading with its hidden body, or a task item
+  with hidden subtasks) moves as a whole: the fold travels with it and stays
+  applied at the new place.
+- A browser harness for layout-dependent editor tests (jsdom has no layout
+  engine, so gutter geometry, pointer flows and fold interactions are only
+  reproducible in a real browser; see `scripts/build-harness.mjs`).
+
+### Fixed
+
+- The drag handle now appears at the top of image and attachment blocks
+  instead of near their bottom edge (atom blocks have no inner text position,
+  so the caret anchor resolved to the node's end boundary).
+- The drag & drop drop indicator for native drags (files, text from other
+  apps) was invisible: its CSS targeted a class the dropcursor element never
+  receives.
+- Dropping onto the dragged collapsed section itself or onto the gutter next
+  to it no longer splits or mis-lands it; the drop target in the gutter is
+  resolved geometrically because `posAtCoords` returns null left of the
+  content (where the handle lives).
+
 ## [0.6.1] - 2026-09-08
 
 ### Added
