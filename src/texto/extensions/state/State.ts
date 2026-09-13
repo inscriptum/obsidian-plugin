@@ -4,9 +4,17 @@ import {Decoration} from 'prosemirror-view';
 
 import {createNodeStatePlugin} from './plugins/nodeState.plugin';
 
+export interface NodeRemoveMeta {
+	isLocalChange: boolean;
+	/** Transaction comes from undo/redo (prosemirror-history). */
+	isUndoRedo: boolean;
+	/** Removal was explicitly requested by the user (e.g. image delete button). */
+	isExplicitRemove: boolean;
+}
+
 export interface StateOptionsHooks {
 	onAdd?: (node: Node, deco: Decoration, meta: {isLocalChange: boolean}) => void;
-	onRemove?: (node: Node, deco: Decoration, meta: {isLocalChange: boolean}) => void;
+	onRemove?: (node: Node, deco: Decoration, meta: NodeRemoveMeta) => void;
 }
 
 export interface StateOptions {

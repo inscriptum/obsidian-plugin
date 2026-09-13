@@ -1,4 +1,5 @@
 import type { App, TFile } from 'obsidian';
+import type { Node as ProseMirrorNode } from 'prosemirror-model';
 import type { Editor } from '../texto/core';
 import type {
   ImageElementPublicProps,
@@ -67,9 +68,42 @@ async function onFileSelected(
 }
 
 /**
+ * Checks whether any image node in the document (other than the one with
+ * `excludeKey`) references the same attachment `id`. Used to avoid deleting
+ * a file that is still referenced by a duplicate of the node (copy/paste,
+ * key reassignments, etc.).
+ */
+export function isImageIdReferenced(
+  doc: ProseMirrorNode,
+  id: string,
+  excludeKey?: string | null,
+): boolean {
+  let found = false;
+
+  doc.descendants((node) => {
+    if (found) return false;
+    if (node.type.name !== 'image') return true;
+
+    const data = node.attrs.data as {id?: string} | undefined;
+    if (data?.id !== id) return true;
+    if (excludeKey != null && node.attrs.key === excludeKey) return true;
+
+    found = true;
+
+    return false;
+  });
+
+  return found;
+}
+
+/**
  * onSetViewProps hook for Image:
  *  - re-resolves src from data.id on every load (the stored `app://…` resource
  *    URL embeds a vault hash that can go stale between launches);
+ *  - clears a persisted error state when the file is available again, so a
+ *    restored/renamed attachment starts loading (error blocks are sticky
+ *    otherwise);
+ *  - shows an informative error when the file is missing from the vault;
  *  - injects onFileSelected for file selection via input.
  */
 export function imageOnSetViewProps(
@@ -80,9 +114,27 @@ export function imageOnSetViewProps(
   let state = props.state;
 
   if (props.data?.id != null) {
+    const fileExists = ctx.app.vault.getAbstractFileByPath(props.data.id) != null;
+
+    if (!fileExists) {
+      const error = `File not found: ${props.data.filename || props.data.id}`;
+      if (state?.error !== error || state?.src != null) {
+        state = {...state, src: undefined, error};
+        update({ data: props.data, state }, true);
+      }
+
+      return {
+        ...props,
+        state,
+        onFileSelected: (file: File | null) => {
+          if (file) void onFileSelected(file, update, ctx);
+        },
+      };
+    }
+
     const src = ctx.app.vault.adapter.getResourcePath(props.data.id);
     if (state?.src !== src) {
-      state = { ...state, src };
+      state = {...state, src, error: undefined};
       update({ data: props.data, state }, true);
     }
   }

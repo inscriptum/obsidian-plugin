@@ -32,7 +32,7 @@ export const imageContainerNode = litView.node(function* (params: {
 			...params,
 			state: {
 				...params.state,
-				error: '',
+				error: `Can't load image: ${params.data?.filename || params.data?.id || 'unknown file'}`,
 			},
 		});
 	};

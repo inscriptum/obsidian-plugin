@@ -27,6 +27,7 @@ import {
 import {
   handleAddImg,
   imageOnSetViewProps,
+  isImageIdReferenced,
   type ImageToolContext,
 } from "./tools/image";
 import type { JSONContent } from "./texto/core/@types";
@@ -1188,12 +1189,21 @@ export class NoteView extends FileView {
           const key = (deco.spec as {id: string}).id;
           handleAddImg({ ...node.attrs, key }, editorRef, ctx);
         },
-        onRemove: (node) => {
-          // Delete image file from disk on node removal
-          if (node.type.name === "image") {
-            const data = node.attrs.data as {id?: string} | undefined;
-            void deleteAttachmentFile(app, data?.id);
+        onRemove: (node, _deco, meta) => {
+          if (node.type.name !== "image") return;
+          const data = node.attrs.data as {id?: string} | undefined;
+          const id = data?.id;
+          if (id == null) return;
+          // Never touch files for implicit removals (undo/redo, cut, external
+          // edits) — only the explicit delete button removes the attachment.
+          if (meta.isUndoRedo || !meta.isExplicitRemove) return;
+          // Do not delete a file that is still referenced by another node
+          // (copy/pasted duplicates, key reassignments).
+          const editor = editorRef.current;
+          if (editor != null && isImageIdReferenced(editor.state.doc, id, node.attrs.key)) {
+            return;
           }
+          void deleteAttachmentFile(app, id);
         },
       },
       image: {

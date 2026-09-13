@@ -115,6 +115,7 @@ function removeImage({ view, state }: Editor, node: ProseMirrorNode) {
   const action: NodeStatePluginAction = {
     remove: {
       id: key,
+      explicit: true,
       transactionsMeta: { isChangeOrigin: false, isSilent: true },
     },
   };

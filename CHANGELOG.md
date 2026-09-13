@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Select all with fold sections
 - Adding a new line inside folded sections
+- Broken images after their attachment files were deleted behind the editor's back. Three fixes:
+  - Attachment files are no longer deleted from the vault when an image node leaves the document implicitly (undo/redo, cut, external overwrite). The file is now removed only by the image's explicit delete button, and only when no other image node still references the same file. Previously, deleting an image block and pressing `Cmd/Ctrl+Z` restored the node but left it pointing at a trashed file.
+  - A persisted image error state no longer sticks forever: when the attachment file is available again (renamed back, restored from trash/backup), the image is reloaded on the next render. When the file is missing, the error block now explains what happened (`File not found: <file name>`) instead of showing a silent gray box. Image load failures report the file name too.
+  - Empty leftover image nodes (from an interrupted paste/upload in a previous session) are removed when the editor opens, instead of staying as unremovable "select a file" placeholders forever.
 
 ## [0.6.1] - 2026-09-08
 

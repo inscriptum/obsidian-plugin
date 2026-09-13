@@ -2,6 +2,7 @@ import { Editor, isFunction } from "../../../core";
 import { joinOverlapRanges } from "../../../utils/joinOverlapRanges";
 import { Node as ProseMirrorNode } from "prosemirror-model";
 import { EditorState, Plugin, PluginKey, Transaction } from "prosemirror-state";
+import { isHistoryTransaction } from "prosemirror-history";
 import { ReplaceAroundStep, ReplaceStep } from "prosemirror-transform";
 import { Decoration, DecorationSet } from "prosemirror-view";
 
@@ -33,6 +34,12 @@ export type NodeStatePluginAction = {
   };
   remove?: {
     id: string;
+    /**
+     * True when the removal was requested explicitly by the user
+     * (e.g. the image delete button), not as a side effect of
+     * undo/redo, cut, external overwrite, etc.
+     */
+    explicit?: boolean;
     transactionsMeta: {
       isSilent: boolean;
       isChangeOrigin: boolean;
@@ -75,23 +82,31 @@ export function createNodeStatePlugin(
         state.doc.nodesBetween(0, state.doc.nodeSize - 2, (node, startPos) => {
           const pos = startPos - offsetPos;
 
-          if (typeName.has(node.type.name) && nodeAttrs(node).key == null) {
-            if (nodeAttrs(node).data?.id == null) {
-              tr.delete(pos, pos + node.nodeSize);
+          if (!typeName.has(node.type.name)) {
+            return true;
+          }
 
-              offsetPos += node.nodeSize;
-            } else {
-              const key = `${String(Date.now())}_${pos}`;
-              tr.setNodeMarkup(pos, node.type, { ...nodeAttrs(node), key });
+          // A node without data.id is a leftover from an interrupted upload
+          // (previous session) — drop it even if it already has a key.
+          if (nodeAttrs(node).data?.id == null) {
+            tr.delete(pos, pos + node.nodeSize);
 
-              const deco = createNewDecorationWithRelativePositions(
-                state,
-                key,
-                pos,
-                pos + node.nodeSize,
-              );
-              newDecorations.push(deco);
-            }
+            offsetPos += node.nodeSize;
+
+            return true;
+          }
+
+          if (nodeAttrs(node).key == null) {
+            const key = `${String(Date.now())}_${pos}`;
+            tr.setNodeMarkup(pos, node.type, { ...nodeAttrs(node), key });
+
+            const deco = createNewDecorationWithRelativePositions(
+              state,
+              key,
+              pos,
+              pos + node.nodeSize,
+            );
+            newDecorations.push(deco);
           }
         });
 
@@ -112,6 +127,8 @@ export function createNodeStatePlugin(
             if (node != null && isFunction(options.hooks?.onRemove)) {
               options.hooks.onRemove(node, removedDeco, {
                 isLocalChange: !isChangeOrigin,
+                isUndoRedo: isHistoryTransaction(tr),
+                isExplicitRemove: false,
               });
             }
           },
@@ -195,6 +212,8 @@ function nodeStatePluginAction(
         if (node != null && isFunction(options.hooks?.onRemove)) {
           options.hooks.onRemove(node, deco, {
             isLocalChange: !action.remove?.transactionsMeta.isChangeOrigin,
+            isUndoRedo: false,
+            isExplicitRemove: action.remove?.explicit === true,
           });
         }
       });
