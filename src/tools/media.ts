@@ -3,6 +3,7 @@ import type { Node as ProseMirrorNode } from "prosemirror-model";
 import type { Editor } from "../texto/core";
 import { getSelectedMediaNode } from "../components/bubble-menu-bar/mediaMenuState";
 import { nodeStatePluginKey } from "../texto/extensions/state";
+import type { ImageLayout } from "../texto/extensions/image/image";
 import { deleteAttachmentFile } from "../storage/attachments";
 
 /** Open the selected media file with the OS default app. */
@@ -26,6 +27,19 @@ export function replaceMediaFile(editor: Editor): void {
         state: { ...nodeState, isAutoOpenFileSelection: true },
       })
       .setMeta("addToHistory", false),
+  );
+}
+
+/** Set the layout (align/wrap) of the selected image node. */
+export function setImageNodeLayout(editor: Editor, align: ImageLayout): void {
+  const sel = getSelectedMediaNode(editor.state);
+  if (!sel || sel.node.type.name !== "image") return;
+
+  editor.view.dispatch(
+    editor.state.tr.setNodeMarkup(sel.pos, sel.node.type, {
+      ...sel.node.attrs,
+      align,
+    }),
   );
 }
 

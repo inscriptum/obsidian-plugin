@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Block drag & drop on desktop
+- Image positioning and text wrap: a selected image's bubble menu now has layout controls — align left (default), center, right, full content width, and float left/right with text wrapping around the image (50% width). The active mode is highlighted, the choice is stored in the note file, survives reloads and is undoable.
 - Click-to-zoom for images: clicking a selected image opens a fullscreen lightbox with the image at the largest size that fits the screen (file name shown below). Close with a click anywhere or `Esc`. Does nothing for images whose file is missing.
 
 ### Fixed

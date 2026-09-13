@@ -1,89 +1,62 @@
 import { describe, it, expect, vi } from "vitest";
-import { EditorState, NodeSelection, type Transaction } from "prosemirror-state";
+import { EditorState, NodeSelection } from "prosemirror-state";
 import { buildSchema } from "../../tests/helpers/buildSchema";
-import { nodeStatePluginKey } from "../texto/extensions/state";
-import { openMediaFile, removeMediaNode, replaceMediaFile } from "./media";
+import { setImageNodeLayout } from "./media";
 
 const schema = buildSchema();
 
-function mediaState(nodeType: "image" | "attachment") {
-  const node = schema.nodes[nodeType].create({
-    key: "k-media",
-    data: { id: "file.bin", filename: "report.pdf" },
+function makeEditorWithImage(align?: string) {
+  const node = schema.nodes.image.create({
+    key: "k-img",
+    data: { id: "img.png", filename: "img.png" },
+    ...(align != null ? { align } : {}),
   });
-  // Keep a paragraph after noteTitle so deleting the media node leaves a valid doc.
   const doc = schema.nodes.noteDoc.create(null, [
     schema.nodes.noteTitle.create(),
-    schema.nodes.paragraph.create(null, schema.text("x")),
     node,
+    schema.nodes.paragraph.create(null, schema.text("after")),
   ]);
   let pos = -1;
-  doc.descendants((n, p) => { if (n.type.name === nodeType) { pos = p; return false; } return true; });
+  doc.descendants((n, p) => {
+    if (n.type.name === "image") { pos = p; return false; }
+    return true;
+  });
   const state = EditorState.create({ doc, selection: NodeSelection.create(doc, pos) });
-  return { state, pos };
-}
-
-function fakeEditor(state: EditorState) {
-  let captured: Transaction | null = null;
+  const dispatch = vi.fn();
   const editor = {
     state,
-    view: { dispatch: (tr: Transaction) => { captured = tr; } },
-  };
-  return { editor, getTr: () => captured };
+    view: { dispatch },
+    commands: {},
+  } as never as Parameters<typeof setImageNodeLayout>[0];
+  return { editor, dispatch, doc, node, pos };
 }
 
-describe("replaceMediaFile", () => {
-  it("sets isAutoOpenFileSelection on the selected node, keeping key", () => {
-    const { state, pos } = mediaState("image");
-    const { editor, getTr } = fakeEditor(state);
-    replaceMediaFile(editor as never);
-    const next = state.apply(getTr()!);
-    const attrs = next.doc.nodeAt(pos)!.attrs as { key: string; state: { isAutoOpenFileSelection: boolean } };
-    expect(attrs.key).toBe("k-media");
-    expect(attrs.state.isAutoOpenFileSelection).toBe(true);
-  });
-});
-
-describe("removeMediaNode", () => {
-  it("removes an image node and sets the state cleanup meta", () => {
-    const { state, pos } = mediaState("image");
-    const { editor, getTr } = fakeEditor(state);
-    removeMediaNode(editor as never, {} as never);
-    const tr = getTr()!;
-    expect(state.apply(tr).doc.nodeAt(pos)).toBeNull();
-    expect(tr.getMeta(nodeStatePluginKey)).toEqual({
-      remove: { id: "k-media", transactionsMeta: { isChangeOrigin: false, isSilent: true } },
-    });
+describe("setImageNodeLayout", () => {
+  it("dispatches a setNodeMarkup with the new align", () => {
+    const { editor, dispatch, pos } = makeEditorWithImage("left");
+    setImageNodeLayout(editor, "wrap-right");
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    const tr = dispatch.mock.calls[0][0];
+    expect(tr.doc.nodeAt(pos)?.attrs.align).toBe("wrap-right");
   });
 
-  it("removes an attachment node and deletes its file", () => {
-    const { state, pos } = mediaState("attachment");
-    const trashFile = vi.fn();
-    const app = {
-      vault: { getAbstractFileByPath: () => ({ path: "file.bin" }) },
-      fileManager: { trashFile },
-    };
-    const { editor, getTr } = fakeEditor(state);
-    removeMediaNode(editor as never, app as never);
-    expect(state.apply(getTr()!).doc.nodeAt(pos)).toBeNull();
-    expect(trashFile).toHaveBeenCalled();
-  });
-});
-
-describe("openMediaFile", () => {
-  it("calls openWithDefaultApp with the file id", () => {
-    const openWithDefaultApp = vi.fn();
-    const app = { openWithDefaultApp };
-    const node = schema.nodes.image.create({ key: "k", data: { id: "file.bin" } });
-    openMediaFile(app as never, node);
-    expect(openWithDefaultApp).toHaveBeenCalledWith("file.bin");
+  it("keeps the other attrs intact", () => {
+    const { editor, dispatch, pos } = makeEditorWithImage();
+    setImageNodeLayout(editor, "center");
+    const tr = dispatch.mock.calls[0][0];
+    const attrs = tr.doc.nodeAt(pos)?.attrs;
+    expect(attrs.key).toBe("k-img");
+    expect(attrs.data.id).toBe("img.png");
+    expect(attrs.align).toBe("center");
   });
 
-  it("is a no-op when the node has no id", () => {
-    const openWithDefaultApp = vi.fn();
-    const app = { openWithDefaultApp };
-    const node = schema.nodes.image.create({ key: "k", data: null });
-    openMediaFile(app as never, node);
-    expect(openWithDefaultApp).not.toHaveBeenCalled();
+  it("is a no-op when the selection is not a NodeSelection", () => {
+    const { editor, dispatch } = makeEditorWithImage();
+    const fakeEditor = {
+      ...editor,
+      state: { ...editor.state, selection: { from: 0, to: 1 } },
+    } as typeof editor;
+    setImageNodeLayout(fakeEditor, "center");
+    expect(dispatch).not.toHaveBeenCalled();
   });
 });

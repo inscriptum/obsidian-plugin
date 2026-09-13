@@ -9,11 +9,32 @@ import type { Node as ProseMirrorNode } from "prosemirror-model";
 import type {
   ImageElement,
   ImageElementPublicProps,
+  ImageLayout,
   ImageOptions,
   ImageOptionsAttrs,
   UpdateFn,
   ViewNodeState,
 } from "../image";
+
+/** Host-element classes per image layout (see styles/image.css). */
+const LAYOUT_CLASSES: Partial<Record<ImageLayout, string>> = {
+  center: "texto-image-layout-center",
+  right: "texto-image-layout-right",
+  full: "texto-image-layout-full",
+  "wrap-left": "texto-image-layout-wrap-left",
+  "wrap-right": "texto-image-layout-wrap-right",
+};
+
+/** Sync the host element class list with the node's align attr. */
+function syncLayoutClass(element: HTMLElement, align: unknown): void {
+  for (const cls of Object.values(LAYOUT_CLASSES)) {
+    element.classList.remove(cls);
+  }
+  const layoutClass = LAYOUT_CLASSES[align as ImageLayout];
+  if (layoutClass != null) {
+    element.classList.add(layoutClass);
+  }
+}
 
 export function setViewProps(
   element: InstanceType<typeof ImageElement>,
@@ -22,6 +43,8 @@ export function setViewProps(
   options: ImageOptions,
 ) {
   const attrs = node.attrs as ImageOptionsAttrs;
+
+  syncLayoutClass(element, attrs.align);
 
   const updateAttrs = getUpdateAttrsFn(editor, node);
 

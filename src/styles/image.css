@@ -197,3 +197,35 @@
 		white-space: nowrap;
 	}
 }
+
+/* ── Image layout (align / wrap) ──────────────────────────────────────
+   Classes are applied to the host element by setViewProps (syncLayoutClass):
+   left = default (no class), center/right = margin auto, full = 100% width,
+   wrap-left/right = float with text wrapping around the image. */
+.texto-extension-image-host .image-container .image {
+	width: 100%;
+}
+
+.texto-extension-image-host.texto-image-layout-center {
+	margin-inline: auto;
+}
+
+.texto-extension-image-host.texto-image-layout-right {
+	margin-left: auto;
+}
+
+.texto-extension-image-host.texto-image-layout-full {
+	width: 100%;
+}
+
+.texto-extension-image-host.texto-image-layout-wrap-left {
+	float: left;
+	width: 50%;
+	margin: 4px 16px 8px 0;
+}
+
+.texto-extension-image-host.texto-image-layout-wrap-right {
+	float: right;
+	width: 50%;
+	margin: 4px 0 8px 16px;
+}

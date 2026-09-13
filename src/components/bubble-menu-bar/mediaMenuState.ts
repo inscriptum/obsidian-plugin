@@ -8,6 +8,8 @@ export interface MediaMenuState {
   nodeType: MediaNodeType | null;
   filename: string;
   hasFile: boolean;
+  /** Current image layout (image nodes only, null otherwise). */
+  align: string | null;
 }
 
 export interface SelectedMedia {
@@ -29,18 +31,23 @@ export function isMediaNodeSelection(state: EditorState): boolean {
   return getSelectedMediaNode(state) != null;
 }
 
-/** Display state for the media bubble menu (filename, hasFile). */
+/** Display state for the media bubble menu (filename, hasFile, align). */
 export function getMediaMenuState(state: EditorState): MediaMenuState {
   const sel = getSelectedMediaNode(state);
   if (!sel) {
-    return { nodeType: null, filename: "", hasFile: false };
+    return { nodeType: null, filename: "", hasFile: false, align: null };
   }
-  const data = sel.node.attrs.data as { id?: string; filename?: string } | null | undefined;
-  const id = typeof data?.id === "string" ? data.id : "";
-  const filename = typeof data?.filename === "string" ? data.filename : "";
+  const attrs = sel.node.attrs as {
+    data?: { id?: string; filename?: string } | null;
+    align?: string | null;
+  };
+  const id = typeof attrs.data?.id === "string" ? attrs.data.id : "";
+  const filename =
+    typeof attrs.data?.filename === "string" ? attrs.data.filename : "";
   return {
     nodeType: sel.node.type.name as MediaNodeType,
     filename: filename || id,
     hasFile: id !== "",
+    align: sel.node.type.name === "image" ? attrs.align ?? "left" : null,
   };
 }

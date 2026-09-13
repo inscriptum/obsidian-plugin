@@ -7,7 +7,14 @@ import { elTag } from "../../tags";
 import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
 import { getMediaMenuState, getSelectedMediaNode } from "./mediaMenuState";
 import { bubbleIconNodes } from "./icons.svgnode";
-import { openMediaFile, removeMediaNode, replaceMediaFile } from "../../tools/media";
+import type { BubbleIconName } from "../icons/iconSprite";
+import {
+  openMediaFile,
+  removeMediaNode,
+  replaceMediaFile,
+  setImageNodeLayout,
+} from "../../tools/media";
+import type { ImageLayout } from "../../texto/extensions/image/image";
 
 const cls = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");
@@ -77,6 +84,18 @@ export const MediaBubbleMenuElement = litView.element({
   };
   const doReplace = () => replaceMediaFile(props.editor);
   const doDelete = () => removeMediaNode(props.editor, props.app);
+  const doSetLayout = (align: ImageLayout) => setImageNodeLayout(props.editor, align);
+
+  // Layout (align/wrap) controls — image nodes with a file only.
+  const imageLayouts: Array<{ align: ImageLayout; icon: BubbleIconName; tip: string }> = [
+    { align: "left", icon: "imgLeft", tip: "Align left" },
+    { align: "center", icon: "imgCenter", tip: "Center" },
+    { align: "right", icon: "imgRight", tip: "Align right" },
+    { align: "full", icon: "imgFull", tip: "Full width" },
+    { align: "wrap-left", icon: "imgWrapLeft", tip: "Wrap text left" },
+    { align: "wrap-right", icon: "imgWrapRight", tip: "Wrap text right" },
+  ];
+  const showLayout = state.nodeType === "image" && state.hasFile;
 
   try {
     while (true) {
@@ -106,6 +125,21 @@ export const MediaBubbleMenuElement = litView.element({
             >
               {bubbleIconNodes.replace()}
             </button>
+            {showLayout && (
+              <>
+                <span class="bubble-menu-sep"></span>
+                {imageLayouts.map((layout) => (
+                  <button
+                    class={cls("bb-btn", state.align === layout.align && "is-active")}
+                    data-tip={layout.tip}
+                    onmousedown={(e: MouseEvent) => e.preventDefault()}
+                    onclick={() => doSetLayout(layout.align)}
+                  >
+                    {bubbleIconNodes[layout.icon]()}
+                  </button>
+                ))}
+              </>
+            )}
             <button
               class="bb-btn danger"
               data-tip="Delete"

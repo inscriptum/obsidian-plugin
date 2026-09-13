@@ -55,6 +55,7 @@ export type ImageOptionsAttrs = {
   key: string;
   state?: ViewNodeState | null;
   data?: ViewNodeData | null;
+  align?: ImageLayout | null;
 };
 
 export interface ImageOptions {
@@ -67,6 +68,28 @@ export const VIEW_TAG = elTag("texto-extension-image");
 /** Static tag used in HTML serialization (clipboard/export) — stays version-independent. */
 export const HTML_TAG = "texto-extension-image";
 export const ImageElement = imageElement(VIEW_TAG);
+
+/** Visual layout of an image block. */
+export type ImageLayout =
+  | "left" // block, own line, aligned left (default)
+  | "center" // block, centered
+  | "right" // block, aligned right
+  | "full" // block, full content width
+  | "wrap-left" // float left, text wraps around
+  | "wrap-right"; // float right, text wraps around
+
+export const IMAGE_LAYOUTS: ImageLayout[] = [
+  "left",
+  "center",
+  "right",
+  "full",
+  "wrap-left",
+  "wrap-right",
+];
+
+export function isImageLayout(value: unknown): value is ImageLayout {
+  return typeof value === "string" && IMAGE_LAYOUTS.includes(value as ImageLayout);
+}
 export type ImageElementPublicProps = Omit<
   InstanceType<typeof ImageElement>["props"],
   | "key"
@@ -105,6 +128,13 @@ export const Image = Node.create<ImageOptions>({
       },
       state: {
         default: null,
+      },
+      align: {
+        default: "left",
+        parseHTML: (element: HTMLElement) => element.dataset["align"],
+        renderHTML: (attributes: ImageOptionsAttrs) => ({
+          "data-align": attributes.align,
+        }),
       },
       data: {
         default: null,
