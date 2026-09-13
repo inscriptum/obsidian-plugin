@@ -7,6 +7,7 @@ import type {
   UpdateFn,
 } from '../texto/extensions/image';
 import { findPosByKey } from '../texto/extensions/state';
+import { openImageLightbox } from '../ui/imageLightbox';
 import { saveAttachmentFile } from '../storage/attachments';
 
 export interface ImageToolContext {
@@ -104,6 +105,8 @@ export function isImageIdReferenced(
  *    restored/renamed attachment starts loading (error blocks are sticky
  *    otherwise);
  *  - shows an informative error when the file is missing from the vault;
+ *  - injects onClick to open a fullscreen lightbox (zoom) for an available
+ *    image;
  *  - injects onFileSelected for file selection via input.
  */
 export function imageOnSetViewProps(
@@ -137,6 +140,20 @@ export function imageOnSetViewProps(
       state = {...state, src, error: undefined};
       update({ data: props.data, state }, true);
     }
+
+    const imageId: string = props.data.id;
+
+    return {
+      ...props,
+      state,
+      onClick: (event: MouseEvent) => {
+        event.stopPropagation();
+        openImageLightbox(ctx.app, imageId, props.data.filename);
+      },
+      onFileSelected: (file: File | null) => {
+        if (file) void onFileSelected(file, update, ctx);
+      },
+    };
   }
 
   return {
