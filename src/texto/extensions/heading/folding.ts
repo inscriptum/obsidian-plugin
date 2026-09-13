@@ -1,7 +1,15 @@
 import { Extension } from '../../core';
 import { elTag } from '../../../tags';
 import { addCommands } from './foldingCommands';
-import { createHeadingFoldingPlugin, getFoldedHeadingPositions, getHeadingRanges, headingFoldingKey, restoreFoldedHeadings, type HeadingSectionRange } from './foldingPlugin';
+import {
+  createHeadingFoldKeymapPlugin,
+  createHeadingFoldingPlugin,
+  getFoldedHeadingPositions,
+  getHeadingRanges,
+  headingFoldingKey,
+  restoreFoldedHeadings,
+  type HeadingSectionRange,
+} from './foldingPlugin';
 import { chevronElement } from './view/chevron.element';
 
 export interface HeadingFoldingOptions {
@@ -63,6 +71,12 @@ export const HeadingFolding = Extension.create<
 
     return [
       createHeadingFoldingPlugin({
+        headingTypeName: 'heading',
+        chevronElement: ChevronElement,
+      }),
+      // Enter at the end of a folded heading: unfold + new line after the
+      // revealed body (Obsidian behavior). See foldingPlugin.ts.
+      createHeadingFoldKeymapPlugin({
         headingTypeName: 'heading',
         chevronElement: ChevronElement,
       }),

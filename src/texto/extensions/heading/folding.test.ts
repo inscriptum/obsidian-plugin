@@ -3,6 +3,10 @@ import { Editor } from '../../core/Editor';
 import type { JSONContent } from '../../core/@types';
 import { getExtensions } from '../../getExtensions';
 import {
+  collectTaskSections,
+  getFoldedTaskPositions,
+} from '../task-item-folding/taskFoldingPlugin';
+import {
   collectHeadingSections,
   getFoldedHeadingPositions,
   headingFoldingKey,
@@ -423,5 +427,198 @@ describe('heading folding regressions', () => {
     const sections = collectHeadingSections(editor.state.doc, 'heading');
     const body = sections[0].body!;
     expect(to <= body.from || from >= body.to).toBe(true);
+  });
+});
+
+describe('heading folding regressions: Cmd+A and Enter', () => {
+  it('selectAll keeps the whole-document selection while a fold exists (Cmd+A bug)', () => {
+    // Regression: the caret push-out treated ANY selection overlapping a
+    // hidden body as accidental — including the whole-document selection
+    // from Cmd+A — and collapsed it back into the heading, so with any
+    // fold present Cmd+A appeared to "not work".
+    //
+    // selectAll maps to a TextSelection from the first text position to
+    // the last one (1 .. docSize - 1 for a noteDoc) — assert it stays a
+    // wide selection covering the folded section instead of a caret.
+    const fixture = useFixture();
+    const { editor, headings } = fixture;
+
+    editor.commands.foldHeading(headings[0]); // fold "Section A"
+
+    editor.commands.selectAll();
+
+    const { from, to } = editor.state.selection;
+    expect(from).toBe(1);
+    expect(to).toBe(editor.state.doc.content.size - 1);
+    // And it covers the whole folded section (not pushed into the heading).
+    const sections = collectHeadingSections(editor.state.doc, 'heading');
+    const body = sections[0].body!;
+    expect(from).toBeLessThanOrEqual(sections[0].headingPos);
+    expect(to).toBeGreaterThanOrEqual(body.to);
+  });
+
+  it('selectAll keeps the whole-document selection while a task fold exists', () => {
+    // Same guard, task-item path: one folded task item must not swallow
+    // Cmd+A either.
+    const fixture = useFixture({
+      type: 'noteDoc',
+      content: [
+        { type: 'noteTitle', content: [{ type: 'text', text: 'Title' }] },
+        {
+          type: 'taskList',
+          content: [
+            {
+              type: 'taskItem',
+              attrs: { checked: false },
+              content: [
+                { type: 'paragraph', content: [{ type: 'text', text: 'parent' }] },
+                {
+                  type: 'taskList',
+                  content: [
+                    {
+                      type: 'taskItem',
+                      attrs: { checked: false },
+                      content: [
+                        { type: 'paragraph', content: [{ type: 'text', text: 'child' }] },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    } satisfies JSONContent);
+    const { editor } = fixture;
+
+    const itemPos = editor.state.doc.content.size - 8; // computed below instead
+    // Find the parent task item position programmatically.
+    let parentPos = -1;
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'taskItem' && node.childCount > 1) {
+        parentPos = pos;
+        return false;
+      }
+      return true;
+    });
+    expect(parentPos).toBeGreaterThan(0);
+    void itemPos;
+
+    editor.commands.foldTask(parentPos);
+    expect(getFoldedTaskPositions(editor.state)).toEqual([parentPos]);
+
+    editor.commands.selectAll();
+
+    // Same wide-selection assertion as the heading case: the selection
+    // must stay wide (cover the folded item), not collapse to a caret.
+    const { from, to } = editor.state.selection;
+    expect(to - from).toBeGreaterThan(4);
+    const sections = collectTaskSections(editor.state.doc, 'taskItem');
+    const section = sections.find((s) => s.itemPos === parentPos)!;
+    expect(section.body).not.toBeNull();
+    expect(from).toBeLessThan(section.body!.from);
+    expect(to).toBeGreaterThan(section.body!.from);
+  });
+
+  it('Enter at the end of a folded heading unfolds and inserts a line after the body (Enter bug)', () => {
+    // Regression: Enter at the end of a folded heading's text ran the
+    // core splitBlock INSIDE the hidden region — the new paragraph landed
+    // right behind the heading, the caret was pushed back by the
+    // push-out guard, and to the user Enter "did nothing". Expected:
+    // the section unfolds and the new empty line appears after the
+    // (now visible) section body, caret inside it.
+    const fixture = useFixture();
+    const { editor, headings } = fixture;
+
+    editor.commands.foldHeading(headings[0]); // fold "Section A"
+
+    // Caret at the end of the folded heading's text.
+    const headingNode = editor.state.doc.nodeAt(headings[0])!;
+    editor.commands.setTextSelection(
+      headings[0] + 1 + headingNode.content.size,
+    );
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    });
+    // NOTE: someProp stops at the first handler returning true — the
+    // callback must early-return true as well, otherwise later handlers
+    // (core splitBlock) run too and double-apply Enter.
+    let handled = false;
+    editor.view.someProp('handleKeyDown', (f) => {
+      handled = f(editor.view, event) || handled;
+      return handled;
+    });
+    expect(handled).toBe(true);
+
+    // 1. The section is unfolded.
+    expect(getFoldedHeadingPositions(editor.state)).toEqual([]);
+    expect(fixture.el.querySelectorAll('.texto-folded-content').length).toBe(0);
+
+    // 2. A new empty paragraph exists after the section body, right
+    //    before the next heading, and the caret is inside it.
+    const sections = collectHeadingSections(editor.state.doc, 'heading');
+    const body = sections[0].body!;
+    const $bodyEnd = editor.state.doc.resolve(body.to);
+    // The last body block is the newly inserted empty paragraph...
+    expect($bodyEnd.nodeBefore?.textContent).toBe('');
+    expect($bodyEnd.nodeBefore?.type.name).toBe('paragraph');
+    // ...and the block before it is the former last body block.
+    const $prevEnd = editor.state.doc.resolve(body.to - $bodyEnd.nodeBefore!.nodeSize);
+    expect($prevEnd.nodeBefore?.textContent).toBe('A1 body');
+
+    const { from } = editor.state.selection;
+    const $sel = editor.state.doc.resolve(from);
+    expect($sel.parent.type.name).toBe('paragraph');
+    expect($sel.parent.textContent).toBe('');
+    // The caret's block is the new paragraph: it ends exactly where the
+    // section body ends (before the next heading).
+    expect($sel.after()).toBe(body.to);
+  });
+
+  it('plain Enter elsewhere keeps the core behavior with folds present', () => {
+    // The keymap plugin must not disturb Enter outside its one case.
+    const fixture = useFixture();
+    const { editor, headings, aOnePos } = fixture;
+
+    editor.commands.foldHeading(headings[0]); // fold "Section A"
+
+    // Caret at the start of "A two" (a body block of the folded section
+    // is hidden — pick a visible spot: the note title) — use the title.
+    // Simpler: caret in the intro paragraph (before the fold).
+    const introPos = (() => {
+      let pos = -1;
+      editor.state.doc.forEach((node, offset) => {
+        if (node.type.name === 'paragraph' && node.textContent === 'Intro' && pos < 0) {
+          pos = offset + 1;
+        }
+      });
+      return pos;
+    })();
+    expect(introPos).toBeGreaterThan(0);
+    editor.commands.setTextSelection(introPos + 2);
+    void aOnePos;
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    });
+    let handled = false;
+    editor.view.someProp('handleKeyDown', (f) => {
+      handled = f(editor.view, event) || handled;
+      return handled;
+    });
+    // The plugin chain as a whole handles Enter (some binding does),
+    // and the fold survived (mapped to the heading's shifted position).
+    const folded = getFoldedHeadingPositions(editor.state);
+    expect(folded).toHaveLength(1);
+    const foldedNode = editor.state.doc.nodeAt(folded[0]);
+    expect(foldedNode?.type.name).toBe('heading');
+    expect(foldedNode?.textContent).toBe('Section A');
+    expect(handled).toBe(true);
   });
 });

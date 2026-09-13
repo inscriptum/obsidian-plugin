@@ -1,4 +1,4 @@
-import type { Node as ProseMirrorNode } from 'prosemirror-model';
+import type { Node as ProseMirrorNode, ResolvedPos } from 'prosemirror-model';
 import {
   Plugin,
   PluginKey,
@@ -212,6 +212,15 @@ export function createTaskFoldingPlugin(
 
       // Push the caret out of the hidden region — back into the task
       // item's own paragraph (the item stays visible and editable).
+      //
+      // Only an empty caret inside the nested content, or a selection
+      // entirely contained in it, is pushed out. A selection that merely
+      // OVERLAPS it (Cmd+A selectAll) is deliberate and must be preserved:
+      // forcing it back into the paragraph made Cmd+A silently collapse
+      // to a caret while any fold existed. Containment (not "covers item
+      // AND body") because a TextSelection often cannot reach bodyTo at
+      // all — e.g. a folded item whose body ends in a nested list — so a
+      // reach check would misfire exactly like the old overlap check.
       const sections = collectTaskSections(newState.doc, taskItemTypeName);
       const { selection } = newState;
       let target: number | null = null;
@@ -221,10 +230,18 @@ export function createTaskFoldingPlugin(
           continue;
         }
         const { from: bodyFrom, to: bodyTo } = section.body;
-        if (selection.to > bodyFrom && selection.from < bodyTo) {
-          target = section.body.from;
-          break;
+        const overlaps = selection.to > bodyFrom && selection.from < bodyTo;
+        if (!overlaps) {
+          continue;
         }
+        const entirelyInside =
+          selection.from >= bodyFrom && selection.to <= bodyTo;
+        if (!selection.empty && !entirelyInside) {
+          // Overlapping but sticking out (e.g. selectAll) — keep it.
+          continue;
+        }
+        target = section.body.from;
+        break;
       }
 
       if (target == null) {
@@ -244,6 +261,147 @@ export function createTaskFoldingPlugin(
     },
   });
 }
+
+/**
+ * Enter at the end of a folded task item's own text — mirror the heading
+ * folding behavior: unfold the item and put the new line AFTER the (now
+ * visible) nested content, not inside the hidden region.
+ *
+ * A plugin with handleKeyDown (not an addKeyboardShortcuts Enter binding):
+ * the taskItem extension binds Enter to splitListItem, which must keep
+ * handling every other Enter inside a task item; this plugin intercepts
+ * only the one case it owns and returns false otherwise. Plugin order:
+ * TaskItemFolding sorts after TaskItem in getExtensions, so its plugins
+ * sit BEFORE TaskItem's keymap plugin in the final list and see Enter
+ * first (ProseMirror asks handleKeyDown plugins in list order).
+ */
+export function createTaskFoldKeymapPlugin(
+  options: TaskFoldingPluginOptions,
+): Plugin {
+  const { taskItemTypeName } = options;
+
+  return new Plugin({
+    key: taskFoldKeymapKey,
+
+    props: {
+      handleKeyDown(view, event) {
+        if (event.key !== 'Enter') {
+          return false;
+        }
+        // Plain Enter only: Shift-Enter (hard break) etc. stay with the
+        // core chain.
+        if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) {
+          return false;
+        }
+
+        const { state } = view;
+        const { selection } = state;
+        if (!selection.empty) {
+          return false;
+        }
+
+        const pluginState = taskFoldingKey.getState(state);
+        if (pluginState == null || pluginState.folded.size === 0) {
+          return false;
+        }
+
+        // The caret must sit at the end of a folded item's own paragraph.
+        const $anchor = selection.$anchor;
+        const itemPos = findTaskItemPos($anchor, taskItemTypeName);
+        if (itemPos == null || !pluginState.folded.has(itemPos)) {
+          return false;
+        }
+
+        const itemNode = state.doc.nodeAt(itemPos);
+        if (itemNode == null || itemNode.type.name !== taskItemTypeName) {
+          return false;
+        }
+
+        // The caret must sit at the END of the item's own first
+        // paragraph (right before the hidden nested content) — not
+        // anywhere else in the item.
+        const ownPara = itemNode.child(0);
+        if (
+          $anchor.parent !== ownPara ||
+          $anchor.parentOffset !== ownPara.content.size
+        ) {
+          return false;
+        }
+
+        const section = collectTaskSections(state.doc, taskItemTypeName).find(
+          (s) => s.itemPos === itemPos,
+        );
+        if (section == null || section.body == null) {
+          return false;
+        }
+
+        const tr = state.tr;
+        // 1. Unfold on the same transaction — the meta hook drops the fold
+        //    so the nested content is visible again in the final state.
+        tr.setMeta(taskFoldingKey, {
+          type: 'unfold',
+          pos: itemPos,
+        } satisfies TaskFoldingMeta);
+
+        // 2. Insert a new empty task item right AFTER the folded item
+        //    (a sibling in the same taskList): the revealed nested content
+        //    stays with the first item, and the new line appears at the
+        //    end of the revealed block — heading-folding parity.
+        //    (tr.split cannot be used: bodyTo sits inside the item where a
+        //    depth-2 split would try to join the taskList onto a taskItem.)
+        const itemType = state.schema.nodes[taskItemTypeName];
+        const paragraphType = state.schema.nodes.paragraph;
+        if (itemType == null || paragraphType == null) {
+          return false;
+        }
+        const itemEnd = itemPos + itemNode.nodeSize;
+        const $at = tr.doc.resolve(itemEnd);
+        const newItem = itemType.create(
+          { checked: false },
+          [paragraphType.create()],
+        );
+        if (
+          !$at.parent.canReplaceWith(
+            $at.index(),
+            $at.index(),
+            itemType,
+          )
+        ) {
+          return false;
+        }
+        tr.insert(itemEnd, newItem);
+
+        // Caret into the new item's paragraph (itemEnd + 1 opens the item,
+        // +1 more lands inside its paragraph content).
+        const $target = tr.doc.resolve(itemEnd + 2);
+        tr.setSelection(Selection.near($target));
+        tr.scrollIntoView();
+
+        view.dispatch(tr);
+        return true;
+      },
+    },
+  });
+}
+
+/** Find the task item position for a resolved position (nearest taskItem
+ *  ancestor, top-down within a task list). */
+function findTaskItemPos(
+  $pos: ResolvedPos,
+  taskItemTypeName: string,
+): number | null {
+  for (let depth = $pos.depth; depth >= 1; depth -= 1) {
+    if ($pos.node(depth).type.name === taskItemTypeName) {
+      return $pos.before(depth);
+    }
+  }
+  return null;
+}
+
+/** Plugin key for the Enter-at-folded-task-item keymap plugin. */
+export const taskFoldKeymapKey = new PluginKey(
+  'inscriptumTaskFoldKeymap',
+);
 
 /** Build fold/hide node decorations for the fold state. */
 function buildFoldDecorations(

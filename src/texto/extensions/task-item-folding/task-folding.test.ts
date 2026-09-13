@@ -363,6 +363,116 @@ describe('regressions: fold state survival on edits', () => {
   });
 });
 
+describe('regressions: Cmd+A and Enter with folds', () => {
+  it('selectAll keeps a wide selection while a fold exists (Cmd+A bug)', () => {
+    // Regression: the caret push-out treated ANY selection overlapping the
+    // hidden body as accidental — including Cmd+A — and collapsed it into
+    // the item's paragraph, so Cmd+A appeared to not work while a task
+    // fold existed.
+    const { editor, items, dispose } = createEditor();
+    cleanup.push(dispose);
+
+    dispatchFoldMeta(editor, { type: 'fold', pos: items[0] });
+
+    editor.commands.selectAll();
+
+    const { from, to } = editor.state.selection;
+    // Wide selection covering the folded item (not a collapsed caret).
+    const sections = collectTaskSections(editor.state.doc, 'taskItem');
+    const section = sections.find((s) => s.itemPos === items[0])!;
+    expect(section.body).not.toBeNull();
+    expect(to - from).toBeGreaterThan(4);
+    expect(from).toBeLessThan(section.body!.from);
+    expect(to).toBeGreaterThan(section.body!.from);
+  });
+
+  it('Enter at the end of a folded item\'s text unfolds and inserts a new line after the nested content', () => {
+    // Regression: Enter at the end of a folded item\'s own text ran
+    // splitListItem, which carried the (hidden) nested list into the new
+    // second item — and the push-out guard dragged the caret back, so
+    // Enter appeared to do nothing. Expected (heading-folding parity):
+    // the item unfolds, and the new empty item appears AFTER the (now
+    // visible) nested content with the caret inside it.
+    const { editor, items, dispose } = createEditor();
+    cleanup.push(dispose);
+
+    dispatchFoldMeta(editor, { type: 'fold', pos: items[0] });
+
+    // Caret at the end of "parent one"'s text.
+    editor.commands.setTextSelection(items[0] + 2 + 'parent one'.length);
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    });
+    // someProp stops at the first true — the callback must early-return too.
+    let handled = false;
+    editor.view.someProp('handleKeyDown', (f) => {
+      handled = f(editor.view, event) || handled;
+      return handled;
+    });
+    expect(handled).toBe(true);
+
+    // 1. The item is unfolded.
+    expect(getFoldedTaskPositions(editor.state)).toEqual([]);
+
+    // 2. A new empty task item follows the folded one, AFTER its nested
+    //    list, with the caret inside its paragraph.
+    const item = editor.state.doc.nodeAt(items[0])!;
+    const bodyFrom = items[0] + 1 + item.child(0).nodeSize;
+    const bodyTo = items[0] + item.nodeSize - 1;
+    // The nested list stayed with the first item.
+    expect(editor.state.doc.nodeAt(bodyFrom)?.type.name).toBe('taskList');
+
+    const after = editor.state.doc.nodeAt(items[0] + item.nodeSize);
+    expect(after?.type.name).toBe('taskItem');
+    expect(after?.textContent).toBe('');
+
+    const { from } = editor.state.selection;
+    const $sel = editor.state.doc.resolve(from);
+    expect($sel.parent.type.name).toBe('paragraph');
+    expect($sel.parent.textContent).toBe('');
+    expect(from).toBeGreaterThan(bodyTo);
+  });
+
+  it('plain Enter elsewhere in a list keeps splitListItem behavior with folds present', () => {
+    // The keymap plugin must not disturb Enter outside its one case.
+    const { editor, items, dispose } = createEditor();
+    cleanup.push(dispose);
+
+    dispatchFoldMeta(editor, { type: 'fold', pos: items[0] });
+
+    // Caret at the end of "plain"'s text (no fold on it).
+    editor.commands.setTextSelection(items[1] + 2 + 'plain'.length);
+
+    const event = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    });
+    let handled = false;
+    editor.view.someProp('handleKeyDown', (f) => {
+      handled = f(editor.view, event) || handled;
+      return handled;
+    });
+    expect(handled).toBe(true);
+
+    // The fold on "parent one" survived.
+    expect(getFoldedTaskPositions(editor.state)).toEqual([items[0]]);
+    // And the list was split normally (a new empty item after "plain").
+    const json = editor.getJSON();
+    const list = json.content!.find((n) => n.type === 'taskList')!;
+    const listItems = list.content! as { type: string; content?: { type: string; content?: { text?: string }[] }[] }[];
+    const plainIdx = listItems.findIndex(
+      (n) => n.content?.[0]?.content?.[0]?.text === 'plain',
+    );
+    const next = listItems[plainIdx + 1];
+    expect(next?.type).toBe('taskItem');
+    expect(next?.content?.[0]?.type).toBe('paragraph');
+  });
+});
+
 describe('regressions: caret never left inside a hidden region', () => {
   it('Tab sinking an item under a folded parent pushes the caret out of the hidden body', () => {
     // Regression: sinkListItem moved the selection into the folded

@@ -1,6 +1,7 @@
 import { Extension } from '../../core';
 import { addCommands } from './foldingCommands';
 import {
+  createTaskFoldKeymapPlugin,
   createTaskFoldingPlugin,
   getFoldedTaskPositions,
   restoreFoldedTasks,
@@ -60,6 +61,12 @@ export const TaskItemFolding = Extension.create<
 
     return [
       createTaskFoldingPlugin({
+        taskItemTypeName: 'taskItem',
+      }),
+      // Enter at the end of a folded task item's text: unfold + new line
+      // after the revealed nested content (heading-folding parity).
+      // See taskFoldingPlugin.ts.
+      createTaskFoldKeymapPlugin({
         taskItemTypeName: 'taskItem',
       }),
     ];

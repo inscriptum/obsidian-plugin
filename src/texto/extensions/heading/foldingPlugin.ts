@@ -3,6 +3,7 @@ import {
   Plugin,
   PluginKey,
   Selection,
+  TextSelection,
   type EditorState,
   type Transaction,
 } from 'prosemirror-state';
@@ -194,6 +195,16 @@ export function createHeadingFoldingPlugin(
       // Push the caret out of the hidden region — back into the
       // heading itself (the heading stays visible and editable, like
       // Obsidian's collapsed headings).
+      //
+      // Only an empty caret inside the body, or a selection entirely
+      // contained in the body, is pushed out. A selection that merely
+      // OVERLAPS the body (Cmd+A selectAll, "select section" ranges) is
+      // deliberate and must be preserved: forcing it back into the
+      // heading made Cmd+A silently collapse to a caret while any fold
+      // existed. (A containment check is used instead of "covers heading
+      // AND body": a TextSelection often cannot reach bodyTo at all —
+      // e.g. a section ending in a nested list — so a reach check would
+      // misfire exactly like the old overlap check.)
       const sections = collectHeadingSections(newState.doc, headingTypeName);
       const { selection } = newState;
       let target: number | null = null;
@@ -206,10 +217,18 @@ export function createHeadingFoldingPlugin(
           continue;
         }
         const { from: bodyFrom, to: bodyTo } = section.body;
-        if (selection.to > bodyFrom && selection.from < bodyTo) {
-          target = section.headingEnd;
-          break;
+        const overlaps = selection.to > bodyFrom && selection.from < bodyTo;
+        if (!overlaps) {
+          continue;
         }
+        const entirelyInside =
+          selection.from >= bodyFrom && selection.to <= bodyTo;
+        if (!selection.empty && !entirelyInside) {
+          // Overlapping but sticking out (e.g. selectAll) — keep it.
+          continue;
+        }
+        target = section.headingEnd;
+        break;
       }
 
       if (target == null) {
@@ -229,6 +248,129 @@ export function createHeadingFoldingPlugin(
     },
   });
 }
+
+/**
+ * Enter at the end of a folded heading's text — the Obsidian behavior:
+ * unfold the section and put the new empty line AFTER the (now visible)
+ * section body, not right behind the heading inside the hidden region.
+ *
+ * Implemented as a handleKeyDown plugin (not an addKeyboardShortcuts
+ * binding): extension keymaps are registered per-extension BEFORE the
+ * core Keymap plugin in the final plugin list only when the extension
+ * sorts before it, and re-binding Enter would fork the core Enter chain
+ * (newlineInCode → createParagraphNear → liftEmptyBlock → splitBlock).
+ * A plugin with handleKeyDown registered via this extension's
+ * addProseMirrorPlugins runs before the core keymap and returns true only
+ * for the one case it owns; every other Enter path is untouched.
+ */
+export function createHeadingFoldKeymapPlugin(
+  options: HeadingFoldingPluginOptions,
+): Plugin {
+  const { headingTypeName } = options;
+
+  return new Plugin({
+    key: headingFoldKeymapKey,
+
+    props: {
+      handleKeyDown(view, event) {
+        if (event.key !== 'Enter') {
+          return false;
+        }
+        // Plain Enter only: the core chain keeps Shift-Enter (hard break),
+        // Mod-Enter (exitCode) etc.
+        if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) {
+          return false;
+        }
+
+        const { state } = view;
+        const { selection } = state;
+        if (!selection.empty) {
+          return false;
+        }
+
+        const pluginState = headingFoldingKey.getState(state);
+        if (pluginState == null || pluginState.folded.size === 0) {
+          return false;
+        }
+
+        // The caret must sit at the end of a folded heading's text.
+        const headingPos = findHeadingPos(selection.$anchor);
+        if (headingPos == null || !pluginState.folded.has(headingPos)) {
+          return false;
+        }
+
+        const headingNode = state.doc.nodeAt(headingPos);
+        if (
+          headingNode == null ||
+          headingNode.type.name !== headingTypeName
+        ) {
+          return false;
+        }
+
+        const $anchor = selection.$anchor;
+        // Inside the heading's inline content, at its very end.
+        if (
+          $anchor.pos !== headingPos + 1 + headingNode.content.size
+        ) {
+          return false;
+        }
+
+        // A bodyless heading (impossible while folded — the fold drops
+        // when the body empties) needs no special handling.
+        const section = collectHeadingSections(
+          state.doc,
+          headingTypeName,
+        ).find((s) => s.headingPos === headingPos);
+        if (section == null || section.body == null) {
+          return false;
+        }
+
+        const tr = state.tr;
+        // 1. Unfold on the same transaction — the meta hook drops the fold
+        //    so the body is visible again in the final state.
+        tr.setMeta(headingFoldingKey, {
+          type: 'unfold',
+          pos: headingPos,
+        } satisfies HeadingFoldingMeta);
+
+        // 2. Insert an empty paragraph at the END of the section body,
+        //    right before the next section heading (or doc end) —
+        //    exactly the "new line at the end of the revealed section"
+        //    behavior. (tr.split cannot be used here: bodyTo sits at the
+        //    doc level where $pos.depth is 0 and a depth-1 split would try
+        //    to cut through the noteDoc itself.)
+        const { to: bodyTo } = section.body;
+        const paragraphType = state.schema.nodes.paragraph;
+        const $split = tr.doc.resolve(bodyTo);
+        if (
+          paragraphType == null ||
+          !$split.parent.canReplaceWith(
+            $split.index(),
+            $split.index(),
+            paragraphType,
+          )
+        ) {
+          return false;
+        }
+        tr.insert(bodyTo, paragraphType.create());
+
+        // Caret inside the new empty block (position bodyTo in the
+        // mapped doc, +1 to be inside its inline content).
+        const $target = tr.doc.resolve(bodyTo + 1);
+        tr.setSelection(TextSelection.near($target));
+        tr.scrollIntoView();
+
+        view.dispatch(tr);
+        return true;
+      },
+    },
+  });
+}
+
+/** Plugin key for the Enter-at-folded-heading keymap plugin. */
+export const headingFoldKeymapKey = new PluginKey(
+  'inscriptumHeadingFoldKeymap',
+);
 
 /** Build chevron widgets + fold/hide node decorations for the fold state. */
 function buildFoldDecorations(
