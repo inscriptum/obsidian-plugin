@@ -25,15 +25,19 @@ const LAYOUT_CLASSES: Partial<Record<ImageLayout, string>> = {
   "wrap-right": "texto-image-layout-wrap-right",
 };
 
-/** Sync the host element class list with the node's align attr. */
-function syncLayoutClass(element: HTMLElement, align: unknown): void {
+/** Sync the host element class list and explicit width with node attrs. */
+function syncLayoutStyles(element: HTMLElement, attrs: ImageOptionsAttrs): void {
   for (const cls of Object.values(LAYOUT_CLASSES)) {
     element.classList.remove(cls);
   }
-  const layoutClass = LAYOUT_CLASSES[align as ImageLayout];
+  const layoutClass = LAYOUT_CLASSES[attrs.align as ImageLayout];
   if (layoutClass != null) {
     element.classList.add(layoutClass);
   }
+
+  // Explicit user width (percent string) overrides the layout default;
+  // empty string falls back to the CSS width of the current layout.
+  element.style.width = attrs.width ?? "";
 }
 
 export function setViewProps(
@@ -44,7 +48,7 @@ export function setViewProps(
 ) {
   const attrs = node.attrs as ImageOptionsAttrs;
 
-  syncLayoutClass(element, attrs.align);
+  syncLayoutStyles(element, attrs);
 
   const updateAttrs = getUpdateAttrsFn(editor, node);
 

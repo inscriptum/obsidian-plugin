@@ -21,6 +21,7 @@ import type { EditorView } from "prosemirror-view";
 
 import { addCommands } from "./commands";
 import { setViewProps } from "./helpers/setViewProps.helper";
+import { createResizeHandles } from "./helpers/resizeHandles";
 import { processImageInGecko } from "./plugins/processImageInGecko";
 import { imageElement } from "./view/image.element";
 
@@ -56,6 +57,8 @@ export type ImageOptionsAttrs = {
   state?: ViewNodeState | null;
   data?: ViewNodeData | null;
   align?: ImageLayout | null;
+  /** Explicit image width as a percent string, e.g. "63%". */
+  width?: string | null;
 };
 
 export interface ImageOptions {
@@ -134,6 +137,13 @@ export const Image = Node.create<ImageOptions>({
         parseHTML: (element: HTMLElement) => element.dataset["align"],
         renderHTML: (attributes: ImageOptionsAttrs) => ({
           "data-align": attributes.align,
+        }),
+      },
+      width: {
+        default: null,
+        parseHTML: (element: HTMLElement) => element.dataset["width"],
+        renderHTML: (attributes: ImageOptionsAttrs) => ({
+          "data-width": attributes.width,
         }),
       },
       data: {
@@ -360,6 +370,10 @@ export const Image = Node.create<ImageOptions>({
       }
 
       setViewProps(element, node, editor, this.options);
+
+      for (const handle of createResizeHandles(element, editor, getPos)) {
+        element.appendChild(handle);
+      }
 
       return {
         dom: element,

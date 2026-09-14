@@ -229,3 +229,52 @@
 	width: 50%;
 	margin: 4px 0 8px 16px;
 }
+
+/* ── Image width resize handles ───────────────────────────────────────
+   Visible only while the node is selected; drag changes the width live,
+   committed to attrs.width (percent) on pointerup. */
+.texto-extension-image-host {
+	position: relative;
+}
+
+.texto-extension-image-host .image-resize-handle {
+	position: absolute;
+	top: 50%;
+	width: 10px;
+	height: 36px;
+	border-radius: 5px;
+	background: var(--texto-image-container__outline-color, #5a9eff);
+	box-shadow: 0 0 0 2px rgb(255 255 255 / 85%);
+	cursor: ew-resize;
+	opacity: 0;
+	pointer-events: none;
+	transform: translateY(-50%);
+	touch-action: none;
+	transition: opacity 0.12s ease;
+	z-index: 5;
+}
+
+.texto-extension-image-host .image-resize-handle-left {
+	left: -5px;
+}
+
+.texto-extension-image-host .image-resize-handle-right {
+	right: -5px;
+}
+
+.texto-extension-image-host[class$='selectednode'] .image-resize-handle {
+	opacity: 1;
+	pointer-events: all;
+}
+
+.texto-extension-image-host[class$='selectednode'] .image-resize-handle:hover {
+	box-shadow: 0 0 0 2px rgb(255 255 255 / 95%);
+	filter: brightness(1.08);
+}
+
+/* While a resize drag is active: suppress text selection everywhere. */
+body.texto-image-resizing {
+	cursor: ew-resize;
+	user-select: none;
+	-webkit-user-select: none;
+}
