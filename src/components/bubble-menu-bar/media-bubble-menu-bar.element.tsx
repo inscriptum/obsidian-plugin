@@ -95,15 +95,23 @@ export const MediaBubbleMenuElement = litView.element({
     { align: "wrap-left", icon: "imgWrapLeft", tip: "Wrap text left" },
     { align: "wrap-right", icon: "imgWrapRight", tip: "Wrap text right" },
   ];
-  const showLayout = state.nodeType === "image" && state.hasFile;
 
   try {
     while (true) {
+      // Re-read the state on every render pass: on mobile the menu element is
+      // swapped into the bottom toolbar and its own editor-event listeners can
+      // go stale (the generator outlives the editor it was connected with);
+      // NoteView pulses this.next() on selection updates, so each pass must
+      // reflect the CURRENT editor state.
+      if (props.editor != null && !props.editor.isDestroyed) {
+        state = getMediaMenuState(props.editor.state);
+      }
       const name = state.hasFile
         ? state.filename
         : state.nodeType === "image"
           ? "Image"
           : "Attachment";
+      const showLayout = state.nodeType === "image" && state.hasFile;
 
       props = yield (
         <div class="bubble-menu-bar">

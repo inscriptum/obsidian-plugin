@@ -15,6 +15,7 @@ import type {
   UpdateFn,
   ViewNodeState,
 } from "../image";
+import { applyFullBleed, releaseFullBleed } from "./fullBleed";
 
 /** Host-element classes per image layout (see styles/image.css). */
 const LAYOUT_CLASSES: Partial<Record<ImageLayout, string>> = {
@@ -26,7 +27,7 @@ const LAYOUT_CLASSES: Partial<Record<ImageLayout, string>> = {
 };
 
 /** Sync the host element class list and explicit width with node attrs. */
-function syncLayoutStyles(element: HTMLElement, attrs: ImageOptionsAttrs): void {
+function syncLayoutStyles(element: HTMLElement, attrs: ImageOptionsAttrs, hasError: boolean): void {
   for (const cls of Object.values(LAYOUT_CLASSES)) {
     element.classList.remove(cls);
   }
@@ -35,9 +36,25 @@ function syncLayoutStyles(element: HTMLElement, attrs: ImageOptionsAttrs): void 
     element.classList.add(layoutClass);
   }
 
+  // Resize handles make sense only for an image that is actually shown;
+  // hide them for the "file not found" error block and empty placeholders.
+  const noFile = attrs.data?.id == null || hasError;
+  element.classList.toggle("texto-image-no-file", noFile);
+
+  if (attrs.align === "full" && attrs.width == null && !noFile) {
+    // Full-bleed: stretch across the whole editor scroll container (JS-measured,
+    // re-applied on container resize). An explicit user width wins instead.
+    element.style.width = "";
+    element.style.marginLeft = "";
+    applyFullBleed(element);
+    return;
+  }
+
+  releaseFullBleed(element);
   // Explicit user width (percent string) overrides the layout default;
   // empty string falls back to the CSS width of the current layout.
   element.style.width = attrs.width ?? "";
+  element.style.marginLeft = "";
 }
 
 export function setViewProps(
@@ -47,8 +64,6 @@ export function setViewProps(
   options: ImageOptions,
 ) {
   const attrs = node.attrs as ImageOptionsAttrs;
-
-  syncLayoutStyles(element, attrs);
 
   const updateAttrs = getUpdateAttrsFn(editor, node);
 
@@ -63,6 +78,7 @@ export function setViewProps(
   }
 
   if (publicProps != null) {
+    syncLayoutStyles(element, attrs, publicProps.state?.error != null);
     element.props = {
       ...publicProps,
       key: attrs.key,

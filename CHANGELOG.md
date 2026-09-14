@@ -10,8 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Block drag & drop on desktop
-- Image positioning and text wrap: a selected image's bubble menu now has layout controls — align left (default), center, right, full content width, and float left/right with text wrapping around the image (50% width). The active mode is highlighted, the choice is stored in the note file, survives reloads and is undoable.
-- Image resizing: a selected image shows drag handles on its left and right edges. Dragging changes the width live and saves it as a percent of the content width (5–100%, min 80px), so proportions hold on mobile. The explicit width overrides the layout default and is undoable as a single step.
+- Image positioning and text wrap: a selected image's bubble menu now has layout controls — align left (default), center, right, full content width, and float left/right with text wrapping around the image (50% width). The active mode is highlighted, the choice is stored in the note file, survives reloads and is undoable. Layout controls also appear in the mobile bottom toolbar. "Full width" stretches the image edge-to-edge across the whole note pane (beyond the editor's text indent); an explicit user width overrides it.
+- Image resizing: a selected image shows drag handles on its left and right edges. Dragging changes the width live and saves it as a percent of the content width (5–100%, min 80px), so proportions hold on mobile. The explicit width overrides the layout default and is undoable as a single step. Handles are hidden for error placeholders and empty image nodes.
 - Click-to-zoom for images: clicking a selected image opens a fullscreen lightbox with the image at the largest size that fits the screen (file name shown below). Close with a click anywhere or `Esc`. Does nothing for images whose file is missing.
 
 ### Fixed

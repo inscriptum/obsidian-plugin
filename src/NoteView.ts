@@ -454,6 +454,12 @@ export class NoteView extends FileView {
           toolbarEl.props.selectionBar = bubbleMenuBarEl;
           toolbarEl.props.tableSelectionBar = tableBubbleMenuEl;
           toolbarEl.props.mediaSelectionBar = mediaBubbleMenuEl;
+          // The media menu element's own editor-event subscription can go stale
+          // across toolbar re-renders, leaving the bar frozen on its initial
+          // state. Pulse it on every selection update: the generator re-reads
+          // the editor state on each render pass.
+          this.editor.on("selectionUpdate", () => mediaBubbleMenuEl.next());
+          this.editor.on("update", () => mediaBubbleMenuEl.next());
         } else {
           this.contentEl.appendChild(bubbleMenuBarEl);
           this.contentEl.appendChild(tableBubbleMenuEl);
