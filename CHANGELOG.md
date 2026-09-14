@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Caret lost on every autosave when the same note is open in two panes: each save made the idle pane re-sync its document, which fired the image-add hook whose blur command cleared the document-wide selection — including the live caret of the pane the user was typing in, so the next keystrokes landed in the note title (renaming the file). The blur command now only clears the selection when it actually belongs to the blurred editor, and the image-add hook no longer blurs while disk content is being applied.
 - Select all with fold sections
 - Adding a new line inside folded sections
 - Broken images after their attachment files were deleted behind the editor's back. Three fixes:

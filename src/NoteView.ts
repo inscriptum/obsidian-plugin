@@ -1189,8 +1189,12 @@ export class NoteView extends FileView {
       state: {
         onAdd: (node, deco) => {
           if (node.type.name !== "image") return;
-          // Blur so the image plugin doesn't delete the empty node on file selection from OS
-          editorRef.current?.commands.blur();
+          // Blur so the image plugin doesn't delete the empty node on file selection from OS.
+          // Skip while applying disk content (external sync / reload): the add
+          // comes from a document replacement, not an upload, and the blur's
+          // deferred removeAllRanges would drop the caret of the pane the user
+          // is typing in (see issues/cursor-lost-on-save).
+          if (!this.applyingRemoteChange) editorRef.current?.commands.blur();
           // The state plugin stores the node's key in the decoration spec.
           const key = (deco.spec as {id: string}).id;
           handleAddImg({ ...node.attrs, key }, editorRef, ctx);
