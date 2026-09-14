@@ -18,10 +18,10 @@
 	.image-container {
 		padding: var(--texto-image-block__padding);
 		pointer-events: none;
-		width: var(--texto-image-container__width);
+		width: 100%;
 
 		& .image {
-			width: var(--texto-image-container__width);
+			width: 100%;
 			border-radius: 8px;
 		}
 	}
@@ -201,10 +201,9 @@
 /* ── Image layout (align / wrap) ──────────────────────────────────────
    Classes are applied to the host element by setViewProps (syncLayoutClass):
    left = default (no class), center/right = margin auto, full = 100% width,
-   wrap-left/right = float with text wrapping around the image. */
-.texto-extension-image-host .image-container .image {
-	width: 100%;
-}
+   wrap-left/right = float with text wrapping around the image.
+   (.image-container / .image widths are 100% of the host — see the top of
+   this file — so host width alone controls the rendered image size.) */
 
 .texto-extension-image-host.texto-image-layout-center {
 	margin-inline: auto;
