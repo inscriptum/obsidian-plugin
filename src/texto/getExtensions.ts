@@ -1,44 +1,47 @@
-import type { Extensions } from './core/@types';
-import type { ImageOptionsHooks } from './extensions/image';
-import type { AttachmentOptionsHooks } from './extensions/attachment';
-import type { StateOptionsHooks } from './extensions/state';
-import { NoteDoc } from './extensions/note-doc';
-import { Link } from './extensions/link';
-import { Cleanup } from './extensions/cleanup';
-import { ListKeymap } from './extensions/list-keymap';
-import { Image } from './extensions/image';
-import { Attachment } from './extensions/attachment';
-import { HljsCodeBlock, HljsCodeBlockRow, HljsMark } from './extensions/code-block-hljs';
-import { Table, TableCell, TableHeader, TableRow } from './extensions/table';
-import { TaskList } from './extensions/task-list';
-import { TaskItem } from './extensions/task-item';
-import { TaskItemFolding } from './extensions/task-item-folding';
-import { BubbleMenu } from './extensions/bubble-menu';
-import { State } from './extensions/state';
+import type { Extensions } from "./core/@types";
+import type { ImageOptionsHooks } from "./extensions/image";
+import type { AttachmentOptionsHooks } from "./extensions/attachment";
+import type { StateOptionsHooks } from "./extensions/state";
+import { NoteDoc } from "./extensions/note-doc";
+import { Link } from "./extensions/link";
+import { Cleanup } from "./extensions/cleanup";
+import { ListKeymap } from "./extensions/list-keymap";
+import { Image } from "./extensions/image";
+import { Attachment } from "./extensions/attachment";
+import {
+  HljsCodeBlock,
+  HljsCodeBlockRow,
+  HljsMark,
+} from "./extensions/code-block-hljs";
+import { Table, TableCell, TableHeader, TableRow } from "./extensions/table";
+import { TaskList } from "./extensions/task-list";
+import { TaskItem } from "./extensions/task-item";
+import { TaskItemFolding } from "./extensions/task-item-folding";
+import { BubbleMenu } from "./extensions/bubble-menu";
+import { State } from "./extensions/state";
 
-import { Blockquote } from './extensions/blockquote';
-import { Bold } from './extensions/bold';
-import { BulletList } from './extensions/bullet-list';
-import { Code } from './extensions/code';
-import { Gapcursor } from './extensions/gapcursor';
-import { Dropcursor } from './extensions/dropcursor';
-import { DragHandle } from './extensions/drag-handle';
-import { HardBreak } from './extensions/hard-break';
-import { Heading } from './extensions/heading';
-import { HeadingFolding } from './extensions/heading/folding';
-import { Highlight } from './extensions/highlight';
-import { History } from './extensions/history';
-import { HorizontalRule } from './extensions/horizontal-rule';
-import { Italic } from './extensions/italic';
-import { ListItem } from './extensions/list-item';
-import { OrderedList } from './extensions/ordered-list';
-import { Paragraph } from './extensions/paragraph';
-import { Strike } from './extensions/strike';
-import { Text } from './extensions/text';
-import { TextStyle } from './extensions/text-style';
-import { Underline } from './extensions/underline';
-import { Color } from './extensions/color';
-
+import { Blockquote } from "./extensions/blockquote";
+import { Bold } from "./extensions/bold";
+import { BulletList } from "./extensions/bullet-list";
+import { Code } from "./extensions/code";
+import { Gapcursor } from "./extensions/gapcursor";
+import { Dropcursor } from "./extensions/dropcursor";
+import { DragHandle } from "./extensions/drag-handle";
+import { HardBreak } from "./extensions/hard-break";
+import { Heading } from "./extensions/heading";
+import { HeadingFolding } from "./extensions/heading/folding";
+import { Highlight } from "./extensions/highlight";
+import { History } from "./extensions/history";
+import { HorizontalRule } from "./extensions/horizontal-rule";
+import { Italic } from "./extensions/italic";
+import { ListItem } from "./extensions/list-item";
+import { OrderedList } from "./extensions/ordered-list";
+import { Paragraph } from "./extensions/paragraph";
+import { Strike } from "./extensions/strike";
+import { Text } from "./extensions/text";
+import { TextStyle } from "./extensions/text-style";
+import { Underline } from "./extensions/underline";
+import { Color } from "./extensions/color";
 
 export interface ExtensionHooks {
   state?: StateOptionsHooks;
@@ -56,12 +59,15 @@ export function getExtensions(
   options: GetExtensionsOptions = {},
 ): Extensions {
   return [
-    State.configure({ nodeTypes: ['image', 'attachment'], hooks: hooks.state }),
+    State.configure({ nodeTypes: ["image", "attachment"], hooks: hooks.state }),
     NoteDoc,
     Link,
     Cleanup,
     ListKeymap,
-    Image.configure({ hooks: hooks.image }),
+    Image.configure({
+      hooks: hooks.image,
+      errorIconId: "inscriptum-ico-fileUnknown",
+    }),
     Attachment.configure({ hooks: hooks.attachment }),
     HljsCodeBlock,
     HljsCodeBlockRow,
@@ -83,7 +89,7 @@ export function getExtensions(
       // Chevron only where the folding plugin is active — on mobile the
       // plugin is off and the chevron would be a dead control.
       taskFolding: options.isMobileView !== true,
-      checkboxIconLinks: ['check_box_on_20', 'check_box_off_20'],
+      checkboxIconLinks: ["check_box_on_20", "check_box_off_20"],
     }),
     // Collapse subtasks of a task item (desktop-only, like heading folding).
     TaskItemFolding.configure({

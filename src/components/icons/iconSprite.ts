@@ -12,14 +12,19 @@
  * resolve the symbols defined on document.body.
  *
  * Icon IDs:
- *   toolbar  → #inscriptum-ico-<name>
+ *   base  → #inscriptum-ico-<name>
+ *   toolbar  → #inscriptum-tlb-<name>
  *   bubble   → #inscriptum-bb-<name>
  */
 
 const SPRITE_ID = "inscriptum-icon-sprite";
 
-/** Raw Tabler-outline path markup (MIT), 24×24 viewBox, as in the Figma/HTML mocks. */
 const ICON_PATHS: Record<string, string> = {
+  fileUnknown: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2" /><path d="M12 17v.01" /><path d="M12 14a1.5 1.5 0 1 0 -1.14 -2.474" />`,
+};
+
+/** Raw Tabler-outline path markup (MIT), 24×24 viewBox, as in the Figma/HTML mocks. */
+const TOOLBAR_ICON_PATHS: Record<string, string> = {
   paragraph: `<line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/>`,
   h1: `<path d="M19 18v-8l-2 2"/><path d="M4 6v12"/><path d="M12 6v12"/><path d="M11 18h2"/><path d="M3 18h2"/><path d="M4 12l8 0"/><path d="M3 6h2"/><path d="M11 6h2"/>`,
   h2: `<path d="M4 6v12"/><path d="M12 6v12"/><path d="M11 18h2"/><path d="M3 18h2"/><path d="M4 12l8 0"/><path d="M3 6h2"/><path d="M11 6h2"/><path d="M17 12a2 2 0 1 1 4 0c0 .591 -.417 1.318 -.816 1.858l-3.184 4.143h4"/>`,
@@ -75,10 +80,11 @@ const BUBBLE_ICON_PATHS: Record<string, string> = {
   imgWrapRight: `<rect x="12" y="4" width="9" height="7" rx="1"/><path d="M3 5.5h6"/><path d="M3 8h6"/><path d="M5 10.5h4"/><path d="M3 15h18"/><path d="M9 19h12"/>`,
 };
 
-export type IconName = keyof typeof ICON_PATHS;
+export type ToolbarIconName = keyof typeof TOOLBAR_ICON_PATHS;
 export type BubbleIconName = keyof typeof BUBBLE_ICON_PATHS;
 
-export const ICON_NAMES: IconName[] = Object.keys(ICON_PATHS);
+export const TOOLBAR_ICON_NAMES: ToolbarIconName[] =
+  Object.keys(TOOLBAR_ICON_PATHS);
 export const BUBBLE_ICON_NAMES: BubbleIconName[] =
   Object.keys(BUBBLE_ICON_PATHS);
 
@@ -97,7 +103,8 @@ function symbols(
 
 const spriteSvg = `
 <svg id="${SPRITE_ID}" xmlns="http://www.w3.org/2000/svg" style="display:none" aria-hidden="true">
-${symbols(ICON_PATHS, "inscriptum-ico", 1.75)}
+${symbols(ICON_PATHS, "inscriptum-ico", 1)}
+${symbols(TOOLBAR_ICON_PATHS, "inscriptum-tlb", 1.75)}
 ${symbols(BUBBLE_ICON_PATHS, "inscriptum-bb", 1.8)}
 </svg>`;
 

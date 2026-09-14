@@ -63,6 +63,7 @@ export const imageElement = litView.element({
 					key={params.key}
 					state={params.state}
 					data={params.data}
+					errorIconId={params.options.errorIconId}
 					onClick={params.onClick}
 					onRemove={params.onRemove}
 					updateAttrs={params.updateAttrs}

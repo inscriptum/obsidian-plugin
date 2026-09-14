@@ -1,5 +1,5 @@
 import { litView } from "@web-companions/lit";
-import { ICON_NAMES, type IconName } from "./iconSprite";
+import { TOOLBAR_ICON_NAMES, type ToolbarIconName } from "../icons/iconSprite";
 
 /**
  * Toolbar icons built with lit-html's `svg` tag (the file name contains
@@ -13,18 +13,18 @@ import { ICON_NAMES, type IconName } from "./iconSprite";
  * name with the name captured in a closure (same pattern as the repo's
  * placeholderIconNode, which is also created once and used as <X/>).
  */
-function makeIconNode(name: IconName) {
+function makeToolbarIconNode(name: ToolbarIconName) {
   return litView.node(function* () {
     while (true) {
       yield (
         <svg class="note-toolbar__icon" viewBox="0 0 24 24">
           {/* href (SVG2) + xlink:href (legacy) for max <use> compatibility */}
-          <use href={`#inscriptum-ico-${name}`} xlinkHref={`#inscriptum-ico-${name}`} />
+          <use href={`#inscriptum-tlb-${name}`} xlinkHref={`#inscriptum-tlb-${name}`} />
         </svg>
       );
     }
   })();
 }
 
-export const iconNodes: Record<IconName, ReturnType<typeof makeIconNode>> =
-  Object.fromEntries(ICON_NAMES.map((name) => [name, makeIconNode(name)]));
+export const toolbarIconNodes: Record<ToolbarIconName, ReturnType<typeof makeToolbarIconNode>> =
+  Object.fromEntries(TOOLBAR_ICON_NAMES.map((name) => [name, makeToolbarIconNode(name)]));

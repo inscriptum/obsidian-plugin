@@ -65,6 +65,7 @@ export interface ImageOptions {
   attributes: ImageOptionsAttrs;
   accept: string;
   hooks?: ImageOptionsHooks;
+  errorIconId?: string;
 }
 
 export const VIEW_TAG = elTag("texto-extension-image");

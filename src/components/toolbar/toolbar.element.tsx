@@ -5,14 +5,14 @@ import { CellSelection, isInTable } from "prosemirror-tables";
 import { isMediaNodeSelection } from "../bubble-menu-bar/mediaMenuState";
 import { elTag } from "../../tags";
 import { getToolbarState, type ToolbarState } from "./toolbarState";
-import { iconNodes } from "../icons/icon.svgnode";
-import type { IconName } from "../icons/iconSprite";
+import { toolbarIconNodes } from "./icon.svgnode";
+import type { ToolbarIconName } from "../icons/iconSprite";
 
 interface ToolbarButton {
   /** Key in ToolbarState for highlight, or null for action buttons (image/attach/table). */
   activeKey: keyof ToolbarState | null;
   label: string;
-  icon: IconName;
+  icon: ToolbarIconName;
   action: (editor: Editor) => void;
 }
 
@@ -192,7 +192,7 @@ export const ToolbarElement = litView.element({
                   onclick={() => btn.action(props.editor)}
                 >
                   <span class="note-toolbar__icon">
-                    {iconNodes[btn.icon]({})}
+                    {toolbarIconNodes[btn.icon]({})}
                   </span>
                 </button>
               )),

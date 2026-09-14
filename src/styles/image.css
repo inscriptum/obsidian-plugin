@@ -22,7 +22,7 @@
 
 		& .image {
 			width: 100%;
-			border-radius: 8px;
+			border-radius: 4px;
 		}
 	}
 
@@ -62,7 +62,7 @@
 		cursor: wait;
 		display: flex;
 		align-items: flex-end;
-		border-radius: 12px;
+		border-radius: 4px;
 		overflow: hidden;
 		background: linear-gradient(
 			90deg,
@@ -81,7 +81,7 @@
 		color: var(--texto-image__secondary_color);
 		display: flex;
 		align-items: flex-end;
-		border-radius: 12px;
+		border-radius: 4px;
 		overflow: hidden;
 		background: var(--texto-image__secondary_background);
 	}
@@ -182,7 +182,7 @@
 		max-width: 95vw;
 		max-height: 92vh;
 		object-fit: contain;
-		border-radius: 8px;
+		border: none;
 		box-shadow: 0 8px 40px rgb(0 0 0 / 50%);
 		user-select: none;
 	}
