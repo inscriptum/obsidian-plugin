@@ -147,6 +147,14 @@
   flex-direction: column;
 }
 
+/* Size container for container-query units (cqw) used by the image
+   full-bleed layout (see styles/image.css): full-width images span the
+   editor pane with pure CSS. The wrapper has no horizontal padding, so
+   cqw equals the pane width. */
+.note-view-container .note {
+  container-type: inline-size;
+}
+
 .texto-editor {
   flex: 1;
   min-height: 0;

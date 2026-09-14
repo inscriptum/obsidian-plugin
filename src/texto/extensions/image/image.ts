@@ -22,7 +22,6 @@ import type { EditorView } from "prosemirror-view";
 import { addCommands } from "./commands";
 import { setViewProps } from "./helpers/setViewProps.helper";
 import { createResizeHandles } from "./helpers/resizeHandles";
-import { releaseFullBleed } from "./helpers/fullBleed";
 import { processImageInGecko } from "./plugins/processImageInGecko";
 import { imageElement } from "./view/image.element";
 
@@ -378,10 +377,6 @@ export const Image = Node.create<ImageOptions>({
 
       return {
         dom: element,
-
-        destroy: () => {
-          releaseFullBleed(element);
-        },
 
         update: (updatedNode) => {
           if (updatedNode.type !== this.type) {

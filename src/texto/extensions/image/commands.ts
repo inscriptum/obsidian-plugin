@@ -55,6 +55,7 @@ function addImageFile(this: AddCommandsThis, file: File): Command {
 
 /**
  * Set the visual layout (align/wrap) of the selected image node.
+ * "full" always resets the explicit user width — full-bleed wins.
  */
 function setImageLayout(this: AddCommandsThis, align: ImageLayout): Command {
 	return ({state, view}) => {
@@ -66,6 +67,7 @@ function setImageLayout(this: AddCommandsThis, align: ImageLayout): Command {
 			state.tr.setNodeMarkup(selection.from, selection.node.type, {
 				...selection.node.attrs,
 				align,
+				width: align === 'full' ? null : selection.node.attrs.width,
 			}),
 		);
 

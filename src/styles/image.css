@@ -200,10 +200,24 @@
 
 /* ── Image layout (align / wrap) ──────────────────────────────────────
    Classes are applied to the host element by setViewProps (syncLayoutClass):
-   left = default (no class), center/right = margin auto, full = 100% width,
+   left = default (no class), center/right = margin auto, full = full-bleed,
    wrap-left/right = float with text wrapping around the image.
    (.image-container / .image widths are 100% of the host — see the top of
-   this file — so host width alone controls the rendered image size.) */
+   this file — so host width alone controls the rendered image size.)
+
+   Full-bleed is pure CSS: 100cqw is the .texto-editor inline size (it is a
+   size container, see styles/editor.css), and the symmetric margin trick
+   negates the editor content indent. The browser recomputes it natively on
+   every resize — no JS measuring, no lag. */
+.texto-extension-image-host.texto-image-layout-full {
+	width: 100cqw;
+	margin-inline: calc((100% - 100cqw) / 2);
+}
+
+/* Full-width images are not user-resizable. */
+.texto-extension-image-host.texto-image-layout-full .image-resize-handle {
+	display: none !important;
+}
 
 .texto-extension-image-host.texto-image-layout-center {
 	margin-inline: auto;
@@ -211,10 +225,6 @@
 
 .texto-extension-image-host.texto-image-layout-right {
 	margin-left: auto;
-}
-
-.texto-extension-image-host.texto-image-layout-full {
-	width: 100%;
 }
 
 .texto-extension-image-host.texto-image-layout-wrap-left {

@@ -30,7 +30,8 @@ export function replaceMediaFile(editor: Editor): void {
   );
 }
 
-/** Set the layout (align/wrap) of the selected image node. */
+/** Set the layout (align/wrap) of the selected image node.
+    "full" always resets the explicit user width — full-bleed wins. */
 export function setImageNodeLayout(editor: Editor, align: ImageLayout): void {
   const sel = getSelectedMediaNode(editor.state);
   if (!sel || sel.node.type.name !== "image") return;
@@ -39,6 +40,7 @@ export function setImageNodeLayout(editor: Editor, align: ImageLayout): void {
     editor.state.tr.setNodeMarkup(sel.pos, sel.node.type, {
       ...sel.node.attrs,
       align,
+      width: align === "full" ? null : sel.node.attrs.width,
     }),
   );
 }

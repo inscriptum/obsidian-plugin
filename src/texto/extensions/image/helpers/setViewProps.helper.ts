@@ -15,7 +15,6 @@ import type {
   UpdateFn,
   ViewNodeState,
 } from "../image";
-import { applyFullBleed, releaseFullBleed } from "./fullBleed";
 
 /** Host-element classes per image layout (see styles/image.css). */
 const LAYOUT_CLASSES: Partial<Record<ImageLayout, string>> = {
@@ -41,18 +40,9 @@ function syncLayoutStyles(element: HTMLElement, attrs: ImageOptionsAttrs, hasErr
   const noFile = attrs.data?.id == null || hasError;
   element.classList.toggle("texto-image-no-file", noFile);
 
-  if (attrs.align === "full" && attrs.width == null && !noFile) {
-    // Full-bleed: stretch across the whole editor scroll container (JS-measured,
-    // re-applied on container resize). An explicit user width wins instead.
-    element.style.width = "";
-    element.style.marginLeft = "";
-    applyFullBleed(element);
-    return;
-  }
-
-  releaseFullBleed(element);
   // Explicit user width (percent string) overrides the layout default;
-  // empty string falls back to the CSS width of the current layout.
+  // empty string falls back to the CSS width of the current layout
+  // (full-bleed for the "full" layout is pure CSS — 100cqw, see image.css).
   element.style.width = attrs.width ?? "";
   element.style.marginLeft = "";
 }
