@@ -133,7 +133,9 @@ export const MediaBubbleMenuElement = litView.element({
             >
               {bubbleIconNodes.replace()}
             </button>
-            {showLayout && (
+            {/* NOTE: render '' (not false) when hidden — lit-html renders the
+                boolean false as visible text "false". */}
+            {showLayout ? (
               <>
                 <span class="bubble-menu-sep"></span>
                 {imageLayouts.map((layout) => (
@@ -147,6 +149,8 @@ export const MediaBubbleMenuElement = litView.element({
                   </button>
                 ))}
               </>
+            ) : (
+              ''
             )}
             <button
               class="bb-btn danger"
