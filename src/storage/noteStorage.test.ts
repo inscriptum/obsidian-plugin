@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import type { Vault as ObsidianVault } from "obsidian";
 import { Vault, TFile } from "../__mocks__/obsidian";
 import {
@@ -152,17 +152,182 @@ describe("noteStorage", () => {
   });
 
   describe("writeNote", () => {
-    it("writes JSON string to vault", async () => {
+    it("persists atomically: hidden temp file, then rename over the target", async () => {
       const file = new TFile("test.note");
       const vault = new Vault();
       const content = { type: "noteDoc", content: [] };
+      vault.adapter.stat.mockResolvedValue({ size: 123 });
 
       await writeNote(file, vault as unknown as ObsidianVault, content);
 
-      expect(vault.modify).toHaveBeenCalledWith(
-        file,
-        JSON.stringify(content, null, 2),
+      // never vault.modify — its truncate+write is the 0-byte hole
+      expect(vault.modify).not.toHaveBeenCalled();
+
+      expect(vault.adapter.write).toHaveBeenCalledTimes(1);
+      const [tmpPath, data] = vault.adapter.write.mock.calls[0];
+      expect(tmpPath).toContain("test.note");
+      expect(tmpPath).toMatch(/^\.test\.note\..+\.tmp$/); // hidden temp beside the target
+      expect(data).toBe(JSON.stringify(content, null, 2));
+
+      expect(vault.adapter.rename).toHaveBeenCalledWith(tmpPath, "test.note");
+      expect(vault.adapter.remove).not.toHaveBeenCalled();
+    });
+
+    it("uses node fs.rename on desktop — atomic replace over the existing target", async () => {
+      const file = new TFile("test.note");
+      const vault = new Vault();
+      vault.adapter.stat.mockResolvedValue({ size: 123 });
+      vault.adapter.getFullPath = (p: string) => `/vault/${p}`;
+      const renameSync = vi.fn();
+      (window as { require?: unknown }).require = (id: string) =>
+        id === "fs" ? { renameSync } : undefined;
+
+      try {
+        await writeNote(file, vault as unknown as ObsidianVault, {
+          type: "noteDoc",
+          content: [],
+        });
+      } finally {
+        delete (window as { require?: unknown }).require;
+      }
+
+      const tmpPath = vault.adapter.write.mock.calls[0][0];
+      expect(renameSync).toHaveBeenCalledWith(
+        `/vault/${tmpPath}`,
+        "/vault/test.note",
       );
+      // adapter-level destructive fallbacks never engaged
+      expect(vault.adapter.rename).not.toHaveBeenCalled();
+      expect(vault.adapter.remove).not.toHaveBeenCalled();
+    });
+
+    it("falls back to remove+rename when the target exists and rename refuses", async () => {
+      const file = new TFile("test.note");
+      const vault = new Vault();
+      vault.adapter.stat.mockResolvedValue({ size: 123 });
+      vault.adapter.rename
+        .mockRejectedValueOnce(new Error("Destination file already exists!"))
+        .mockResolvedValueOnce(undefined);
+
+      await writeNote(file, vault as unknown as ObsidianVault, {
+        type: "noteDoc",
+        content: [],
+      });
+
+      expect(vault.adapter.remove).toHaveBeenCalledWith("test.note");
+      expect(vault.adapter.rename).toHaveBeenCalledTimes(2);
+      expect(vault.adapter.rename).toHaveBeenLastCalledWith(
+        vault.adapter.write.mock.calls[0][0],
+        "test.note",
+      );
+    });
+
+    it("keeps the temp file for recovery when every replace strategy fails", async () => {
+      const file = new TFile("test.note");
+      const vault = new Vault();
+      vault.adapter.stat.mockResolvedValue({ size: 123 });
+      vault.adapter.rename.mockRejectedValue(
+        new Error("Destination file already exists!"),
+      );
+
+      await expect(
+        writeNote(file, vault as unknown as ObsidianVault, {
+          type: "noteDoc",
+          content: [],
+        }),
+      ).rejects.toThrow(/new content kept in \.test\.note\./);
+
+      // the temp file (the only good copy) was NOT deleted
+      expect(vault.adapter.remove).toHaveBeenCalledWith("test.note");
+      expect(vault.adapter.remove).not.toHaveBeenCalledWith(
+        expect.stringContaining(".tmp"),
+      );
+    });
+
+    it("flags verify-failed when the file is 0 bytes after a non-empty write", async () => {
+      const file = new TFile("test.note");
+      const vault = new Vault();
+      vault.adapter.stat
+        .mockResolvedValueOnce({ size: 100 }) // before write
+        .mockResolvedValue({ size: 0 }); // after write — storage lied
+      localStorage.setItem("inscriptum-write-log", "1");
+
+      await writeNote(
+        file,
+        vault as unknown as ObsidianVault,
+        { type: "noteDoc", content: [] },
+        "autosave",
+      );
+
+      expect(vault.adapter.append).toHaveBeenCalledTimes(1);
+      const line = JSON.parse(vault.adapter.append.mock.calls[0][1]);
+      expect(line.result).toBe("verify-failed");
+      expect(line.priorBytes).toBe(100);
+      expect(line.trigger).toBe("autosave");
+      localStorage.removeItem("inscriptum-write-log");
+    });
+  });
+
+  describe("write log", () => {
+    it("is silent by default — no log file, no console spam", async () => {
+      localStorage.removeItem("inscriptum-write-log");
+      const file = new TFile("test.note");
+      const vault = new Vault();
+      vault.adapter.stat.mockResolvedValue({ size: 5 });
+
+      await writeNote(file, vault as unknown as ObsidianVault, {
+        type: "noteDoc",
+        content: [],
+      });
+
+      expect(vault.adapter.append).not.toHaveBeenCalled();
+    });
+
+    it("appends a JSONL entry per write when enabled", async () => {
+      localStorage.setItem("inscriptum-write-log", "1");
+      const file = new TFile("notes/test.note");
+      const vault = new Vault();
+      vault.adapter.stat.mockResolvedValue({ size: 42 });
+
+      await writeNote(
+        file,
+        vault as unknown as ObsidianVault,
+        { type: "noteDoc", content: [] },
+        "close",
+      );
+
+      expect(vault.adapter.append).toHaveBeenCalledTimes(1);
+      const [logPath, line] = vault.adapter.append.mock.calls[0];
+      expect(logPath).toBe(".inscriptum-write-log.jsonl");
+      const entry = JSON.parse(line);
+      expect(entry).toMatchObject({
+        path: "notes/test.note",
+        trigger: "close",
+        bytes: JSON.stringify({ type: "noteDoc", content: [] }, null, 2).length,
+        priorBytes: 42,
+        result: "ok",
+      });
+      // the written temp file sat beside the target (same dir)
+      expect(vault.adapter.write.mock.calls[0][0]).toMatch(
+        /^notes\/\.test\.note\..+\.tmp$/,
+      );
+      localStorage.removeItem("inscriptum-write-log");
+    });
+
+    it("a broken log sink never breaks the save", async () => {
+      localStorage.setItem("inscriptum-write-log", "1");
+      const file = new TFile("test.note");
+      const vault = new Vault();
+      vault.adapter.stat.mockResolvedValue({ size: 1 });
+      vault.adapter.append.mockRejectedValue(new Error("disk full"));
+
+      await expect(
+        writeNote(file, vault as unknown as ObsidianVault, {
+          type: "noteDoc",
+          content: [],
+        }),
+      ).resolves.toBeUndefined();
+      localStorage.removeItem("inscriptum-write-log");
     });
   });
 });

@@ -67,10 +67,210 @@ function nodeCarriesContent(node: JSONContent): boolean {
   return Array.isArray(node.content) && node.content.some(nodeCarriesContent);
 }
 
+/** Write a note doc to disk (JSON, pretty-printed) with a write-log entry
+ *  (see logNoteWrite). */
 export async function writeNote(
   file: TFile,
   vault: Vault,
   content: JSONContent,
+  trigger = "unknown",
 ): Promise<void> {
-  await vault.modify(file, JSON.stringify(content, null, 2));
+  const data = JSON.stringify(content, null, 2);
+  await writeNoteRaw(file, vault, data, trigger);
+}
+
+/**
+ * Persist note content ATOMICALLY: the data lands in a hidden temp file in
+ * the same directory, then a single rename replaces the target. A plain
+ * truncate+write (vault.modify → fs.writeFile) leaves a 0-byte file behind
+ * when the renderer dies mid-write — exactly what wiped a real note during a
+ * hot plugin reload (issues/empty-note-wipe-guard, 2026-09-15 incident).
+ *
+ * Replace step, in order of preference:
+ *  1. desktop: node fs.rename over the existing target — truly atomic
+ *     (readers see old or new content, never a truncated file);
+ *  2. adapter rename (target absent — e.g. first save);
+ *  3. adapter remove + rename (target present on mobile): a tiny window
+ *     where the target is missing, but the temp file with the full new
+ *     content survives any crash and is reported in the write log.
+ *
+ * On failure the temp file is kept (it holds the complete new content and
+ * is named in the log entry) — never delete the only good copy.
+ */
+/**
+ * Replace the target file's content with the temp file's content.
+ *
+ * 1. Desktop (node available): fs.rename over the existing target —
+ *    ATOMIC. Obsidian's own adapter.rename refuses to overwrite an existing
+ *    destination ("Destination file already exists!"), so the raw fs call
+ *    is the only true replace here.
+ * 2. Adapter rename — works when the target does not exist yet.
+ * 3. Adapter remove + rename — target exists on mobile/no-node: a tiny
+ *    missing-file window, mitigated by keeping the temp file on failure.
+ */
+async function replaceFile(
+  vault: Vault,
+  tmpPath: string,
+  targetPath: string,
+): Promise<void> {
+  const nodeFs = getNodeFs();
+  const adapter = vault.adapter;
+  if (nodeFs != null && typeof adapter.getFullPath === "function") {
+    nodeFs.renameSync(
+      adapter.getFullPath(tmpPath),
+      adapter.getFullPath(targetPath),
+    );
+    return;
+  }
+
+  try {
+    await adapter.rename(tmpPath, targetPath);
+    return;
+  } catch {
+    // adapter.rename refuses to overwrite an existing destination —
+    // fall through to remove + rename.
+  }
+  await adapter.remove(targetPath);
+  await adapter.rename(tmpPath, targetPath);
+}
+
+/** The node fs module on desktop Obsidian; null on mobile / when blocked. */
+function getNodeFs(): typeof import("node:fs") | null {
+  try {
+    const req = (window as { require?: (id: string) => unknown }).require;
+    if (typeof req !== "function") return null;
+    return req("fs") as typeof import("node:fs");
+  } catch {
+    return null;
+  }
+}
+
+export async function writeNoteRaw(
+  file: TFile,
+  vault: Vault,
+  data: string,
+  trigger = "unknown",
+): Promise<void> {
+  const adapter = vault.adapter;
+  const slash = file.path.lastIndexOf("/");
+  const dir = slash === -1 ? "" : file.path.slice(0, slash);
+  const unique = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  // Dot-prefixed → Obsidian's file explorer ignores the temp file.
+  const tmpPath = `${dir ? `${dir}/` : ""}.${file.name}.${unique}.tmp`;
+
+  const started = Date.now();
+  let priorBytes: number | null = null;
+  try {
+    priorBytes = (await adapter.stat(file.path)).size;
+  } catch {
+    // no prior file (or stat unavailable) — logged as null
+  }
+
+  let result: NoteWriteLogEntry["result"] = "ok";
+  let error: string | undefined;
+  try {
+    await adapter.write(tmpPath, data);
+    await replaceFile(vault, tmpPath, file.path);
+    // Verify the file on disk actually holds what we wrote — a mismatch
+    // means the storage layer lied about the write succeeding.
+    try {
+      const after = await adapter.stat(file.path);
+      if (data.length > 0 && after.size === 0) {
+        result = "verify-failed";
+        console.error(
+          `[inscriptum] Write verification failed for "${file.path}": file is 0 bytes after a ${data.length}-byte write.`,
+        );
+      }
+    } catch {
+      // stat after write is best-effort; the replace already succeeded
+    }
+  } catch (err) {
+    result = "error";
+    error = `${String(err)} (new content kept in ${tmpPath})`;
+    void logNoteWrite(vault, {
+      ts: new Date().toISOString(),
+      trigger,
+      path: file.path,
+      bytes: data.length,
+      priorBytes,
+      result,
+      error,
+      durationMs: Date.now() - started,
+    });
+    // Surface the recovery location to the user of this function, not just
+    // to the log: the temp file holds the only complete copy of the content.
+    throw new Error(`${String(err)} (new content kept in ${tmpPath})`);
+  }
+
+  void logNoteWrite(vault, {
+    ts: new Date().toISOString(),
+    trigger,
+    path: file.path,
+    bytes: data.length,
+    priorBytes,
+    result,
+    durationMs: Date.now() - started,
+  });
+}
+
+/** localStorage flag that turns on the note write log. Toggle from the
+ *  devtools console: localStorage.setItem("inscriptum-write-log", "1").
+ *  Survives app reloads; off by default so saves stay silent. */
+const WRITE_LOG_FLAG = "inscriptum-write-log";
+/** Hidden file at the vault root — JSON lines, one note write per line. */
+const WRITE_LOG_PATH = ".inscriptum-write-log.jsonl";
+
+export function isWriteLogEnabled(): boolean {
+  try {
+    return window.localStorage.getItem(WRITE_LOG_FLAG) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export interface NoteWriteLogEntry {
+  ts: string;
+  /** What initiated the save: autosave | blur | unload-file | close |
+   *  conflict-keep-local | blocked-empty | unknown. */
+  trigger: string;
+  path: string;
+  bytes: number;
+  /** Disk size before the write; null when unknown (e.g. no prior file). */
+  priorBytes: number | null;
+  result: "ok" | "verify-failed" | "error" | "blocked";
+  error?: string;
+  durationMs: number;
+}
+
+/** Append one JSON line describing a note write — ONLY when the write log
+ *  is enabled (localStorage flag). Failures never break the save itself. */
+export async function logNoteWrite(
+  vault: Vault,
+  entry: NoteWriteLogEntry,
+): Promise<void> {
+  if (!isWriteLogEnabled()) return;
+  const line = JSON.stringify(entry);
+  try {
+    await vault.adapter.append(WRITE_LOG_PATH, `${line}\n`);
+  } catch {
+    // a broken log must never break a save
+  }
+}
+
+/** Log a write that the empty-overwrite guard refused (never hit the disk). */
+export async function logWriteBlocked(
+  vault: Vault,
+  path: string,
+  trigger: string,
+  bytes: number,
+): Promise<void> {
+  await logNoteWrite(vault, {
+    ts: new Date().toISOString(),
+    trigger: `blocked-empty (${trigger})`,
+    path,
+    bytes,
+    priorBytes: null,
+    result: "blocked",
+    durationMs: 0,
+  });
 }

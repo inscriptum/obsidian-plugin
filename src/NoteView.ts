@@ -13,6 +13,7 @@ import {
   writeNote,
   parseNoteDoc,
   isEmptyNoteDoc,
+  logWriteBlocked,
 } from "./storage/noteStorage";
 import { FileChangedModal } from "./ui/FileChangedModal";
 import { getDesiredFileName } from "./storage/fileNaming";
@@ -456,7 +457,7 @@ export class NoteView extends FileView {
           }
 
           this.editor.on("blur", () => {
-            void this.flushSave();
+            void this.flushSave("blur");
           });
 
           this._skipNextReload = true;
@@ -705,7 +706,7 @@ export class NoteView extends FileView {
     this.mobileScrollCleanup?.();
     this.mobileScrollCleanup = null;
     this.destroySearchBar();
-    await this.flushSave();
+    await this.flushSave("unload-file");
     this.destroyEditor();
     this.contentEl.empty();
   }
@@ -719,7 +720,7 @@ export class NoteView extends FileView {
     this.leafContentWithNoteClass = null;
     this.scrollShadowCleanup?.();
     this.scrollShadowCleanup = null;
-    await this.flushSave();
+    await this.flushSave("close");
     this.destroyEditor();
     this.contentEl.empty();
   }
@@ -1006,15 +1007,15 @@ export class NoteView extends FileView {
     this.lastSavedFolds[kind] = positions;
   }
 
-  private async flushSave(): Promise<void> {
+  private async flushSave(trigger = "autosave"): Promise<void> {
     if (!this.editor || !this.file) {
       return;
     }
     try {
       const json = this.editor.getJSON();
       const raw = JSON.stringify(json, null, 2);
-      if (await this.blockEmptyOverwrite(json)) return;
-      await writeNote(this.file, this.app.vault, json);
+      if (await this.blockEmptyOverwrite(json, trigger)) return;
+      await writeNote(this.file, this.app.vault, json, trigger);
       // Remember exactly what we wrote: the vault "modify" event fired by
       // our own save must not be treated as an external change.
       this.syncedRaw = raw;
@@ -1087,7 +1088,10 @@ export class NoteView extends FileView {
    *  scenario where the editor somehow ended up empty (failed/partial load,
    *  schema failure) while the file still holds content. Returns true when
    *  the write was blocked (notice shown, file untouched). */
-  private async blockEmptyOverwrite(json: JSONContent): Promise<boolean> {
+  private async blockEmptyOverwrite(
+    json: JSONContent,
+    trigger = "unknown",
+  ): Promise<boolean> {
     if (!isEmptyNoteDoc(json)) return false;
     const file = this.file;
     if (!file) return false;
@@ -1111,7 +1115,13 @@ export class NoteView extends FileView {
       8000,
     );
     console.warn(
-      `[inscriptum] Blocked an empty-note overwrite of "${file.path}"`,
+      `[inscriptum] Blocked an empty-note overwrite of "${file.path}" (trigger: ${trigger})`,
+    );
+    await logWriteBlocked(
+      this.app.vault,
+      file.path,
+      trigger,
+      JSON.stringify(json, null, 2).length,
     );
     return true;
   }
@@ -1121,8 +1131,8 @@ export class NoteView extends FileView {
     try {
       const json = this.editor.getJSON();
       const raw = JSON.stringify(json, null, 2);
-      if (await this.blockEmptyOverwrite(json)) return;
-      await writeNote(this.file, this.app.vault, json);
+      if (await this.blockEmptyOverwrite(json, "conflict-keep-local")) return;
+      await writeNote(this.file, this.app.vault, json, "conflict-keep-local");
       this.syncedRaw = raw;
       this.dirty = false;
     } catch (err) {

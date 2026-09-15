@@ -8,6 +8,13 @@ export class Vault {
   delete = vi.fn();
   rename = vi.fn();
   getAbstractFileByPath = vi.fn();
+  adapter = {
+    stat: vi.fn(),
+    write: vi.fn(),
+    rename: vi.fn(),
+    remove: vi.fn(),
+    append: vi.fn(),
+  };
 }
 
 export class TFile {
