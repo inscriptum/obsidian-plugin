@@ -8,6 +8,8 @@ import {
   createEmptyNote,
   parseNoteDoc,
   isEmptyNoteDoc,
+  isWriteLogEnabled,
+  setWriteLogEnabled,
   EMPTY_DOC,
 } from "./noteStorage";
 
@@ -328,6 +330,31 @@ describe("noteStorage", () => {
         }),
       ).resolves.toBeUndefined();
       localStorage.removeItem("inscriptum-write-log");
+    });
+  });
+
+  describe("write log switch", () => {
+    const flag = "inscriptum-write-log";
+
+    it("is off by default — no setting, no localStorage flag", () => {
+      localStorage.removeItem(flag);
+      setWriteLogEnabled(false);
+      expect(isWriteLogEnabled()).toBe(false);
+    });
+
+    it("the plugin setting forces the log on", () => {
+      localStorage.removeItem(flag);
+      setWriteLogEnabled(true);
+      expect(isWriteLogEnabled()).toBe(true);
+      setWriteLogEnabled(false);
+    });
+
+    it("the localStorage flag still works as a quick dev override", () => {
+      setWriteLogEnabled(false);
+      localStorage.setItem(flag, "1");
+      expect(isWriteLogEnabled()).toBe(true);
+      localStorage.removeItem(flag);
+      expect(isWriteLogEnabled()).toBe(false);
     });
   });
 });

@@ -213,14 +213,25 @@ export async function writeNoteRaw(
   });
 }
 
-/** localStorage flag that turns on the note write log. Toggle from the
- *  devtools console: localStorage.setItem("inscriptum-write-log", "1").
- *  Survives app reloads; off by default so saves stay silent. */
+/** localStorage flag for the write log — kept as a dev/quick override:
+ *  localStorage.setItem("inscriptum-write-log", "1").
+ *  The durable switch is the plugin setting (see setWriteLogEnabled). */
 const WRITE_LOG_FLAG = "inscriptum-write-log";
 /** Hidden file at the vault root — JSON lines, one note write per line. */
 const WRITE_LOG_PATH = ".inscriptum-write-log.jsonl";
 
+/** Plugin-setting override, driven by the settings toggle in main.ts.
+ *  Off by default: nothing is written until either the setting or the
+ *  localStorage flag is on. */
+let writeLogForced = false;
+
+/** Durable on/off switch for the write log (plugin settings tab). */
+export function setWriteLogEnabled(enabled: boolean): void {
+  writeLogForced = enabled;
+}
+
 export function isWriteLogEnabled(): boolean {
+  if (writeLogForced) return true;
   try {
     return window.localStorage.getItem(WRITE_LOG_FLAG) === "1";
   } catch {

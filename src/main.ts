@@ -1,15 +1,18 @@
 import "./styles/editor.css";
 import {
+  App,
   Notice,
   normalizePath,
   Plugin,
+  PluginSettingTab,
   setIcon,
+  Setting,
   TFolder,
   WorkspaceLeaf,
 } from "obsidian";
 import { NoteView, NOTE_VIEW_TYPE } from "./NoteView";
 import { installIconSprite } from "./components/icons/iconSprite";
-import { createEmptyNote } from "./storage/noteStorage";
+import { createEmptyNote, setWriteLogEnabled } from "./storage/noteStorage";
 import { NewNoteModal } from "./ui/NewNoteModal";
 import {
   findCommandsCollidingWith,
@@ -17,6 +20,16 @@ import {
   type CommandLike,
 } from "./tools/isPressedCommand";
 import type { JSONContent } from "./texto/core/@types";
+
+interface InscriptumSettings {
+  /** Append one JSONL line per note save to .inscriptum-write-log.jsonl
+   *  (diagnostics for storage problems). Off by default. */
+  writeLog: boolean;
+}
+
+const DEFAULT_SETTINGS: InscriptumSettings = {
+  writeLog: false,
+};
 
 /** Runtime shape of the command registry. Obsidian's public typings omit
  *  `App.commands`, but it exists at runtime: `app.commands.commands`
@@ -31,7 +44,11 @@ export default class NotesPlugin extends Plugin {
     original: unknown;
   }> = [];
 
+  settings: InscriptumSettings = { ...DEFAULT_SETTINGS };
+
   async onload(): Promise<void> {
+    await this.loadSettings();
+
     installIconSprite();
 
     this.registerExtensions(["note"], NOTE_VIEW_TYPE);
@@ -101,6 +118,18 @@ export default class NotesPlugin extends Plugin {
       this.ensureFileExplorerButton();
       this.observeFileExplorer();
     });
+
+    this.addSettingTab(new InscriptumSettingTab(this.app, this));
+  }
+
+  async loadSettings(): Promise<void> {
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    setWriteLogEnabled(this.settings.writeLog);
+  }
+
+  async saveSettings(): Promise<void> {
+    await this.saveData(this.settings);
+    setWriteLogEnabled(this.settings.writeLog);
   }
 
   /** Patch every command whose hotkey physically collides with an editor
@@ -227,6 +256,9 @@ export default class NotesPlugin extends Plugin {
     this.fileExplorerObserver?.disconnect();
     this.fileExplorerObserver = null;
     document.querySelector(".inscriptum-nav-new-note")?.remove();
+    // Drop the in-memory log switch; the persisted setting and the
+    // localStorage dev flag remain what they are.
+    setWriteLogEnabled(false);
   }
 
   private createNewNote(initialFolderPath?: string) {
@@ -282,4 +314,32 @@ function createNoteWithTitle(name: string): JSONContent {
     title.content = [{ type: "text", text: name }];
   }
   return doc;
+}
+
+class InscriptumSettingTab extends PluginSettingTab {
+  plugin: NotesPlugin;
+
+  constructor(app: App, plugin: NotesPlugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+
+  display(): void {
+    const { containerEl } = this;
+    containerEl.empty();
+
+    new Setting(containerEl)
+      .setName("Log note writes")
+      .setDesc(
+        'Diagnostics for storage problems: every note save appends one JSON line to .inscriptum-write-log.jsonl at the vault root (time, trigger, path, sizes, result, duration). Off by default; the log never breaks a save. Can also be toggled without opening settings via localStorage.setItem("inscriptum-write-log", "1") in the console.',
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.writeLog)
+          .onChange(async (value) => {
+            this.plugin.settings.writeLog = value;
+            await this.plugin.saveSettings();
+          }),
+      );
+  }
 }
