@@ -41,8 +41,8 @@ describe("blur command", () => {
 	});
 
 	it("clears the selection when the caret lives inside this editor", () => {
-		const viewDom = document.createElement("div");
-		const caret = document.createElement("span");
+		const viewDom = createDiv();
+		const caret = createSpan();
 		viewDom.appendChild(caret);
 		document.body.appendChild(viewDom);
 
@@ -53,11 +53,11 @@ describe("blur command", () => {
 	});
 
 	it("does not clear a foreign selection (another pane's caret)", () => {
-		const viewDom = document.createElement("div");
+		const viewDom = createDiv();
 		document.body.appendChild(viewDom);
 		// Caret anchored in a foreign editor's DOM subtree.
-		const foreignEditor = document.createElement("div");
-		const foreignCaret = document.createElement("span");
+		const foreignEditor = createDiv();
+		const foreignCaret = createSpan();
 		foreignEditor.appendChild(foreignCaret);
 		document.body.appendChild(foreignEditor);
 
@@ -68,7 +68,7 @@ describe("blur command", () => {
 	});
 
 	it("does not clear anything when the selection is empty", () => {
-		const viewDom = document.createElement("div");
+		const viewDom = createDiv();
 		document.body.appendChild(viewDom);
 
 		const { removeAllRanges } = setupSelection(null);
@@ -78,7 +78,7 @@ describe("blur command", () => {
 	});
 
 	it("does not touch the selection when the editor is destroyed", () => {
-		const viewDom = document.createElement("div");
+		const viewDom = createDiv();
 		document.body.appendChild(viewDom);
 
 		const rafCallbacks: FrameRequestCallback[] = [];

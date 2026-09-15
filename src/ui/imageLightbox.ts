@@ -18,16 +18,16 @@ export function openImageLightbox(
 
   closeImageLightbox();
 
-  const overlay = document.createElement('div');
+  const overlay = createDiv();
   overlay.className = LIGHTBOX_CLASS;
 
-  const img = document.createElement('img');
+  const img = createEl('img');
   img.src = app.vault.adapter.getResourcePath(imageId);
   img.alt = filename || imageId;
   overlay.appendChild(img);
 
   if (filename) {
-    const caption = document.createElement('div');
+    const caption = createDiv();
     caption.className = `${LIGHTBOX_CLASS}__caption`;
     caption.textContent = filename;
     overlay.appendChild(caption);

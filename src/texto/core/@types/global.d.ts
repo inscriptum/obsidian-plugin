@@ -2,6 +2,6 @@
 import {Command} from '.';
 
 declare global {
-	// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- base Commands interface is the declaration-merging point for extension command types; it must stay an interface (type aliases cannot be merged)
+	// eslint-disable-next-line @typescript-eslint/no-empty-object-type, @typescript-eslint/no-empty-interface -- base Commands interface is the declaration-merging point for extension command types; it must stay an interface (type aliases cannot be merged)
 	interface Commands {}
 }

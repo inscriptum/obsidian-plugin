@@ -81,7 +81,7 @@ export function refreshOverlayPosition(view: EditorView): void {
 
 /** Schedule an overlay position update for after the current frame (rAF). */
 export function scheduleOverlayRefresh(view: EditorView): void {
-	requestAnimationFrame(() => {
+	window.requestAnimationFrame(() => {
 		refreshOverlayPosition(view);
 	});
 }

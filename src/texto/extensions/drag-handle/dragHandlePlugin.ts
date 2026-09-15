@@ -704,17 +704,6 @@ function createDragHandleView(
     return false;
   };
 
-  /** The chevron element inside the unit's DOM, if it renders one. */
-  const findChevron = (dom: Element): Element | null => {
-    for (const className of DRAG_HANDLE_CSS.gutterControls) {
-      const el = dom.querySelector(`.${className}`);
-      if (el != null) {
-        return el;
-      }
-    }
-    return null;
-  };
-
   /** The vertical hover strip of the hovered unit (viewport coords):
    *  a list/task item owns its first text line; every other unit owns its
    *  full DOM rect (extended by the line tolerance). */
@@ -1020,14 +1009,14 @@ function createDragHandleView(
   };
 
   /** Show the grab look on the held chevron after the hold window. */
-  let holdGrabTimer: ReturnType<typeof setTimeout> | null = null;
+  let holdGrabTimer: number | null = null;
   /** True while the dots-handle overlay is shown over a held chevron: the
    *  pending DOM click on release would hit the OVERLAY instead of the
    *  chevron, so finishDrag re-dispatches it (see there). */
   let holdGrabShown = false;
   const scheduleHoldGrab = (): void => {
     clearHoldGrab();
-    holdGrabTimer = setTimeout(() => {
+    holdGrabTimer = window.setTimeout(() => {
       holdGrabTimer = null;
       if (dragBlock == null || dragActive || dragSource == null) {
         return;
@@ -1039,7 +1028,7 @@ function createDragHandleView(
   };
   const clearHoldGrab = (): void => {
     if (holdGrabTimer != null) {
-      clearTimeout(holdGrabTimer);
+      window.clearTimeout(holdGrabTimer);
       holdGrabTimer = null;
     }
   };
@@ -1328,7 +1317,7 @@ function createDragHandleView(
         // own click (it sat on top of the chevron at up time), so
         // re-dispatch it: the fold must toggle like on a quick click.
         const pending = source;
-        setTimeout(() => {
+        window.setTimeout(() => {
           pending.dispatchEvent(
             new MouseEvent('click', { bubbles: true, cancelable: true }),
           );

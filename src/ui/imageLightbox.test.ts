@@ -23,7 +23,7 @@ describe("openImageLightbox", () => {
   });
 
   it("appends an overlay with the image when the file exists", () => {
-    openImageLightbox(makeApp(["img.png"]) as never, "img.png", "img.png");
+    openImageLightbox(makeApp(["img.png"]), "img.png", "img.png");
     const overlay = document.querySelector(`.${LIGHTBOX_CLASS}`);
     expect(overlay).not.toBeNull();
     const img = overlay?.querySelector("img");
@@ -32,33 +32,33 @@ describe("openImageLightbox", () => {
   });
 
   it("does nothing when the file is missing", () => {
-    openImageLightbox(makeApp([]) as never, "gone.png");
+    openImageLightbox(makeApp([]), "gone.png");
     expect(document.querySelector(`.${LIGHTBOX_CLASS}`)).toBeNull();
   });
 
   it("closes on click and removes the overlay", () => {
-    openImageLightbox(makeApp(["img.png"]) as never, "img.png");
+    openImageLightbox(makeApp(["img.png"]), "img.png");
     const overlay = document.querySelector(`.${LIGHTBOX_CLASS}`) as HTMLElement;
     overlay.click();
     expect(document.querySelector(`.${LIGHTBOX_CLASS}`)).toBeNull();
   });
 
   it("closes on Escape with capture-phase keydown", () => {
-    openImageLightbox(makeApp(["img.png"]) as never, "img.png");
+    openImageLightbox(makeApp(["img.png"]), "img.png");
     document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
     expect(document.querySelector(`.${LIGHTBOX_CLASS}`)).toBeNull();
   });
 
   it("replaces an already open lightbox instead of stacking", () => {
-    openImageLightbox(makeApp(["a.png"]) as never, "a.png");
-    openImageLightbox(makeApp(["b.png"]) as never, "b.png");
+    openImageLightbox(makeApp(["a.png"]), "a.png");
+    openImageLightbox(makeApp(["b.png"]), "b.png");
     const overlays = document.querySelectorAll(`.${LIGHTBOX_CLASS}`);
     expect(overlays.length).toBe(1);
     expect(overlays[0].querySelector("img")?.getAttribute("src")).toBe("app://test/b.png");
   });
 
   it("stops listening for Escape after close", () => {
-    openImageLightbox(makeApp(["img.png"]) as never, "img.png");
+    openImageLightbox(makeApp(["img.png"]), "img.png");
     (document.querySelector(`.${LIGHTBOX_CLASS}`) as HTMLElement).click();
     // re-dispatch Escape: no overlay must reappear or throw
     expect(() =>

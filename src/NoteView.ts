@@ -156,7 +156,7 @@ export class NoteView extends FileView {
 
   /** Populate the view's "More options" (three-dot) menu. Keeps the default
       FileView items and adds a shortcut to the in-document search. */
-  onPaneMenu(menu: Menu, source: "more-options" | "tab-header" | string): void {
+  onPaneMenu(menu: Menu, source: string): void {
     super.onPaneMenu(menu, source);
     menu.addItem((item) =>
       item
@@ -1210,7 +1210,7 @@ export class NoteView extends FileView {
           // Do not delete a file that is still referenced by another node
           // (copy/pasted duplicates, key reassignments).
           const editor = editorRef.current;
-          if (editor != null && isImageIdReferenced(editor.state.doc, id, node.attrs.key)) {
+          if (editor != null && isImageIdReferenced(editor.state.doc, id, node.attrs.key as string)) {
             return;
           }
           void deleteAttachmentFile(app, id);

@@ -186,11 +186,10 @@ export default class NotesPlugin extends Plugin {
     if (!container) return;
     if (container.querySelector(".inscriptum-nav-new-note")) return;
 
-    const button = document.createElement("div");
-    button.className =
-      "clickable-icon nav-action-button inscriptum-nav-new-note";
-    button.setAttribute("aria-label", "New inscriptum");
-    button.setAttribute("type", "button");
+    const button = container.createDiv({
+      cls: "clickable-icon nav-action-button inscriptum-nav-new-note",
+      attr: { "aria-label": "New inscriptum", type: "button" },
+    });
     setIcon(button, "notebook-pen");
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -224,7 +223,7 @@ export default class NotesPlugin extends Plugin {
     });
   }
 
-  async onunload(): Promise<void> {
+  onunload(): void {
     this.fileExplorerObserver?.disconnect();
     this.fileExplorerObserver = null;
     document.querySelector(".inscriptum-nav-new-note")?.remove();

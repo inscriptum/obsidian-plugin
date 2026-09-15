@@ -110,7 +110,7 @@ function createFixture(content: JSONContent = testContent()): Fixture {
 const fixtures: Fixture[] = [];
 
 function useFixture(content?: JSONContent): Fixture {
-  const fixture = createFixture((content ?? testContent()) as JSONContent);
+  const fixture = createFixture((content ?? testContent()));
   fixtures.push(fixture);
   return fixture;
 }

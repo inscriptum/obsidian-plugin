@@ -65,9 +65,9 @@ function setImageLayout(this: AddCommandsThis, align: ImageLayout): Command {
 
 		view.dispatch(
 			state.tr.setNodeMarkup(selection.from, selection.node.type, {
-				...selection.node.attrs,
+				...(selection.node.attrs as ImageOptionsAttrs),
 				align,
-				width: align === 'full' ? null : selection.node.attrs.width,
+				width: align === 'full' ? null : (selection.node.attrs as ImageOptionsAttrs).width,
 			}),
 		);
 

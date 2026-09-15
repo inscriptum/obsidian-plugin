@@ -88,6 +88,13 @@ export default defineConfig(
 				// as declaration-merging augmentation points — these must stay interfaces.
 				{allowInterfaces: 'with-single-extends'},
 			],
+			'@typescript-eslint/no-empty-interface': [
+				'warn',
+				// Same declaration-merging augmentation points (one `declare global
+				// { interface Commands extends … {} }` per extension); a type alias
+				// cannot merge into the global interface, so keep them.
+				{allowSingleExtends: true},
+			],
 			'@typescript-eslint/no-redundant-type-constituents': 'warn',
 			'@typescript-eslint/no-this-alias': 'warn',
 			'@typescript-eslint/no-unsafe-function-type': 'warn',

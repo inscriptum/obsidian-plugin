@@ -2,7 +2,7 @@ import type {ResolvedPos} from 'prosemirror-model';
 import type {EditorView} from 'prosemirror-view';
 import {tableEditingKey} from 'prosemirror-tables';
 
-import {beginCellDrag, cancelPendingCellGesture, endCellDrag, isCellDragActive, setPendingCellGestureCancel} from './cellDragFreeze';
+import {beginCellDrag, endCellDrag, isCellDragActive, setPendingCellGestureCancel} from './cellDragFreeze';
 import {startColumnTouchResize} from './columnTouchResize';
 import {cellAtPoint, cellInTableAtPoint} from './handleMouseDown';
 import {scheduleOverlayRefresh} from './overlay';
@@ -67,7 +67,7 @@ export function handleTouchStart(view: EditorView, startEvent: TouchEvent): bool
 	// zone through the overlay.
 	const overlay = target.closest('.texto-table__overlay');
 	const circle = (overlay?.querySelector('.texto-table__overlay_overlay-circle') as HTMLElement | null) ??
-		(target.closest('.texto-table__overlay_overlay-circle') as HTMLElement | null);
+		(target.closest('.texto-table__overlay_overlay-circle'));
 	if (circle) {
 		if (startEvent.touches.length !== 1) {
 			return false;
@@ -169,7 +169,8 @@ function cellPosFromDom(view: EditorView, cellEl: HTMLElement): ResolvedPos | nu
 	try {
 		const $inner = view.state.doc.resolve(view.posAtDOM(cellEl, 0));
 		for (let depth = $inner.depth; depth > 0; depth -= 1) {
-			const role = $inner.node(depth).type.spec.tableRole;
+			// .spec is untyped (any) in prosemirror-model — cast explicitly.
+			const role = $inner.node(depth).type.spec.tableRole as string | undefined;
 			if (role === 'cell' || role === 'header_cell') {
 				return view.state.doc.resolve($inner.before(depth));
 			}
@@ -291,7 +292,7 @@ function domCellAtPoint(table: HTMLTableElement | null, x: number, y: number): H
 
 /** Highlights the rectangle of cells from anchor to head (direct DOM). */
 function redrawPicked(anchor: HTMLElement | null, head: HTMLElement | null): HTMLElement | null {
-	let rect = document.querySelector(':scope > body > .' + PICKING_RECT_CLASS) as HTMLElement | null;
+	let rect = document.querySelector<HTMLElement>(':scope > body > .' + PICKING_RECT_CLASS);
 	if (!anchor) {
 		rect?.remove();
 		return null;
@@ -334,7 +335,8 @@ function startLongPressCellSelection(
 	const startX = event.clientX;
 	const startY = event.clientY;
 	const pointerId = event.pointerId;
-	const viewDom = view.dom as HTMLElement;
+	// prosemirror-view types EditorView.dom as HTMLElement — no assertion needed.
+	const viewDom = view.dom;
 	const root = viewDom.ownerDocument;
 	const body = root.body;
 	let timer = 0;
@@ -455,7 +457,7 @@ function startLongPressCellSelection(
 		body.classList.remove(CELL_SELECTING_CLASS);
 
 		let lastY = event.clientY;
-		const scroller = findScrollParent(startCell instanceof HTMLElement ? startCell : null);
+		const scroller = findScrollParent(startCell.instanceOf(HTMLElement) ? startCell : null);
 
 		const scrollMove = (e: PointerEvent) => {
 			if (scroller) {

@@ -33,7 +33,8 @@ const CLEARANCE_STEPS = [1, 0.66, 0.33, 0] as const;
  */
 function cellContaining($pos: ResolvedPos): ResolvedPos | null {
 	for (let depth = $pos.depth; depth > 0; depth -= 1) {
-		const role = $pos.node(depth).type.spec.tableRole;
+		// .spec is untyped (any) in prosemirror-model — cast explicitly.
+		const role = $pos.node(depth).type.spec.tableRole as string | undefined;
 		if (role === 'cell' || role === 'header_cell') {
 			return $pos.doc.resolve($pos.before(depth));
 		}

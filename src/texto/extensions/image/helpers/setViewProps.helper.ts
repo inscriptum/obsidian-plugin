@@ -44,7 +44,6 @@ function syncLayoutStyles(element: HTMLElement, attrs: ImageOptionsAttrs, hasErr
   // empty string falls back to the CSS width of the current layout
   // (full-bleed for the "full" layout is pure CSS — 100cqw, see image.css).
   element.style.width = attrs.width ?? "";
-  element.style.marginLeft = "";
 }
 
 export function setViewProps(

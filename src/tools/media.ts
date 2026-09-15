@@ -38,9 +38,9 @@ export function setImageNodeLayout(editor: Editor, align: ImageLayout): void {
 
   editor.view.dispatch(
     editor.state.tr.setNodeMarkup(sel.pos, sel.node.type, {
-      ...sel.node.attrs,
+      ...(sel.node.attrs as Record<string, unknown>),
       align,
-      width: align === "full" ? null : sel.node.attrs.width,
+      width: align === "full" ? null : (sel.node.attrs as Record<string, unknown>).width,
     }),
   );
 }

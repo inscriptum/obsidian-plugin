@@ -50,7 +50,7 @@ export function createResizeHandles(
   getPos: () => number | undefined,
 ): HTMLElement[] {
   const makeHandle = (side: "left" | "right") => {
-    const handle = document.createElement("div");
+    const handle = createDiv();
     handle.className = `image-resize-handle image-resize-handle-${side}`;
 
     handle.addEventListener("pointerdown", (event: PointerEvent) => {
