@@ -99,6 +99,16 @@ ul.chk,
   opacity: 1;
 }
 
+/* Drag-handle hover from the gutter: the strip left of the item belongs to
+   it (see dragHandlePlugin.ts) — the plugin force-reveals the chevron (its
+   grab point) via this class, the item's own :hover doesn't reach there.
+   The hold-grab/drag states hide the chevron (dots handle takes its place;
+   those rules live in styles/drag-handle.css, imported BEFORE this file —
+   so the exclusion here is what lets them win). */
+.texto-extension-task-item-host .texto-task-fold-chevron.is-hover:not(.is-grabbed):not(.is-dragging) {
+  opacity: 1;
+}
+
 .texto-extension-task-item-host .texto-task-fold-chevron:hover {
   color: var(--text-muted, #a4a5b2);
 }

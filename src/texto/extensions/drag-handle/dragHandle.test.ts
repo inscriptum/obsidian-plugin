@@ -329,6 +329,67 @@ describe("DragHandle extension", () => {
     );
   });
 
+  it("hides the handle when the document changes without an active drag", () => {
+    const { editor, positions } = useFixture();
+    const handle = editor.view.dom.parentElement!.querySelector(
+      `.${DRAG_HANDLE_CSS.handle}`,
+    )!;
+
+    // Simulate a handle left visible over a block the user is about to
+    // edit (real visibility needs layout — jsdom has none).
+    handle.classList.add(DRAG_HANDLE_CSS.visible);
+
+    // Typing: the doc changes, the hover is stale — the handle must go.
+    editor.view.dispatch(
+      editor.view.state.tr.insertText("X", positions[1] + 1),
+    );
+    expect(handle.classList.contains(DRAG_HANDLE_CSS.visible)).toBe(false);
+  });
+
+  it("keeps the handle visible when only the selection changes", () => {
+    const { editor, positions } = useFixture();
+    const handle = editor.view.dom.parentElement!.querySelector(
+      `.${DRAG_HANDLE_CSS.handle}`,
+    )!;
+    handle.classList.add(DRAG_HANDLE_CSS.visible);
+
+    editor.view.dispatch(
+      editor.view.state.tr.setSelection(
+        NodeSelection.create(editor.state.doc, positions[1]),
+      ),
+    );
+    expect(handle.classList.contains(DRAG_HANDLE_CSS.visible)).toBe(true);
+  });
+
+  it("keeps the handle visible while a drag is active across doc changes", () => {
+    const { editor, positions } = useFixture();
+    const view = editor.view;
+    const handle = view.dom.parentElement!.querySelector(
+      `.${DRAG_HANDLE_CSS.handle}`,
+    )!;
+    handle.classList.add(DRAG_HANDLE_CSS.visible);
+
+    const block = findDraggableBlock(view.state.doc, positions[1] + 1)!;
+    expect(startDragWithBlock(view, block)).toBe(true);
+    expect(handle.classList.contains(DRAG_HANDLE_CSS.visible)).toBe(true);
+
+    // A doc-changing transaction ELSEWHERE (a new block at the doc end,
+    // like the user adding blocks during a drag) must not yank the handle
+    // away mid-drag. (Editing the dragged unit's own content kills the
+    // drag by design — the unit no longer matches.)
+    view.dispatch(
+      view.state.tr.insert(
+        view.state.doc.content.size,
+        view.state.doc.type.schema.nodes.paragraph.create(),
+      ),
+    );
+    expect(handle.classList.contains(DRAG_HANDLE_CSS.visible)).toBe(true);
+
+    // The drag ends (meta-only transaction) — the stale hover is cleared.
+    view.dispatch(view.state.tr.setMeta(dragHandleKey, { type: "dragEnd" }));
+    expect(handle.classList.contains(DRAG_HANDLE_CSS.visible)).toBe(false);
+  });
+
   it("keeps the dropcursor plugin always available", () => {
     const { editor } = useFixture(undefined, { isMobileView: true });
 

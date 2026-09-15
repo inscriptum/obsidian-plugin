@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Block drag handle: hover resolution redesigned around line ownership — the hovered unit is the deepest block/list item whose line contains the pointer, so the drag handle appears no matter how far left of the content the pointer is (the whole gutter belongs to the block on that line). A whole-list handle is now always visible while the pointer is anywhere inside a list: it sits on the first item's line, one slot left of the first item's own handle, and drags the entire list with all its items (nested levels included — each list level gets its own handle).
+
+### Fixed
+
+- Fold chevron ↔ drag interplay (headings, foldable tasks): hovering no longer swaps the chevron for the dots handle — the chevron is force-revealed in the gutter instead; a quick click folds/unfolds as before, pressing and holding swaps the dots handle in, and moving from there drags the unit. Pointer jitter while holding no longer cancels the grab, and a held release without movement still toggles the fold (exactly once — no pointer capture on chevron presses). The chevron is now fully hidden while the dots handle is in its place — even with the pointer hovering it, where Chrome latches :hover to the pressed chevron — and the dots are centered on the chevron's glyph instead of its box edge.
+- A list with a single item shows only that item's drag handle — no second whole-list handle for the same move (a single-item list IS its item).
+- Block drag handle stayed visible and glued to a stale position after the document changed (typing, adding blocks): the handle is now hidden on any document change while the pointer is idle — it reappears when the mouse moves again and resolves the block under it. An active drag is unaffected.
+
 ## [0.7.0] - 2026-09-15
 
 ### Added

@@ -60,10 +60,26 @@ import {
  * gets `position: relative` (styles/drag-handle.css) and the handle is
  * positioned in content coordinates, so it scrolls glued to its block.
  *
- * Gutter/sticky notes: PM's posAtCoords returns null for coordinates left
- * of the editor content (the gutter where the handle lives), so mousemove
- * keeps the handle visible while the pointer is over the handle itself —
- * otherwise it would vanish before it can be grabbed.
+ * Hover model (geometric, no sticky zones and no promotions): the hovered
+ * unit is the DEEPEST top-level block / list item whose vertical extent
+ * contains the pointer Y. The whole strip left of a unit's content (the
+ * gutter, however far left) belongs to that unit — the X coordinate never
+ * participates in the resolution. Handles are rendered from a small pool
+ * (several are visible at once):
+ *  - one dots handle for the hovered unit — skipped when the unit's fold
+ *    chevron is its grab point (the chevron is force-revealed instead);
+ *  - one WHOLE-LIST handle per enclosing list, always visible while the
+ *    pointer is within the list: glued to the first item's line, one slot
+ *    left of the first item's own handle — grabbing it moves every item.
+ *
+ * Chevron interplay (headings, foldable task items): the chevron IS the
+ * gutter control there — a quick click folds/unfolds (the browser's own
+ * click), pressing and holding (~150ms) swaps the dots handle in the
+ * chevron's place (grab look), and moving from there drags the unit.
+ *
+ * Gutter note: PM's posAtCoords returns null for coordinates left of the
+ * editor content (the gutter where the handles live) — the Y-based hover
+ * resolution above works there natively, no posAtCoords involved.
  */
 
 export const dragHandleKey = new PluginKey<DragHandleState>(
@@ -88,17 +104,21 @@ export const DRAG_HANDLE_CSS = {
   dropLine: "texto-drag-drop-line",
   /** Outline class on the dragged unit while moving. */
   dragSource: "texto-drag-source",
-  /** Left-gutter fold chevrons that double as drag grab points: a click
-   *  folds, pressing and MOVING starts a drag (see createDragHandleView).
-   *  The dots handle is hidden next to these blocks — the chevron IS the
-   *  handle there, which also solves the gutter overlap entirely. */
+  /** Left-gutter fold chevrons that double as drag grab points: a quick
+   *  click folds, pressing and holding swaps the dots handle in, moving
+   *  from there drags (see createDragHandleView). On plain hover these
+   *  blocks get NO dots handle — the chevron IS the handle there, and it
+   *  is force-revealed with chevronHover when the unit is hovered from
+   *  the gutter (where the block's own :hover rules don't reach). */
   gutterControls: [
     "texto-heading-fold-chevron-host",
     "texto-task-fold-chevron",
   ],
-  /** Class toggled on a fold chevron while a pointer drag from it is held:
-   *  `is-grabbed` — pressed (before the drag threshold): the chevron dims
-   *  and the dots handle takes its place; `is-dragging` — armed drag. */
+  /** Class toggled on a fold chevron: `is-hover` — the unit is hovered
+   *  (force-reveals the chevron); `is-grabbed` — pressed and held past
+   *  the hold window (the dots handle takes its place); `is-dragging` —
+   *  armed drag. */
+  chevronHover: "is-hover",
   chevronGrabbed: "is-grabbed",
   chevronDragging: "is-dragging",
 } as const;
@@ -113,10 +133,6 @@ const HANDLE_MIN_HEIGHT = 28;
 const HANDLE_DEFAULT_HEIGHT = 24;
 /** Vertical tolerance when matching a pointer line to a hovered unit (px). */
 const LINE_STICKY_TOLERANCE = 6;
-/** Horizontal tolerance around the handle's left edge (px) — the sticky
- *  zone ends this many px left of the handle before promoting to the
- *  enclosing list. */
-const HANDLE_STICKY_TOLERANCE = 10;
 /** Pointer movement (px) after pointerdown that counts as a drag start. */
 const DRAG_START_THRESHOLD = 3;
 
@@ -529,12 +545,20 @@ function dragSourceDecorations(
   return decorations;
 }
 
+/** Bullet/ordered/task list node — the units that own whole-list handles. */
+function isListNode(node: PMNode): boolean {
+  return (
+    node.type.name === "bulletList" ||
+    node.type.name === "orderedList" ||
+    node.type.name === "taskList"
+  );
+}
+
 /**
  * The enclosing list of a dragged unit: the nearest bullet/ordered/task list
  * ancestor at ANY depth (a nested subtask promotes to its parent taskList —
- * which may itself be nested), used when the pointer moves left of the
- * unit's handle: the whole list becomes grabbable there. Null for non-list
- * units.
+ * which may itself be nested), used when positioning an item's handle (the
+ * dots align with the list's left edge). Null for non-list units.
  */
 function enclosingListBlock(
   view: EditorView,
@@ -543,11 +567,7 @@ function enclosingListBlock(
   const $pos = view.state.doc.resolve(block.from);
   for (let depth = $pos.depth; depth >= 1; depth -= 1) {
     const node = $pos.node(depth);
-    if (
-      node.type.name === "bulletList" ||
-      node.type.name === "orderedList" ||
-      node.type.name === "taskList"
-    ) {
+    if (isListNode(node)) {
       const from = $pos.before(depth);
       return { node, from, to: from + node.nodeSize };
     }
@@ -672,7 +692,16 @@ export function createDragHandlePlugin(
 
 interface DragHandleView {
   handle: HTMLElement;
+  update(view: EditorView, prevState: EditorState): void;
   destroy(): void;
+}
+
+/** One pooled handle element bound to the unit it currently grabs (null
+ *  when hidden/free). Several handles are visible at once: the hovered
+ *  unit's own dots handle plus one whole-list handle per enclosing list. */
+interface HandleSlot {
+  el: HTMLElement;
+  block: DraggableBlock | null;
 }
 
 function createDragHandleView(
@@ -680,55 +709,320 @@ function createDragHandleView(
   options: DragHandlePluginOptions,
 ): DragHandleView {
   const handle = createHandleDom();
-  // The editor's scroll container (the .texto-editor host element).
+  // The editor's scroll container (the .texto-editor host element). The
+  // first pool slot is created eagerly so the container always carries the
+  // handle DOM (and stale-state tests can grab it).
   const container = view.dom.parentElement;
   if (container == null) {
-    return { handle, destroy: () => undefined };
+    return {
+      handle,
+      update: () => undefined,
+      destroy: () => undefined,
+    };
   }
   container.appendChild(handle);
 
-  // The unit the handle is currently glued to (resolved on hover).
-  let hoveredBlock: DraggableBlock | null = null;
-  // Active pointer drag state (set on pointerdown on the handle).
+  // ── Handle pool ──
+  const pool: HandleSlot[] = [{ el: handle, block: null }];
+  // Active pointer drag state (set on pointerdown on a handle or chevron).
   let dragBlock: DraggableBlock | null = null;
   let dragStartPoint: { x: number; y: number } | null = null;
   let dragActive = false;
 
-  const hide = () => {
-    hoveredBlock = null;
-    handle.classList.remove(DRAG_HANDLE_CSS.visible);
-    handle.classList.remove(DRAG_HANDLE_CSS.dragging);
+  /** The slot at index i (creating elements as needed). render() owns the
+   *  slot set wholesale — it re-binds slots by index and releases the tail,
+   *  so stale slots can never linger visible with old positions. */
+  const slotAt = (index: number): HandleSlot => {
+    const existing = pool[index];
+    if (existing != null) {
+      return existing;
+    }
+    const el = createHandleDom();
+    el.addEventListener("pointerdown", onHandlePointerDown);
+    container.appendChild(el);
+    const slot: HandleSlot = { el, block: null };
+    pool.push(slot);
+    return slot;
   };
 
-  const show = (block: DraggableBlock) => {
-    // Fold-chevron blocks grab by the chevron itself (click folds, press &
-    // move drags — see the delegated chevron handlers below); the dots
-    // handle would sit right next to it and duplicate the affordance.
-    if (hasGrabChevron(block)) {
+  /** A free slot for one-off overlays (the chevron hold-grab). */
+  const acquireSlot = (): HandleSlot => {
+    const free = pool.find((s) => s.block == null);
+    return free ?? slotAt(pool.length);
+  };
+
+  /** Release slots from `from` up: unbind and hide. */
+  const releaseSlotsFrom = (from: number): void => {
+    for (let i = from; i < pool.length; i += 1) {
+      const slot = pool[i];
+      slot.block = null;
+      slot.el.classList.remove(DRAG_HANDLE_CSS.visible);
+      slot.el.classList.remove(DRAG_HANDLE_CSS.dragging);
+    }
+  };
+
+  /** The fold chevron currently swapped for a dots handle (hold-grab), if
+   *  any — it must come back when the handle goes away. */
+  let overlayChevron: HTMLElement | null = null;
+
+  /** Bring the swapped-out chevron back. */
+  const clearChevronOverlay = (): void => {
+    if (overlayChevron != null) {
+      overlayChevron.classList.remove(DRAG_HANDLE_CSS.chevronGrabbed);
+      overlayChevron = null;
+    }
+  };
+
+  /** The chevron force-revealed because its unit is hovered (the block's
+   *  own :hover rules don't reach into the gutter). */
+  let hoverChevronEl: HTMLElement | null = null;
+
+  const clearHoverChevron = (): void => {
+    if (hoverChevronEl != null) {
+      hoverChevronEl.classList.remove(DRAG_HANDLE_CSS.chevronHover);
+      hoverChevronEl = null;
+    }
+  };
+
+  const hide = () => {
+    clearHoverChevron();
+    clearChevronOverlay();
+    releaseSlotsFrom(0);
+  };
+
+  /** Swap the dots handle into the chevron's place (hold-grab, or the
+   *  first movement of a chevron-initiated drag): the chevron hides via
+   *  is-grabbed, one pool slot takes its place. */
+  const showHandleAtChevronHover = (
+    block: DraggableBlock,
+    chevron: HTMLElement,
+  ): void => {
+    if (overlayChevron != null && overlayChevron !== chevron) {
+      clearChevronOverlay();
+    }
+    overlayChevron = chevron;
+    chevron.classList.add(DRAG_HANDLE_CSS.chevronGrabbed);
+    const slot = acquireSlot();
+    slot.block = block;
+    showHandleAtChevron(slot.el, chevron);
+  };
+
+  /** Render the handles for the hovered unit:
+   *  - a SINGLE-ITEM list IS its item (dragging either moves the same
+   *    content) — resolve it to the item, so only one handle shows;
+   *  - fold-chevron units (headings, foldable task items) grab by their
+   *    chevron — it is force-revealed instead of a dots handle;
+   *  - every other unit gets its own dots handle (a hovered list gets no
+   *    extra dots — its whole-list handle covers it);
+   *  - plus one whole-list handle per enclosing list WITH MORE THAN ONE
+   *    item (a one-item list handle would duplicate its only item's own
+   *    handle for the same move), glued to the list's first item, one slot
+   *    left of the first item's own grab point. */
+  const render = (unit: DraggableBlock): void => {
+    if (isListNode(unit.node) && unit.node.childCount === 1) {
+      const first = unit.node.content.firstChild;
+      if (first != null) {
+        const firstFrom = unit.from + 1;
+        unit = { node: first, from: firstFrom, to: firstFrom + first.nodeSize };
+      }
+    }
+    const wanted: { block: DraggableBlock; kind: "unit" | "list" }[] = [];
+    const chevron = grabChevronOf(view, unit);
+    if (chevron != null) {
+      if (hoverChevronEl !== chevron) {
+        clearHoverChevron();
+        hoverChevronEl = chevron;
+        chevron.classList.add(DRAG_HANDLE_CSS.chevronHover);
+      }
+    } else if (!isListNode(unit.node)) {
+      wanted.push({ block: unit, kind: "unit" });
+    }
+    for (const list of listAncestorsOf(unit)) {
+      if (list.node.childCount > 1) {
+        wanted.push({ block: list, kind: "list" });
+      }
+    }
+    let i = 0;
+    for (const w of wanted) {
+      const slot = slotAt(i);
+      if (w.kind === "unit") {
+        positionHandle(view, slot.el, w.block, container);
+      } else {
+        positionListHandle(view, slot.el, w.block, container);
+      }
+      slot.el.classList.add(DRAG_HANDLE_CSS.visible);
+      slot.block = w.block;
+      i += 1;
+    }
+    releaseSlotsFrom(i);
+  };
+
+  /** All draggable units with their viewport strips: top-level blocks and
+   *  list/task items at EVERY nesting level (subtasks included). Each unit
+   *  owns its full DOM rect — the deepest unit whose rect contains the
+   *  pointer Y is the hovered one; the whole strip left of its content
+   *  (the gutter, however far left) belongs to it. Blocks hidden by folds
+   *  (collapsed heading sections, folded task items) have no visible box
+   *  (zero-height rects) and are skipped; a collapsed section's heading
+   *  is expanded to the whole section (heading + hidden body). */
+  const collectUnits = (): {
+    block: DraggableBlock;
+    top: number;
+    bottom: number;
+    depth: number;
+  }[] => {
+    const doc = view.state.doc;
+    const folded = headingFoldingKey.getState(view.state)?.folded;
+    const units: {
+      block: DraggableBlock;
+      top: number;
+      bottom: number;
+      depth: number;
+    }[] = [];
+
+    const push = (block: DraggableBlock, depth: number): void => {
+      const dom = blockDomAt(view, block.from);
+      if (dom == null) {
+        return;
+      }
+      const rect = dom.getBoundingClientRect();
+      // Hidden blocks (folded away) have no visible box.
+      if (rect.bottom - rect.top <= 1) {
+        return;
+      }
+      units.push({ block, top: rect.top, bottom: rect.bottom, depth });
+    };
+
+    // Walk the block tree; `base` is the position the node's content
+    // starts (doc: 0, any other node: its own start + 1).
+    const walk = (node: PMNode, base: number, depth: number): void => {
+      node.forEach((child, offset) => {
+        const childPos = base + offset;
+        if (isListNode(child)) {
+          let itemPos = childPos + 1;
+          child.content.content.forEach((item) => {
+            push(
+              { node: item, from: itemPos, to: itemPos + item.nodeSize },
+              depth + 1,
+            );
+            // Nested lists inside the item (subtasks).
+            walk(item, itemPos + 1, depth + 1);
+            itemPos += item.nodeSize;
+          });
+          return;
+        }
+        if (!child.isBlock) {
+          return;
+        }
+        if (depth === 0) {
+          // A top-level block is a unit — unless it is hidden inside a
+          // collapsed heading section (no box; the section's heading owns
+          // it and is pushed expanded to the full section range).
+          if (options.excludedTypes.includes(child.type.name)) {
+            return;
+          }
+          const section = collapsedHeadingRange(doc, folded, childPos);
+          if (section == null) {
+            push(
+              { node: child, from: childPos, to: childPos + child.nodeSize },
+              1,
+            );
+          } else if (section.headingPos === childPos) {
+            push({ node: child, from: section.from, to: section.to }, 1);
+          }
+        }
+        // Recurse into containers for lists they may hold (blockquote…).
+        walk(child, childPos + 1, depth + 1);
+      });
+    };
+    walk(doc, 0, 0);
+    return units;
+  };
+
+  /** The hovered unit: the deepest unit whose strip contains Y (equal
+   *  depths — the tighter strip wins; sibling strips don't overlap, the
+   *  tolerance only bridges inter-block margins). */
+  const resolveUnitAtY = (y: number): DraggableBlock | null => {
+    let best: {
+      block: DraggableBlock;
+      top: number;
+      bottom: number;
+      depth: number;
+    } | null = null;
+    for (const unit of collectUnits()) {
+      if (
+        y < unit.top - LINE_STICKY_TOLERANCE ||
+        y > unit.bottom + LINE_STICKY_TOLERANCE
+      ) {
+        continue;
+      }
+      if (
+        best == null ||
+        unit.depth > best.depth ||
+        (unit.depth === best.depth &&
+          unit.bottom - unit.top < best.bottom - best.top)
+      ) {
+        best = unit;
+      }
+    }
+    return best?.block ?? null;
+  };
+
+  /** All list ancestors of the unit, outermost first — each gets a
+   *  whole-list handle while the pointer is within the unit (and therefore
+   *  within every ancestor list). A hovered list itself is included. */
+  const listAncestorsOf = (block: DraggableBlock): DraggableBlock[] => {
+    const lists: DraggableBlock[] = [];
+    if (isListNode(block.node)) {
+      lists.push(block);
+    }
+    const $pos = view.state.doc.resolve(block.from);
+    for (let depth = $pos.depth; depth >= 1; depth -= 1) {
+      const node = $pos.node(depth);
+      if (isListNode(node)) {
+        const from = $pos.before(depth);
+        lists.push({ node, from, to: from + node.nodeSize });
+      }
+    }
+    return lists;
+  };
+
+  const onMouseMove = (event: MouseEvent) => {
+    if (view.isDestroyed || !view.editable) {
       hide();
       return;
     }
-    positionHandle(view, handle, block, container);
-    handle.classList.add(DRAG_HANDLE_CSS.visible);
+    // A press is in progress (a handle grab or a chevron hold): the drag
+    // flow owns the pointer — hover resolution must not steal the overlay
+    // or re-position handles mid-press (sub-pixel jitter would otherwise
+    // cancel the grab look).
+    if (dragBlock != null) {
+      return;
+    }
+    const unit = resolveUnitAtY(event.clientY);
+    if (unit == null) {
+      hide();
+      return;
+    }
+    render(unit);
   };
 
-  /** Does the unit own a fold chevron that doubles as its drag handle?
-   *  Headings always (foldable until proven otherwise by the plugin's own
-   * state); task items only when their node view renders the chevron
-   *  (foldable: nested content present). */
-  const hasGrabChevron = (block: DraggableBlock): boolean => {
-    if (block.node.type.name === "heading") {
-      return true;
-    }
-    if (block.node.type.name === "taskItem") {
-      return block.node.childCount > 1;
-    }
-    return false;
-  };
+  // ── Pointer drag (Notion-style, no native HTML5 DnD) ──
 
-  /** The vertical hover strip of the hovered unit (viewport coords):
-   *  a list/task item owns its first text line; every other unit owns its
-   *  full DOM rect (extended by the line tolerance). */
+  // The element the drag was pressed on (a pooled handle or a fold
+  // chevron); needed to release capture and to style the source while
+  // dragging.
+  let dragSource: HTMLElement | null = null;
+  // True when the press started on a pooled dots handle (vs a chevron):
+  // decides the styling and the click re-dispatch on release.
+  let dragFromHandle = false;
+  // Suppress the fold-toggle click right after a chevron-initiated drag:
+  // the DOM fires click on pointerup in the same spot even after a move.
+  let suppressChevronClickUntil = 0;
+
+  /** The hovered unit's first-line strip in viewport coords (items: their
+   *  first text line — their DOM rect covers nested content too; other
+   *  units: the block's DOM rect). Used by the drop-target lookup. */
   const hoveredStrip = (
     block: DraggableBlock,
   ): { top: number; bottom: number } | null => {
@@ -757,253 +1051,21 @@ function createDragHandleView(
     return { top: rect.top, bottom: rect.bottom };
   };
 
-  /** The block at the pointer Y in the gutter — the deepest list item whose
-   *  line contains Y, else the top-level block whose rect contains Y.
-   *  Items are collected at EVERY nesting level (subtasks included).
-   *  Collapsed heading sections resolve to the whole section (heading +
-   *  hidden body): the hidden blocks carry no DOM box (display:none), so
-   *  they are skipped as lookup targets and the heading's strip owns the
-   *  section; dragging it must carry the hidden body along. */
-  const blockByVerticalLookup = (y: number): DraggableBlock | null => {
-    const doc = view.state.doc;
-    const units: { block: DraggableBlock; top: number; bottom: number }[] = [];
-    const folded = headingFoldingKey.getState(view.state)?.folded;
-
-    const pushItemStrip = (block: DraggableBlock) => {
-      units.push({ block, top: Number.NaN, bottom: Number.NaN });
-    };
-
-    // Recursively collect list items of all nesting levels.
-    const collectItems = (node: PMNode, pos: number) => {
-      if (
-        node.type.name === "bulletList" ||
-        node.type.name === "orderedList" ||
-        node.type.name === "taskList"
-      ) {
-        let itemPos = pos + 1;
-        node.content.content.forEach((item) => {
-          pushItemStrip({
-            node: item,
-            from: itemPos,
-            to: itemPos + item.nodeSize,
-          });
-          // Nested lists inside the item (subtasks).
-          item.content.content.forEach((child, i) => {
-            if (
-              child.type.name === "bulletList" ||
-              child.type.name === "orderedList" ||
-              child.type.name === "taskList"
-            ) {
-              collectItems(
-                child,
-                itemPos +
-                  1 +
-                  item.content.content
-                    .slice(0, i)
-                    .reduce((s, n) => s + n.nodeSize, 0),
-              );
-            }
-          });
-          itemPos += item.nodeSize;
-        });
-      }
-    };
-
-    doc.forEach((node, pos) => {
-      if (options.excludedTypes.includes(node.type.name)) {
-        return;
-      }
-      const dom = blockDomAt(view, pos);
-      if (dom != null) {
-        const rect = dom.getBoundingClientRect();
-        // Skip blocks hidden inside a collapsed heading section (they
-        // have no visible box; the section's heading below owns them). A
-        // section's own heading is added AFTER, expanded to the full range.
-        const section = collapsedHeadingRange(doc, folded, pos);
-        if (section == null || section.headingPos === pos) {
-          const block: DraggableBlock =
-            section != null
-              ? { node, from: section.from, to: section.to }
-              : { node, from: pos, to: pos + node.nodeSize };
-          units.push({ block, top: rect.top, bottom: rect.bottom });
-        }
-      }
-      collectItems(node, pos);
-    });
-
-    // Resolve item strips lazily (first text line), then pick the deepest
-    // item whose strip contains Y; items win over the enclosing blocks.
-    let bestTop: { block: DraggableBlock; top: number; bottom: number } | null =
-      null;
-    let bestIsItem = false;
-    for (const unit of units) {
-      if (Number.isNaN(unit.top)) {
-        const strip = hoveredStrip(unit.block);
-        if (strip == null) continue;
-        unit.top = strip.top;
-        unit.bottom = strip.bottom;
-      }
-      if (
-        y >= unit.top - LINE_STICKY_TOLERANCE &&
-        y <= unit.bottom + LINE_STICKY_TOLERANCE
-      ) {
-        const isItem = DRAG_HANDLE_ITEM_TYPES.includes(
-          unit.block.node.type.name,
-        );
-        // Prefer the deepest item; among items the one whose line is closest
-        // to Y (nested items may share strips with their containers).
-        if (
-          bestTop == null ||
-          (isItem && !bestIsItem) ||
-          (isItem &&
-            bestIsItem &&
-            Math.abs((unit.top + unit.bottom) / 2 - y) <
-              Math.abs((bestTop.top + bestTop.bottom) / 2 - y))
-        ) {
-          bestTop = unit;
-          bestIsItem = isItem;
-        }
-      }
-    }
-    return bestTop?.block ?? null;
-  };
-
-  const onMouseMove = (event: MouseEvent) => {
-    if (view.isDestroyed || !view.editable) {
-      hide();
-      return;
-    }
-    if (dragActive) {
-      // Pointer drag in progress — the handle's own pointer handlers drive it.
-      return;
-    }
-
-    const hovered = hoveredBlock;
-    const hoveredStripRect = hovered != null ? hoveredStrip(hovered) : null;
-    const onHoveredLine =
-      hoveredStripRect != null
-        ? event.clientY >= hoveredStripRect.top - LINE_STICKY_TOLERANCE &&
-          event.clientY <= hoveredStripRect.bottom + LINE_STICKY_TOLERANCE
-        : false;
-    // The zone left of the hovered unit's own content: gutter + the
-    // structural strips (markers, checkbox/label columns). The handle lives
-    // there, so the unit must stay grabbable across the whole zone.
-    const contentLeft =
-      hovered != null
-        ? contentLeftOf(view, hovered.from, hovered.node)
-        : view.dom.getBoundingClientRect().left;
-    const inLeftZone = event.clientX < contentLeft;
-
-    const posResult = view.posAtCoords({
-      left: event.clientX,
-      top: event.clientY,
-    });
-
-    // 1) Sticky: keep the hovered unit while the pointer is on its strip in
-    //    the left zone — but only up to the left edge of its handle. Further
-    //    left the unit promotes to its enclosing list, so a whole list is
-    //    grabbable from the gutter (one step left of the item handle).
-    if (onHoveredLine && inLeftZone) {
-      const handleRect = handle.getBoundingClientRect();
-      const beyondHandle =
-        event.clientX < handleRect.left - HANDLE_STICKY_TOLERANCE;
-      if (beyondHandle) {
-        const enclosing = enclosingListBlock(view, hovered!);
-        if (enclosing != null) {
-          hoveredBlock = enclosing;
-          show(enclosing);
-        }
-        return;
-      }
-      if (posResult != null) {
-        const resolved = findDraggableBlock(
-          view.state.doc,
-          posResult.pos,
-          options.excludedTypes,
-          view.state,
-        );
-        // Only an enclosing-list resolution (the parent list of an item)
-        // must not steal the hover from the item while on its line.
-        const isEnclosing =
-          resolved != null &&
-          resolved.from < hovered!.from &&
-          resolved.to >= hovered!.to;
-        if (!isEnclosing) {
-          hoveredBlock = resolved;
-          if (resolved != null) show(resolved);
-        }
-      }
-      return;
-    }
-
-    if (posResult == null) {
-      // Gutter beyond the hovered strip: resolve a fresh unit by Y so the
-      // handle appears when the gutter is entered directly (never hides on
-      // the way between content and handle).
-      const fresh = blockByVerticalLookup(event.clientY);
-      if (fresh != null) {
-        hoveredBlock = fresh;
-        show(fresh);
-      } else {
-        hide();
-      }
-      return;
-    }
-
-    const block = findDraggableBlock(
-      view.state.doc,
-      posResult.pos,
-      options.excludedTypes,
-      view.state,
-    );
-    if (block == null) {
-      hide();
-      return;
-    }
-
-    // 2) Left of an item's handle → promote to the enclosing list: the whole
-    //    list becomes grabbable in the gutter, one item to the left of the
-    //    item handle (screenshot case: the taskList gutter).
-    if (
-      hovered != null &&
-      DRAG_HANDLE_ITEM_TYPES.includes(hovered.node.type.name) &&
-      block.from !== hovered.from &&
-      block.to <= hovered.from &&
-      event.clientX < contentLeft
-    ) {
-      hoveredBlock = block;
-      show(block);
-      return;
-    }
-
-    hoveredBlock = block;
-    show(block);
-  };
-
-  // ── Pointer drag (Notion-style, no native HTML5 DnD) ──
-
-  // The element the drag was pressed on (handle or a fold chevron); needed
-  // to release capture and to style the chevron while dragging.
-  let dragSource: HTMLElement | null = null;
-  // Suppress the fold-toggle click right after a chevron-initiated drag:
-  // the DOM fires click on pointerup in the same spot even after a move.
-  let suppressChevronClickUntil = 0;
-
   const onHandlePointerDown = (event: PointerEvent) => {
-    if (
-      event.button !== 0 ||
-      hoveredBlock == null ||
-      view.isDestroyed ||
-      !view.editable
-    ) {
+    if (event.button !== 0 || view.isDestroyed || !view.editable) {
       return;
     }
-    dragBlock = hoveredBlock;
+    const slot = pool.find((s) => s.el === event.currentTarget);
+    if (slot == null || slot.block == null) {
+      return;
+    }
+    dragBlock = slot.block;
     dragStartPoint = { x: event.clientX, y: event.clientY };
-    dragSource = handle;
+    dragSource = slot.el;
+    dragFromHandle = true;
     // Capture on the handle so pointermove/up keep arriving even outside.
     try {
-      handle.setPointerCapture(event.pointerId);
+      slot.el.setPointerCapture(event.pointerId);
     } catch {
       // Some environments refuse capture — document handlers cover it.
     }
@@ -1042,14 +1104,17 @@ function createDragHandleView(
     dragBlock = block;
     dragStartPoint = { x: event.clientX, y: event.clientY };
     dragSource = chevron as HTMLElement;
+    dragFromHandle = false;
     // Hold feedback: after a short hold the chevron turns into the drag
     // handle look even before any movement. Cancelled on move/drag start.
     scheduleHoldGrab();
-    try {
-      (chevron as HTMLElement).setPointerCapture(event.pointerId);
-    } catch {
-      // Some environments refuse capture — document handlers cover it.
-    }
+    // Deliberately NO pointer capture here: with capture the browser would
+    // retarget pointerup to the chevron and fire a native click on it —
+    // doubling the fold toggle with finishDrag's own re-dispatch. Without
+    // capture a held release lands on the dots overlay (a non-descendant),
+    // the native click targets a common ancestor, and the single
+    // re-dispatched click in finishDrag is the only fold toggle. The
+    // document-level move/up handlers follow the pointer either way.
     // No preventDefault here: a plain click must still reach the fold
     // handlers (they listen for click and check for movement themselves
     // via the suppressed-click window below).
@@ -1069,8 +1134,9 @@ function createDragHandleView(
         return;
       }
       holdGrabShown = true;
-      dragSource.classList.add(DRAG_HANDLE_CSS.chevronGrabbed);
-      showHandleAtChevron(dragBlock, dragSource);
+      // Same overlay as hover (tracks the hidden chevron so a released
+      // click still reaches the fold, see finishDrag).
+      showHandleAtChevronHover(dragBlock, dragSource);
     }, CHEVRON_HOLD_GRAB_MS);
   };
   const clearHoldGrab = (): void => {
@@ -1141,12 +1207,12 @@ function createDragHandleView(
    *   1. posAtCoords when the pointer is over the content — the canonical
    *      path (same as editHandlers.drop);
    *   2. the gutter-fallback when posAtCoords returns null: the pointer is
-   *      LEFT of the content (where the handle lives and where drags are
-   *      usually held). The top-level block whose vertical strip contains
-   *      the pointer Y is found geometrically (like blockByVerticalLookup,
-   *      but boundaries-only and outside the dragged range: hidden blocks
-   *      of collapsed sections have no box and must not become targets),
-   *      and the boundary before/after it by the half of its height. */
+   *      LEFT of the content (where the handles live and where drags are
+   *      usually held). The unit whose vertical strip contains the pointer
+   *      Y is found geometrically (like the hover lookup, but
+   *      boundaries-only and outside the dragged range: hidden blocks of
+   *      collapsed sections have no box and must not become targets), and
+   *      the boundary before/after it by the half of its height. */
   const resolveInsertPos = (
     block: DraggableBlock,
     clientX: number,
@@ -1321,11 +1387,27 @@ function createDragHandleView(
       }
       clearHoldGrab();
       dragActive = true;
-      handle.classList.add(DRAG_HANDLE_CSS.dragging);
-      dragSource?.classList.add(DRAG_HANDLE_CSS.chevronDragging);
+      // A chevron-initiated drag: swap the dots handle into the chevron's
+      // place right away (it may not have appeared yet when the pointer
+      // moved before the hold window) — the grab affordance must be
+      // visible for the whole drag. Skip when the hold window already
+      // swapped it in (overlayChevron set) — a second overlay would stack.
+      if (
+        !dragFromHandle &&
+        dragSource != null &&
+        dragBlock != null &&
+        overlayChevron == null
+      ) {
+        showHandleAtChevronHover(dragBlock, dragSource);
+      }
+      if (dragFromHandle) {
+        dragSource?.classList.add(DRAG_HANDLE_CSS.dragging);
+      } else {
+        dragSource?.classList.add(DRAG_HANDLE_CSS.chevronDragging);
+      }
       // Arm fold-click suppression: the browser will fire a click on the
       // chevron after pointerup, and it must NOT toggle the fold.
-      suppressChevronClickUntil = Date.now() + 500;
+      suppressChevronClickUntil = Date.now() + 150;
       // Show the drag in plugin state (drop line at the source position).
       view.dispatch(
         view.state.tr.setMeta(dragHandleKey, {
@@ -1349,19 +1431,25 @@ function createDragHandleView(
     }
   };
 
-  /** Place the dots handle over a fold chevron (the chevron is hidden via
-   *  the grabbed class, the handle takes its place): the visible drag
-   *  affordance while a chevron-initiated drag is held. */
-  const showHandleAtChevron = (
-    block: DraggableBlock,
-    chevron: HTMLElement,
-  ): void => {
+  /** Place a pooled dots handle over a fold chevron (the chevron is hidden
+   *  via the grabbed class, the handle takes its place): the visible drag
+   *  affordance while a chevron-initiated drag is held. The dots are
+   *  centered on the chevron's GLYPH (the inner svg), not on its box's
+   *  left edge — the dots svg (16px in a 24px handle) and the chevron svg
+   *  (12px in an 18px host) would otherwise sit ~3px apart. The handle is
+   *  at least HANDLE_MIN_HEIGHT tall, centered on the same glyph. */
+  const showHandleAtChevron = (el: HTMLElement, chevron: HTMLElement): void => {
+    const glyph = chevron.querySelector("svg") ?? chevron;
+    const glyphRect = glyph.getBoundingClientRect();
     const chevronRect = chevron.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
-    handle.style.left = `${chevronRect.left - containerRect.left + container.scrollLeft}px`;
-    handle.style.top = `${chevronRect.top - containerRect.top + container.scrollTop}px`;
-    handle.style.height = `${chevronRect.height}px`;
-    handle.classList.add(DRAG_HANDLE_CSS.visible);
+    const centerX = glyphRect.left + glyphRect.width / 2;
+    const centerY = glyphRect.top + glyphRect.height / 2;
+    const height = Math.max(chevronRect.height, HANDLE_MIN_HEIGHT);
+    el.style.left = `${centerX - HANDLE_WIDTH / 2 - containerRect.left + container.scrollLeft}px`;
+    el.style.top = `${centerY - height / 2 - containerRect.top + container.scrollTop}px`;
+    el.style.height = `${height}px`;
+    el.classList.add(DRAG_HANDLE_CSS.visible);
   };
 
   const finishDrag = (event: PointerEvent, apply: boolean) => {
@@ -1371,43 +1459,46 @@ function createDragHandleView(
     }
     const block = dragBlock;
     const wasActive = dragActive;
+    // The chevron swapped out under the dots overlay (hold-grab), if any —
+    // a released click must still reach it (the fold must toggle).
+    const hoverChevron = overlayChevron;
     dragBlock = null;
     dragStartPoint = null;
     dragActive = false;
     const source = dragSource;
+    const fromHandle = dragFromHandle;
     dragSource = null;
+    dragFromHandle = false;
+    clearChevronOverlay();
     try {
-      if (source != null && event.pointerId != null) {
+      // Only handle presses captured the pointer (chevron presses don't —
+      // see onChevronPointerDown).
+      if (fromHandle && source != null && event.pointerId != null) {
         source.releasePointerCapture(event.pointerId);
       }
     } catch {
       // pointer capture may already be gone
     }
-    handle.classList.remove(DRAG_HANDLE_CSS.dragging);
-    if (source != null && source !== handle) {
+    releaseSlotsFrom(0);
+    if (source != null && !fromHandle) {
       source.classList.remove(DRAG_HANDLE_CSS.chevronDragging);
-      source.classList.remove(DRAG_HANDLE_CSS.chevronGrabbed);
-      // The dots-handle overlay took the chevron's place; take it away and
-      // let the normal hover flow decide the handle's next position.
-      handle.classList.remove(DRAG_HANDLE_CSS.visible);
-      if (!wasActive && holdGrabShown) {
-        // Held (the overlay showed) but released without crossing the drag
-        // threshold — a held click. The overlay swallowed the browser's
-        // own click (it sat on top of the chevron at up time), so
-        // re-dispatch it: the fold must toggle like on a quick click.
-        const pending = source;
-        window.setTimeout(() => {
-          pending.dispatchEvent(
-            new MouseEvent("click", { bubbles: true, cancelable: true }),
-          );
-        }, 0);
-      }
+    }
+    if (!wasActive && holdGrabShown && hoverChevron != null) {
+      // Released without crossing the drag threshold after the hold
+      // window: the dots overlay swallowed the browser's own click (it sat
+      // on top of the chevron at release), so re-dispatch it — the fold
+      // must toggle like on a quick click.
+      window.setTimeout(() => {
+        hoverChevron.dispatchEvent(
+          new MouseEvent("click", { bubbles: true, cancelable: true }),
+        );
+      }, 0);
     }
     holdGrabShown = false;
     // Keep the suppression window armed briefly after a drag so the
     // trailing click (fired right after pointerup) is swallowed.
     if (wasActive) {
-      suppressChevronClickUntil = Date.now() + 500;
+      suppressChevronClickUntil = Date.now() + 150;
     }
 
     if (wasActive && apply) {
@@ -1424,12 +1515,14 @@ function createDragHandleView(
         return;
       }
     }
-    // Cancelled: clear the drag state (removes the drop line).
+    // Cancelled: clear the drag state (removes the drop line) and the
+    // hover visuals — the next mousemove re-renders the handles.
     view.dispatch(
       view.state.tr
         .setMeta(dragHandleKey, { type: "dragEnd" } satisfies DragHandleMeta)
         .setMeta("addToHistory", false),
     );
+    hide();
   };
 
   const onPointerUp = (event: PointerEvent) => {
@@ -1457,16 +1550,40 @@ function createDragHandleView(
 
   return {
     handle,
+    /** The document changed under a visible handle (typing, new blocks,
+     *  remote overwrite): the hovered unit and the handle's position are
+     *  stale, so hide the handle — the next mousemove re-resolves the
+     *  hover. Also hides when a plugin-state drag just ended. An active
+     *  drag is untouched: while it moves it only dispatches meta
+     *  transactions (no doc change), and the move itself runs after the
+     *  drag state is already cleared. */
+    update(updatedView: EditorView, prevState: EditorState): void {
+      if (dragBlock != null) {
+        return;
+      }
+      const dragNow = dragHandleKey.getState(updatedView.state)?.drag ?? null;
+      if (dragNow != null) {
+        return;
+      }
+      const dragBefore = dragHandleKey.getState(prevState)?.drag ?? null;
+      const docChanged = !updatedView.state.doc.eq(prevState.doc);
+      if (dragBefore == null && !docChanged) {
+        return;
+      }
+      hide();
+    },
     destroy() {
       container.removeEventListener("mousemove", onMouseMove);
       container.removeEventListener("mouseleave", hide);
-      handle.removeEventListener("pointerdown", onHandlePointerDown);
+      for (const slot of pool) {
+        slot.el.removeEventListener("pointerdown", onHandlePointerDown);
+        slot.el.remove();
+      }
       view.dom.removeEventListener("pointerdown", onChevronPointerDown, true);
       view.dom.removeEventListener("click", onChevronClickCapture, true);
       document.removeEventListener("pointermove", onPointerMove);
       document.removeEventListener("pointerup", onPointerUp);
       document.removeEventListener("pointercancel", onPointerCancel);
-      handle.remove();
     },
   };
 }
@@ -1521,80 +1638,57 @@ function blockDomAt(view: EditorView, from: number): Element | null {
 }
 
 /**
- * The left edge of the unit's CONTENT (viewport x): for list/task items the
- * text start of their first line, for everything else the block's own left
- * edge. The hover-sticky left zone spans from the content edge leftwards —
- * it covers the gutter, list markers and the checkbox/label column.
+ * The fold-chevron element owned by the unit, if the unit's chevron doubles
+ * as its grab point: headings always render one; task items only when
+ * foldable (nested content present, so the node view renders the chevron).
+ * Null for units with a plain dots handle.
  */
-function contentLeftOf(view: EditorView, from: number, node: PMNode): number {
-  if (DRAG_HANDLE_ITEM_TYPES.includes(node.type.name)) {
-    const block: DraggableBlock = { node, from, to: from + node.nodeSize };
-    const textPos = firstTextPos(block);
-    if (textPos != null) {
-      try {
-        const coords = view.coordsAtPos(textPos);
-        if (Number.isFinite(coords.left)) {
-          return coords.left;
-        }
-      } catch {
-        // fall through to the block DOM rect
-      }
-    }
-  } else {
-    try {
-      const coords = view.coordsAtPos(from + 1);
-      if (Number.isFinite(coords.left)) {
-        return coords.left;
-      }
-    } catch {
-      // fall through to the block DOM rect
-    }
+function grabChevronOf(
+  view: EditorView,
+  block: DraggableBlock,
+): HTMLElement | null {
+  let selector: string | null = null;
+  if (block.node.type.name === "heading") {
+    selector = ".texto-heading-fold-chevron-host";
+  } else if (block.node.type.name === "taskItem" && block.node.childCount > 1) {
+    selector = ".texto-task-fold-chevron";
   }
-  const dom = blockDomAt(view, from);
-  return dom != null
-    ? dom.getBoundingClientRect().left
-    : view.dom.getBoundingClientRect().left;
+  if (selector == null) {
+    return null;
+  }
+  const dom = blockDomAt(view, block.from);
+  return dom?.querySelector(selector) ?? null;
 }
 
-/** Leftmost x of the fold chevrons inside the block's DOM, if any (viewport). */
 /**
- * Position the handle next to the dragged unit's first text line, in the
- * container's content coordinates (absolute positioning inside a scroll
- * container lives in content space, so the handle stays glued while
+ * The vertical anchor for a unit's handle: the unit's FIRST TEXT LINE in
+ * the container's content coordinates (absolute positioning inside a
+ * scroll container lives in content space, so handles stay glued while
  * scrolling).
  *
- *  - Height/top follow the unit's first line (caret rect via coordsAtPos),
- *    so the handle is exactly as tall as a text line and vertically
- *    centered on it; non-text units (image/attachment atoms) anchor to
- *    their DOM top — coordsAtPos(from+1) resolves to their END boundary,
- *    which used to drop the handle to the block bottom.
- *  - Units with a fold chevron (headings, foldable task items) never show
- *    the dots handle — their chevron is the grab point (see show()).
+ *  - Height/top follow the first line (caret rect via coordsAtPos), so the
+ *    handle is exactly as tall as a text line and vertically centered on
+ *    it; non-text units (image/attachment atoms) anchor to their DOM top —
+ *    coordsAtPos(from+1) resolves to their END boundary, which used to
+ *    drop the handle to the block bottom.
+ *  - For list/task items the caret at the unit start is degenerate (their
+ *    label/checkbox is contenteditable=false), so the first paragraph's
+ *    inner position is resolved instead.
  */
-function positionHandle(
+function firstLineAnchor(
   view: EditorView,
-  handle: HTMLElement,
   block: DraggableBlock,
   container: HTMLElement,
-): void {
-  const { from, node } = block;
-  const blockDom = blockDomAt(view, from);
+): { top: number; height: number } | null {
+  const blockDom = blockDomAt(view, block.from);
   if (blockDom == null) {
-    return;
+    return null;
   }
 
   const containerRect = container.getBoundingClientRect();
   const toContentY = (viewportY: number) =>
     viewportY - containerRect.top + container.scrollTop;
 
-  // First line of the unit: caret rect of its first text content. For
-  // list/task items the caret at the unit start is degenerate (their
-  // label/checkbox is contenteditable=false), so resolve the first
-  // paragraph's inner position — the same rule as hoveredStrip.
-  // Non-text units (image/attachment atoms) have no inner text position:
-  // coordsAtPos(from + 1) resolves to the boundary AFTER the node, putting
-  // the caret rect at the block's BOTTOM edge — anchor such units to
-  // their DOM top instead, so the handle hugs the block start.
   const blockRect = blockDom.getBoundingClientRect();
   let top = toContentY(blockRect.top);
   let height = HANDLE_DEFAULT_HEIGHT;
@@ -1639,20 +1733,41 @@ function positionHandle(
   if (textPos != null) {
     anchorCaret(textPos, false);
   } else {
-    anchorCaret(from + 1, true);
+    anchorCaret(block.from + 1, true);
   }
+  return { top, height };
+}
 
-  // Left: a stable base per unit kind so the handle never shifts between
-  // neighbors. Fold-chevron units (headings, foldable task items) never
-  // reach here — they grab by their chevron and the dots handle stays
-  // hidden — so the remaining gutter chrome to clear is just list markers
-  // and the checkbox column: anchor to the enclosing list's left edge.
-  let base = blockRect.left;
-  const isItem = DRAG_HANDLE_ITEM_TYPES.includes(node.type.name);
-  const isListNode = node.type.name.endsWith("List");
+/**
+ * Position a unit's own dots handle: anchored to its first text line
+ * (see firstLineAnchor), left of the unit's gutter chrome — for items the
+ * dots align with the enclosing list's left edge, so the handle never
+ * shifts between neighbors. Fold-chevron units never reach here on plain
+ * hover (their chevron is the grab point), only as a hold-grab overlay at
+ * the chevron's own place (showHandleAtChevron).
+ */
+function positionHandle(
+  view: EditorView,
+  handle: HTMLElement,
+  block: DraggableBlock,
+  container: HTMLElement,
+): void {
+  const anchor = firstLineAnchor(view, block, container);
+  if (anchor == null) {
+    return;
+  }
+  const blockDom = blockDomAt(view, block.from);
+  if (blockDom == null) {
+    return;
+  }
+  const containerRect = container.getBoundingClientRect();
+
+  let base = blockDom.getBoundingClientRect().left;
+  const isItem = DRAG_HANDLE_ITEM_TYPES.includes(block.node.type.name);
+  const isListUnit = block.node.type.name.endsWith("List");
   const listBlock = isItem
     ? enclosingListBlock(view, block)
-    : isListNode
+    : isListUnit
       ? block
       : null;
   if (listBlock != null) {
@@ -1663,7 +1778,66 @@ function positionHandle(
   }
   const left = base - HANDLE_GAP - HANDLE_WIDTH;
 
-  handle.style.top = `${top}px`;
+  handle.style.top = `${anchor.top}px`;
   handle.style.left = `${left - containerRect.left + container.scrollLeft}px`;
-  handle.style.height = `${height}px`;
+  handle.style.height = `${anchor.height}px`;
+}
+
+/**
+ * Position a WHOLE-LIST handle: glued to the first item's first line, one
+ * handle slot LEFT of the first item's own grab point (its dots slot, or
+ * its fold chevron when the first item is foldable). Always visible while
+ * the pointer is within the list — the grab point for moving every item
+ * at once.
+ */
+function positionListHandle(
+  view: EditorView,
+  handle: HTMLElement,
+  listBlock: DraggableBlock,
+  container: HTMLElement,
+): void {
+  const first = listBlock.node.content.firstChild;
+  if (first == null) {
+    return;
+  }
+  const firstFrom = listBlock.from + 1;
+  const firstDom = blockDomAt(view, firstFrom);
+  if (firstDom == null) {
+    return;
+  }
+  const anchor = firstLineAnchor(
+    view,
+    { node: first, from: firstFrom, to: firstFrom + first.nodeSize },
+    container,
+  );
+  if (anchor == null) {
+    return;
+  }
+  const containerRect = container.getBoundingClientRect();
+
+  // X base: the first item's own grab point — its dots slot (aligned with
+  // the list's left edge, the same rule as positionHandle for items), or
+  // its chevron when foldable. The list handle sits one slot further left.
+  let base = firstDom.getBoundingClientRect().left;
+  const listDom = blockDomAt(view, listBlock.from);
+  if (listDom != null) {
+    base = Math.min(base, listDom.getBoundingClientRect().left);
+  }
+  const chevron = grabChevronOf(view, {
+    node: first,
+    from: firstFrom,
+    to: firstFrom + first.nodeSize,
+  });
+  if (chevron != null) {
+    // The foldable first item's grab point is the chevron itself.
+    base = chevron.getBoundingClientRect().left;
+  } else {
+    // Reserve the first item's own dots slot first.
+    base -= HANDLE_GAP + HANDLE_WIDTH;
+  }
+  const left = base - HANDLE_GAP - HANDLE_WIDTH;
+
+  handle.style.top = `${anchor.top}px`;
+  handle.style.left = `${left - containerRect.left + container.scrollLeft}px`;
+  handle.style.height = `${anchor.height}px`;
 }

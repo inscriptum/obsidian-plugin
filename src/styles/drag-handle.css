@@ -81,20 +81,34 @@
   opacity: 0.55;
 }
 
-/* Fold chevrons double as drag handles (see dragHandlePlugin.ts):
+/* Fold chevrons double as drag grab points (see dragHandlePlugin.ts):
    click folds, press-and-hold turns the chevron into the drag handle,
    press-and-move drags.
-   - is-grabbed: held (hold timer or first movement below the drag
-     threshold) — the dots handle overlay takes the chevron's place, so
-     the chevron itself hides;
+   - is-hover: the unit is hovered (force-reveals the chevron when the
+     hover comes from the gutter, outside the block's own :hover); it is
+     also defined in heading-folding.css / task-item style.css — always
+     with :not(.is-grabbed):not(.is-dragging), so the hold-grab/drag
+     hiding below wins regardless of stylesheet order;
+   - is-grabbed: held past the hold window — the dots handle overlay takes
+     the chevron's place, so the chevron itself hides;
    - is-dragging: the drag is armed — grabbing cursor, accent tint.
    The class lands on the closest .texto-*-fold-chevron / -chevron-host
-   element (either the host or the inner span, depending on hit target). */
+   element (either the host or the inner span, depending on hit target).
+   The hiding is !important on purpose: while the pointer is held on the
+   chevron, Chrome latches :hover to it, and the hover-reveal rules (equal
+   specificity, in later stylesheets — task-item/style.css is imported
+   after this file) would otherwise keep the chevron visible under the
+   dots overlay. */
+.note .texto-heading-fold-chevron-host.is-hover:not(.is-grabbed):not(.is-dragging),
+.note .texto-heading-fold-chevron-host .texto-heading-fold-chevron.is-hover:not(.is-grabbed):not(.is-dragging),
+.note .texto-task-fold-chevron.is-hover:not(.is-grabbed):not(.is-dragging) {
+  opacity: 1;
+}
 .note .texto-heading-fold-chevron-host.is-grabbed,
 .note .texto-heading-fold-chevron-host .texto-heading-fold-chevron.is-grabbed,
 .note .texto-task-fold-chevron.is-grabbed {
-  opacity: 0;
-  pointer-events: none; /* the dots-handle overlay owns the pointer now */
+  opacity: 0 !important;
+  pointer-events: none !important; /* the dots-handle overlay owns the pointer now */
 }
 
 .note .texto-heading-fold-chevron-host.is-dragging,
@@ -102,8 +116,8 @@
 .note .texto-task-fold-chevron.is-dragging {
   cursor: grabbing;
   color: var(--text-normal, #dadada);
-  opacity: 0;
-  pointer-events: none;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 /* prosemirror-dropcursor overlay (see extensions/dropcursor) — used by

@@ -75,6 +75,16 @@
   opacity: 1;
 }
 
+/* Drag-handle hover from the gutter: the strip left of the heading belongs
+   to the block (see dragHandlePlugin.ts), and the heading's own :hover
+   rule doesn't reach there — the plugin force-reveals the chevron (its
+   grab point) via this class. The hold-grab/drag states hide the chevron
+   (dots handle takes its place) — they must win over is-hover regardless
+   of stylesheet order. */
+.note .texto-heading-fold-chevron-host.is-hover:not(.is-grabbed):not(.is-dragging) {
+  opacity: 1;
+}
+
 .note .texto-heading-fold-chevron-host:hover {
   color: var(--text-muted, #a4a5b2);
 }
