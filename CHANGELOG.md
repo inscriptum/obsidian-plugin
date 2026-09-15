@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Prevent floating styles with some blocks.
 - Fold chevron ↔ drag interplay (headings, foldable tasks): hovering no longer swaps the chevron for the dots handle — the chevron is force-revealed in the gutter instead; a quick click folds/unfolds as before, pressing and holding swaps the dots handle in, and moving from there drags the unit. Pointer jitter while holding no longer cancels the grab, and a held release without movement still toggles the fold (exactly once — no pointer capture on chevron presses). The chevron is now fully hidden while the dots handle is in its place — even with the pointer hovering it, where Chrome latches :hover to the pressed chevron — and the dots are centered on the chevron's glyph instead of its box edge.
 - A list with a single item shows only that item's drag handle — no second whole-list handle for the same move (a single-item list IS its item).
 - Block drag handle stayed visible and glued to a stale position after the document changed (typing, adding blocks): the handle is now hidden on any document change while the pointer is idle — it reappears when the mouse moves again and resolves the block under it. An active drag is unaffected.

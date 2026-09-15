@@ -1,11 +1,11 @@
 .ProseMirror {
   --texto-code-block__background: #1c1b1b;
   --texto-code-block-inner__background: #1c1b1b;
-  --texto-code-block__border-radius: 12px;
+  --texto-code-block__border-radius: 4px;
   --texto-code-block__box-shadow: none;
   --texto-code-block__border-left: none;
   --texto-code-block__pre-margin: 12px auto;
-  --texto-code-block__pre-padding: 16px 0px;
+  --texto-code-block__pre-padding: 20px 0px 10px 0px;
   --texto-code-block__font-family: "JetBrains Mono", monospace;
   --texto-code-block__font-size: 15px;
   --texto-code-block__line-height: 20px;
@@ -19,9 +19,10 @@
   --texto-code-block__selection: #2383e247;
   --texto-code-block__line-number-color: #516363;
   --texto-code-block__line-number-left: 16px;
-  --texto-code-block__ln-select__right: 0.8rem;
-  --texto-code-block__ln-select__top: 0.8rem;
+  --texto-code-block__ln-select__right: 0.4rem;
+  --texto-code-block__ln-select__top: 0.4rem;
   --texto-code-block__ln-select__opacity: 0.5;
+  --texto-code-block__ln-select__hight: 25px;
 
   & pre {
     background: var(--texto-code-block__background);
@@ -98,6 +99,7 @@
 
     .hljs-codeblock__select {
       position: absolute;
+      height: var(--texto-code-block__ln-select__hight);
       right: var(--texto-code-block__ln-select__right);
       top: var(--texto-code-block__ln-select__top);
       opacity: var(--texto-code-block__ln-select__opacity);

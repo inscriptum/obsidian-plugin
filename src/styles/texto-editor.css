@@ -170,3 +170,11 @@ img.ProseMirror-separator {
   padding-top: 0;
   padding-bottom: 0;
 }
+
+/* Prevent float with another blocks (e.g. images) */
+.ProseMirror .hljs-codeblock,
+.ProseMirror ul[data-type="taskList"],
+.ProseMirror ul,
+.ProseMirror ol {
+  clear: both;
+}
