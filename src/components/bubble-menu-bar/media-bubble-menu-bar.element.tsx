@@ -40,7 +40,8 @@ export const MediaBubbleMenuElement = litView.element({
     for (const plugin of es.plugins) {
       const key = (plugin as KeyedPlugin).key?.key;
       if (key === "mediaBubbleMenu") {
-        return (plugin.getState(es) as BubbleMenuPluginState | undefined)?.tippy;
+        return (plugin.getState(es) as BubbleMenuPluginState | undefined)
+          ?.tippy;
       }
     }
     return undefined;
@@ -84,10 +85,15 @@ export const MediaBubbleMenuElement = litView.element({
   };
   const doReplace = () => replaceMediaFile(props.editor);
   const doDelete = () => removeMediaNode(props.editor, props.app);
-  const doSetLayout = (align: ImageLayout) => setImageNodeLayout(props.editor, align);
+  const doSetLayout = (align: ImageLayout) =>
+    setImageNodeLayout(props.editor, align);
 
   // Layout (align/wrap) controls — image nodes with a file only.
-  const imageLayouts: Array<{ align: ImageLayout; icon: BubbleIconName; tip: string }> = [
+  const imageLayouts: Array<{
+    align: ImageLayout;
+    icon: BubbleIconName;
+    tip: string;
+  }> = [
     { align: "left", icon: "imgLeft", tip: "Align left" },
     { align: "center", icon: "imgCenter", tip: "Center" },
     { align: "right", icon: "imgRight", tip: "Align right" },
@@ -117,7 +123,11 @@ export const MediaBubbleMenuElement = litView.element({
         <div class="bubble-menu-bar">
           <div class="bubble-menu-media-bar show">
             <button
-              class={cls("bb-btn", "bb-media-name", !state.hasFile && "is-disabled")}
+              class={cls(
+                "bb-btn",
+                "bb-media-name",
+                !state.hasFile && "is-disabled",
+              )}
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={doOpen}
             >
@@ -140,7 +150,10 @@ export const MediaBubbleMenuElement = litView.element({
                 <span class="bubble-menu-sep"></span>
                 {imageLayouts.map((layout) => (
                   <button
-                    class={cls("bb-btn", state.align === layout.align && "is-active")}
+                    class={cls(
+                      "bb-btn",
+                      state.align === layout.align && "is-active",
+                    )}
                     data-tip={layout.tip}
                     onmousedown={(e: MouseEvent) => e.preventDefault()}
                     onclick={() => doSetLayout(layout.align)}
@@ -150,7 +163,7 @@ export const MediaBubbleMenuElement = litView.element({
                 ))}
               </>
             ) : (
-              ''
+              ""
             )}
             <button
               class="bb-btn danger"

@@ -4,13 +4,19 @@ import { p } from "@web-companions/gfc";
 import { Editor, posToDOMRect } from "../../texto/core";
 import { elTag } from "../../tags";
 import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
-import { bgHexToAttr, getTableMenuState, TABLE_FILLS, type TableMenuState } from "./tableMenuState";
+import {
+  bgHexToAttr,
+  getTableMenuState,
+  TABLE_FILLS,
+  type TableMenuState,
+} from "./tableMenuState";
 import { TEXT_COLORS } from "./bubbleMenuState";
 import { bubbleIconNodes } from "./icons.svgnode";
 
 type OpenLayer = "table-color" | null;
 
-const cls = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(" ");
+const cls = (...parts: Array<string | false | null | undefined>) =>
+  parts.filter(Boolean).join(" ");
 
 export const TableBubbleMenuElement = litView.element({
   props: {
@@ -73,7 +79,10 @@ export const TableBubbleMenuElement = litView.element({
     openLayer = "table-color";
     void this.next().then(() => {
       window.requestAnimationFrame(() => {
-        placeLayerCaret(".bubble-menu-layer--table-color", '[data-tbl="color"]');
+        placeLayerCaret(
+          ".bubble-menu-layer--table-color",
+          '[data-tbl="color"]',
+        );
         placeLayerDirection(".bubble-menu-layer--table-color");
       });
     });
@@ -116,11 +125,22 @@ export const TableBubbleMenuElement = litView.element({
   };
 
   const applyCellBg = (color: string | null) => {
-    props.editor.chain().focus().setCellsAttribute("backgroundColor", bgHexToAttr(color) ?? (null as unknown as string)).run();
+    props.editor
+      .chain()
+      .focus()
+      .setCellsAttribute(
+        "backgroundColor",
+        bgHexToAttr(color) ?? (null as unknown as string),
+      )
+      .run();
   };
 
   const applyCellTextColor = (color: string | null) => {
-    props.editor.chain().focus().setCellsAttribute("dataColor", color ?? (null as unknown as string)).run();
+    props.editor
+      .chain()
+      .focus()
+      .setCellsAttribute("dataColor", color ?? (null as unknown as string))
+      .run();
   };
 
   const syncCaret = () => {
@@ -139,7 +159,10 @@ export const TableBubbleMenuElement = litView.element({
     while (box && !box.hasAttribute("data-placement")) {
       box = box.parentElement;
     }
-    bar.classList.toggle("is-flip", box?.getAttribute("data-placement")?.startsWith("bottom") ?? false);
+    bar.classList.toggle(
+      "is-flip",
+      box?.getAttribute("data-placement")?.startsWith("bottom") ?? false,
+    );
   };
 
   /** Plugin instances expose a private `key` field holding the PluginKey name. */
@@ -153,7 +176,8 @@ export const TableBubbleMenuElement = litView.element({
     for (const plugin of es.plugins) {
       const key = (plugin as KeyedPlugin).key?.key;
       if (key === "tableBubbleMenu") {
-        return (plugin.getState(es) as BubbleMenuPluginState | undefined)?.tippy;
+        return (plugin.getState(es) as BubbleMenuPluginState | undefined)
+          ?.tippy;
       }
     }
     return undefined;
@@ -307,7 +331,11 @@ export const TableBubbleMenuElement = litView.element({
           <span class="bb-caret"></span>
 
           <div
-            class={cls("bubble-menu-layer", "bubble-menu-layer--table-color", openLayer === "table-color" && "show")}
+            class={cls(
+              "bubble-menu-layer",
+              "bubble-menu-layer--table-color",
+              openLayer === "table-color" && "show",
+            )}
             role="dialog"
             aria-label="Cell fill & text color"
           >
@@ -319,7 +347,8 @@ export const TableBubbleMenuElement = litView.element({
                   class={cls(
                     "bb-sw",
                     `bb-sw--${sw.css}`,
-                    (sw.color == null ? null : bgHexToAttr(sw.color)) === tableState.bg && "is-active",
+                    (sw.color == null ? null : bgHexToAttr(sw.color)) ===
+                      tableState.bg && "is-active",
                   )}
                   aria-label={sw.label}
                   onmousedown={(e: MouseEvent) => e.preventDefault()}
@@ -332,7 +361,11 @@ export const TableBubbleMenuElement = litView.element({
             <div class="bb-sw-row">
               {TEXT_COLORS.map((sw) => (
                 <button
-                  class={cls("bb-sw", `bb-sw--${sw.css}`, (sw.color ?? null) === tableState.textColor && "is-active")}
+                  class={cls(
+                    "bb-sw",
+                    `bb-sw--${sw.css}`,
+                    (sw.color ?? null) === tableState.textColor && "is-active",
+                  )}
                   aria-label={sw.label}
                   onmousedown={(e: MouseEvent) => e.preventDefault()}
                   onclick={() => applyCellTextColor(sw.color)}

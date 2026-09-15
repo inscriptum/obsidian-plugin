@@ -1,46 +1,53 @@
-import { Mark, markInputRule, markPasteRule, mergeAttributes } from '../../core'
-import type { AnyRecord } from '../../core/@types'
-import { addCommands } from './commands'
+import {
+  Mark,
+  markInputRule,
+  markPasteRule,
+  mergeAttributes,
+} from "../../core";
+import type { AnyRecord } from "../../core/@types";
+import { addCommands } from "./commands";
 
 export interface CodeOptions {
-  HTMLAttributes: AnyRecord
+  HTMLAttributes: AnyRecord;
 }
 
-export const inputRegex = /(?:^|\s)(`(?!\s+`)((?:[^`]+))`(?!\s+`))$/
+export const inputRegex = /(?:^|\s)(`(?!\s+`)((?:[^`]+))`(?!\s+`))$/;
 
-export const pasteRegex = /(?:^|\s)(`(?!\s+`)((?:[^`]+))`(?!\s+`))/g
+export const pasteRegex = /(?:^|\s)(`(?!\s+`)((?:[^`]+))`(?!\s+`))/g;
 
 export const Code = Mark.create<CodeOptions>({
-  name: 'code',
+  name: "code",
 
   addOptions() {
     return {
       HTMLAttributes: {},
-    }
+    };
   },
 
-  excludes: '_',
+  excludes: "_",
 
   code: true,
 
   exitable: true,
 
   parseHTML() {
-    return [
-      { tag: 'code' },
-    ]
+    return [{ tag: "code" }];
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['code', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
+    return [
+      "code",
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
+      0,
+    ];
   },
 
   addCommands,
 
   addKeyboardShortcuts() {
     return {
-      'Mod-e': () => this.editor.commands.toggleCode(),
-    }
+      "Mod-e": () => this.editor.commands.toggleCode(),
+    };
   },
 
   addInputRules() {
@@ -49,7 +56,7 @@ export const Code = Mark.create<CodeOptions>({
         find: inputRegex,
         type: this.type,
       }),
-    ]
+    ];
   },
 
   addPasteRules() {
@@ -58,6 +65,6 @@ export const Code = Mark.create<CodeOptions>({
         find: pasteRegex,
         type: this.type,
       }),
-    ]
+    ];
   },
-})
+});

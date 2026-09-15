@@ -1,52 +1,54 @@
-import {mergeAttributes, Node} from '../../core';
-import type { AnyRecord } from '../../core/@types';
+import { mergeAttributes, Node } from "../../core";
+import type { AnyRecord } from "../../core/@types";
 
-import {addCommands} from './commands';
+import { addCommands } from "./commands";
 
 export interface TaskListOptions {
-	itemTypeName: string;
-	  HTMLAttributes: AnyRecord;
+  itemTypeName: string;
+  HTMLAttributes: AnyRecord;
 }
 
 export const TaskList = Node.create<TaskListOptions>({
-	name: 'taskList',
+  name: "taskList",
 
-	selectable: false,
+  selectable: false,
 
-	addOptions() {
-		return {
-			itemTypeName: 'taskItem',
-			HTMLAttributes: {},
-		};
-	},
+  addOptions() {
+    return {
+      itemTypeName: "taskItem",
+      HTMLAttributes: {},
+    };
+  },
 
-	group: 'block list',
+  group: "block list",
 
-	content() {
-		return `${this.options.itemTypeName}+`;
-	},
+  content() {
+    return `${this.options.itemTypeName}+`;
+  },
 
-	parseHTML() {
-		return [
-			{
-				tag: `ul[data-type="${this.name}"]`,
-				priority: 51,
-			},
-		];
-	},
+  parseHTML() {
+    return [
+      {
+        tag: `ul[data-type="${this.name}"]`,
+        priority: 51,
+      },
+    ];
+  },
 
-	renderHTML({HTMLAttributes}) {
-		return [
-			'ul',
-			mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {'data-type': this.name}),
-			0,
-		];
-	},
+  renderHTML({ HTMLAttributes }) {
+    return [
+      "ul",
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, {
+        "data-type": this.name,
+      }),
+      0,
+    ];
+  },
 
-	addCommands,
-	addKeyboardShortcuts() {
-		return {
-			'Mod-Shift-9': () => this.editor.commands.toggleTaskList(),
-		};
-	},
+  addCommands,
+  addKeyboardShortcuts() {
+    return {
+      "Mod-Shift-9": () => this.editor.commands.toggleTaskList(),
+    };
+  },
 });

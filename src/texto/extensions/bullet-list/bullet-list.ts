@@ -1,42 +1,44 @@
-import { mergeAttributes, Node, wrappingInputRule } from '../../core'
-import type { AnyRecord } from '../../core/@types'
-import { addCommands } from './commands'
+import { mergeAttributes, Node, wrappingInputRule } from "../../core";
+import type { AnyRecord } from "../../core/@types";
+import { addCommands } from "./commands";
 
 export interface BulletListOptions {
-  HTMLAttributes: AnyRecord
+  HTMLAttributes: AnyRecord;
 }
 
-export const inputRegex = /^\s*([-+*])\s$/
+export const inputRegex = /^\s*([-+*])\s$/;
 
 export const BulletList = Node.create<BulletListOptions>({
-  name: 'bulletList',
+  name: "bulletList",
 
   addOptions() {
     return {
       HTMLAttributes: {},
-    }
+    };
   },
 
-  group: 'block list',
+  group: "block list",
 
-  content: 'listItem+',
+  content: "listItem+",
 
   parseHTML() {
-    return [
-      { tag: 'ul' },
-    ]
+    return [{ tag: "ul" }];
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['ul', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
+    return [
+      "ul",
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
+      0,
+    ];
   },
 
   addCommands,
 
   addKeyboardShortcuts() {
     return {
-      'Mod-Shift-8': () => this.editor.commands.toggleBulletList(),
-    }
+      "Mod-Shift-8": () => this.editor.commands.toggleBulletList(),
+    };
   },
 
   addInputRules() {
@@ -45,6 +47,6 @@ export const BulletList = Node.create<BulletListOptions>({
         find: inputRegex,
         type: this.type,
       }),
-    ]
+    ];
   },
-})
+});

@@ -8,7 +8,12 @@ import {
 } from "obsidian";
 import { CellSelection, isInTable } from "prosemirror-tables";
 import { Editor, isTextSelection } from "./texto/core";
-import { readNoteWithRaw, writeNote, parseNoteDoc, isEmptyNoteDoc } from "./storage/noteStorage";
+import {
+  readNoteWithRaw,
+  writeNote,
+  parseNoteDoc,
+  isEmptyNoteDoc,
+} from "./storage/noteStorage";
 import { FileChangedModal } from "./ui/FileChangedModal";
 import { getDesiredFileName } from "./storage/fileNaming";
 import {
@@ -107,17 +112,20 @@ export class NoteView extends FileView {
   private scrollShadowCleanup: (() => void) | null = null;
   private mobileScrollCleanup: (() => void) | null = null;
   private mobileNavWasHidden: boolean | null = null;
-  private keyboardListenerHandles: Array<{ remove: () => Promise<void> | void }> = [];
+  private keyboardListenerHandles: Array<{
+    remove: () => Promise<void> | void;
+  }> = [];
   private keyboardListenerGeneration = 0;
   private keyboardViewportCleanup: (() => void) | null = null;
   private leafContentWithNoteClass: HTMLElement | null = null;
   private searchEl: HTMLElement | null = null;
   /** Last fold positions saved to localStorage, per fold kind; guards
    *  redundant writes. */
-  private lastSavedFolds: { heading: number[] | null; task: number[] | null } = {
-    heading: null,
-    task: null,
-  };
+  private lastSavedFolds: { heading: number[] | null; task: number[] | null } =
+    {
+      heading: null,
+      task: null,
+    };
 
   // ── External file change watching ──
   /** Whether the editor holds changes not yet written to disk. */
@@ -177,8 +185,9 @@ export class NoteView extends FileView {
     this.contentEl.empty();
     this.contentEl.addClass("note-view-container");
 
-    this.leafContentWithNoteClass =
-      this.contentEl.closest<HTMLElement>(".workspace-leaf-content");
+    this.leafContentWithNoteClass = this.contentEl.closest<HTMLElement>(
+      ".workspace-leaf-content",
+    );
     this.leafContentWithNoteClass?.classList.add("has-inscriptum-note-view");
 
     this.registerDomEvent(
@@ -271,24 +280,35 @@ export class NoteView extends FileView {
         listener: (info: { keyboardHeight?: number }) => void,
       ) => Promise<{ remove: () => Promise<void> | void }>;
     };
-    const capacitor = (window as unknown as {
-      Capacitor?: { Plugins?: { Keyboard?: KeyboardPlugin } };
-    }).Capacitor;
+    const capacitor = (
+      window as unknown as {
+        Capacitor?: { Plugins?: { Keyboard?: KeyboardPlugin } };
+      }
+    ).Capacitor;
     const keyboard = capacitor?.Plugins?.Keyboard;
 
     if (keyboard?.addListener) {
       update(0, false);
-      for (const event of ["keyboardWillShow", "keyboardDidShow", "keyboardWillHide", "keyboardDidHide"]) {
-        void keyboard.addListener(event, (info) => {
-          const height = event.endsWith("Hide") ? 0 : Number(info.keyboardHeight ?? 0);
-          update(Number.isFinite(height) ? height : 0, false);
-        }).then((handle) => {
-          if (generation === this.keyboardListenerGeneration) {
-            this.keyboardListenerHandles.push(handle);
-          } else {
-            void handle.remove();
-          }
-        });
+      for (const event of [
+        "keyboardWillShow",
+        "keyboardDidShow",
+        "keyboardWillHide",
+        "keyboardDidHide",
+      ]) {
+        void keyboard
+          .addListener(event, (info) => {
+            const height = event.endsWith("Hide")
+              ? 0
+              : Number(info.keyboardHeight ?? 0);
+            update(Number.isFinite(height) ? height : 0, false);
+          })
+          .then((handle) => {
+            if (generation === this.keyboardListenerGeneration) {
+              this.keyboardListenerHandles.push(handle);
+            } else {
+              void handle.remove();
+            }
+          });
       }
       return;
     }
@@ -374,250 +394,259 @@ export class NoteView extends FileView {
       // timer (not rAF) also keeps working when the window is occluded.
       let editorInitTries = 120;
       const initEditor = (): void => {
-      const editorEl = noteEl.props.editorContainerEl?.value;
+        const editorEl = noteEl.props.editorContainerEl?.value;
 
-      if (editorEl == null) {
-        if (editorInitTries-- > 0) window.setTimeout(initEditor, 50);
-        else console.error("Editor creation failed: editor container never rendered");
-        return;
-      }
-      {
-        const editorRef: { current: Editor | null } = { current: null };
-        const ctx: ImageToolContext = { app: this.app, noteFile: file };
-
-        this.editor = new Editor({
-          element: editorEl,
-          content: content,
-          onError: (err) => {
-            console.error("Editor creation failed:", err);
-          },
-          onUpdate: () => {
-            if (this.applyingRemoteChange) return;
-            this.dirty = true;
-            this.scheduleSave();
-          },
-          onTransaction: ({ transaction }) => {
-            this.syncFoldState(transaction);
-          },
-          extensions: getExtensions(
-            this.buildExtensionHooks(file, editorRef, ctx),
-            { isMobileView: isMobile },
-          ),
-          autofocus: "start",
-        });
-
-        editorRef.current = this.editor;
-        this.editor.registerPlugin(createDocumentSearchPlugin());
-        // Layout-transformed Ctrl/Cmd+letter events (non-Latin keyboard
-        // layouts) never match the PM keymap's `event.key` bindings; this
-        // direct plugin resolves them by physical key code — see
-        // src/tools/isPressedCommand.ts.
-        this.editor.registerPlugin(
-          createPhysicalShortcutPlugin({
-            getCommands: () => this.editor?.registeredShortcuts ?? [],
-            handleShortcut: (event) =>
-              this.handleEditorShortcut(event) === false,
-          }),
-        );
-        this.createSearchBar();
-        NoteView.onEditorCreated?.(this.editor);
-
-        // Restore heading folds saved for this note (desktop only; mirrors
-        // Obsidian's own note-fold localStorage persistence).
-        if (!isMobile) {
-          this.restoreFoldState(this.editor);
+        if (editorEl == null) {
+          if (editorInitTries-- > 0) window.setTimeout(initEditor, 50);
+          else
+            console.error(
+              "Editor creation failed: editor container never rendered",
+            );
+          return;
         }
+        {
+          const editorRef: { current: Editor | null } = { current: null };
+          const ctx: ImageToolContext = { app: this.app, noteFile: file };
 
-        if (isMobile) {
-          this.setupMobileScrollBehavior(editorEl);
+          this.editor = new Editor({
+            element: editorEl,
+            content: content,
+            onError: (err) => {
+              console.error("Editor creation failed:", err);
+            },
+            onUpdate: () => {
+              if (this.applyingRemoteChange) return;
+              this.dirty = true;
+              this.scheduleSave();
+            },
+            onTransaction: ({ transaction }) => {
+              this.syncFoldState(transaction);
+            },
+            extensions: getExtensions(
+              this.buildExtensionHooks(file, editorRef, ctx),
+              { isMobileView: isMobile },
+            ),
+            autofocus: "start",
+          });
+
+          editorRef.current = this.editor;
+          this.editor.registerPlugin(createDocumentSearchPlugin());
+          // Layout-transformed Ctrl/Cmd+letter events (non-Latin keyboard
+          // layouts) never match the PM keymap's `event.key` bindings; this
+          // direct plugin resolves them by physical key code — see
+          // src/tools/isPressedCommand.ts.
+          this.editor.registerPlugin(
+            createPhysicalShortcutPlugin({
+              getCommands: () => this.editor?.registeredShortcuts ?? [],
+              handleShortcut: (event) =>
+                this.handleEditorShortcut(event) === false,
+            }),
+          );
+          this.createSearchBar();
+          NoteView.onEditorCreated?.(this.editor);
+
+          // Restore heading folds saved for this note (desktop only; mirrors
+          // Obsidian's own note-fold localStorage persistence).
+          if (!isMobile) {
+            this.restoreFoldState(this.editor);
+          }
+
+          if (isMobile) {
+            this.setupMobileScrollBehavior(editorEl);
+          }
+
+          this.editor.on("blur", () => {
+            void this.flushSave();
+          });
+
+          this._skipNextReload = true;
+
+          noteEl.props.editor = this.editor;
+
+          toolbarEl.props.editor = this.editor;
+          bubbleMenuBarEl.props.editor = this.editor;
+          tableBubbleMenuEl.props.editor = this.editor;
+          mediaBubbleMenuEl.props.editor = this.editor;
+          mediaBubbleMenuEl.props.app = this.app;
+
+          // Attach menus to the DOM AFTER setting props.editor: for the required prop,
+          // connectedCallback starts the generator only when editor is already set.
+          if (isMobile) {
+            // Mobile: bubble menus render inside the bottom toolbar and swap in
+            // on selection (see ToolbarElement). No floating tippy popup.
+            toolbarEl.props.selectionBar = bubbleMenuBarEl;
+            toolbarEl.props.tableSelectionBar = tableBubbleMenuEl;
+            toolbarEl.props.mediaSelectionBar = mediaBubbleMenuEl;
+            // The media menu element's own editor-event subscription can go stale
+            // across toolbar re-renders, leaving the bar frozen on its initial
+            // state. Pulse it on every selection update: the generator re-reads
+            // the editor state on each render pass.
+            this.editor.on("selectionUpdate", () => mediaBubbleMenuEl.next());
+            this.editor.on("update", () => mediaBubbleMenuEl.next());
+          } else {
+            this.contentEl.appendChild(bubbleMenuBarEl);
+            this.contentEl.appendChild(tableBubbleMenuEl);
+            this.contentEl.appendChild(mediaBubbleMenuEl);
+
+            // ── Text bubble menu ──
+            // Show for non-empty text selection OUTSIDE tables.
+            // Inside a table — the separate table menu handles it.
+            if (!isMobile)
+              this.editor.registerPlugin(
+                bubbleMenuPlugin({
+                  pluginKey: "bubbleMenu",
+                  editor: this.editor,
+                  element: bubbleMenuBarEl,
+                  shouldShow: function (
+                    this: BubbleMenuView,
+                    { editor, state, from, to }: ShouldShowProps,
+                  ) {
+                    const selection = state.selection;
+                    const empty = selection.empty;
+                    const inTable = isInTable(state);
+
+                    const parentElement = this.tippy?.popper ?? this.element;
+                    const isChildOfMenu = parentElement.contains(
+                      document.activeElement,
+                    );
+                    const hasEditorFocus =
+                      editor.view.hasFocus() || isChildOfMenu;
+
+                    if (
+                      !hasEditorFocus ||
+                      !editor.isEditable ||
+                      this.isMousePressed
+                    ) {
+                      return false;
+                    }
+
+                    // Media nodes have their own menu — hide the text menu for them.
+                    if (isMediaNodeSelection(state)) {
+                      return false;
+                    }
+
+                    // Text menu is shown for selected text,
+                    // even inside a table (for formatting text in cells)
+                    if (inTable && !empty && isTextSelection(selection)) {
+                      return true;
+                    }
+
+                    // CellSelection — shows table menu, hide text menu
+                    if (selection instanceof CellSelection) {
+                      return false;
+                    }
+
+                    // Inside a table (caret) — shows table menu
+                    if (inTable) {
+                      return false;
+                    }
+
+                    // Normal mode: non-empty text selection
+                    const isEmptyTextBlock =
+                      !state.doc.textBetween(from, to).length &&
+                      isTextSelection(selection);
+                    if (empty || isEmptyTextBlock) {
+                      return false;
+                    }
+
+                    return true;
+                  },
+                  tippyOptions: {
+                    placement: "top",
+                    offset: [0, 8],
+                    animation: "bubble-pop",
+                    duration: [160, 120],
+                  },
+                }),
+              );
+
+            // ── Table bubble menu ──
+            // Always show when inside a table.
+            if (!isMobile)
+              this.editor.registerPlugin(
+                bubbleMenuPlugin({
+                  pluginKey: "tableBubbleMenu",
+                  editor: this.editor,
+                  element: tableBubbleMenuEl,
+                  shouldShow: function (
+                    this: BubbleMenuView,
+                    { editor, state }: ShouldShowProps,
+                  ) {
+                    const selection = state.selection;
+                    const parentElement = this.tippy?.popper ?? this.element;
+                    const isChildOfMenu = parentElement.contains(
+                      document.activeElement,
+                    );
+                    const hasEditorFocus =
+                      editor.view.hasFocus() || isChildOfMenu;
+
+                    if (
+                      !hasEditorFocus ||
+                      !editor.isEditable ||
+                      this.isMousePressed
+                    ) {
+                      return false;
+                    }
+
+                    // Table menu — only for caret or CellSelection.
+                    // When text is selected in a cell — text menu.
+                    return (
+                      isInTable(state) &&
+                      (selection.empty || selection instanceof CellSelection)
+                    );
+                  },
+                  tippyOptions: {
+                    placement: "top",
+                    offset: [0, 8],
+                    animation: "bubble-pop",
+                    duration: [160, 120],
+                  },
+                }),
+              );
+
+            // ── Media bubble menu (image / attachment) ──
+            if (!isMobile)
+              this.editor.registerPlugin(
+                bubbleMenuPlugin({
+                  pluginKey: "mediaBubbleMenu",
+                  editor: this.editor,
+                  element: mediaBubbleMenuEl,
+                  shouldShow: function (
+                    this: BubbleMenuView,
+                    { editor, state }: ShouldShowProps,
+                  ) {
+                    const parentElement = this.tippy?.popper ?? this.element;
+                    const isChildOfMenu = parentElement.contains(
+                      document.activeElement,
+                    );
+                    const hasEditorFocus =
+                      editor.view.hasFocus() || isChildOfMenu;
+
+                    if (
+                      !hasEditorFocus ||
+                      !editor.isEditable ||
+                      this.isMousePressed
+                    ) {
+                      return false;
+                    }
+
+                    return isMediaNodeSelection(state);
+                  },
+                  tippyOptions: {
+                    placement: "top",
+                    offset: [0, 8],
+                    animation: "bubble-pop",
+                    duration: [160, 120],
+                  },
+                }),
+              );
+          }
+
+          window.setTimeout(() => {
+            this.editor?.view?.focus();
+            this.contentEl.insertAdjacentElement("afterbegin", toolbarEl);
+          }, 100);
         }
-
-        this.editor.on("blur", () => {
-          void this.flushSave();
-        });
-
-        this._skipNextReload = true;
-
-        noteEl.props.editor = this.editor;
-
-        toolbarEl.props.editor = this.editor;
-        bubbleMenuBarEl.props.editor = this.editor;
-        tableBubbleMenuEl.props.editor = this.editor;
-        mediaBubbleMenuEl.props.editor = this.editor;
-        mediaBubbleMenuEl.props.app = this.app;
-
-        // Attach menus to the DOM AFTER setting props.editor: for the required prop,
-        // connectedCallback starts the generator only when editor is already set.
-        if (isMobile) {
-          // Mobile: bubble menus render inside the bottom toolbar and swap in
-          // on selection (see ToolbarElement). No floating tippy popup.
-          toolbarEl.props.selectionBar = bubbleMenuBarEl;
-          toolbarEl.props.tableSelectionBar = tableBubbleMenuEl;
-          toolbarEl.props.mediaSelectionBar = mediaBubbleMenuEl;
-          // The media menu element's own editor-event subscription can go stale
-          // across toolbar re-renders, leaving the bar frozen on its initial
-          // state. Pulse it on every selection update: the generator re-reads
-          // the editor state on each render pass.
-          this.editor.on("selectionUpdate", () => mediaBubbleMenuEl.next());
-          this.editor.on("update", () => mediaBubbleMenuEl.next());
-        } else {
-          this.contentEl.appendChild(bubbleMenuBarEl);
-          this.contentEl.appendChild(tableBubbleMenuEl);
-          this.contentEl.appendChild(mediaBubbleMenuEl);
-
-          // ── Text bubble menu ──
-        // Show for non-empty text selection OUTSIDE tables.
-        // Inside a table — the separate table menu handles it.
-        if (!isMobile) this.editor.registerPlugin(
-          bubbleMenuPlugin({
-            pluginKey: "bubbleMenu",
-            editor: this.editor,
-            element: bubbleMenuBarEl,
-            shouldShow: function (
-              this: BubbleMenuView,
-              { editor, state, from, to }: ShouldShowProps,
-            ) {
-              const selection = state.selection;
-              const empty = selection.empty;
-              const inTable = isInTable(state);
-
-              const parentElement = this.tippy?.popper ?? this.element;
-              const isChildOfMenu = parentElement.contains(
-                document.activeElement,
-              );
-              const hasEditorFocus = editor.view.hasFocus() || isChildOfMenu;
-
-              if (
-                !hasEditorFocus ||
-                !editor.isEditable ||
-                this.isMousePressed
-              ) {
-                return false;
-              }
-
-              // Media nodes have their own menu — hide the text menu for them.
-              if (isMediaNodeSelection(state)) {
-                return false;
-              }
-
-              // Text menu is shown for selected text,
-              // even inside a table (for formatting text in cells)
-              if (inTable && !empty && isTextSelection(selection)) {
-                return true;
-              }
-
-              // CellSelection — shows table menu, hide text menu
-              if (selection instanceof CellSelection) {
-                return false;
-              }
-
-              // Inside a table (caret) — shows table menu
-              if (inTable) {
-                return false;
-              }
-
-              // Normal mode: non-empty text selection
-              const isEmptyTextBlock =
-                !state.doc.textBetween(from, to).length &&
-                isTextSelection(selection);
-              if (empty || isEmptyTextBlock) {
-                return false;
-              }
-
-              return true;
-            },
-            tippyOptions: {
-              placement: "top",
-              offset: [0, 8],
-              animation: "bubble-pop",
-              duration: [160, 120],
-            },
-          }),
-        );
-
-        // ── Table bubble menu ──
-        // Always show when inside a table.
-        if (!isMobile) this.editor.registerPlugin(
-          bubbleMenuPlugin({
-            pluginKey: "tableBubbleMenu",
-            editor: this.editor,
-            element: tableBubbleMenuEl,
-            shouldShow: function (
-              this: BubbleMenuView,
-              { editor, state }: ShouldShowProps,
-            ) {
-              const selection = state.selection;
-              const parentElement = this.tippy?.popper ?? this.element;
-              const isChildOfMenu = parentElement.contains(
-                document.activeElement,
-              );
-              const hasEditorFocus = editor.view.hasFocus() || isChildOfMenu;
-
-              if (
-                !hasEditorFocus ||
-                !editor.isEditable ||
-                this.isMousePressed
-              ) {
-                return false;
-              }
-
-              // Table menu — only for caret or CellSelection.
-              // When text is selected in a cell — text menu.
-              return (
-                isInTable(state) &&
-                (selection.empty || selection instanceof CellSelection)
-              );
-            },
-            tippyOptions: {
-              placement: "top",
-              offset: [0, 8],
-              animation: "bubble-pop",
-              duration: [160, 120],
-            },
-          }),
-        );
-
-        // ── Media bubble menu (image / attachment) ──
-        if (!isMobile) this.editor.registerPlugin(
-          bubbleMenuPlugin({
-            pluginKey: "mediaBubbleMenu",
-            editor: this.editor,
-            element: mediaBubbleMenuEl,
-            shouldShow: function (
-              this: BubbleMenuView,
-              { editor, state }: ShouldShowProps,
-            ) {
-              const parentElement = this.tippy?.popper ?? this.element;
-              const isChildOfMenu = parentElement.contains(
-                document.activeElement,
-              );
-              const hasEditorFocus = editor.view.hasFocus() || isChildOfMenu;
-
-              if (
-                !hasEditorFocus ||
-                !editor.isEditable ||
-                this.isMousePressed
-              ) {
-                return false;
-              }
-
-              return isMediaNodeSelection(state);
-            },
-            tippyOptions: {
-              placement: "top",
-              offset: [0, 8],
-              animation: "bubble-pop",
-              duration: [160, 120],
-            },
-          }),
-        );
-        }
-
-        window.setTimeout(() => {
-          this.editor?.view?.focus();
-          this.contentEl.insertAdjacentElement("afterbegin", toolbarEl);
-        }, 100);
-      }
       };
       initEditor();
     });
@@ -703,8 +732,7 @@ export class NoteView extends FileView {
   private handleSearchShortcut(event: KeyboardEvent): void {
     if (this.app.workspace.getActiveViewOfType(NoteView) !== this) return;
 
-    const isFindKey =
-      event.code === "KeyF" || event.key.toLowerCase() === "f";
+    const isFindKey = event.code === "KeyF" || event.key.toLowerCase() === "f";
     if (!(event.metaKey || event.ctrlKey) || !isFindKey) {
       if (event.key === "Escape") {
         this.searchEl?.dispatchEvent(new Event("close-search"));
@@ -846,7 +874,8 @@ export class NoteView extends FileView {
   private foldStorageKey(kind: "heading" | "task"): string | null {
     const path = this.file?.path;
     if (!path) return null;
-    const prefix = kind === "heading" ? "inscriptum-note-fold-" : "inscriptum-task-fold-";
+    const prefix =
+      kind === "heading" ? "inscriptum-note-fold-" : "inscriptum-task-fold-";
     return `${prefix}${path}`;
   }
 
@@ -899,15 +928,12 @@ export class NoteView extends FileView {
     this.syncFoldTarget("task", "taskItemFolding");
   }
 
-  private syncFoldTarget(
-    kind: "heading" | "task",
-    storageName: string,
-  ): void {
+  private syncFoldTarget(kind: "heading" | "task", storageName: string): void {
     if (!this.editor) return;
 
-    const positions = (this.editor.storage[storageName] as
-      | { positions?: number[] }
-      | undefined)?.positions;
+    const positions = (
+      this.editor.storage[storageName] as { positions?: number[] } | undefined
+    )?.positions;
     if (positions == null || positions === this.lastSavedFolds[kind]) return;
 
     const key = this.foldStorageKey(kind);
@@ -916,16 +942,27 @@ export class NoteView extends FileView {
     // Same guard as Obsidian's foldManager: an empty fold list clears the
     // stored value instead of persisting `[]`.
     this.lastSavedFolds[kind] = positions;
-    this.saveFoldStorage(key, positions.length > 0 ? { folds: positions } : null);
+    this.saveFoldStorage(
+      key,
+      positions.length > 0 ? { folds: positions } : null,
+    );
   }
 
   /** Restore folds saved for this note into a freshly created editor. */
   private restoreFoldState(editor: Editor): void {
-    this.restoreFoldTarget(editor, "heading", "headingFolding", "heading", (view, positions) =>
-      restoreFoldedHeadings(view, positions),
+    this.restoreFoldTarget(
+      editor,
+      "heading",
+      "headingFolding",
+      "heading",
+      (view, positions) => restoreFoldedHeadings(view, positions),
     );
-    this.restoreFoldTarget(editor, "task", "taskItemFolding", "taskItem", (view, positions) =>
-      restoreFoldedTasks(view, positions),
+    this.restoreFoldTarget(
+      editor,
+      "task",
+      "taskItemFolding",
+      "taskItem",
+      (view, positions) => restoreFoldedTasks(view, positions),
     );
   }
 
@@ -934,10 +971,7 @@ export class NoteView extends FileView {
     kind: "heading" | "task",
     storageName: string,
     nodeTypeName: string,
-    restore: (
-      view: Editor["view"],
-      positions: number[],
-    ) => void,
+    restore: (view: Editor["view"], positions: number[]) => void,
   ): void {
     const key = this.foldStorageKey(kind);
     if (!key) return;
@@ -1076,7 +1110,9 @@ export class NoteView extends FileView {
       "Save blocked: the editor is empty but the file on disk has content. Reopen the note to restore it.",
       8000,
     );
-    console.warn(`[inscriptum] Blocked an empty-note overwrite of "${file.path}"`);
+    console.warn(
+      `[inscriptum] Blocked an empty-note overwrite of "${file.path}"`,
+    );
     return true;
   }
 
@@ -1123,7 +1159,10 @@ export class NoteView extends FileView {
       return;
     }
     try {
-      const { doc: content, raw } = await readNoteWithRaw(this.file, this.app.vault);
+      const { doc: content, raw } = await readNoteWithRaw(
+        this.file,
+        this.app.vault,
+      );
       // The view may have been unloaded while the file was being read
       // (onUnloadFile/onClose destroy the editor) — re-check before use,
       // otherwise this.editor.commands throws on null.
@@ -1196,12 +1235,12 @@ export class NoteView extends FileView {
           // is typing in (see issues/cursor-lost-on-save).
           if (!this.applyingRemoteChange) editorRef.current?.commands.blur();
           // The state plugin stores the node's key in the decoration spec.
-          const key = (deco.spec as {id: string}).id;
+          const key = (deco.spec as { id: string }).id;
           handleAddImg({ ...node.attrs, key }, editorRef, ctx);
         },
         onRemove: (node, _deco, meta) => {
           if (node.type.name !== "image") return;
-          const data = node.attrs.data as {id?: string} | undefined;
+          const data = node.attrs.data as { id?: string } | undefined;
           const id = data?.id;
           if (id == null) return;
           // Never touch files for implicit removals (undo/redo, cut, external
@@ -1210,7 +1249,10 @@ export class NoteView extends FileView {
           // Do not delete a file that is still referenced by another node
           // (copy/pasted duplicates, key reassignments).
           const editor = editorRef.current;
-          if (editor != null && isImageIdReferenced(editor.state.doc, id, node.attrs.key as string)) {
+          if (
+            editor != null &&
+            isImageIdReferenced(editor.state.doc, id, node.attrs.key as string)
+          ) {
             return;
           }
           void deleteAttachmentFile(app, id);

@@ -1,30 +1,33 @@
-import {getNodeType} from '../../../core';
-import {NodeType} from 'prosemirror-model';
-import {EditorState} from 'prosemirror-state';
+import { getNodeType } from "../../../core";
+import { NodeType } from "prosemirror-model";
+import { EditorState } from "prosemirror-state";
 
-export const findListItemPos = (typeOrName: string | NodeType, state: EditorState) => {
-	const {$from} = state.selection;
-	const nodeType = getNodeType(typeOrName, state.schema);
+export const findListItemPos = (
+  typeOrName: string | NodeType,
+  state: EditorState,
+) => {
+  const { $from } = state.selection;
+  const nodeType = getNodeType(typeOrName, state.schema);
 
-	let currentNode = null;
-	let currentDepth = $from.depth;
-	let currentPos = $from.pos;
-	let targetDepth: number | null = null;
+  let currentNode = null;
+  let currentDepth = $from.depth;
+  let currentPos = $from.pos;
+  let targetDepth: number | null = null;
 
-	while (currentDepth > 0 && targetDepth === null) {
-		currentNode = $from.node(currentDepth);
+  while (currentDepth > 0 && targetDepth === null) {
+    currentNode = $from.node(currentDepth);
 
-		if (currentNode.type === nodeType) {
-			targetDepth = currentDepth;
-		} else {
-			currentDepth -= 1;
-			currentPos -= 1;
-		}
-	}
+    if (currentNode.type === nodeType) {
+      targetDepth = currentDepth;
+    } else {
+      currentDepth -= 1;
+      currentPos -= 1;
+    }
+  }
 
-	if (targetDepth === null) {
-		return null;
-	}
+  if (targetDepth === null) {
+    return null;
+  }
 
-	return {$pos: state.doc.resolve(currentPos), depth: targetDepth};
+  return { $pos: state.doc.resolve(currentPos), depth: targetDepth };
 };

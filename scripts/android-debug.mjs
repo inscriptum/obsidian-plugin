@@ -5,7 +5,8 @@ import { join } from "node:path";
 const AVD = process.env.ANDROID_AVD ?? "Pixel_10";
 const SERIAL = process.env.ANDROID_SERIAL ?? "emulator-5554";
 const PACKAGE = process.env.ANDROID_PACKAGE ?? "md.obsidian";
-const VAULT_PATH = process.env.ANDROID_VAULT_PATH ?? "/sdcard/Documents/TestVault";
+const VAULT_PATH =
+  process.env.ANDROID_VAULT_PATH ?? "/sdcard/Documents/TestVault";
 const CDP_PORT = process.env.ANDROID_CDP_PORT ?? "9224";
 const PLUGIN_ID = "inscriptum";
 const localPluginDir = join(process.cwd(), ".obsidian", "plugins", PLUGIN_ID);
@@ -47,7 +48,9 @@ async function waitFor(label, check, timeoutMs = 180_000) {
     }
     await sleep(1000);
   }
-  throw new Error(`Timed out waiting for ${label}${lastError ? `: ${lastError}` : ""}`);
+  throw new Error(
+    `Timed out waiting for ${label}${lastError ? `: ${lastError}` : ""}`,
+  );
 }
 
 function isDeviceOnline() {
@@ -63,11 +66,10 @@ function isDeviceOnline() {
 async function ensureEmulator() {
   if (!isDeviceOnline()) {
     console.log(`[android] Starting AVD ${AVD}...`);
-    const child = spawn(
-      EMULATOR,
-      ["-avd", AVD, "-no-boot-anim"],
-      { detached: true, stdio: "ignore" },
-    );
+    const child = spawn(EMULATOR, ["-avd", AVD, "-no-boot-anim"], {
+      detached: true,
+      stdio: "ignore",
+    });
     child.unref();
   } else {
     console.log(`[android] Using running device ${SERIAL}`);
@@ -95,21 +97,26 @@ function build() {
 function copyPlugin() {
   console.log(`[android] Copying plugin to ${remotePluginDir}...`);
   adb(["shell", "mkdir", "-p", remotePluginDir]);
-  adb(["push", `${localPluginDir}/.`, `${remotePluginDir}/`], { stdio: "inherit" });
+  adb(["push", `${localPluginDir}/.`, `${remotePluginDir}/`], {
+    stdio: "inherit",
+  });
 }
 
 function restartObsidian() {
   console.log(`[android] Starting ${PACKAGE}...`);
   adb(["shell", "am", "force-stop", PACKAGE]);
-  adb([
-    "shell",
-    "monkey",
-    "-p",
-    PACKAGE,
-    "-c",
-    "android.intent.category.LAUNCHER",
-    "1",
-  ], { stdio: "inherit" });
+  adb(
+    [
+      "shell",
+      "monkey",
+      "-p",
+      PACKAGE,
+      "-c",
+      "android.intent.category.LAUNCHER",
+      "1",
+    ],
+    { stdio: "inherit" },
+  );
 }
 
 async function forwardDevtools() {
@@ -123,7 +130,9 @@ async function forwardDevtools() {
 
   const socket = await waitFor("Android WebView DevTools socket", () => {
     const unixSockets = adb(["shell", "cat", "/proc/net/unix"]);
-    const match = unixSockets.match(new RegExp(`@webview_devtools_remote_${pid}\\b`));
+    const match = unixSockets.match(
+      new RegExp(`@webview_devtools_remote_${pid}\\b`),
+    );
     return match ? match[0].slice(1) : false;
   });
 
@@ -132,7 +141,13 @@ async function forwardDevtools() {
   } catch {
     // There may be no previous forward.
   }
-  adbWithoutSerial(["-s", SERIAL, "forward", `tcp:${CDP_PORT}`, `localabstract:${socket}`]);
+  adbWithoutSerial([
+    "-s",
+    SERIAL,
+    "forward",
+    `tcp:${CDP_PORT}`,
+    `localabstract:${socket}`,
+  ]);
 
   await waitFor("CDP endpoint", async () => {
     try {
@@ -143,7 +158,9 @@ async function forwardDevtools() {
     }
   });
 
-  const version = await fetch(`http://127.0.0.1:${CDP_PORT}/json/version`).then((r) => r.json());
+  const version = await fetch(`http://127.0.0.1:${CDP_PORT}/json/version`).then(
+    (r) => r.json(),
+  );
   console.log(`[android] WebView PID: ${pid}`);
   console.log(`[android] DevTools socket: ${socket}`);
   console.log(`[android] CDP endpoint: http://127.0.0.1:${CDP_PORT}`);

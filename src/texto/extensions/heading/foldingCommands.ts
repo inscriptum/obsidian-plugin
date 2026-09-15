@@ -1,12 +1,12 @@
-import type { Command } from '../../core/@types';
-import type { AnyConfig } from '../../core/@types/AnyConfig';
+import type { Command } from "../../core/@types";
+import type { AnyConfig } from "../../core/@types/AnyConfig";
 import {
   findHeadingPos,
   headingFoldingKey,
   type HeadingFoldingMeta,
-} from './foldingPlugin';
+} from "./foldingPlugin";
 
-type AddCommandsThis = ThisParameterType<Required<AnyConfig>['addCommands']>;
+type AddCommandsThis = ThisParameterType<Required<AnyConfig>["addCommands"]>;
 
 export function addCommands(this: AddCommandsThis) {
   return {
@@ -21,7 +21,7 @@ export function addCommands(this: AddCommandsThis) {
         }
 
         if (dispatch) {
-          const meta: HeadingFoldingMeta = { type: 'toggle', pos: headingPos };
+          const meta: HeadingFoldingMeta = { type: "toggle", pos: headingPos };
           dispatch(state.tr.setMeta(headingFoldingKey, meta));
         }
 
@@ -36,7 +36,7 @@ export function addCommands(this: AddCommandsThis) {
         }
 
         if (dispatch) {
-          const meta: HeadingFoldingMeta = { type: 'fold', pos };
+          const meta: HeadingFoldingMeta = { type: "fold", pos };
           dispatch(state.tr.setMeta(headingFoldingKey, meta));
         }
 
@@ -51,7 +51,7 @@ export function addCommands(this: AddCommandsThis) {
         }
 
         if (dispatch) {
-          const meta: HeadingFoldingMeta = { type: 'unfold', pos };
+          const meta: HeadingFoldingMeta = { type: "unfold", pos };
           dispatch(state.tr.setMeta(headingFoldingKey, meta));
         }
 
@@ -61,9 +61,9 @@ export function addCommands(this: AddCommandsThis) {
 }
 
 function isHeadingAt(
-  state: Parameters<Command>[0]['state'],
+  state: Parameters<Command>[0]["state"],
   pos: number,
 ): boolean {
   const node = state.doc.nodeAt(pos);
-  return node != null && node.type.name === 'heading';
+  return node != null && node.type.name === "heading";
 }

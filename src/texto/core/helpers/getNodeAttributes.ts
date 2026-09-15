@@ -1,23 +1,28 @@
-import type {Node, NodeType} from 'prosemirror-model';
-import type {EditorState} from 'prosemirror-state';
+import type { Node, NodeType } from "prosemirror-model";
+import type { EditorState } from "prosemirror-state";
 
-import type {AnyRecord} from '../@types';
-import {getNodeType} from './getNodeType';
+import type { AnyRecord } from "../@types";
+import { getNodeType } from "./getNodeType";
 
-export function getNodeAttributes(state: EditorState, typeOrName: string | NodeType): AnyRecord {
-	const type = getNodeType(typeOrName, state.schema);
-	const {from, to} = state.selection;
-	const nodes: Node[] = [];
+export function getNodeAttributes(
+  state: EditorState,
+  typeOrName: string | NodeType,
+): AnyRecord {
+  const type = getNodeType(typeOrName, state.schema);
+  const { from, to } = state.selection;
+  const nodes: Node[] = [];
 
-	state.doc.nodesBetween(from, to, (node) => {
-		nodes.push(node);
-	});
+  state.doc.nodesBetween(from, to, (node) => {
+    nodes.push(node);
+  });
 
-	const node = nodes.reverse().find((nodeItem) => nodeItem.type.name === type.name);
+  const node = nodes
+    .reverse()
+    .find((nodeItem) => nodeItem.type.name === type.name);
 
-	if (!node) {
-		return {};
-	}
+  if (!node) {
+    return {};
+  }
 
-	return {...node.attrs};
+  return { ...node.attrs };
 }

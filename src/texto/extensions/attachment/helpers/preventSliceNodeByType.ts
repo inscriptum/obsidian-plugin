@@ -1,4 +1,4 @@
-import {Fragment, Slice} from 'prosemirror-model';
+import { Fragment, Slice } from "prosemirror-model";
 
 /**
  * Clear a Slice instance from specific node
@@ -8,13 +8,13 @@ import {Fragment, Slice} from 'prosemirror-model';
  * @returns
  */
 export function preventSliceNodeByType(typeName: string, slice: Slice) {
-	let hasAttachments = false;
+  let hasAttachments = false;
 
-	slice.content.forEach((node) => {
-		if (node.type.name === typeName) {
-			hasAttachments = true;
-		}
-	});
+  slice.content.forEach((node) => {
+    if (node.type.name === typeName) {
+      hasAttachments = true;
+    }
+  });
 
-	return hasAttachments ? new Slice(Fragment.fromArray([]), 0, 0) : slice;
+  return hasAttachments ? new Slice(Fragment.fromArray([]), 0, 0) : slice;
 }

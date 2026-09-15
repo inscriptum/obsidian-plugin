@@ -1,27 +1,29 @@
-export function mergeAttributes(...objects: Record<string, unknown>[]): Record<string, unknown> {
-	return objects
-		.filter((item) => !!item)
-		.reduce((items, item) => {
-			const mergedAttributes = {...items};
+export function mergeAttributes(
+  ...objects: Record<string, unknown>[]
+): Record<string, unknown> {
+  return objects
+    .filter((item) => !!item)
+    .reduce((items, item) => {
+      const mergedAttributes = { ...items };
 
-			Object.entries(item).forEach(([key, value]) => {
-				const exists = mergedAttributes[key];
+      Object.entries(item).forEach(([key, value]) => {
+        const exists = mergedAttributes[key];
 
-				if (!exists) {
-					mergedAttributes[key] = value;
+        if (!exists) {
+          mergedAttributes[key] = value;
 
-					return;
-				}
+          return;
+        }
 
-				if (key === 'class') {
-					mergedAttributes[key] = [mergedAttributes[key], value].join(' ');
-				} else if (key === 'style') {
-					mergedAttributes[key] = [mergedAttributes[key], value].join('; ');
-				} else {
-					mergedAttributes[key] = value;
-				}
-			});
+        if (key === "class") {
+          mergedAttributes[key] = [mergedAttributes[key], value].join(" ");
+        } else if (key === "style") {
+          mergedAttributes[key] = [mergedAttributes[key], value].join("; ");
+        } else {
+          mergedAttributes[key] = value;
+        }
+      });
 
-			return mergedAttributes;
-		}, {});
+      return mergedAttributes;
+    }, {});
 }

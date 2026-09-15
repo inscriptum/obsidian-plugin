@@ -1,5 +1,5 @@
-import { Extension } from '../../core';
-import { dropCursor } from 'prosemirror-dropcursor';
+import { Extension } from "../../core";
+import { dropCursor } from "prosemirror-dropcursor";
 
 export interface DropcursorOptions {
   /** CSS color of the cursor, or `false` to style only via class. */
@@ -11,7 +11,7 @@ export interface DropcursorOptions {
 }
 
 export const Dropcursor = Extension.create<DropcursorOptions>({
-  name: 'dropCursor',
+  name: "dropCursor",
 
   addOptions() {
     return {
@@ -19,13 +19,11 @@ export const Dropcursor = Extension.create<DropcursorOptions>({
       // `false` keeps the plugin from writing an inline border color.
       color: false,
       width: 2,
-      class: 'texto-drop-cursor',
+      class: "texto-drop-cursor",
     };
   },
 
   addProseMirrorPlugins() {
-    return [
-      dropCursor(this.options),
-    ];
+    return [dropCursor(this.options)];
   },
 });

@@ -1,11 +1,11 @@
-import {Extension} from '../../core';
+import { Extension } from "../../core";
 
-import {cleanupPlugin} from './plugins/cleanup.plugin';
+import { cleanupPlugin } from "./plugins/cleanup.plugin";
 
 export const Cleanup = Extension.create({
-	name: 'cleanup',
+  name: "cleanup",
 
-	addProseMirrorPlugins() {
-		return [cleanupPlugin];
-	},
+  addProseMirrorPlugins() {
+    return [cleanupPlugin];
+  },
 });

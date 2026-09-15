@@ -48,6 +48,6 @@ export function getMediaMenuState(state: EditorState): MediaMenuState {
     nodeType: sel.node.type.name as MediaNodeType,
     filename: filename || id,
     hasFile: id !== "",
-    align: sel.node.type.name === "image" ? attrs.align ?? "left" : null,
+    align: sel.node.type.name === "image" ? (attrs.align ?? "left") : null,
   };
 }

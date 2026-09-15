@@ -1,51 +1,56 @@
-import type {NodeType} from 'prosemirror-model';
-import type {EditorState} from 'prosemirror-state';
+import type { NodeType } from "prosemirror-model";
+import type { EditorState } from "prosemirror-state";
 
-import type {AnyRecord, NodeRange} from '../@types';
-import {objectIncludes} from '../utilities/objectIncludes';
-import {getNodeType} from './getNodeType';
+import type { AnyRecord, NodeRange } from "../@types";
+import { objectIncludes } from "../utilities/objectIncludes";
+import { getNodeType } from "./getNodeType";
 
 export function isNodeActive(
-	state: EditorState,
-	typeOrName: NodeType | string | null,
-	attributes: AnyRecord = {},
+  state: EditorState,
+  typeOrName: NodeType | string | null,
+  attributes: AnyRecord = {},
 ): boolean {
-	const {from, to, empty} = state.selection;
-	const type = typeOrName ? getNodeType(typeOrName, state.schema) : null;
+  const { from, to, empty } = state.selection;
+  const type = typeOrName ? getNodeType(typeOrName, state.schema) : null;
 
-	const nodeRanges: NodeRange[] = [];
+  const nodeRanges: NodeRange[] = [];
 
-	state.doc.nodesBetween(from, to, (node, pos) => {
-		if (node.isText) {
-			return;
-		}
+  state.doc.nodesBetween(from, to, (node, pos) => {
+    if (node.isText) {
+      return;
+    }
 
-		const relativeFrom = Math.max(from, pos);
-		const relativeTo = Math.min(to, pos + node.nodeSize);
+    const relativeFrom = Math.max(from, pos);
+    const relativeTo = Math.min(to, pos + node.nodeSize);
 
-		nodeRanges.push({
-			node,
-			from: relativeFrom,
-			to: relativeTo,
-		});
-	});
+    nodeRanges.push({
+      node,
+      from: relativeFrom,
+      to: relativeTo,
+    });
+  });
 
-	const selectionRange = to - from;
-	const matchedNodeRanges = nodeRanges
-		.filter((nodeRange) => {
-			if (!type) {
-				return true;
-			}
+  const selectionRange = to - from;
+  const matchedNodeRanges = nodeRanges
+    .filter((nodeRange) => {
+      if (!type) {
+        return true;
+      }
 
-			return type.name === nodeRange.node.type.name;
-		})
-		.filter((nodeRange) => objectIncludes(nodeRange.node.attrs, attributes, {strict: false}));
+      return type.name === nodeRange.node.type.name;
+    })
+    .filter((nodeRange) =>
+      objectIncludes(nodeRange.node.attrs, attributes, { strict: false }),
+    );
 
-	if (empty) {
-		return !!matchedNodeRanges.length;
-	}
+  if (empty) {
+    return !!matchedNodeRanges.length;
+  }
 
-	const range = matchedNodeRanges.reduce((sum, nodeRange) => sum + nodeRange.to - nodeRange.from, 0);
+  const range = matchedNodeRanges.reduce(
+    (sum, nodeRange) => sum + nodeRange.to - nodeRange.from,
+    0,
+  );
 
-	return range >= selectionRange;
+  return range >= selectionRange;
 }

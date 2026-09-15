@@ -4,5 +4,5 @@
  * @param fileNamePath - file name or path to file
  */
 export function getFileExt(fileNamePath: string) {
-	return fileNamePath.split('.').pop()?.toLowerCase() ?? '';
+  return fileNamePath.split(".").pop()?.toLowerCase() ?? "";
 }

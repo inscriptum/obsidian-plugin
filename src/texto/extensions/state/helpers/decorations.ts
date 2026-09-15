@@ -15,7 +15,11 @@ export type InternalDecorationSet = DecorationSet & {
 
 /** Decoration augmented with internal `map()` method and `type.attrs` + `type.valid()`. */
 type InternalDecoration = Decoration & {
-  map: (mapping: Mapping, offset: number, oldOffset?: number) => InternalDecoration | null;
+  map: (
+    mapping: Mapping,
+    offset: number,
+    oldOffset?: number,
+  ) => InternalDecoration | null;
   type: {
     attrs: DecorationAttrs;
     valid: (doc: ProseMirrorNode, deco: Decoration) => boolean;
@@ -114,13 +118,7 @@ export function mapSafetyNodeMarkup(
     }
   });
 
-  decorations = mapAndGatherDecorations(
-    s.children,
-    decorations,
-    tr,
-    0,
-    0,
-  );
+  decorations = mapAndGatherDecorations(s.children, decorations, tr, 0, 0);
 
   // Create a new DecorationSet for current doc from a list of decorations
   let newDecorationSet = DecorationSet.empty;
@@ -146,7 +144,8 @@ export function mapSafetyNodeMarkup(
       newDecorationSet.find(
         undefined,
         undefined,
-        (spec: { id: string }) => spec.id === (newDeco.spec as { id: string }).id,
+        (spec: { id: string }) =>
+          spec.id === (newDeco.spec as { id: string }).id,
       ).length > 0;
 
     if (!hasNewDecorationInSet) {
@@ -173,7 +172,11 @@ function mapAndGatherDecorations(
       // 		set = set.map(tr.mapping, tr.doc)
       // but here we want to prevent removing decorations every time for setNodeMarkup operation
       const deco = set.local[i];
-      const mapped = (deco as InternalDecoration).map(tr.mapping, offset, oldOffset);
+      const mapped = (deco as InternalDecoration).map(
+        tr.mapping,
+        offset,
+        oldOffset,
+      );
       if (mapped != null) {
         decorations.push(mapped);
       } else {
@@ -197,7 +200,10 @@ function mapAndGatherDecorations(
   }
 
   for (let i = 0; i < children.length; i += 3) {
-    gather(children[i + 2] as InternalDecorationSet, (oldChildren[i] as number) + oldOffset + 1);
+    gather(
+      children[i + 2] as InternalDecorationSet,
+      (oldChildren[i] as number) + oldOffset + 1,
+    );
   }
 
   return decorations;

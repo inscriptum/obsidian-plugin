@@ -2,170 +2,170 @@
    Obsidian-specific overrides: src/styles/image.css (imported after this file). */
 
 .texto-extension-image-host {
-	--texto-image-text__font-size: 15px;
-	--texto-image-subtext__font-size: 13px;
-	--texto-image__secondary_color: #87898f;
-	--texto-image-block__padding: 8px 0;
-	--texto-image__secondary_background: #f6f7f8;
-	--texto-image__progress_secondary_color: rgb(255 255 255 / 81%);
-	--texto-image-delete-btn__background_hover: #00103d0a;
-	--texto-image-container__outline-color: #5a9eff;
-	--texto-image__icon_color: #A5A7AD;
-	--texto-image__icon_color_negative: #ED0A34;
-	--texto-image-container__width: 320px;
-	--texto-image-container__height: 224px;
+  --texto-image-text__font-size: 15px;
+  --texto-image-subtext__font-size: 13px;
+  --texto-image__secondary_color: #87898f;
+  --texto-image-block__padding: 8px 0;
+  --texto-image__secondary_background: #f6f7f8;
+  --texto-image__progress_secondary_color: rgb(255 255 255 / 81%);
+  --texto-image-delete-btn__background_hover: #00103d0a;
+  --texto-image-container__outline-color: #5a9eff;
+  --texto-image__icon_color: #a5a7ad;
+  --texto-image__icon_color_negative: #ed0a34;
+  --texto-image-container__width: 320px;
+  --texto-image-container__height: 224px;
 
-	width: var(--texto-image-container__width);
-	display: block;
+  width: var(--texto-image-container__width);
+  display: block;
 
-	.image-container {
-		padding: var(--texto-image-block__padding);
-		pointer-events: none;
-		width: 100%;
+  .image-container {
+    padding: var(--texto-image-block__padding);
+    pointer-events: none;
+    width: 100%;
 
-		& .image {
-			width: 100%;
-			border-radius: 4px;
-		}
-	}
+    & .image {
+      width: 100%;
+      border-radius: 4px;
+    }
+  }
 
-	&[class$='selectednode'] .image-container {
-		pointer-events: all;
+  &[class$="selectednode"] .image-container {
+    pointer-events: all;
 
-		& .image {
-			box-shadow: 0 0 0 2px var(--texto-image-container__outline-color);
+    & .image {
+      box-shadow: 0 0 0 2px var(--texto-image-container__outline-color);
 
-			&:hover {
-				cursor: zoom-in;
-			}
-		}
-	}
+      &:hover {
+        cursor: zoom-in;
+      }
+    }
+  }
 
-	&[class$='selectednode'] .block-wrap {
-		pointer-events: all;
+  &[class$="selectednode"] .block-wrap {
+    pointer-events: all;
 
-		& .error-block {
-			pointer-events: all;
-			box-shadow: 0 0 0 2px var(--texto-image-container__outline-color);
-		}
-	}
+    & .error-block {
+      pointer-events: all;
+      box-shadow: 0 0 0 2px var(--texto-image-container__outline-color);
+    }
+  }
 
-	.block-wrap {
-		padding: var(--texto-image-block__padding);
-	}
+  .block-wrap {
+    padding: var(--texto-image-block__padding);
+  }
 
-	.block {
-		height: var(--texto-image-container__height);
-		width: var(--texto-image-container__width);
-	}
+  .block {
+    height: var(--texto-image-container__height);
+    width: var(--texto-image-container__width);
+  }
 
-	.loading-block {
-		position: relative;
-		color: var(--texto-image__secondary_color);
-		cursor: wait;
-		display: flex;
-		align-items: flex-end;
-		border-radius: 4px;
-		overflow: hidden;
-		background: linear-gradient(
-			90deg,
-			var(--texto-image__secondary_background) 30%,
-			var(--texto-image__progress_secondary_color) 38%,
-			var(--texto-image__progress_secondary_color) 40%,
-			var(--texto-image__secondary_background) 48%
-		);
-		background-size: 200% 100%;
-		background-position: 100% 0;
-		animation: texto-extension-image-loading 2s infinite;
-	}
+  .loading-block {
+    position: relative;
+    color: var(--texto-image__secondary_color);
+    cursor: wait;
+    display: flex;
+    align-items: flex-end;
+    border-radius: 4px;
+    overflow: hidden;
+    background: linear-gradient(
+      90deg,
+      var(--texto-image__secondary_background) 30%,
+      var(--texto-image__progress_secondary_color) 38%,
+      var(--texto-image__progress_secondary_color) 40%,
+      var(--texto-image__secondary_background) 48%
+    );
+    background-size: 200% 100%;
+    background-position: 100% 0;
+    animation: texto-extension-image-loading 2s infinite;
+  }
 
-	.error-block {
-		position: relative;
-		color: var(--texto-image__secondary_color);
-		display: flex;
-		align-items: flex-end;
-		border-radius: 4px;
-		overflow: hidden;
-		background: var(--texto-image__secondary_background);
-	}
+  .error-block {
+    position: relative;
+    color: var(--texto-image__secondary_color);
+    display: flex;
+    align-items: flex-end;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--texto-image__secondary_background);
+  }
 
-	.delete-btn {
-		cursor: pointer;
-		position: absolute;
-		top: 0;
-		right: 0;
-		border: none;
-		background: transparent;
-		display: flex;
-		margin: 8px 8px 0 0;
-		justify-content: center;
-		align-items: center;
-		padding: 8px;
-	}
+  .delete-btn {
+    cursor: pointer;
+    position: absolute;
+    top: 0;
+    right: 0;
+    border: none;
+    background: transparent;
+    display: flex;
+    margin: 8px 8px 0 0;
+    justify-content: center;
+    align-items: center;
+    padding: 8px;
+  }
 
-	.hidden {
-		clip: rect(0 0 0 0);
-		height: 1px;
-		overflow: hidden;
-		position: absolute;
-		white-space: nowrap;
-		width: 1px;
-	}
+  .hidden {
+    clip: rect(0 0 0 0);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
 
-	.icon-note-wrap {
-		position: absolute;
-		width: 48px;
-		height: 48px;
-		left: calc(50% - 48px / 2);
-		top: calc(50% - 48px / 2 - 16px);
-		display: flex;
-		justify-content: center;
-		align-items: center;
-	}
+  .icon-note-wrap {
+    position: absolute;
+    width: 48px;
+    height: 48px;
+    left: calc(50% - 48px / 2);
+    top: calc(50% - 48px / 2 - 16px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
 
-	.info-wrap {
-		user-select: none;
-		display: flex;
-		flex-direction: column;
-		flex-grow: 2;
-		overflow: hidden;
-		padding: 20px;
-		gap: 5px;
-	}
+  .info-wrap {
+    user-select: none;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 2;
+    overflow: hidden;
+    padding: 20px;
+    gap: 5px;
+  }
 
-	.text {
-		font-size: var(--texto-image-text__font-size);
-		flex-grow: 2;
-		text-overflow: ellipsis;
-		width: 100%;
-		overflow: hidden;
-		white-space: nowrap;
-	}
+  .text {
+    font-size: var(--texto-image-text__font-size);
+    flex-grow: 2;
+    text-overflow: ellipsis;
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+  }
 
-	.subtext {
-		font-size: var(--texto-image-subtext__font-size);
-		flex-grow: 2;
-		text-overflow: ellipsis;
-		width: 100%;
-		overflow: hidden;
-		white-space: nowrap;
-	}
+  .subtext {
+    font-size: var(--texto-image-subtext__font-size);
+    flex-grow: 2;
+    text-overflow: ellipsis;
+    width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+  }
 
-	.error_text {
-		font-size: var(--texto-image-text__font-size);
-		flex-grow: 2;
-		width: 100%;
-	}
+  .error_text {
+    font-size: var(--texto-image-text__font-size);
+    flex-grow: 2;
+    width: 100%;
+  }
 
-	& svg {
-		color: var(--texto-image__icon_color);
-	}
+  & svg {
+    color: var(--texto-image__icon_color);
+  }
 }
 
 @keyframes texto-extension-image-loading {
-	100% {
-		background-position: -100% 0;
-	}
+  100% {
+    background-position: -100% 0;
+  }
 }
 
 /* ── Image layout (align / wrap) ──────────────────────────────────────
@@ -180,86 +180,86 @@
    negates the editor content indent. The browser recomputes it natively on
    every resize — no JS measuring, no lag. */
 .texto-extension-image-host.texto-image-layout-full {
-	width: 100cqw;
-	margin-inline: calc((100% - 100cqw) / 2);
+  width: 100cqw;
+  margin-inline: calc((100% - 100cqw) / 2);
 }
 
 /* Full-width images are not user-resizable. */
 .texto-extension-image-host.texto-image-layout-full .image-resize-handle {
-	display: none !important;
+  display: none !important;
 }
 
 .texto-extension-image-host.texto-image-layout-center {
-	margin-inline: auto;
+  margin-inline: auto;
 }
 
 .texto-extension-image-host.texto-image-layout-right {
-	margin-left: auto;
+  margin-left: auto;
 }
 
 .texto-extension-image-host.texto-image-layout-wrap-left {
-	float: left;
-	width: 50%;
-	margin: 4px 16px 8px 0;
+  float: left;
+  width: 50%;
+  margin: 4px 16px 8px 0;
 }
 
 .texto-extension-image-host.texto-image-layout-wrap-right {
-	float: right;
-	width: 50%;
-	margin: 4px 0 8px 16px;
+  float: right;
+  width: 50%;
+  margin: 4px 0 8px 16px;
 }
 
 /* ── Image width resize handles ───────────────────────────────────────
    Visible only while the node is selected; drag changes the width live,
    committed to attrs.width (percent) on pointerup. */
 .texto-extension-image-host {
-	position: relative;
+  position: relative;
 }
 
 .texto-extension-image-host .image-resize-handle {
-	position: absolute;
-	top: 50%;
-	width: 10px;
-	height: 36px;
-	border-radius: 5px;
-	background: var(--texto-image-container__outline-color, #5a9eff);
-	box-shadow: 0 0 0 2px rgb(255 255 255 / 85%);
-	cursor: ew-resize;
-	opacity: 0;
-	pointer-events: none;
-	transform: translateY(-50%);
-	touch-action: none;
-	transition: opacity 0.12s ease;
-	z-index: 5;
+  position: absolute;
+  top: 50%;
+  width: 10px;
+  height: 36px;
+  border-radius: 5px;
+  background: var(--texto-image-container__outline-color, #5a9eff);
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 85%);
+  cursor: ew-resize;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  touch-action: none;
+  transition: opacity 0.12s ease;
+  z-index: 5;
 }
 
 .texto-extension-image-host .image-resize-handle-left {
-	left: -5px;
+  left: -5px;
 }
 
 .texto-extension-image-host .image-resize-handle-right {
-	right: -5px;
+  right: -5px;
 }
 
-.texto-extension-image-host[class$='selectednode'] .image-resize-handle {
-	opacity: 1;
-	pointer-events: all;
+.texto-extension-image-host[class$="selectednode"] .image-resize-handle {
+  opacity: 1;
+  pointer-events: all;
 }
 
-.texto-extension-image-host[class$='selectednode'] .image-resize-handle:hover {
-	box-shadow: 0 0 0 2px rgb(255 255 255 / 95%);
-	filter: brightness(1.08);
+.texto-extension-image-host[class$="selectednode"] .image-resize-handle:hover {
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 95%);
+  filter: brightness(1.08);
 }
 
 /* While a resize drag is active: suppress text selection everywhere. */
 body.texto-image-resizing {
-	cursor: ew-resize;
-	user-select: none;
-	-webkit-user-select: none;
+  cursor: ew-resize;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* No resize handles for error blocks ("file not found") and empty
    placeholders — there is no image to resize. */
 .texto-extension-image-host.texto-image-no-file .image-resize-handle {
-	display: none !important;
+  display: none !important;
 }

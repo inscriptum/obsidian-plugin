@@ -1,32 +1,32 @@
-import { describe, it, expect } from 'vitest';
-import { buildSchema } from '../helpers/buildSchema';
+import { describe, it, expect } from "vitest";
+import { buildSchema } from "../helpers/buildSchema";
 
-describe('schema contract', () => {
+describe("schema contract", () => {
   const schema = buildSchema();
 
-  it('has all required node types', () => {
+  it("has all required node types", () => {
     const requiredNodes = [
-      'noteDoc',
-      'noteTitle',
-      'paragraph',
-      'text',
-      'heading',
-      'blockquote',
-      'bulletList',
-      'orderedList',
-      'listItem',
-      'hardBreak',
-      'horizontalRule',
-      'image',
-      'attachment',
-      'hljsCodeBlock',
-      'hljsCodeBlockRow',
-      'table',
-      'tableRow',
-      'tableCell',
-      'tableHeader',
-      'taskList',
-      'taskItem',
+      "noteDoc",
+      "noteTitle",
+      "paragraph",
+      "text",
+      "heading",
+      "blockquote",
+      "bulletList",
+      "orderedList",
+      "listItem",
+      "hardBreak",
+      "horizontalRule",
+      "image",
+      "attachment",
+      "hljsCodeBlock",
+      "hljsCodeBlockRow",
+      "table",
+      "tableRow",
+      "tableCell",
+      "tableHeader",
+      "taskList",
+      "taskItem",
     ];
 
     for (const name of requiredNodes) {
@@ -34,16 +34,16 @@ describe('schema contract', () => {
     }
   });
 
-  it('has all required mark types', () => {
+  it("has all required mark types", () => {
     const requiredMarks = [
-      'bold',
-      'italic',
-      'strike',
-      'code',
-      'underline',
-      'highlight',
-      'textStyle',
-      'link',
+      "bold",
+      "italic",
+      "strike",
+      "code",
+      "underline",
+      "highlight",
+      "textStyle",
+      "link",
     ];
 
     for (const name of requiredMarks) {
@@ -51,7 +51,7 @@ describe('schema contract', () => {
     }
   });
 
-  it('topNode is noteDoc', () => {
-    expect(schema.spec.topNode).toBe('noteDoc');
+  it("topNode is noteDoc", () => {
+    expect(schema.spec.topNode).toBe("noteDoc");
   });
 });

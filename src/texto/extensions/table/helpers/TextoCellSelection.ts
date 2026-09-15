@@ -1,5 +1,5 @@
-import type {ResolvedPos} from 'prosemirror-model';
-import {CellSelection} from 'prosemirror-tables';
+import type { ResolvedPos } from "prosemirror-model";
+import { CellSelection } from "prosemirror-tables";
 
 /**
  * A CellSelection that does not stretch the DOM selection over the whole
@@ -20,10 +20,10 @@ import {CellSelection} from 'prosemirror-tables';
  * `.selectedCell` decorations and undo/history work as before.
  */
 export class TextoCellSelection extends CellSelection {
-	constructor($anchorCell: ResolvedPos, $headCell: ResolvedPos = $anchorCell) {
-		super($anchorCell, $headCell);
-		// Collapse the DOM selection: $head === $anchor (start of the head cell's
-		// content).
-		(this as {$head: ResolvedPos}).$head = this.$anchor;
-	}
+  constructor($anchorCell: ResolvedPos, $headCell: ResolvedPos = $anchorCell) {
+    super($anchorCell, $headCell);
+    // Collapse the DOM selection: $head === $anchor (start of the head cell's
+    // content).
+    (this as { $head: ResolvedPos }).$head = this.$anchor;
+  }
 }

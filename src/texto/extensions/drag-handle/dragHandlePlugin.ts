@@ -1,5 +1,5 @@
-import type { Node as PMNode } from 'prosemirror-model';
-import { dropPoint } from 'prosemirror-transform';
+import type { Node as PMNode } from "prosemirror-model";
+import { dropPoint } from "prosemirror-transform";
 import {
   NodeSelection,
   Plugin,
@@ -7,18 +7,18 @@ import {
   Selection,
   type EditorState,
   type Transaction,
-} from 'prosemirror-state';
-import { Decoration, DecorationSet, type EditorView } from 'prosemirror-view';
+} from "prosemirror-state";
+import { Decoration, DecorationSet, type EditorView } from "prosemirror-view";
 import {
   collectHeadingSections,
   headingFoldingKey,
   type HeadingFoldingMeta,
   type HeadingSectionRange,
-} from '../heading/foldingPlugin';
+} from "../heading/foldingPlugin";
 import {
   taskFoldingKey,
   type TaskFoldingMeta,
-} from '../task-item-folding/taskFoldingPlugin';
+} from "../task-item-folding/taskFoldingPlugin";
 
 /**
  * Block drag & drop — a floating drag handle for top-level blocks.
@@ -66,36 +66,41 @@ import {
  * otherwise it would vanish before it can be grabbed.
  */
 
-export const dragHandleKey = new PluginKey<DragHandleState>('inscriptumDragHandle');
+export const dragHandleKey = new PluginKey<DragHandleState>(
+  "inscriptumDragHandle",
+);
 
 /** Top-level node kinds that cannot be dragged (the document title). */
-export const DRAG_HANDLE_EXCLUDED_TYPES: readonly string[] = ['noteTitle'];
+export const DRAG_HANDLE_EXCLUDED_TYPES: readonly string[] = ["noteTitle"];
 
 /** Node kinds that drag as individual items (a whole list drags item-wise). */
-export const DRAG_HANDLE_ITEM_TYPES: readonly string[] = ['listItem', 'taskItem'];
+export const DRAG_HANDLE_ITEM_TYPES: readonly string[] = [
+  "listItem",
+  "taskItem",
+];
 
 /** CSS classes (see styles/drag-handle.css). */
 export const DRAG_HANDLE_CSS = {
-  handle: 'texto-drag-handle',
-  visible: 'is-visible',
-  dragging: 'is-dragging',
+  handle: "texto-drag-handle",
+  visible: "is-visible",
+  dragging: "is-dragging",
   /** Drop indicator widget class (line between blocks). */
-  dropLine: 'texto-drag-drop-line',
+  dropLine: "texto-drag-drop-line",
   /** Outline class on the dragged unit while moving. */
-  dragSource: 'texto-drag-source',
+  dragSource: "texto-drag-source",
   /** Left-gutter fold chevrons that double as drag grab points: a click
    *  folds, pressing and MOVING starts a drag (see createDragHandleView).
    *  The dots handle is hidden next to these blocks — the chevron IS the
    *  handle there, which also solves the gutter overlap entirely. */
   gutterControls: [
-    'texto-heading-fold-chevron-host',
-    'texto-task-fold-chevron',
+    "texto-heading-fold-chevron-host",
+    "texto-task-fold-chevron",
   ],
   /** Class toggled on a fold chevron while a pointer drag from it is held:
    *  `is-grabbed` — pressed (before the drag threshold): the chevron dims
    *  and the dots handle takes its place; `is-dragging` — armed drag. */
-  chevronGrabbed: 'is-grabbed',
-  chevronDragging: 'is-dragging',
+  chevronGrabbed: "is-grabbed",
+  chevronDragging: "is-dragging",
 } as const;
 
 /** Handle geometry — mirrored in styles/drag-handle.css. */
@@ -129,7 +134,7 @@ export interface DraggableBlock {
  */
 function firstTextPos(block: DraggableBlock): number | null {
   const children = block.node.content?.content;
-  const first = children?.find((n) => n.type.name === 'paragraph');
+  const first = children?.find((n) => n.type.name === "paragraph");
   if (children == null || first == null) {
     return null;
   }
@@ -141,7 +146,10 @@ function firstTextPos(block: DraggableBlock): number | null {
 }
 
 /** The closest item-type ancestor of the position, if any (list/task items). */
-function findItemAncestor(doc: PMNode, pos: number): { node: PMNode; from: number } | null {
+function findItemAncestor(
+  doc: PMNode,
+  pos: number,
+): { node: PMNode; from: number } | null {
   const $pos = doc.resolve(pos);
   for (let depth = $pos.depth; depth >= 1; depth -= 1) {
     const node = $pos.node(depth);
@@ -172,7 +180,7 @@ function foldedHeadingAt(
   if (folded == null || folded.size === 0) {
     return null;
   }
-  for (const section of collectHeadingSections(doc, 'heading')) {
+  for (const section of collectHeadingSections(doc, "heading")) {
     if (!folded.has(section.headingPos)) {
       continue;
     }
@@ -231,7 +239,7 @@ function collapsedHeadingRange(
   if (folded == null || folded.size === 0) {
     return null;
   }
-  for (const section of collectHeadingSections(doc, 'heading')) {
+  for (const section of collectHeadingSections(doc, "heading")) {
     if (!folded.has(section.headingPos)) {
       continue;
     }
@@ -275,7 +283,11 @@ export function findDraggableBlock(
       excludedTypes,
     );
     if (folded != null) {
-      return { node: folded.block.node, from: folded.range.from, to: folded.range.to };
+      return {
+        node: folded.block.node,
+        from: folded.range.from,
+        to: folded.range.to,
+      };
     }
   }
 
@@ -327,9 +339,9 @@ export interface DragHandleState {
 }
 
 type DragHandleMeta =
-  | { type: 'dragStart'; block: DraggableBlock }
-  | { type: 'dragMove'; insertPos: number | null }
-  | { type: 'dragEnd' };
+  | { type: "dragStart"; block: DraggableBlock }
+  | { type: "dragMove"; insertPos: number | null }
+  | { type: "dragEnd" };
 
 /**
  * Begin a pointer-driven drag of an already resolved unit (the handle's
@@ -350,9 +362,12 @@ export function startDragWithBlock(
 
   view.dispatch(
     view.state.tr
-      .setMeta(dragHandleKey, { type: 'dragStart', block } satisfies DragHandleMeta)
+      .setMeta(dragHandleKey, {
+        type: "dragStart",
+        block,
+      } satisfies DragHandleMeta)
       .setSelection(NodeSelection.create(view.state.doc, from))
-      .setMeta('addToHistory', false),
+      .setMeta("addToHistory", false),
   );
   return true;
 }
@@ -387,7 +402,10 @@ function buildFoldRemapMetas(
   // insertion neighborhood (+2: a wrapper node may have been added).
   const first = block.node;
   let anchor: number | null = null;
-  const searchEnd = Math.min(insertPos + block.to - block.from + 2, tr.doc.content.size);
+  const searchEnd = Math.min(
+    insertPos + block.to - block.from + 2,
+    tr.doc.content.size,
+  );
   if (insertPos <= tr.doc.content.size) {
     tr.doc.nodesBetween(insertPos, searchEnd, (node, pos) => {
       if (anchor == null && node.eq(first)) {
@@ -417,8 +435,8 @@ function buildFoldRemapMetas(
   if (taskFolds != null) seat(taskFolds, taskNext);
 
   return {
-    heading: { type: 'setFolds', positions: Array.from(headingNext) },
-    task: { type: 'setFolds', positions: Array.from(taskNext) },
+    heading: { type: "setFolds", positions: Array.from(headingNext) },
+    task: { type: "setFolds", positions: Array.from(taskNext) },
   };
 }
 
@@ -478,7 +496,7 @@ export function performBlockMove(
     tr.setMeta(taskFoldingKey, remap.task);
   }
 
-  tr.setMeta(dragHandleKey, { type: 'dragEnd' } satisfies DragHandleMeta);
+  tr.setMeta(dragHandleKey, { type: "dragEnd" } satisfies DragHandleMeta);
   view.focus();
   view.dispatch(tr);
   return true;
@@ -526,9 +544,9 @@ function enclosingListBlock(
   for (let depth = $pos.depth; depth >= 1; depth -= 1) {
     const node = $pos.node(depth);
     if (
-      node.type.name === 'bulletList' ||
-      node.type.name === 'orderedList' ||
-      node.type.name === 'taskList'
+      node.type.name === "bulletList" ||
+      node.type.name === "orderedList" ||
+      node.type.name === "taskList"
     ) {
       const from = $pos.before(depth);
       return { node, from, to: from + node.nodeSize };
@@ -547,14 +565,14 @@ export function createDragHandlePlugin(
       init: (): DragHandleState => ({ drag: null }),
       apply(tr, value, oldState): DragHandleState {
         const meta = tr.getMeta(dragHandleKey) as DragHandleMeta | undefined;
-        if (meta?.type === 'dragStart') {
+        if (meta?.type === "dragStart") {
           return { drag: { block: meta.block, insertPos: meta.block.from } };
         }
-        if (meta?.type === 'dragMove') {
+        if (meta?.type === "dragMove") {
           if (value.drag == null) return value;
           return { drag: { ...value.drag, insertPos: meta.insertPos } };
         }
-        if (meta?.type === 'dragEnd') {
+        if (meta?.type === "dragEnd") {
           return { drag: null };
         }
         // Keep the drag alive across doc/selection changes (they map below).
@@ -581,7 +599,10 @@ export function createDragHandlePlugin(
           // through the folds (mapped through this transaction, the same
           // mapResult rule the heading folding plugin itself uses) to keep
           // covering the whole section.
-          if (block.to < value.drag.block.to && mappedNode.type.name === 'heading') {
+          if (
+            block.to < value.drag.block.to &&
+            mappedNode.type.name === "heading"
+          ) {
             const prevFolded = headingFoldingKey.getState(oldState)?.folded;
             const mapped = new Set<number>();
             if (prevFolded != null) {
@@ -602,9 +623,10 @@ export function createDragHandlePlugin(
               block = expanded;
             }
           }
-          const insertPos = value.drag.insertPos == null
-            ? null
-            : tr.mapping.map(value.drag.insertPos);
+          const insertPos =
+            value.drag.insertPos == null
+              ? null
+              : tr.mapping.map(value.drag.insertPos);
           return { drag: { block, insertPos } };
         }
         return value;
@@ -695,10 +717,10 @@ function createDragHandleView(
    * state); task items only when their node view renders the chevron
    *  (foldable: nested content present). */
   const hasGrabChevron = (block: DraggableBlock): boolean => {
-    if (block.node.type.name === 'heading') {
+    if (block.node.type.name === "heading") {
       return true;
     }
-    if (block.node.type.name === 'taskItem') {
+    if (block.node.type.name === "taskItem") {
       return block.node.childCount > 1;
     }
     return false;
@@ -707,7 +729,9 @@ function createDragHandleView(
   /** The vertical hover strip of the hovered unit (viewport coords):
    *  a list/task item owns its first text line; every other unit owns its
    *  full DOM rect (extended by the line tolerance). */
-  const hoveredStrip = (block: DraggableBlock): { top: number; bottom: number } | null => {
+  const hoveredStrip = (
+    block: DraggableBlock,
+  ): { top: number; bottom: number } | null => {
     if (DRAG_HANDLE_ITEM_TYPES.includes(block.node.type.name)) {
       const textPos = firstTextPos(block);
       if (textPos != null) {
@@ -752,21 +776,32 @@ function createDragHandleView(
     // Recursively collect list items of all nesting levels.
     const collectItems = (node: PMNode, pos: number) => {
       if (
-        node.type.name === 'bulletList' ||
-        node.type.name === 'orderedList' ||
-        node.type.name === 'taskList'
+        node.type.name === "bulletList" ||
+        node.type.name === "orderedList" ||
+        node.type.name === "taskList"
       ) {
         let itemPos = pos + 1;
         node.content.content.forEach((item) => {
-          pushItemStrip({ node: item, from: itemPos, to: itemPos + item.nodeSize });
+          pushItemStrip({
+            node: item,
+            from: itemPos,
+            to: itemPos + item.nodeSize,
+          });
           // Nested lists inside the item (subtasks).
           item.content.content.forEach((child, i) => {
             if (
-              child.type.name === 'bulletList' ||
-              child.type.name === 'orderedList' ||
-              child.type.name === 'taskList'
+              child.type.name === "bulletList" ||
+              child.type.name === "orderedList" ||
+              child.type.name === "taskList"
             ) {
-              collectItems(child, itemPos + 1 + item.content.content.slice(0, i).reduce((s, n) => s + n.nodeSize, 0));
+              collectItems(
+                child,
+                itemPos +
+                  1 +
+                  item.content.content
+                    .slice(0, i)
+                    .reduce((s, n) => s + n.nodeSize, 0),
+              );
             }
           });
           itemPos += item.nodeSize;
@@ -798,7 +833,8 @@ function createDragHandleView(
 
     // Resolve item strips lazily (first text line), then pick the deepest
     // item whose strip contains Y; items win over the enclosing blocks.
-    let bestTop: { block: DraggableBlock; top: number; bottom: number } | null = null;
+    let bestTop: { block: DraggableBlock; top: number; bottom: number } | null =
+      null;
     let bestIsItem = false;
     for (const unit of units) {
       if (Number.isNaN(unit.top)) {
@@ -811,13 +847,16 @@ function createDragHandleView(
         y >= unit.top - LINE_STICKY_TOLERANCE &&
         y <= unit.bottom + LINE_STICKY_TOLERANCE
       ) {
-        const isItem = DRAG_HANDLE_ITEM_TYPES.includes(unit.block.node.type.name);
+        const isItem = DRAG_HANDLE_ITEM_TYPES.includes(
+          unit.block.node.type.name,
+        );
         // Prefer the deepest item; among items the one whose line is closest
         // to Y (nested items may share strips with their containers).
         if (
           bestTop == null ||
           (isItem && !bestIsItem) ||
-          (isItem && bestIsItem &&
+          (isItem &&
+            bestIsItem &&
             Math.abs((unit.top + unit.bottom) / 2 - y) <
               Math.abs((bestTop.top + bestTop.bottom) / 2 - y))
         ) {
@@ -841,16 +880,18 @@ function createDragHandleView(
 
     const hovered = hoveredBlock;
     const hoveredStripRect = hovered != null ? hoveredStrip(hovered) : null;
-    const onHoveredLine = hoveredStripRect != null
-      ? event.clientY >= hoveredStripRect.top - LINE_STICKY_TOLERANCE &&
-        event.clientY <= hoveredStripRect.bottom + LINE_STICKY_TOLERANCE
-      : false;
+    const onHoveredLine =
+      hoveredStripRect != null
+        ? event.clientY >= hoveredStripRect.top - LINE_STICKY_TOLERANCE &&
+          event.clientY <= hoveredStripRect.bottom + LINE_STICKY_TOLERANCE
+        : false;
     // The zone left of the hovered unit's own content: gutter + the
     // structural strips (markers, checkbox/label columns). The handle lives
     // there, so the unit must stay grabbable across the whole zone.
-    const contentLeft = hovered != null
-      ? contentLeftOf(view, hovered.from, hovered.node)
-      : view.dom.getBoundingClientRect().left;
+    const contentLeft =
+      hovered != null
+        ? contentLeftOf(view, hovered.from, hovered.node)
+        : view.dom.getBoundingClientRect().left;
     const inLeftZone = event.clientX < contentLeft;
 
     const posResult = view.posAtCoords({
@@ -864,7 +905,8 @@ function createDragHandleView(
     //    grabbable from the gutter (one step left of the item handle).
     if (onHoveredLine && inLeftZone) {
       const handleRect = handle.getBoundingClientRect();
-      const beyondHandle = event.clientX < handleRect.left - HANDLE_STICKY_TOLERANCE;
+      const beyondHandle =
+        event.clientX < handleRect.left - HANDLE_STICKY_TOLERANCE;
       if (beyondHandle) {
         const enclosing = enclosingListBlock(view, hovered!);
         if (enclosing != null) {
@@ -948,7 +990,12 @@ function createDragHandleView(
   let suppressChevronClickUntil = 0;
 
   const onHandlePointerDown = (event: PointerEvent) => {
-    if (event.button !== 0 || hoveredBlock == null || view.isDestroyed || !view.editable) {
+    if (
+      event.button !== 0 ||
+      hoveredBlock == null ||
+      view.isDestroyed ||
+      !view.editable
+    ) {
       return;
     }
     dragBlock = hoveredBlock;
@@ -969,9 +1016,9 @@ function createDragHandleView(
    *  the pending drag, canceling it on pointerup if the pointer never
    *  crossed the drag threshold. */
   /** After holding a chevron this long without moving, it visually turns
- *  into the drag handle (grab look) — the user expects feedback while
- *  holding, before any movement. Below this window a press+release is a
- *  plain fold click. */
+   *  into the drag handle (grab look) — the user expects feedback while
+   *  holding, before any movement. Below this window a press+release is a
+   *  plain fold click. */
   const CHEVRON_HOLD_GRAB_MS = 150;
 
   const onChevronPointerDown = (event: PointerEvent) => {
@@ -983,7 +1030,7 @@ function createDragHandleView(
       return;
     }
     const chevron = target.closest(
-      DRAG_HANDLE_CSS.gutterControls.map((c) => `.${c}`).join(', '),
+      DRAG_HANDLE_CSS.gutterControls.map((c) => `.${c}`).join(", "),
     );
     if (chevron == null) {
       return;
@@ -1005,7 +1052,7 @@ function createDragHandleView(
     }
     // No preventDefault here: a plain click must still reach the fold
     // handlers (they listen for click and check for movement themselves
-      // via the suppressed-click window below).
+    // via the suppressed-click window below).
   };
 
   /** Show the grab look on the held chevron after the hold window. */
@@ -1042,7 +1089,10 @@ function createDragHandleView(
       return null;
     }
     const rect = chevron.getBoundingClientRect();
-    const center = { left: rect.left + rect.width / 2, top: rect.top + rect.height / 2 };
+    const center = {
+      left: rect.left + rect.width / 2,
+      top: rect.top + rect.height / 2,
+    };
     const posResult = view.posAtCoords(center);
     let pos = posResult?.pos ?? posResult?.inside ?? null;
     if (pos == null) {
@@ -1055,7 +1105,10 @@ function createDragHandleView(
     // Step one position forward in that case: inside the item.
     const doc = view.state.doc;
     const nodeAtPos = doc.nodeAt(pos);
-    if (nodeAtPos != null && DRAG_HANDLE_ITEM_TYPES.includes(nodeAtPos.type.name)) {
+    if (
+      nodeAtPos != null &&
+      DRAG_HANDLE_ITEM_TYPES.includes(nodeAtPos.type.name)
+    ) {
       pos = pos + 1;
     }
     return findDraggableBlock(doc, pos, options.excludedTypes, view.state);
@@ -1071,7 +1124,11 @@ function createDragHandleView(
     if (!(target instanceof Element)) {
       return;
     }
-    if (target.closest(DRAG_HANDLE_CSS.gutterControls.map((c) => `.${c}`).join(', ')) != null) {
+    if (
+      target.closest(
+        DRAG_HANDLE_CSS.gutterControls.map((c) => `.${c}`).join(", "),
+      ) != null
+    ) {
       event.stopPropagation();
       event.preventDefault();
     }
@@ -1133,7 +1190,13 @@ function createDragHandleView(
     const doc = view.state.doc;
     const folded = headingFoldingKey.getState(view.state)?.folded;
 
-    type DropTarget = { pos: number; size: number; top: number; bottom: number; isItem: boolean };
+    type DropTarget = {
+      pos: number;
+      size: number;
+      top: number;
+      bottom: number;
+      isItem: boolean;
+    };
     const targets: DropTarget[] = [];
     const consider = (
       pos: number,
@@ -1150,7 +1213,9 @@ function createDragHandleView(
       targets.push({ pos, size, top: rect.top, bottom: rect.bottom, isItem });
     };
 
-    const itemDomRect = (block: DraggableBlock): { top: number; bottom: number } | null => {
+    const itemDomRect = (
+      block: DraggableBlock,
+    ): { top: number; bottom: number } | null => {
       // An item's own DOM rect covers its nested content too (the hidden
       // subtask list is display:none inside it) — the first LINE is the
       // grab strip, resolved like hoveredStrip.
@@ -1159,25 +1224,33 @@ function createDragHandleView(
 
     const collectItems = (node: PMNode, pos: number) => {
       if (
-        node.type.name === 'bulletList' ||
-        node.type.name === 'orderedList' ||
-        node.type.name === 'taskList'
+        node.type.name === "bulletList" ||
+        node.type.name === "orderedList" ||
+        node.type.name === "taskList"
       ) {
         let itemPos = pos + 1;
         node.content.content.forEach((item) => {
-          const rect = itemDomRect({ node: item, from: itemPos, to: itemPos + item.nodeSize });
+          const rect = itemDomRect({
+            node: item,
+            from: itemPos,
+            to: itemPos + item.nodeSize,
+          });
           if (rect != null) {
             consider(itemPos, item.nodeSize, rect, true);
           }
           item.content.content.forEach((child, i) => {
             if (
-              child.type.name === 'bulletList' ||
-              child.type.name === 'orderedList' ||
-              child.type.name === 'taskList'
+              child.type.name === "bulletList" ||
+              child.type.name === "orderedList" ||
+              child.type.name === "taskList"
             ) {
               collectItems(
                 child,
-                itemPos + 1 + item.content.content.slice(0, i).reduce((s, n) => s + n.nodeSize, 0),
+                itemPos +
+                  1 +
+                  item.content.content
+                    .slice(0, i)
+                    .reduce((s, n) => s + n.nodeSize, 0),
               );
             }
           });
@@ -1256,7 +1329,7 @@ function createDragHandleView(
       // Show the drag in plugin state (drop line at the source position).
       view.dispatch(
         view.state.tr.setMeta(dragHandleKey, {
-          type: 'dragStart',
+          type: "dragStart",
           block: dragBlock,
         } satisfies DragHandleMeta),
       );
@@ -1267,8 +1340,11 @@ function createDragHandleView(
     if (insertPos !== current) {
       view.dispatch(
         view.state.tr
-          .setMeta(dragHandleKey, { type: 'dragMove', insertPos } satisfies DragHandleMeta)
-          .setMeta('addToHistory', false),
+          .setMeta(dragHandleKey, {
+            type: "dragMove",
+            insertPos,
+          } satisfies DragHandleMeta)
+          .setMeta("addToHistory", false),
       );
     }
   };
@@ -1276,7 +1352,10 @@ function createDragHandleView(
   /** Place the dots handle over a fold chevron (the chevron is hidden via
    *  the grabbed class, the handle takes its place): the visible drag
    *  affordance while a chevron-initiated drag is held. */
-  const showHandleAtChevron = (block: DraggableBlock, chevron: HTMLElement): void => {
+  const showHandleAtChevron = (
+    block: DraggableBlock,
+    chevron: HTMLElement,
+  ): void => {
     const chevronRect = chevron.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
     handle.style.left = `${chevronRect.left - containerRect.left + container.scrollLeft}px`;
@@ -1319,7 +1398,7 @@ function createDragHandleView(
         const pending = source;
         window.setTimeout(() => {
           pending.dispatchEvent(
-            new MouseEvent('click', { bubbles: true, cancelable: true }),
+            new MouseEvent("click", { bubbles: true, cancelable: true }),
           );
         }, 0);
       }
@@ -1336,18 +1415,20 @@ function createDragHandleView(
       // No target position (outside the editor) or a no-op drop (on the
       // dragged block itself) cancels the move.
       const insideSelf =
+        insertPos != null && insertPos >= block.from && insertPos <= block.to;
+      if (
         insertPos != null &&
-        insertPos >= block.from &&
-        insertPos <= block.to;
-      if (insertPos != null && !insideSelf && performBlockMove(view, block, insertPos)) {
+        !insideSelf &&
+        performBlockMove(view, block, insertPos)
+      ) {
         return;
       }
     }
     // Cancelled: clear the drag state (removes the drop line).
     view.dispatch(
       view.state.tr
-        .setMeta(dragHandleKey, { type: 'dragEnd' } satisfies DragHandleMeta)
-        .setMeta('addToHistory', false),
+        .setMeta(dragHandleKey, { type: "dragEnd" } satisfies DragHandleMeta)
+        .setMeta("addToHistory", false),
     );
   };
 
@@ -1358,9 +1439,9 @@ function createDragHandleView(
     finishDrag(event, false);
   };
 
-  container.addEventListener('mousemove', onMouseMove);
-  container.addEventListener('mouseleave', hide);
-  handle.addEventListener('pointerdown', onHandlePointerDown);
+  container.addEventListener("mousemove", onMouseMove);
+  container.addEventListener("mouseleave", hide);
+  handle.addEventListener("pointerdown", onHandlePointerDown);
   // Chevron drags start inside view.dom (fold widgets / item labels); the
   // move/up handlers live on the document so a drag started anywhere —
   // handle or chevron — follows the same flow (pointer capture routes the
@@ -1368,23 +1449,23 @@ function createDragHandleView(
   // The chevron pointerdown is a CAPTURE listener: the chevron's own
   // handlers stopPropagation() on pointerdown (heading chevron: keep PM
   // from starting a selection), which would kill a bubble-phase listener.
-  view.dom.addEventListener('pointerdown', onChevronPointerDown, true);
-  view.dom.addEventListener('click', onChevronClickCapture, true);
-  document.addEventListener('pointermove', onPointerMove);
-  document.addEventListener('pointerup', onPointerUp);
-  document.addEventListener('pointercancel', onPointerCancel);
+  view.dom.addEventListener("pointerdown", onChevronPointerDown, true);
+  view.dom.addEventListener("click", onChevronClickCapture, true);
+  document.addEventListener("pointermove", onPointerMove);
+  document.addEventListener("pointerup", onPointerUp);
+  document.addEventListener("pointercancel", onPointerCancel);
 
   return {
     handle,
     destroy() {
-      container.removeEventListener('mousemove', onMouseMove);
-      container.removeEventListener('mouseleave', hide);
-      handle.removeEventListener('pointerdown', onHandlePointerDown);
-      view.dom.removeEventListener('pointerdown', onChevronPointerDown, true);
-      view.dom.removeEventListener('click', onChevronClickCapture, true);
-      document.removeEventListener('pointermove', onPointerMove);
-      document.removeEventListener('pointerup', onPointerUp);
-      document.removeEventListener('pointercancel', onPointerCancel);
+      container.removeEventListener("mousemove", onMouseMove);
+      container.removeEventListener("mouseleave", hide);
+      handle.removeEventListener("pointerdown", onHandlePointerDown);
+      view.dom.removeEventListener("pointerdown", onChevronPointerDown, true);
+      view.dom.removeEventListener("click", onChevronClickCapture, true);
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("pointercancel", onPointerCancel);
       handle.remove();
     },
   };
@@ -1392,29 +1473,32 @@ function createDragHandleView(
 
 /** Grip dot centers (viewBox 0 0 24 24) — static markup, see styles/drag-handle.css. */
 const GRIP_DOT_POSITIONS: ReadonlyArray<readonly [string, string]> = [
-  ['9.2', '5.5'], ['14.8', '5.5'],
-  ['9.2', '12'], ['14.8', '12'],
-  ['9.2', '18.5'], ['14.8', '18.5'],
+  ["9.2", "5.5"],
+  ["14.8", "5.5"],
+  ["9.2", "12"],
+  ["14.8", "12"],
+  ["9.2", "18.5"],
+  ["14.8", "18.5"],
 ];
-const GRIP_DOT_RADIUS = '1.5';
-const SVG_NAMESPACE = 'http://www.w3.org/2000/svg';
+const GRIP_DOT_RADIUS = "1.5";
+const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
 /** Static grip markup (six dots, like tiptap's handle). */
 function createHandleDom(): HTMLElement {
   const handle = createDiv();
   handle.className = DRAG_HANDLE_CSS.handle;
-  handle.setAttribute('contenteditable', 'false');
-  handle.setAttribute('aria-hidden', 'true');
-  handle.setAttribute('data-testid', 'block-drag-handle');
-  const svg = document.createElementNS(SVG_NAMESPACE, 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('fill', 'currentColor');
-  svg.setAttribute('aria-hidden', 'true');
+  handle.setAttribute("contenteditable", "false");
+  handle.setAttribute("aria-hidden", "true");
+  handle.setAttribute("data-testid", "block-drag-handle");
+  const svg = document.createElementNS(SVG_NAMESPACE, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "currentColor");
+  svg.setAttribute("aria-hidden", "true");
   for (const [cx, cy] of GRIP_DOT_POSITIONS) {
-    const circle = document.createElementNS(SVG_NAMESPACE, 'circle');
-    circle.setAttribute('cx', cx);
-    circle.setAttribute('cy', cy);
-    circle.setAttribute('r', GRIP_DOT_RADIUS);
+    const circle = document.createElementNS(SVG_NAMESPACE, "circle");
+    circle.setAttribute("cx", cx);
+    circle.setAttribute("cy", cy);
+    circle.setAttribute("r", GRIP_DOT_RADIUS);
     svg.appendChild(circle);
   }
   handle.appendChild(svg);
@@ -1443,22 +1527,12 @@ function blockDomAt(view: EditorView, from: number): Element | null {
  * it covers the gutter, list markers and the checkbox/label column.
  */
 function contentLeftOf(view: EditorView, from: number, node: PMNode): number {
-    if (DRAG_HANDLE_ITEM_TYPES.includes(node.type.name)) {
-      const block: DraggableBlock = { node, from, to: from + node.nodeSize };
-      const textPos = firstTextPos(block);
-      if (textPos != null) {
-        try {
-          const coords = view.coordsAtPos(textPos);
-          if (Number.isFinite(coords.left)) {
-            return coords.left;
-          }
-        } catch {
-          // fall through to the block DOM rect
-        }
-      }
-    } else {
+  if (DRAG_HANDLE_ITEM_TYPES.includes(node.type.name)) {
+    const block: DraggableBlock = { node, from, to: from + node.nodeSize };
+    const textPos = firstTextPos(block);
+    if (textPos != null) {
       try {
-        const coords = view.coordsAtPos(from + 1);
+        const coords = view.coordsAtPos(textPos);
         if (Number.isFinite(coords.left)) {
           return coords.left;
         }
@@ -1466,9 +1540,21 @@ function contentLeftOf(view: EditorView, from: number, node: PMNode): number {
         // fall through to the block DOM rect
       }
     }
-    const dom = blockDomAt(view, from);
-    return dom != null ? dom.getBoundingClientRect().left : view.dom.getBoundingClientRect().left;
+  } else {
+    try {
+      const coords = view.coordsAtPos(from + 1);
+      if (Number.isFinite(coords.left)) {
+        return coords.left;
+      }
+    } catch {
+      // fall through to the block DOM rect
+    }
   }
+  const dom = blockDomAt(view, from);
+  return dom != null
+    ? dom.getBoundingClientRect().left
+    : view.dom.getBoundingClientRect().left;
+}
 
 /** Leftmost x of the fold chevrons inside the block's DOM, if any (viewport). */
 /**
@@ -1529,9 +1615,18 @@ function positionHandle(
           return false;
         }
       }
-      const caretHeight = Math.max(coords.bottom - coords.top, HANDLE_MIN_HEIGHT);
-      const caretTop = toContentY((coords.top + coords.bottom) / 2 - caretHeight / 2);
-      if (!Number.isFinite(caretTop) || !Number.isFinite(caretHeight) || caretHeight <= 0) {
+      const caretHeight = Math.max(
+        coords.bottom - coords.top,
+        HANDLE_MIN_HEIGHT,
+      );
+      const caretTop = toContentY(
+        (coords.top + coords.bottom) / 2 - caretHeight / 2,
+      );
+      if (
+        !Number.isFinite(caretTop) ||
+        !Number.isFinite(caretHeight) ||
+        caretHeight <= 0
+      ) {
         return false;
       }
       top = caretTop;
@@ -1554,7 +1649,7 @@ function positionHandle(
   // and the checkbox column: anchor to the enclosing list's left edge.
   let base = blockRect.left;
   const isItem = DRAG_HANDLE_ITEM_TYPES.includes(node.type.name);
-  const isListNode = node.type.name.endsWith('List');
+  const isListNode = node.type.name.endsWith("List");
   const listBlock = isItem
     ? enclosingListBlock(view, block)
     : isListNode

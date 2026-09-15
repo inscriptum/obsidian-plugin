@@ -11,7 +11,9 @@ export function openMediaFile(app: App, node: ProseMirrorNode): void {
   const data = node.attrs.data as { id?: string } | null | undefined;
   const id = data?.id;
   if (!id) return;
-  (app as { openWithDefaultApp?: (path: string) => void }).openWithDefaultApp?.(id);
+  (app as { openWithDefaultApp?: (path: string) => void }).openWithDefaultApp?.(
+    id,
+  );
 }
 
 /** Re-open the OS file picker for the selected media node (replace flow). */
@@ -40,7 +42,10 @@ export function setImageNodeLayout(editor: Editor, align: ImageLayout): void {
     editor.state.tr.setNodeMarkup(sel.pos, sel.node.type, {
       ...(sel.node.attrs as Record<string, unknown>),
       align,
-      width: align === "full" ? null : (sel.node.attrs as Record<string, unknown>).width,
+      width:
+        align === "full"
+          ? null
+          : (sel.node.attrs as Record<string, unknown>).width,
     }),
   );
 }
@@ -69,6 +74,8 @@ export function removeMediaNode(editor: Editor, app: App): void {
   } else {
     const data = node.attrs.data as { id?: string } | null | undefined;
     void deleteAttachmentFile(app, data?.id);
-    editor.view.dispatch(editor.state.tr.deleteRange(pos, to).setMeta("addToHistory", false));
+    editor.view.dispatch(
+      editor.state.tr.deleteRange(pos, to).setMeta("addToHistory", false),
+    );
   }
 }

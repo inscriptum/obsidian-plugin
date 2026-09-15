@@ -1,8 +1,8 @@
-import * as coreCommands from '../commands';
-import { Extension } from '../Extension';
+import * as coreCommands from "../commands";
+import { Extension } from "../Extension";
 
 export const Commands = new Extension({
-  name: 'commands',
+  name: "commands",
 
   addCommands() {
     return {

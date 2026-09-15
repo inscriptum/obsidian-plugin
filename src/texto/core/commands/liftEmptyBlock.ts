@@ -1,12 +1,12 @@
-import {liftEmptyBlock as originalLiftEmptyBlock} from 'prosemirror-commands';
+import { liftEmptyBlock as originalLiftEmptyBlock } from "prosemirror-commands";
 
-import type {Command} from '../@types';
+import type { Command } from "../@types";
 
 /**
  * Lift block if empty.
  */
 export const liftEmptyBlock =
-	(): Command =>
-	({state, dispatch}) => {
-		return originalLiftEmptyBlock(state, dispatch);
-	};
+  (): Command =>
+  ({ state, dispatch }) => {
+    return originalLiftEmptyBlock(state, dispatch);
+  };

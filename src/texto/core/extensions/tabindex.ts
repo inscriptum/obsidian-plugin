@@ -1,18 +1,18 @@
-import {Plugin, PluginKey} from 'prosemirror-state';
+import { Plugin, PluginKey } from "prosemirror-state";
 
-import {Extension} from '../Extension';
+import { Extension } from "../Extension";
 
 export const Tabindex = Extension.create({
-	name: 'tabindex',
+  name: "tabindex",
 
-	addProseMirrorPlugins() {
-		return [
-			new Plugin({
-				key: new PluginKey('tabindex'),
-				props: {
-					attributes: this.editor.isEditable ? {tabindex: '0'} : {},
-				},
-			}),
-		];
-	},
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey("tabindex"),
+        props: {
+          attributes: this.editor.isEditable ? { tabindex: "0" } : {},
+        },
+      }),
+    ];
+  },
 });

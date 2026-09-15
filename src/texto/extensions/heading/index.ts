@@ -1,11 +1,11 @@
-import type { CommandsSet } from '../../core/@types'
-import type { addCommands } from './commands'
-import type { addCommands as addFoldingCommands } from './foldingCommands'
-import { Heading } from './heading'
+import type { CommandsSet } from "../../core/@types";
+import type { addCommands } from "./commands";
+import type { addCommands as addFoldingCommands } from "./foldingCommands";
+import { Heading } from "./heading";
 
-export * from './heading'
-export * from './folding'
-export default Heading
+export * from "./heading";
+export * from "./folding";
+export default Heading;
 
 declare global {
   interface Commands

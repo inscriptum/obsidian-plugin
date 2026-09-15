@@ -1,3 +1,3 @@
-export * from './markPasteRule';
-export * from './nodePasteRule';
-export * from './textPasteRule';
+export * from "./markPasteRule";
+export * from "./nodePasteRule";
+export * from "./textPasteRule";

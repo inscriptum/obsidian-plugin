@@ -64,9 +64,7 @@ function nodeCarriesContent(node: JSONContent): boolean {
   ) {
     return true;
   }
-  return (
-    Array.isArray(node.content) && node.content.some(nodeCarriesContent)
-  );
+  return Array.isArray(node.content) && node.content.some(nodeCarriesContent);
 }
 
 export async function writeNote(

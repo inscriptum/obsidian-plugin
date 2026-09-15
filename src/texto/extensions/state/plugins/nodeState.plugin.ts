@@ -16,7 +16,9 @@ import { findPosByKey, getNodeByKey } from "../helpers/position";
 import { getTransactionsMetadata } from "../helpers/transactions";
 import { StateOptions } from "../State";
 
-export const nodeStatePluginKey = new PluginKey<DecorationSet>('nodeStatePlugin');
+export const nodeStatePluginKey = new PluginKey<DecorationSet>(
+  "nodeStatePlugin",
+);
 
 export type NodeStatePluginSpec = {
   id: string;

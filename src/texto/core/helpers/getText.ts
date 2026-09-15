@@ -1,19 +1,19 @@
-import type {Node as ProseMirrorNode} from 'prosemirror-model';
+import type { Node as ProseMirrorNode } from "prosemirror-model";
 
-import type {TextSerializer} from '../@types';
-import {getTextBetween} from './getTextBetween';
+import type { TextSerializer } from "../@types";
+import { getTextBetween } from "./getTextBetween";
 
 export function getText(
-	node: ProseMirrorNode,
-	options?: {
-		blockSeparator?: string;
-		textSerializers?: Record<string, TextSerializer>;
-	},
+  node: ProseMirrorNode,
+  options?: {
+    blockSeparator?: string;
+    textSerializers?: Record<string, TextSerializer>;
+  },
 ) {
-	const range = {
-		from: 0,
-		to: node.content.size,
-	};
+  const range = {
+    from: 0,
+    to: node.content.size,
+  };
 
-	return getTextBetween(node, range, options);
+  return getTextBetween(node, range, options);
 }

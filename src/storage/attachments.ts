@@ -1,5 +1,5 @@
-import type { App, TFile } from 'obsidian';
-import { sanitizeFileName } from './fileNaming';
+import type { App, TFile } from "obsidian";
+import { sanitizeFileName } from "./fileNaming";
 
 export interface SavedFile {
   /** Path to file in the vault (used as data.id / link). */
@@ -14,8 +14,8 @@ export interface SavedFile {
 
 /** Extracts the extension from a file name (without the dot). */
 export function getExtension(name: string): string {
-  const idx = name.lastIndexOf('.');
-  return idx > 0 ? name.slice(idx + 1) : '';
+  const idx = name.lastIndexOf(".");
+  return idx > 0 ? name.slice(idx + 1) : "";
 }
 
 /**
@@ -29,9 +29,9 @@ export function buildUniquePath(
   exists: (path: string) => boolean,
 ): string {
   const folder =
-    !folderPath || folderPath === '/'
-      ? ''
-      : folderPath.endsWith('/')
+    !folderPath || folderPath === "/"
+      ? ""
+      : folderPath.endsWith("/")
         ? folderPath
         : `${folderPath}/`;
   const name = ext ? `${baseName}.${ext}` : baseName;
@@ -39,7 +39,9 @@ export function buildUniquePath(
   let n = 1;
   while (exists(candidate)) {
     const suffix = `-${n}`;
-    candidate = ext ? `${folder}${baseName}${suffix}.${ext}` : `${folder}${baseName}${suffix}`;
+    candidate = ext
+      ? `${folder}${baseName}${suffix}.${ext}`
+      : `${folder}${baseName}${suffix}`;
     n++;
   }
   return candidate;
@@ -54,14 +56,17 @@ export async function saveAttachmentFile(
   noteFile: TFile,
   file: File,
 ): Promise<SavedFile> {
-  const folderPath = noteFile.parent?.path ?? '/';
-  const originalName = file.name || 'attachment';
+  const folderPath = noteFile.parent?.path ?? "/";
+  const originalName = file.name || "attachment";
   const ext = getExtension(originalName);
   const rawBase = ext ? originalName.slice(0, -(ext.length + 1)) : originalName;
-  const baseName = sanitizeFileName(rawBase) || 'attachment';
+  const baseName = sanitizeFileName(rawBase) || "attachment";
 
-  const path = buildUniquePath(folderPath, baseName, ext, (p) =>
-    !!app.vault.getAbstractFileByPath(p),
+  const path = buildUniquePath(
+    folderPath,
+    baseName,
+    ext,
+    (p) => !!app.vault.getAbstractFileByPath(p),
   );
 
   const buffer = await file.arrayBuffer();
@@ -79,7 +84,10 @@ export async function saveAttachmentFile(
  * Deletes a file from the vault by path (data.id), if it exists.
  * Silently ignores errors — this is cleanup on node removal.
  */
-export async function deleteAttachmentFile(app: App, id: string | null | undefined): Promise<void> {
+export async function deleteAttachmentFile(
+  app: App,
+  id: string | null | undefined,
+): Promise<void> {
   if (!id) return;
   const file = app.vault.getAbstractFileByPath(id);
   if (file) {

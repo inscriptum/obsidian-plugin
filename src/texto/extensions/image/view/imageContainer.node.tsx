@@ -12,7 +12,7 @@ export const imageContainerNode = litView.node(function* (params: {
   key: string;
   data: ViewNodeData;
   state?: ViewNodeState;
-	errorIconId?: string;
+  errorIconId?: string;
   onClick?: (ev: MouseEvent) => void;
   onRemove: (ev: MouseEvent) => void;
   updateAttrs: UpdateFn;

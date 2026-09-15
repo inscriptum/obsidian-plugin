@@ -1,39 +1,44 @@
-import {findParentNodeClosestToPos} from '../../../core';
-import {KeyboardShortcutCommand} from '../../../core/@types';
+import { findParentNodeClosestToPos } from "../../../core";
+import { KeyboardShortcutCommand } from "../../../core/@types";
 
-import {isCellSelection} from './isCellSelection';
+import { isCellSelection } from "./isCellSelection";
 
-export const deleteTableWhenAllCellsSelected: KeyboardShortcutCommand = ({editor}) => {
-	const {selection} = editor.state;
+export const deleteTableWhenAllCellsSelected: KeyboardShortcutCommand = ({
+  editor,
+}) => {
+  const { selection } = editor.state;
 
-	if (!isCellSelection(selection)) {
-		return false;
-	}
+  if (!isCellSelection(selection)) {
+    return false;
+  }
 
-	let cellCount = 0;
-	const table = findParentNodeClosestToPos(selection.ranges[0].$from, (node) => {
-		return node.type.name === 'table';
-	});
+  let cellCount = 0;
+  const table = findParentNodeClosestToPos(
+    selection.ranges[0].$from,
+    (node) => {
+      return node.type.name === "table";
+    },
+  );
 
-	table?.node.descendants((node) => {
-		if (node.type.name === 'table') {
-			return false;
-		}
+  table?.node.descendants((node) => {
+    if (node.type.name === "table") {
+      return false;
+    }
 
-		if (['tableCell', 'tableHeader'].includes(node.type.name)) {
-			cellCount += 1;
-		}
+    if (["tableCell", "tableHeader"].includes(node.type.name)) {
+      cellCount += 1;
+    }
 
-		return true;
-	});
+    return true;
+  });
 
-	const allCellsSelected = cellCount === selection.ranges.length;
+  const allCellsSelected = cellCount === selection.ranges.length;
 
-	if (!allCellsSelected) {
-		return false;
-	}
+  if (!allCellsSelected) {
+    return false;
+  }
 
-	editor.commands.deleteTable();
+  editor.commands.deleteTable();
 
-	return true;
+  return true;
 };

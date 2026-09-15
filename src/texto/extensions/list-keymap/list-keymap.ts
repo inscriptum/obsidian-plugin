@@ -1,67 +1,67 @@
-import {Extension} from '../../core';
+import { Extension } from "../../core";
 
-import {addCommands} from './commands';
-import {handleBackspace} from './helpers/index';
+import { addCommands } from "./commands";
+import { handleBackspace } from "./helpers/index";
 
 export type ListKeymapOptions = {
-	listTypes: Array<{
-		itemName: string;
-		wrapperNames: string[];
-	}>;
+  listTypes: Array<{
+    itemName: string;
+    wrapperNames: string[];
+  }>;
 };
 
 export const ListKeymap = Extension.create<ListKeymapOptions>({
-	name: 'listKeymap',
+  name: "listKeymap",
 
-	addOptions() {
-		return {
-			listTypes: [
-				{
-					itemName: 'listItem',
-					wrapperNames: ['bulletList', 'orderedList'],
-				},
-				{
-					itemName: 'taskItem',
-					wrapperNames: ['taskList'],
-				},
-			],
-		};
-	},
+  addOptions() {
+    return {
+      listTypes: [
+        {
+          itemName: "listItem",
+          wrapperNames: ["bulletList", "orderedList"],
+        },
+        {
+          itemName: "taskItem",
+          wrapperNames: ["taskList"],
+        },
+      ],
+    };
+  },
 
-	addKeyboardShortcuts() {
-		return {
-			Backspace: ({editor}) => {
-				let handled = false;
+  addKeyboardShortcuts() {
+    return {
+      Backspace: ({ editor }) => {
+        let handled = false;
 
-				this.options.listTypes.forEach(({itemName, wrapperNames}) => {
-					if (editor.state.schema.nodes[itemName] === undefined) {
-						return;
-					}
+        this.options.listTypes.forEach(({ itemName, wrapperNames }) => {
+          if (editor.state.schema.nodes[itemName] === undefined) {
+            return;
+          }
 
-					if (handleBackspace(editor, itemName, wrapperNames)) {
-						handled = true;
-					}
-				});
+          if (handleBackspace(editor, itemName, wrapperNames)) {
+            handled = true;
+          }
+        });
 
-				return handled;
-			},
-			'Mod-Backspace': ({editor}) => {
-				let handled = false;
+        return handled;
+      },
+      "Mod-Backspace": ({ editor }) => {
+        let handled = false;
 
-				this.options.listTypes.forEach(({itemName, wrapperNames}) => {
-					if (editor.state.schema.nodes[itemName] === undefined) {
-						return;
-					}
+        this.options.listTypes.forEach(({ itemName, wrapperNames }) => {
+          if (editor.state.schema.nodes[itemName] === undefined) {
+            return;
+          }
 
-					if (handleBackspace(editor, itemName, wrapperNames)) {
-						handled = true;
-					}
-				});
+          if (handleBackspace(editor, itemName, wrapperNames)) {
+            handled = true;
+          }
+        });
 
-				return handled;
-			},
-		};
-	},
+        return handled;
+      },
+    };
+  },
 
-	addCommands,
+  addCommands,
 });

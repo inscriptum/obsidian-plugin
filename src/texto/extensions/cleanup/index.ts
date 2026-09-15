@@ -1,5 +1,5 @@
-import {Cleanup} from './Cleanup';
+import { Cleanup } from "./Cleanup";
 
-export * from './Cleanup';
+export * from "./Cleanup";
 
 export default Cleanup;

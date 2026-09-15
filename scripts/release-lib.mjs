@@ -1,4 +1,4 @@
-export const RELEASE_TYPES = ['patch', 'minor', 'major'];
+export const RELEASE_TYPES = ["patch", "minor", "major"];
 
 export function parseVersion(version) {
   const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(version).trim());
@@ -17,10 +17,10 @@ export function bumpVersion(version, type) {
     throw new Error(`Unknown release type: "${type}"`);
   }
   const { major, minor, patch } = parseVersion(version);
-  if (type === 'major') {
+  if (type === "major") {
     return `${major + 1}.0.0`;
   }
-  if (type === 'minor') {
+  if (type === "minor") {
     return `${major}.${minor + 1}.0`;
   }
   return `${major}.${minor}.${patch + 1}`;
@@ -39,8 +39,8 @@ export function bumpPackageJson(content, newVersion) {
 export function bumpPackageLock(content, newVersion) {
   const data = JSON.parse(content);
   data.version = newVersion;
-  if (data.packages && data.packages['']) {
-    data.packages[''].version = newVersion;
+  if (data.packages && data.packages[""]) {
+    data.packages[""].version = newVersion;
   }
   return stringifyJson(data);
 }
@@ -58,9 +58,9 @@ export function addVersionsEntry(content, newVersion, minAppVersion) {
 
 export function updateChangelog(content, newVersion, date) {
   const header = `## [${newVersion}] - ${date}`;
-  const lines = content.split('\n');
+  const lines = content.split("\n");
 
-  const unreleasedIndex = lines.findIndex((line) => line === '## [Unreleased]');
+  const unreleasedIndex = lines.findIndex((line) => line === "## [Unreleased]");
   if (unreleasedIndex === -1) {
     throw new Error(
       'No "## [Unreleased]" section found in CHANGELOG.md. Fill in the changes there before releasing.',
@@ -68,5 +68,5 @@ export function updateChangelog(content, newVersion, date) {
   }
 
   lines[unreleasedIndex] = header;
-  return lines.join('\n');
+  return lines.join("\n");
 }

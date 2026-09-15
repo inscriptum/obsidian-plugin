@@ -1,9 +1,9 @@
 // Browser harness entry for the drag & drop tests (built with vite,
 // see scripts/build-harness.mjs). Provides the Obsidian globals and the
 // `obsidian` module shim (Platform only) that src/texto needs at runtime.
-import { Editor } from '../texto/core/Editor';
-import { headingFoldingKey } from '../texto/extensions/heading/folding';
-import { taskFoldingKey } from '../texto/extensions/task-item-folding/taskFoldingPlugin';
+import { Editor } from "../texto/core/Editor";
+import { headingFoldingKey } from "../texto/extensions/heading/folding";
+import { taskFoldingKey } from "../texto/extensions/task-item-folding/taskFoldingPlugin";
 
 // ── Obsidian globals (see src/__mocks__ and vitest.setup.ts) ──
 type DomAttrs = {
@@ -13,7 +13,7 @@ type DomAttrs = {
 };
 
 function applyAttrs(el: HTMLElement, attrs?: DomAttrs | string): HTMLElement {
-  if (typeof attrs === 'string') {
+  if (typeof attrs === "string") {
     el.textContent = attrs;
     return el;
   }
@@ -32,9 +32,9 @@ const g = window as unknown as Record<string, unknown>;
 g.createEl = (tag: string, attrs?: DomAttrs | string) =>
   applyAttrs(document.createElement(tag), attrs);
 g.createDiv = (attrs?: DomAttrs | string) =>
-  applyAttrs(document.createElement('div'), attrs);
+  applyAttrs(document.createElement("div"), attrs);
 g.createSpan = (attrs?: DomAttrs | string) =>
-  applyAttrs(document.createElement('span'), attrs);
+  applyAttrs(document.createElement("span"), attrs);
 g.createFragment = () => document.createDocumentFragment();
 // NOTE: do NOT assign window.requestAnimationFrame — `g` IS window, and
 // overwriting the native function would recurse forever (bundle code calls
@@ -56,38 +56,42 @@ const defineHelper = (
   };
 };
 const toStr = (value: unknown): string =>
-  typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+  typeof value === "string" ||
+  typeof value === "number" ||
+  typeof value === "boolean"
     ? String(value)
-    : value == null ? '' : JSON.stringify(value);
-defineHelper('addClass', (el, [classes]) => {
+    : value == null
+      ? ""
+      : JSON.stringify(value);
+defineHelper("addClass", (el, [classes]) => {
   for (const cls of classes as string[]) el.classList.add(cls);
 });
-defineHelper('addClasses', (el, [classes]) => {
+defineHelper("addClasses", (el, [classes]) => {
   for (const list of classes as string[][]) el.classList.add(...list);
 });
-defineHelper('removeClass', (el, [classes]) => {
+defineHelper("removeClass", (el, [classes]) => {
   for (const cls of classes as string[]) el.classList.remove(cls);
 });
-defineHelper('removeClasses', (el, [classes]) => {
+defineHelper("removeClasses", (el, [classes]) => {
   for (const list of classes as string[][]) el.classList.remove(...list);
 });
-defineHelper('toggleClass', (el, [classes, value]) => {
+defineHelper("toggleClass", (el, [classes, value]) => {
   const list = Array.isArray(classes) ? classes : [classes as string];
   for (const cls of list) el.classList.toggle(cls, Boolean(value));
 });
-defineHelper('hasClass', (el, [cls]) => el.classList.contains(cls as string));
-defineHelper('setAttr', (el, [name, value]) => {
+defineHelper("hasClass", (el, [cls]) => el.classList.contains(cls as string));
+defineHelper("setAttr", (el, [name, value]) => {
   if (value == null) el.removeAttribute(name as string);
   else el.setAttribute(name as string, toStr(value));
 });
-defineHelper('setAttrs', (el, [obj]) => {
+defineHelper("setAttrs", (el, [obj]) => {
   for (const [name, value] of Object.entries(obj as Record<string, unknown>)) {
     if (value == null) el.removeAttribute(name);
     else el.setAttribute(name, toStr(value));
   }
 });
-defineHelper('getAttr', (el, [name]) => el.getAttribute(name as string));
-defineHelper('empty', (el) => {
+defineHelper("getAttr", (el, [name]) => el.getAttribute(name as string));
+defineHelper("empty", (el) => {
   while (el.firstChild) el.removeChild(el.firstChild);
 });
 {
@@ -95,19 +99,19 @@ defineHelper('empty', (el) => {
     string,
     { get(): unknown; configurable: boolean }
   >;
-  Object.defineProperty(proto, 'doc', {
+  Object.defineProperty(proto, "doc", {
     get(this: Element) {
       return this.ownerDocument;
     },
     configurable: true,
   });
-  Object.defineProperty(proto, 'win', {
+  Object.defineProperty(proto, "win", {
     get(this: Element) {
       return this.ownerDocument.defaultView;
     },
     configurable: true,
   });
-  Object.defineProperty(proto, 'offsetParent', {
+  Object.defineProperty(proto, "offsetParent", {
     get(this: Element) {
       return this.parentElement;
     },
@@ -115,5 +119,5 @@ defineHelper('empty', (el) => {
   });
 }
 
-export * from '../texto/getExtensions';
+export * from "../texto/getExtensions";
 export { Editor, headingFoldingKey, taskFoldingKey };

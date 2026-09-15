@@ -1,4 +1,4 @@
-import { Gapcursor } from './gapcursor'
+import { Gapcursor } from "./gapcursor";
 
-export * from './gapcursor'
-export default Gapcursor
+export * from "./gapcursor";
+export default Gapcursor;

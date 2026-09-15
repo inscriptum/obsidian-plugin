@@ -93,7 +93,7 @@ export class Node<
 
     extension.name = extendedConfig.name
       ? extendedConfig.name
-      : extension.parent?.name ?? extension.name;
+      : (extension.parent?.name ?? extension.name);
 
     extension.options = callOrReturn(
       getExtensionField<AnyConfig["addOptions"]>(extension, "addOptions", {

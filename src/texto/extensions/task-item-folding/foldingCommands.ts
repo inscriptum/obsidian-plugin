@@ -1,11 +1,8 @@
-import type { Command } from '../../core/@types';
-import type { AnyConfig } from '../../core/@types/AnyConfig';
-import {
-  taskFoldingKey,
-  type TaskFoldingMeta,
-} from './taskFoldingPlugin';
+import type { Command } from "../../core/@types";
+import type { AnyConfig } from "../../core/@types/AnyConfig";
+import { taskFoldingKey, type TaskFoldingMeta } from "./taskFoldingPlugin";
 
-type AddCommandsThis = ThisParameterType<Required<AnyConfig>['addCommands']>;
+type AddCommandsThis = ThisParameterType<Required<AnyConfig>["addCommands"]>;
 
 export function addCommands(this: AddCommandsThis) {
   return {
@@ -17,7 +14,7 @@ export function addCommands(this: AddCommandsThis) {
         }
 
         if (dispatch) {
-          const meta: TaskFoldingMeta = { type: 'toggle', pos };
+          const meta: TaskFoldingMeta = { type: "toggle", pos };
           dispatch(state.tr.setMeta(taskFoldingKey, meta));
         }
 
@@ -32,7 +29,7 @@ export function addCommands(this: AddCommandsThis) {
         }
 
         if (dispatch) {
-          const meta: TaskFoldingMeta = { type: 'fold', pos };
+          const meta: TaskFoldingMeta = { type: "fold", pos };
           dispatch(state.tr.setMeta(taskFoldingKey, meta));
         }
 
@@ -47,7 +44,7 @@ export function addCommands(this: AddCommandsThis) {
         }
 
         if (dispatch) {
-          const meta: TaskFoldingMeta = { type: 'unfold', pos };
+          const meta: TaskFoldingMeta = { type: "unfold", pos };
           dispatch(state.tr.setMeta(taskFoldingKey, meta));
         }
 
@@ -57,9 +54,9 @@ export function addCommands(this: AddCommandsThis) {
 }
 
 function isTaskItemAt(
-  state: Parameters<Command>[0]['state'],
+  state: Parameters<Command>[0]["state"],
   pos: number,
 ): boolean {
   const node = state.doc.nodeAt(pos);
-  return node != null && node.type.name === 'taskItem';
+  return node != null && node.type.name === "taskItem";
 }

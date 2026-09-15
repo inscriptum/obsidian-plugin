@@ -1,43 +1,43 @@
-import {Plugin, PluginKey} from 'prosemirror-state';
+import { Plugin, PluginKey } from "prosemirror-state";
 
-import {Extension} from '../Extension';
+import { Extension } from "../Extension";
 
 export const FocusEvents = Extension.create({
-	name: 'focusEvents',
+  name: "focusEvents",
 
-	addProseMirrorPlugins() {
-		const {editor} = this;
+  addProseMirrorPlugins() {
+    const { editor } = this;
 
-		return [
-			new Plugin({
-				key: new PluginKey('focusEvents'),
-				props: {
-					handleDOMEvents: {
-						focus: (view, event: Event) => {
-							editor.isFocused = true;
+    return [
+      new Plugin({
+        key: new PluginKey("focusEvents"),
+        props: {
+          handleDOMEvents: {
+            focus: (view, event: Event) => {
+              editor.isFocused = true;
 
-							const transaction = editor.state.tr
-								.setMeta('focus', {event})
-								.setMeta('addToHistory', false);
+              const transaction = editor.state.tr
+                .setMeta("focus", { event })
+                .setMeta("addToHistory", false);
 
-							view.dispatch(transaction);
+              view.dispatch(transaction);
 
-							return false;
-						},
-						blur: (view, event: Event) => {
-							editor.isFocused = false;
+              return false;
+            },
+            blur: (view, event: Event) => {
+              editor.isFocused = false;
 
-							const transaction = editor.state.tr
-								.setMeta('blur', {event})
-								.setMeta('addToHistory', false);
+              const transaction = editor.state.tr
+                .setMeta("blur", { event })
+                .setMeta("addToHistory", false);
 
-							view.dispatch(transaction);
+              view.dispatch(transaction);
 
-							return false;
-						},
-					},
-				},
-			}),
-		];
-	},
+              return false;
+            },
+          },
+        },
+      }),
+    ];
+  },
 });

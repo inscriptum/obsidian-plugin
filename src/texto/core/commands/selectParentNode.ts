@@ -1,12 +1,12 @@
-import {selectParentNode as originalSelectParentNode} from 'prosemirror-commands';
+import { selectParentNode as originalSelectParentNode } from "prosemirror-commands";
 
-import type {Command} from '../@types';
+import type { Command } from "../@types";
 
 /**
  * Select the parent node.
  */
 export const selectParentNode =
-	(): Command =>
-	({state, dispatch}) => {
-		return originalSelectParentNode(state, dispatch);
-	};
+  (): Command =>
+  ({ state, dispatch }) => {
+    return originalSelectParentNode(state, dispatch);
+  };

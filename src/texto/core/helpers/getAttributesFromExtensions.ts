@@ -1,99 +1,106 @@
-import type {AnyRecord, Attribute, Attributes, ExtensionAttribute, Extensions, GlobalAttributes} from '../@types';
-import type {MarkConfig} from '../@types/MarkConfig';
-import type {NodeConfig} from '../@types/NodeConfig';
-import {getExtensionField} from './getExtensionField';
-import {splitExtensions} from './splitExtensions';
+import type {
+  AnyRecord,
+  Attribute,
+  Attributes,
+  ExtensionAttribute,
+  Extensions,
+  GlobalAttributes,
+} from "../@types";
+import type { MarkConfig } from "../@types/MarkConfig";
+import type { NodeConfig } from "../@types/NodeConfig";
+import { getExtensionField } from "./getExtensionField";
+import { splitExtensions } from "./splitExtensions";
 
 /**
  * Get a list of all extension attributes defined in `addAttribute` and `addGlobalAttribute`.
  * @param extensions List of extensions
  */
-export function getAttributesFromExtensions(extensions: Extensions): ExtensionAttribute[] {
-	const extensionAttributes: ExtensionAttribute[] = [];
-	const {nodeExtensions, markExtensions} = splitExtensions(extensions);
-	const nodeAndMarkExtensions = [...nodeExtensions, ...markExtensions];
-	const defaultAttribute: Required<Attribute> = {
-		default: null,
-		rendered: true,
-		renderHTML: null,
-		parseHTML: null,
-		keepOnSplit: true,
-		isRequired: false,
-	};
+export function getAttributesFromExtensions(
+  extensions: Extensions,
+): ExtensionAttribute[] {
+  const extensionAttributes: ExtensionAttribute[] = [];
+  const { nodeExtensions, markExtensions } = splitExtensions(extensions);
+  const nodeAndMarkExtensions = [...nodeExtensions, ...markExtensions];
+  const defaultAttribute: Required<Attribute> = {
+    default: null,
+    rendered: true,
+    renderHTML: null,
+    parseHTML: null,
+    keepOnSplit: true,
+    isRequired: false,
+  };
 
-	extensions.forEach((extension) => {
-		const context = {
-			name: extension.name,
-			options: extension.options as AnyRecord,
-			storage: extension.storage as AnyRecord,
-		};
+  extensions.forEach((extension) => {
+    const context = {
+      name: extension.name,
+      options: extension.options as AnyRecord,
+      storage: extension.storage as AnyRecord,
+    };
 
-		const addGlobalAttributes = getExtensionField<(() => GlobalAttributes | object) | null>(
-			extension,
-			'addGlobalAttributes',
-			context,
-		);
+    const addGlobalAttributes = getExtensionField<
+      (() => GlobalAttributes | object) | null
+    >(extension, "addGlobalAttributes", context);
 
-		if (!addGlobalAttributes) {
-			return;
-		}
+    if (!addGlobalAttributes) {
+      return;
+    }
 
-		// TODO: remove `as GlobalAttributes`
-		const globalAttributes = addGlobalAttributes() as GlobalAttributes;
+    // TODO: remove `as GlobalAttributes`
+    const globalAttributes = addGlobalAttributes() as GlobalAttributes;
 
-		globalAttributes.forEach((globalAttribute) => {
-			globalAttribute.types.forEach((type) => {
-				Object.entries(globalAttribute.attributes).forEach(([name, attribute]) => {
-					extensionAttributes.push({
-						type,
-						name,
-						attribute: {
-							...defaultAttribute,
-							...attribute,
-						},
-					});
-				});
-			});
-		});
-	});
+    globalAttributes.forEach((globalAttribute) => {
+      globalAttribute.types.forEach((type) => {
+        Object.entries(globalAttribute.attributes).forEach(
+          ([name, attribute]) => {
+            extensionAttributes.push({
+              type,
+              name,
+              attribute: {
+                ...defaultAttribute,
+                ...attribute,
+              },
+            });
+          },
+        );
+      });
+    });
+  });
 
-	nodeAndMarkExtensions.forEach((extension) => {
-		const context = {
-			name: extension.name,
-			options: extension.options as AnyRecord,
-			storage: extension.storage as AnyRecord,
-		};
+  nodeAndMarkExtensions.forEach((extension) => {
+    const context = {
+      name: extension.name,
+      options: extension.options as AnyRecord,
+      storage: extension.storage as AnyRecord,
+    };
 
-		const addAttributes = getExtensionField<NodeConfig['addAttributes'] | MarkConfig['addAttributes']>(
-			extension,
-			'addAttributes',
-			context,
-		);
+    const addAttributes = getExtensionField<
+      NodeConfig["addAttributes"] | MarkConfig["addAttributes"]
+    >(extension, "addAttributes", context);
 
-		if (!addAttributes) {
-			return;
-		}
+    if (!addAttributes) {
+      return;
+    }
 
-		// TODO: remove `as Attributes`
-		const attributes = addAttributes() as Attributes;
+    // TODO: remove `as Attributes`
+    const attributes = addAttributes() as Attributes;
 
-		Object.entries(attributes).forEach(([name, attribute]) => {
-			const mergedAttr = {
-				...defaultAttribute,
-				...attribute,
-			};
+    Object.entries(attributes).forEach(([name, attribute]) => {
+      const mergedAttr = {
+        ...defaultAttribute,
+        ...attribute,
+      };
 
-			if (attribute?.isRequired && attribute?.default === undefined) {
-				delete mergedAttr.default;
-			}
+      if (attribute?.isRequired && attribute?.default === undefined) {
+        delete mergedAttr.default;
+      }
 
-			extensionAttributes.push({
-				type: extension.name,
-				name,
-				attribute: mergedAttr,
-			});
-		});
-	});
+      extensionAttributes.push({
+        type: extension.name,
+        name,
+        attribute: mergedAttr,
+      });
+    });
+  });
 
-	return extensionAttributes;
+  return extensionAttributes;
 }

@@ -1,6 +1,6 @@
-import { Extension } from '../../core';
-import { elTag } from '../../../tags';
-import { addCommands } from './foldingCommands';
+import { Extension } from "../../core";
+import { elTag } from "../../../tags";
+import { addCommands } from "./foldingCommands";
 import {
   createHeadingFoldKeymapPlugin,
   createHeadingFoldingPlugin,
@@ -9,8 +9,8 @@ import {
   headingFoldingKey,
   restoreFoldedHeadings,
   type HeadingSectionRange,
-} from './foldingPlugin';
-import { chevronElement } from './view/chevron.element';
+} from "./foldingPlugin";
+import { chevronElement } from "./view/chevron.element";
 
 export interface HeadingFoldingOptions {
   /** Disable folding entirely (mobile first iteration). */
@@ -18,7 +18,7 @@ export interface HeadingFoldingOptions {
 }
 
 /** Versioned registry tag for the chevron custom element (see tags.ts). */
-export const VIEW_TAG = elTag('texto-extension-heading-fold-chevron');
+export const VIEW_TAG = elTag("texto-extension-heading-fold-chevron");
 
 /** The chevron custom element class, registered under VIEW_TAG. */
 export const ChevronElement = chevronElement(VIEW_TAG);
@@ -28,13 +28,13 @@ export interface HeadingFoldingStorage {
   positions: number[];
 }
 
-declare module '../../core' {
+declare module "../../core" {
   interface Commands<ReturnType> {
     headingFolding: {
-      toggleHeadingFold: (pos?: number) => ReturnType
-      foldHeading: (pos: number) => ReturnType
-      unfoldHeading: (pos: number) => ReturnType
-    }
+      toggleHeadingFold: (pos?: number) => ReturnType;
+      foldHeading: (pos: number) => ReturnType;
+      unfoldHeading: (pos: number) => ReturnType;
+    };
   }
 }
 
@@ -42,7 +42,7 @@ export const HeadingFolding = Extension.create<
   HeadingFoldingOptions,
   HeadingFoldingStorage
 >({
-  name: 'headingFolding',
+  name: "headingFolding",
 
   addOptions() {
     return {
@@ -59,7 +59,10 @@ export const HeadingFolding = Extension.create<
   addCommands,
 
   onTransaction({ transaction }) {
-    if (transaction.getMeta(headingFoldingKey) != null || transaction.docChanged) {
+    if (
+      transaction.getMeta(headingFoldingKey) != null ||
+      transaction.docChanged
+    ) {
       this.storage.positions = getFoldedHeadingPositions(this.editor.state);
     }
   },
@@ -71,13 +74,13 @@ export const HeadingFolding = Extension.create<
 
     return [
       createHeadingFoldingPlugin({
-        headingTypeName: 'heading',
+        headingTypeName: "heading",
         chevronElement: ChevronElement,
       }),
       // Enter at the end of a folded heading: unfold + new line after the
       // revealed body (Obsidian behavior). See foldingPlugin.ts.
       createHeadingFoldKeymapPlugin({
-        headingTypeName: 'heading',
+        headingTypeName: "heading",
         chevronElement: ChevronElement,
       }),
     ];

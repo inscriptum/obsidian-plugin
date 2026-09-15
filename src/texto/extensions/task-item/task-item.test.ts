@@ -1,20 +1,22 @@
-import { describe, it, expect } from 'vitest';
-import { Editor } from '../../core/Editor';
-import { getExtensions } from '../../getExtensions';
-import { VIEW_TAG } from './task-item';
+import { describe, it, expect } from "vitest";
+import { Editor } from "../../core/Editor";
+import { getExtensions } from "../../getExtensions";
+import { VIEW_TAG } from "./task-item";
 
 function contentWithTaskItem(checked: boolean) {
   return {
-    type: 'noteDoc',
+    type: "noteDoc",
     content: [
-      { type: 'noteTitle', content: [] },
+      { type: "noteTitle", content: [] },
       {
-        type: 'taskList',
+        type: "taskList",
         content: [
           {
-            type: 'taskItem',
+            type: "taskItem",
             attrs: { checked },
-            content: [{ type: 'paragraph', content: [{ type: 'text', text: 'hello' }] }],
+            content: [
+              { type: "paragraph", content: [{ type: "text", text: "hello" }] },
+            ],
           },
         ],
       },
@@ -48,18 +50,18 @@ function renderTaskItem(checked: boolean) {
 // getExtensions() must configure TaskItem with checkboxIconLinks so the
 // custom SVG icons (declared in note.element.tsx) are used instead of the
 // unstyled native input[type=checkbox].
-describe('taskItem checkbox rendering', () => {
+describe("taskItem checkbox rendering", () => {
   it('renders the custom "off" svg icon and hides the native checkbox when unchecked', () => {
     const { item, destroy } = renderTaskItem(false);
 
     expect(item).toBeTruthy();
-    expect(item?.getAttribute('data-checked')).toBe('false');
+    expect(item?.getAttribute("data-checked")).toBe("false");
 
-    const use = item?.querySelector('.custom-icon use');
-    expect(use?.getAttribute('href')).toBe('#check_box_off_20');
+    const use = item?.querySelector(".custom-icon use");
+    expect(use?.getAttribute("href")).toBe("#check_box_off_20");
 
     const input = item?.querySelector('input[type="checkbox"]');
-    expect(input?.classList.contains('visually-hidden')).toBe(true);
+    expect(input?.classList.contains("visually-hidden")).toBe(true);
 
     destroy();
   });
@@ -67,10 +69,10 @@ describe('taskItem checkbox rendering', () => {
   it('renders the custom "on" svg icon when checked', () => {
     const { item, destroy } = renderTaskItem(true);
 
-    expect(item?.getAttribute('data-checked')).toBe('true');
+    expect(item?.getAttribute("data-checked")).toBe("true");
 
-    const use = item?.querySelector('.custom-icon use');
-    expect(use?.getAttribute('href')).toBe('#check_box_on_20');
+    const use = item?.querySelector(".custom-icon use");
+    expect(use?.getAttribute("href")).toBe("#check_box_on_20");
 
     destroy();
   });

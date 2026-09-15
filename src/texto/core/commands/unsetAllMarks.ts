@@ -1,23 +1,23 @@
-import type {Command} from '../@types';
+import type { Command } from "../@types";
 
 /**
  * Remove all marks in the current selection.
  */
 export const unsetAllMarks =
-	(): Command =>
-	({tr, dispatch}) => {
-		const {selection} = tr;
-		const {empty, ranges} = selection;
+  (): Command =>
+  ({ tr, dispatch }) => {
+    const { selection } = tr;
+    const { empty, ranges } = selection;
 
-		if (empty) {
-			return true;
-		}
+    if (empty) {
+      return true;
+    }
 
-		if (dispatch) {
-			ranges.forEach((range) => {
-				tr.removeMark(range.$from.pos, range.$to.pos);
-			});
-		}
+    if (dispatch) {
+      ranges.forEach((range) => {
+        tr.removeMark(range.$from.pos, range.$to.pos);
+      });
+    }
 
-		return true;
-	};
+    return true;
+  };

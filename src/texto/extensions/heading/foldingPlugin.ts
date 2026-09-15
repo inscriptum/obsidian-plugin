@@ -1,4 +1,4 @@
-import type { Node as ProseMirrorNode, ResolvedPos } from 'prosemirror-model';
+import type { Node as ProseMirrorNode, ResolvedPos } from "prosemirror-model";
 import {
   Plugin,
   PluginKey,
@@ -6,8 +6,8 @@ import {
   TextSelection,
   type EditorState,
   type Transaction,
-} from 'prosemirror-state';
-import { Decoration, DecorationSet, type EditorView } from 'prosemirror-view';
+} from "prosemirror-state";
+import { Decoration, DecorationSet, type EditorView } from "prosemirror-view";
 
 /**
  * Heading folding — decoration-based folding, modeled after
@@ -29,21 +29,21 @@ import { Decoration, DecorationSet, type EditorView } from 'prosemirror-view';
  */
 
 export const headingFoldingKey = new PluginKey<HeadingFoldingState>(
-  'inscriptumHeadingFolding',
+  "inscriptumHeadingFolding",
 );
 
 export type HeadingFoldingMeta =
-  | { type: 'toggle'; pos: number }
-  | { type: 'fold'; pos: number }
-  | { type: 'unfold'; pos: number }
-  | { type: 'restore'; positions: number[] }
+  | { type: "toggle"; pos: number }
+  | { type: "fold"; pos: number }
+  | { type: "unfold"; pos: number }
+  | { type: "restore"; positions: number[] }
   /** Complete replacement of the fold set for one transaction: positions
    *  are already computed against the transaction's NEW doc. Sent by the
    *  drag & drop block move (see extensions/drag-handle) — a move deletes
    *  the folded unit and re-inserts it elsewhere, which plain position
    *  mapping cannot follow (a fold at the vacated position would
    *  silently transfer onto whatever node lands there). */
-  | { type: 'setFolds'; positions: number[] };
+  | { type: "setFolds"; positions: number[] };
 
 export interface HeadingFoldingState {
   /** Positions (doc offsets) of folded heading nodes. */
@@ -63,10 +63,10 @@ export interface HeadingSectionRange {
 
 /** CSS classes used by the decorations (see styles/heading-folding.css). */
 export const FOLDING_CSS = {
-  headingCollapsed: 'is-folded',
-  contentHidden: 'texto-folded-content',
+  headingCollapsed: "is-folded",
+  contentHidden: "texto-folded-content",
   /** Layout class on the chevron custom element host. */
-  chevronHost: 'texto-heading-fold-chevron-host',
+  chevronHost: "texto-heading-fold-chevron-host",
 } as const;
 
 export interface HeadingFoldingPluginOptions {
@@ -95,7 +95,7 @@ export function createHeadingFoldingPlugin(
         // transaction's new doc — skip the generic remap below, which
         // cannot follow content that was deleted and re-inserted
         // elsewhere (the drag & drop block move).
-        if (meta?.type === 'setFolds') {
+        if (meta?.type === "setFolds") {
           const next = new Set<number>();
           for (const pos of meta.positions) {
             const node = tr.doc.nodeAt(pos);
@@ -132,17 +132,17 @@ export function createHeadingFoldingPlugin(
 
         if (meta != null) {
           const next = new Set(folded);
-          if (meta.type === 'toggle') {
+          if (meta.type === "toggle") {
             if (next.has(meta.pos)) {
               next.delete(meta.pos);
             } else {
               next.add(meta.pos);
             }
-          } else if (meta.type === 'fold') {
+          } else if (meta.type === "fold") {
             next.add(meta.pos);
-          } else if (meta.type === 'unfold') {
+          } else if (meta.type === "unfold") {
             next.delete(meta.pos);
-          } else if (meta.type === 'restore') {
+          } else if (meta.type === "restore") {
             for (const pos of meta.positions) {
               next.add(pos);
             }
@@ -164,7 +164,12 @@ export function createHeadingFoldingPlugin(
         if (pluginState == null) {
           return DecorationSet.empty;
         }
-        return buildFoldDecorations(state, pluginState, headingTypeName, chevronElement);
+        return buildFoldDecorations(
+          state,
+          pluginState,
+          headingTypeName,
+          chevronElement,
+        );
       },
     },
 
@@ -243,7 +248,7 @@ export function createHeadingFoldingPlugin(
       }
 
       const tr = newState.tr;
-      tr.setSelection(next).setMeta('addToHistory', false);
+      tr.setSelection(next).setMeta("addToHistory", false);
       return tr;
     },
   });
@@ -273,7 +278,7 @@ export function createHeadingFoldKeymapPlugin(
 
     props: {
       handleKeyDown(view, event) {
-        if (event.key !== 'Enter') {
+        if (event.key !== "Enter") {
           return false;
         }
         // Plain Enter only: the core chain keeps Shift-Enter (hard break),
@@ -300,27 +305,21 @@ export function createHeadingFoldKeymapPlugin(
         }
 
         const headingNode = state.doc.nodeAt(headingPos);
-        if (
-          headingNode == null ||
-          headingNode.type.name !== headingTypeName
-        ) {
+        if (headingNode == null || headingNode.type.name !== headingTypeName) {
           return false;
         }
 
         const $anchor = selection.$anchor;
         // Inside the heading's inline content, at its very end.
-        if (
-          $anchor.pos !== headingPos + 1 + headingNode.content.size
-        ) {
+        if ($anchor.pos !== headingPos + 1 + headingNode.content.size) {
           return false;
         }
 
         // A bodyless heading (impossible while folded — the fold drops
         // when the body empties) needs no special handling.
-        const section = collectHeadingSections(
-          state.doc,
-          headingTypeName,
-        ).find((s) => s.headingPos === headingPos);
+        const section = collectHeadingSections(state.doc, headingTypeName).find(
+          (s) => s.headingPos === headingPos,
+        );
         if (section == null || section.body == null) {
           return false;
         }
@@ -329,7 +328,7 @@ export function createHeadingFoldKeymapPlugin(
         // 1. Unfold on the same transaction — the meta hook drops the fold
         //    so the body is visible again in the final state.
         tr.setMeta(headingFoldingKey, {
-          type: 'unfold',
+          type: "unfold",
           pos: headingPos,
         } satisfies HeadingFoldingMeta);
 
@@ -369,7 +368,7 @@ export function createHeadingFoldKeymapPlugin(
 
 /** Plugin key for the Enter-at-folded-heading keymap plugin. */
 export const headingFoldKeymapKey = new PluginKey(
-  'inscriptumHeadingFoldKeymap',
+  "inscriptumHeadingFoldKeymap",
 );
 
 /** Build chevron widgets + fold/hide node decorations for the fold state. */
@@ -479,12 +478,12 @@ function createChevronDom(
     const { state } = view;
     const node = state.doc.nodeAt(headingPos);
     if (node != null && node.type.name === headingTypeName) {
-      const meta: HeadingFoldingMeta = { type: 'toggle', pos: headingPos };
+      const meta: HeadingFoldingMeta = { type: "toggle", pos: headingPos };
       view.dispatch(state.tr.setMeta(headingFoldingKey, meta));
     }
   };
 
-  chevron.addEventListener('click', onClick);
+  chevron.addEventListener("click", onClick);
 
   return chevron;
 }
@@ -553,7 +552,7 @@ export function getFoldedHeadingPositions(state: EditorState): number[] {
 
 /** All heading sections of the current doc (host UI may use it). */
 export function getHeadingRanges(state: EditorState): HeadingSectionRange[] {
-  return collectHeadingSections(state.doc, 'heading');
+  return collectHeadingSections(state.doc, "heading");
 }
 
 /** Dispatch a restore meta with the given heading positions. */
@@ -561,7 +560,7 @@ export function restoreFoldedHeadings(
   view: EditorView,
   positions: number[],
 ): void {
-  const meta: HeadingFoldingMeta = { type: 'restore', positions };
+  const meta: HeadingFoldingMeta = { type: "restore", positions };
   view.dispatch(view.state.tr.setMeta(headingFoldingKey, meta));
 }
 
@@ -569,7 +568,7 @@ export function restoreFoldedHeadings(
 export function findHeadingPos($pos: ResolvedPos): number | null {
   for (let depth = $pos.depth; depth >= 1; depth -= 1) {
     const node = $pos.node(depth);
-    if (node.type.name === 'heading') {
+    if (node.type.name === "heading") {
       return $pos.before(depth);
     }
   }

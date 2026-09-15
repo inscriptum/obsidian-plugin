@@ -8,7 +8,9 @@ function makeApp(existing: string[], srcFor?: (id: string) => string) {
     vault: {
       getAbstractFileByPath: (path: string) =>
         existing.includes(path) ? { path } : null,
-      adapter: { getResourcePath: srcFor ?? ((id: string) => `app://test/${id}`) },
+      adapter: {
+        getResourcePath: srcFor ?? ((id: string) => `app://test/${id}`),
+      },
     },
   } as never;
 }
@@ -28,7 +30,9 @@ describe("openImageLightbox", () => {
     expect(overlay).not.toBeNull();
     const img = overlay?.querySelector("img");
     expect(img?.getAttribute("src")).toBe("app://test/img.png");
-    expect(overlay?.querySelector(`.${LIGHTBOX_CLASS}__caption`)?.textContent).toBe("img.png");
+    expect(
+      overlay?.querySelector(`.${LIGHTBOX_CLASS}__caption`)?.textContent,
+    ).toBe("img.png");
   });
 
   it("does nothing when the file is missing", () => {
@@ -45,7 +49,9 @@ describe("openImageLightbox", () => {
 
   it("closes on Escape with capture-phase keydown", () => {
     openImageLightbox(makeApp(["img.png"]), "img.png");
-    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
     expect(document.querySelector(`.${LIGHTBOX_CLASS}`)).toBeNull();
   });
 
@@ -54,7 +60,9 @@ describe("openImageLightbox", () => {
     openImageLightbox(makeApp(["b.png"]), "b.png");
     const overlays = document.querySelectorAll(`.${LIGHTBOX_CLASS}`);
     expect(overlays.length).toBe(1);
-    expect(overlays[0].querySelector("img")?.getAttribute("src")).toBe("app://test/b.png");
+    expect(overlays[0].querySelector("img")?.getAttribute("src")).toBe(
+      "app://test/b.png",
+    );
   });
 
   it("stops listening for Escape after close", () => {
@@ -62,7 +70,9 @@ describe("openImageLightbox", () => {
     (document.querySelector(`.${LIGHTBOX_CLASS}`) as HTMLElement).click();
     // re-dispatch Escape: no overlay must reappear or throw
     expect(() =>
-      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })),
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      ),
     ).not.toThrow();
     expect(document.querySelector(`.${LIGHTBOX_CLASS}`)).toBeNull();
   });

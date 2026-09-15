@@ -1,5 +1,5 @@
-import {TableHeader} from './header';
+import { TableHeader } from "./header";
 
-export * from './header';
+export * from "./header";
 
 export default TableHeader;

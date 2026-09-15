@@ -1,4 +1,4 @@
-import type {EditorState} from 'prosemirror-state';
+import type { EditorState } from "prosemirror-state";
 
 /**
  * @see https://github.com/ueberdosis/tiptap/blob/main/packages/core/src/helpers/isAtStartOfNode.ts
@@ -7,11 +7,11 @@ import type {EditorState} from 'prosemirror-state';
  * @param nodeType
  */
 export function isAtStartOfNode(state: EditorState) {
-	const {$from, $to} = state.selection;
+  const { $from, $to } = state.selection;
 
-	if ($from.parentOffset > 0 || $from.pos !== $to.pos) {
-		return false;
-	}
+  if ($from.parentOffset > 0 || $from.pos !== $to.pos) {
+    return false;
+  }
 
-	return true;
+  return true;
 }

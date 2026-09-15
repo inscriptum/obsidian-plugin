@@ -1,18 +1,21 @@
-import type {Node as ProseMirrorNode} from 'prosemirror-model';
+import type { Node as ProseMirrorNode } from "prosemirror-model";
 
-import type {NodeWithPos, Predicate} from '../@types';
+import type { NodeWithPos, Predicate } from "../@types";
 
-export function findChildren(node: ProseMirrorNode, predicate: Predicate): NodeWithPos[] {
-	const nodesWithPos: NodeWithPos[] = [];
+export function findChildren(
+  node: ProseMirrorNode,
+  predicate: Predicate,
+): NodeWithPos[] {
+  const nodesWithPos: NodeWithPos[] = [];
 
-	node.descendants((child, pos) => {
-		if (predicate(child)) {
-			nodesWithPos.push({
-				node: child,
-				pos,
-			});
-		}
-	});
+  node.descendants((child, pos) => {
+    if (predicate(child)) {
+      nodesWithPos.push({
+        node: child,
+        pos,
+      });
+    }
+  });
 
-	return nodesWithPos;
+  return nodesWithPos;
 }

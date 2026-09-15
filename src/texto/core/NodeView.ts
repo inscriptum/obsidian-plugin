@@ -1,254 +1,272 @@
-import type {Node as ProseMirrorNode} from 'prosemirror-model';
-import {NodeSelection} from 'prosemirror-state';
-import type {Decoration, NodeView as ProseMirrorNodeView, ViewMutationRecord} from 'prosemirror-view';
+import type { Node as ProseMirrorNode } from "prosemirror-model";
+import { NodeSelection } from "prosemirror-state";
+import type {
+  Decoration,
+  NodeView as ProseMirrorNodeView,
+  ViewMutationRecord,
+} from "prosemirror-view";
 
-import type {NodeViewRendererOptions, NodeViewRendererProps} from './@types';
-import type {Editor as CoreEditor} from './Editor';
-import {ignoreMutationIOS} from './helpers/ignoreMutation';
-import type {Node} from './Node';
+import type { NodeViewRendererOptions, NodeViewRendererProps } from "./@types";
+import type { Editor as CoreEditor } from "./Editor";
+import { ignoreMutationIOS } from "./helpers/ignoreMutation";
+import type { Node } from "./Node";
 
 export class NodeView<
-	Component,
-	Editor extends CoreEditor = CoreEditor,
-	Options extends NodeViewRendererOptions = NodeViewRendererOptions,
+  Component,
+  Editor extends CoreEditor = CoreEditor,
+  Options extends NodeViewRendererOptions = NodeViewRendererOptions,
 > implements ProseMirrorNodeView
 {
-	component: Component;
+  component: Component;
 
-	editor: Editor;
+  editor: Editor;
 
-	options: Options;
+  options: Options;
 
-	extension: Node;
+  extension: Node;
 
-	node: ProseMirrorNode;
+  node: ProseMirrorNode;
 
-	decorations: Decoration[];
+  decorations: Decoration[];
 
-	getPos: (() => number) | boolean;
+  getPos: (() => number) | boolean;
 
-	isDragging = false;
+  isDragging = false;
 
-	constructor(component: Component, props: NodeViewRendererProps, options?: Partial<Options>) {
-		this.component = component;
-		this.editor = props.editor as Editor;
-		this.options = {
-			stopEvent: null,
-			ignoreMutation: null,
-			...options,
-		} as Options;
-		this.extension = props.extension;
-		this.node = props.node;
-		this.decorations = props.decorations;
-		this.getPos = props.getPos;
-		this.mount();
-	}
+  constructor(
+    component: Component,
+    props: NodeViewRendererProps,
+    options?: Partial<Options>,
+  ) {
+    this.component = component;
+    this.editor = props.editor as Editor;
+    this.options = {
+      stopEvent: null,
+      ignoreMutation: null,
+      ...options,
+    } as Options;
+    this.extension = props.extension;
+    this.node = props.node;
+    this.decorations = props.decorations;
+    this.getPos = props.getPos;
+    this.mount();
+  }
 
-	private getPosition(): number {
-		return typeof this.getPos === 'function' ? this.getPos() : 0;
-	}
+  private getPosition(): number {
+    return typeof this.getPos === "function" ? this.getPos() : 0;
+  }
 
-	mount() {
-		return;
-	}
+  mount() {
+    return;
+  }
 
-	get dom(): HTMLElement {
-		return this.editor.view.dom;
-	}
+  get dom(): HTMLElement {
+    return this.editor.view.dom;
+  }
 
-	get contentDOM(): HTMLElement | null {
-		return null;
-	}
+  get contentDOM(): HTMLElement | null {
+    return null;
+  }
 
-	onDragStart(event: DragEvent) {
-		const {view} = this.editor;
-		const target = event.target as HTMLElement;
+  onDragStart(event: DragEvent) {
+    const { view } = this.editor;
+    const target = event.target as HTMLElement;
 
-		// get the drag handle element
-		// `closest` is not available for text nodes so we may have to use its parent
-		const dragHandle =
-			target.nodeType === 3
-				?
-				  target.parentElement?.closest('[data-drag-handle]')
-				: target.closest('[data-drag-handle]');
+    // get the drag handle element
+    // `closest` is not available for text nodes so we may have to use its parent
+    const dragHandle =
+      target.nodeType === 3
+        ? target.parentElement?.closest("[data-drag-handle]")
+        : target.closest("[data-drag-handle]");
 
-		if (!this.dom || this.contentDOM?.contains(target) || !dragHandle) {
-			return;
-		}
+    if (!this.dom || this.contentDOM?.contains(target) || !dragHandle) {
+      return;
+    }
 
-		let x = 0;
-		let y = 0;
+    let x = 0;
+    let y = 0;
 
-		// calculate offset for drag element if we use a different drag handle element
-		if (this.dom !== dragHandle) {
-			const domBox = this.dom.getBoundingClientRect();
-			const handleBox = dragHandle.getBoundingClientRect();
+    // calculate offset for drag element if we use a different drag handle element
+    if (this.dom !== dragHandle) {
+      const domBox = this.dom.getBoundingClientRect();
+      const handleBox = dragHandle.getBoundingClientRect();
 
-			// In React, we have to go through nativeEvent to reach offsetX/offsetY.
-			const offsetX = event.offsetX ?? (event as DragEvent & {nativeEvent?: DragEvent}).nativeEvent?.offsetX;
-			const offsetY = event.offsetY ?? (event as DragEvent & {nativeEvent?: DragEvent}).nativeEvent?.offsetY;
+      // In React, we have to go through nativeEvent to reach offsetX/offsetY.
+      const offsetX =
+        event.offsetX ??
+        (event as DragEvent & { nativeEvent?: DragEvent }).nativeEvent?.offsetX;
+      const offsetY =
+        event.offsetY ??
+        (event as DragEvent & { nativeEvent?: DragEvent }).nativeEvent?.offsetY;
 
-			x = handleBox.x - domBox.x + offsetX;
-			y = handleBox.y - domBox.y + offsetY;
-		}
+      x = handleBox.x - domBox.x + offsetX;
+      y = handleBox.y - domBox.y + offsetY;
+    }
 
-		event.dataTransfer?.setDragImage(this.dom, x, y);
+    event.dataTransfer?.setDragImage(this.dom, x, y);
 
-		// we need to tell ProseMirror that we want to move the whole node
-		// so we create a NodeSelection
-		const selection = NodeSelection.create(view.state.doc, this.getPosition());
-		const transaction = view.state.tr.setSelection(selection);
+    // we need to tell ProseMirror that we want to move the whole node
+    // so we create a NodeSelection
+    const selection = NodeSelection.create(view.state.doc, this.getPosition());
+    const transaction = view.state.tr.setSelection(selection);
 
-		view.dispatch(transaction);
-	}
+    view.dispatch(transaction);
+  }
 
-	stopEvent(event: Event) {
-		if (!this.dom) {
-			return false;
-		}
+  stopEvent(event: Event) {
+    if (!this.dom) {
+      return false;
+    }
 
-		if (typeof this.options.stopEvent === 'function') {
-			return this.options.stopEvent({event});
-		}
+    if (typeof this.options.stopEvent === "function") {
+      return this.options.stopEvent({ event });
+    }
 
-		const target = event.target as HTMLElement;
-		const isInElement = this.dom.contains(target) && !this.contentDOM?.contains(target);
+    const target = event.target as HTMLElement;
+    const isInElement =
+      this.dom.contains(target) && !this.contentDOM?.contains(target);
 
-		// any event from child nodes should be handled by ProseMirror
-		if (!isInElement) {
-			return false;
-		}
+    // any event from child nodes should be handled by ProseMirror
+    if (!isInElement) {
+      return false;
+    }
 
-		const isDropEvent = event.type === 'drop';
-		const isInput =
-			['INPUT', 'BUTTON', 'SELECT', 'TEXTAREA'].includes(target.tagName) || target.isContentEditable;
+    const isDropEvent = event.type === "drop";
+    const isInput =
+      ["INPUT", "BUTTON", "SELECT", "TEXTAREA"].includes(target.tagName) ||
+      target.isContentEditable;
 
-		// any input event within node views should be ignored by ProseMirror
-		if (isInput && !isDropEvent) {
-			return true;
-		}
+    // any input event within node views should be ignored by ProseMirror
+    if (isInput && !isDropEvent) {
+      return true;
+    }
 
-		const {isEditable} = this.editor;
-		const {isDragging} = this;
-		const isDraggable = !!this.node.type.spec.draggable;
-		const isSelectable = NodeSelection.isSelectable(this.node);
-		const isCopyEvent = event.type === 'copy';
-		const isPasteEvent = event.type === 'paste';
-		const isCutEvent = event.type === 'cut';
-		const isClickEvent = event.type === 'mousedown';
-		const isDragEvent = event.type.startsWith('drag');
+    const { isEditable } = this.editor;
+    const { isDragging } = this;
+    const isDraggable = !!this.node.type.spec.draggable;
+    const isSelectable = NodeSelection.isSelectable(this.node);
+    const isCopyEvent = event.type === "copy";
+    const isPasteEvent = event.type === "paste";
+    const isCutEvent = event.type === "cut";
+    const isClickEvent = event.type === "mousedown";
+    const isDragEvent = event.type.startsWith("drag");
 
-		// ProseMirror tries to drag selectable nodes
-		// even if `draggable` is set to `false`
-		// this fix prevents that
-		if (!isDraggable && isSelectable && isDragEvent) {
-			event.preventDefault();
-		}
+    // ProseMirror tries to drag selectable nodes
+    // even if `draggable` is set to `false`
+    // this fix prevents that
+    if (!isDraggable && isSelectable && isDragEvent) {
+      event.preventDefault();
+    }
 
-		if (isDraggable && isDragEvent && !isDragging) {
-			event.preventDefault();
-			return false;
-		}
+    if (isDraggable && isDragEvent && !isDragging) {
+      event.preventDefault();
+      return false;
+    }
 
-		// we have to store that dragging started
-		if (isDraggable && isEditable && !isDragging && isClickEvent) {
-			const dragHandle = target.closest('[data-drag-handle]');
-			const isValidDragHandle =
-				dragHandle && (this.dom === dragHandle || this.dom.contains(dragHandle));
+    // we have to store that dragging started
+    if (isDraggable && isEditable && !isDragging && isClickEvent) {
+      const dragHandle = target.closest("[data-drag-handle]");
+      const isValidDragHandle =
+        dragHandle &&
+        (this.dom === dragHandle || this.dom.contains(dragHandle));
 
-			if (isValidDragHandle) {
-				this.isDragging = true;
+      if (isValidDragHandle) {
+        this.isDragging = true;
 
-				document.addEventListener(
-					'dragend',
-					() => {
-						this.isDragging = false;
-					},
-					{once: true},
-				);
+        document.addEventListener(
+          "dragend",
+          () => {
+            this.isDragging = false;
+          },
+          { once: true },
+        );
 
-				document.addEventListener(
-					'mouseup',
-					() => {
-						this.isDragging = false;
-					},
-					{once: true},
-				);
-			}
-		}
+        document.addEventListener(
+          "mouseup",
+          () => {
+            this.isDragging = false;
+          },
+          { once: true },
+        );
+      }
+    }
 
-		// these events are handled by prosemirror
-		if (
-			isDragging ||
-			isDropEvent ||
-			isCopyEvent ||
-			isPasteEvent ||
-			isCutEvent ||
-			(isClickEvent && isSelectable)
-		) {
-			return false;
-		}
+    // these events are handled by prosemirror
+    if (
+      isDragging ||
+      isDropEvent ||
+      isCopyEvent ||
+      isPasteEvent ||
+      isCutEvent ||
+      (isClickEvent && isSelectable)
+    ) {
+      return false;
+    }
 
-		return true;
-	}
+    return true;
+  }
 
-	ignoreMutation(mutation: ViewMutationRecord) {
-		if (!this.dom || !this.contentDOM) {
-			return true;
-		}
+  ignoreMutation(mutation: ViewMutationRecord) {
+    if (!this.dom || !this.contentDOM) {
+      return true;
+    }
 
-		if (typeof this.options.ignoreMutation === 'function') {
-			return this.options.ignoreMutation({mutation});
-		}
+    if (typeof this.options.ignoreMutation === "function") {
+      return this.options.ignoreMutation({ mutation });
+    }
 
-		// a leaf/atom node is like a black box for ProseMirror
-		// and should be fully handled by the node view
-		if (this.node.isLeaf || this.node.isAtom) {
-			return true;
-		}
+    // a leaf/atom node is like a black box for ProseMirror
+    // and should be fully handled by the node view
+    if (this.node.isLeaf || this.node.isAtom) {
+      return true;
+    }
 
-		// ProseMirror should handle any selections
-		if (mutation.type === 'selection') {
-			return false;
-		}
+    // ProseMirror should handle any selections
+    if (mutation.type === "selection") {
+      return false;
+    }
 
-		const ignoreMutationIOsResult = ignoreMutationIOS(mutation, this.editor, this.dom);
+    const ignoreMutationIOsResult = ignoreMutationIOS(
+      mutation,
+      this.editor,
+      this.dom,
+    );
 
-		if (ignoreMutationIOsResult.wasProcessed) {
-			return ignoreMutationIOsResult.value;
-		}
+    if (ignoreMutationIOsResult.wasProcessed) {
+      return ignoreMutationIOsResult.value;
+    }
 
-		// we will allow mutation contentDOM with attributes
-		// so we can for example adding classes within our node view
-		if (this.contentDOM === mutation.target && mutation.type === 'attributes') {
-			return true;
-		}
+    // we will allow mutation contentDOM with attributes
+    // so we can for example adding classes within our node view
+    if (this.contentDOM === mutation.target && mutation.type === "attributes") {
+      return true;
+    }
 
-		// ProseMirror should handle any changes within contentDOM
-		if (this.contentDOM.contains(mutation.target)) {
-			return false;
-		}
+    // ProseMirror should handle any changes within contentDOM
+    if (this.contentDOM.contains(mutation.target)) {
+      return false;
+    }
 
-		return true;
-	}
+    return true;
+  }
 
-	updateAttributes(attributes: object) {
-		this.editor.commands.command(({tr}) => {
-			const pos = this.getPosition();
+  updateAttributes(attributes: object) {
+    this.editor.commands.command(({ tr }) => {
+      const pos = this.getPosition();
 
-			tr.setNodeMarkup(pos, undefined, {
-				...this.node.attrs,
-				...attributes,
-			});
+      tr.setNodeMarkup(pos, undefined, {
+        ...this.node.attrs,
+        ...attributes,
+      });
 
-			return true;
-		});
-	}
+      return true;
+    });
+  }
 
-	deleteNode(): void {
-		const from = this.getPosition();
-		const to = from + this.node.nodeSize;
+  deleteNode(): void {
+    const from = this.getPosition();
+    const to = from + this.node.nodeSize;
 
-		this.editor.commands.deleteRange({from, to});
-	}
+    this.editor.commands.deleteRange({ from, to });
+  }
 }

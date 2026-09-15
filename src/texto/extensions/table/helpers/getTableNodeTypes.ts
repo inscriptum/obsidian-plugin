@@ -16,7 +16,7 @@ export function getTableNodeTypes(schema: SchemaWithCache): {
   Object.keys(schema.nodes).forEach((type) => {
     const nodeType = schema.nodes[type];
 
-    if (typeof nodeType.spec.tableRole === 'string') {
+    if (typeof nodeType.spec.tableRole === "string") {
       roles[nodeType.spec.tableRole] = nodeType;
     }
   });

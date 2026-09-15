@@ -1,5 +1,5 @@
-import {describe, expect, it, vi} from "vitest";
-import {Platform} from "obsidian";
+import { describe, expect, it, vi } from "vitest";
+import { Platform } from "obsidian";
 import {
   createPhysicalShortcutPlugin,
   findCommandsCollidingWith,
@@ -69,26 +69,34 @@ describe("physicalEventName", () => {
   it("derives the Latin key from the physical code (Cyrillic layout)", () => {
     Platform.isMacOS = true;
     // Russian layout: Cmd+B reports key="и"
-    expect(physicalEventName(evt({code: "KeyB", key: "и", metaKey: true}))).toBe("meta-b");
+    expect(
+      physicalEventName(evt({ code: "KeyB", key: "и", metaKey: true })),
+    ).toBe("meta-b");
     Platform.isMacOS = false;
-    expect(physicalEventName(evt({code: "KeyB", key: "и", ctrlKey: true, shiftKey: true}))).toBe(
-      "ctrl-shift-b",
-    );
+    expect(
+      physicalEventName(
+        evt({ code: "KeyB", key: "и", ctrlKey: true, shiftKey: true }),
+      ),
+    ).toBe("ctrl-shift-b");
   });
 
   it("derives digits from Digit codes", () => {
     Platform.isMacOS = true;
-    expect(physicalEventName(evt({code: "Digit8", key: "8", shiftKey: true}))).toBe("shift-8");
+    expect(
+      physicalEventName(evt({ code: "Digit8", key: "8", shiftKey: true })),
+    ).toBe("shift-8");
     // macOS Alt+8 reports a symbol as key; the code wins
-    expect(physicalEventName(evt({code: "Digit1", key: "¡", metaKey: true, altKey: true}))).toBe(
-      "alt-meta-1",
-    );
+    expect(
+      physicalEventName(
+        evt({ code: "Digit1", key: "¡", metaKey: true, altKey: true }),
+      ),
+    ).toBe("alt-meta-1");
   });
 
   it("returns null without a single-character key", () => {
-    expect(physicalEventName(evt({code: "Enter", key: "Enter"}))).toBeNull();
-    expect(physicalEventName(evt({code: "", key: "Escape"}))).toBeNull();
-    expect(physicalEventName(evt({code: "", key: ""}))).toBeNull();
+    expect(physicalEventName(evt({ code: "Enter", key: "Enter" }))).toBeNull();
+    expect(physicalEventName(evt({ code: "", key: "Escape" }))).toBeNull();
+    expect(physicalEventName(evt({ code: "", key: "" }))).toBeNull();
   });
 });
 
@@ -97,40 +105,71 @@ describe("matchPressedCommand", () => {
 
   it("matches a Cyrillic key event by physical code (Cmd on mac)", () => {
     Platform.isMacOS = true;
-    expect(matchPressedCommand(evt({code: "KeyB", key: "и", metaKey: true}), shortcuts)).toBe("Mod-b");
-    expect(isPressedCommand(evt({code: "KeyB", key: "и", metaKey: true}), shortcuts)).toBe(true);
+    expect(
+      matchPressedCommand(
+        evt({ code: "KeyB", key: "и", metaKey: true }),
+        shortcuts,
+      ),
+    ).toBe("Mod-b");
+    expect(
+      isPressedCommand(
+        evt({ code: "KeyB", key: "и", metaKey: true }),
+        shortcuts,
+      ),
+    ).toBe(true);
   });
 
   it("matches a Cyrillic key event by physical code (Ctrl on windows)", () => {
     Platform.isMacOS = false;
-    expect(matchPressedCommand(evt({code: "KeyB", key: "и", ctrlKey: true}), shortcuts)).toBe("Mod-b");
+    expect(
+      matchPressedCommand(
+        evt({ code: "KeyB", key: "и", ctrlKey: true }),
+        shortcuts,
+      ),
+    ).toBe("Mod-b");
   });
 
   it("requires shift to match shift variants", () => {
     Platform.isMacOS = true;
-    const withShift = evt({code: "KeyB", metaKey: true, shiftKey: true});
+    const withShift = evt({ code: "KeyB", metaKey: true, shiftKey: true });
     expect(matchPressedCommand(withShift, shortcuts)).toBe("Mod-Shift-b");
     // Cmd+Shift+B must not toggle bold
-    expect(matchPressedCommand(withShift, ["Mod-b", "Mod-Shift-b"])).toBe("Mod-Shift-b");
+    expect(matchPressedCommand(withShift, ["Mod-b", "Mod-Shift-b"])).toBe(
+      "Mod-Shift-b",
+    );
     expect(matchPressedCommand(withShift, ["Mod-b"])).toBeNull();
   });
 
   it("matches digits physically", () => {
     Platform.isMacOS = false;
-    expect(matchPressedCommand(evt({code: "Digit8", key: "8", ctrlKey: true, shiftKey: true}), ["Mod-Shift-8"])).toBe(
-      "Mod-Shift-8",
-    );
+    expect(
+      matchPressedCommand(
+        evt({ code: "Digit8", key: "8", ctrlKey: true, shiftKey: true }),
+        ["Mod-Shift-8"],
+      ),
+    ).toBe("Mod-Shift-8");
   });
 
   it("does not match events without modifiers or unregistered keys", () => {
     Platform.isMacOS = true;
-    expect(matchPressedCommand(evt({code: "KeyB", key: "b"}), shortcuts)).toBeNull();
-    expect(matchPressedCommand(evt({code: "KeyC", key: "c", metaKey: true}), shortcuts)).toBeNull();
+    expect(
+      matchPressedCommand(evt({ code: "KeyB", key: "b" }), shortcuts),
+    ).toBeNull();
+    expect(
+      matchPressedCommand(
+        evt({ code: "KeyC", key: "c", metaKey: true }),
+        shortcuts,
+      ),
+    ).toBeNull();
   });
 
   it("skips non-character shortcuts (they stay with the PM keymap)", () => {
     Platform.isMacOS = false;
-    expect(matchPressedCommand(evt({code: "Enter", key: "Enter", ctrlKey: true}), ["Mod-Enter"])).toBeNull();
+    expect(
+      matchPressedCommand(evt({ code: "Enter", key: "Enter", ctrlKey: true }), [
+        "Mod-Enter",
+      ]),
+    ).toBeNull();
   });
 });
 
@@ -167,7 +206,7 @@ describe("nameToKeyboardEvent", () => {
 
 describe("forwarded shortcut markers", () => {
   it("round-trips", () => {
-    const event = evt({code: "KeyK", metaKey: true});
+    const event = evt({ code: "KeyK", metaKey: true });
     expect(isForwardedShortcut(event)).toBe(false);
     markForwardedShortcut(event);
     expect(isForwardedShortcut(event)).toBe(true);
@@ -175,8 +214,11 @@ describe("forwarded shortcut markers", () => {
 });
 
 describe("findCommandsCollidingWith", () => {
-  function cmd(hotkeys: Array<{modifiers?: string[]; key?: string}>, kind: "check" | "callback" = "check") {
-    const c: Record<string, unknown> = {hotkeys};
+  function cmd(
+    hotkeys: Array<{ modifiers?: string[]; key?: string }>,
+    kind: "check" | "callback" = "check",
+  ) {
+    const c: Record<string, unknown> = { hotkeys };
     if (kind === "check") c.checkCallback = () => false;
     else c.callback = () => {};
     return c;
@@ -186,13 +228,15 @@ describe("findCommandsCollidingWith", () => {
     Platform.isMacOS = true;
     const owned = ["Mod-b", "Mod-Shift-b", "Mod-f"];
     const commands = {
-      "editor:toggle-bold": cmd([{modifiers: ["Mod"], key: "B"}]),
-      "editor:toggle-bold-upper": cmd([{modifiers: ["Mod", "Shift"], key: "B"}]),
-      "search:find": cmd([{modifiers: ["Mod"], key: "F"}]),
-      "command-palette:open": cmd([{modifiers: ["Mod"], key: "P"}]),
+      "editor:toggle-bold": cmd([{ modifiers: ["Mod"], key: "B" }]),
+      "editor:toggle-bold-upper": cmd([
+        { modifiers: ["Mod", "Shift"], key: "B" },
+      ]),
+      "search:find": cmd([{ modifiers: ["Mod"], key: "F" }]),
+      "command-palette:open": cmd([{ modifiers: ["Mod"], key: "P" }]),
       "no-hotkeys": cmd([]),
-      "unmatched": cmd([{modifiers: ["Mod"], key: "Q"}]),
-      "no-callback": {hotkeys: [{modifiers: ["Mod"], key: "B"}]},
+      unmatched: cmd([{ modifiers: ["Mod"], key: "Q" }]),
+      "no-callback": { hotkeys: [{ modifiers: ["Mod"], key: "B" }] },
     };
     const collisions = findCommandsCollidingWith(commands as never, owned);
     expect([...collisions.keys()].sort()).toEqual([
@@ -206,17 +250,25 @@ describe("findCommandsCollidingWith", () => {
 
   it("matches platform-appropriate Mod expansion", () => {
     Platform.isMacOS = false;
-    const commands = {"win-only": cmd([{modifiers: ["Ctrl"], key: "B"}])};
+    const commands = { "win-only": cmd([{ modifiers: ["Ctrl"], key: "B" }]) };
     // on Windows Mod expands to Ctrl: the hotkey collides
-    expect(findCommandsCollidingWith(commands as never, ["Mod-b"]).size).toBe(1);
+    expect(findCommandsCollidingWith(commands as never, ["Mod-b"]).size).toBe(
+      1,
+    );
     Platform.isMacOS = true;
     // on macOS Mod expands to Meta: no collision with a Ctrl hotkey
-    expect(findCommandsCollidingWith(commands as never, ["Mod-b"]).size).toBe(0);
+    expect(findCommandsCollidingWith(commands as never, ["Mod-b"]).size).toBe(
+      0,
+    );
   });
 
   it("supports CommandOrControl hotkeys", () => {
-    const commands = {"custom": cmd([{modifiers: ["CommandOrControl"], key: "F"}])};
-    expect(findCommandsCollidingWith(commands as never, ["Mod-f"]).size).toBe(1);
+    const commands = {
+      custom: cmd([{ modifiers: ["CommandOrControl"], key: "F" }]),
+    };
+    expect(findCommandsCollidingWith(commands as never, ["Mod-f"]).size).toBe(
+      1,
+    );
   });
 });
 
@@ -234,7 +286,7 @@ describe("createPhysicalShortcutPlugin", () => {
     const plugin = makePlugin(handle);
     const result = plugin.props.handleKeyDown?.(
       {} as never,
-      evt({key: "и", code: "KeyB", metaKey: true}) as KeyboardEvent,
+      evt({ key: "и", code: "KeyB", metaKey: true }) as KeyboardEvent,
     );
     expect(result).toBe(true);
     expect(handle).toHaveBeenCalled();
@@ -244,8 +296,13 @@ describe("createPhysicalShortcutPlugin", () => {
     Platform.isMacOS = true;
     const handle = vi.fn(() => true);
     const plugin = makePlugin(handle);
-    expect(plugin.props.handleKeyDown?.({} as never, evt({key: "b", code: "KeyB"}))).toBe(false);
-    const forwarded = evt({key: "k", code: "KeyK", metaKey: true});
+    expect(
+      plugin.props.handleKeyDown?.(
+        {} as never,
+        evt({ key: "b", code: "KeyB" }),
+      ),
+    ).toBe(false);
+    const forwarded = evt({ key: "k", code: "KeyK", metaKey: true });
     markForwardedShortcut(forwarded);
     expect(plugin.props.handleKeyDown?.({} as never, forwarded)).toBe(false);
     expect(handle).not.toHaveBeenCalled();
@@ -255,7 +312,12 @@ describe("createPhysicalShortcutPlugin", () => {
     Platform.isMacOS = true;
     const handle = vi.fn(() => true);
     const plugin = makePlugin(handle);
-    expect(plugin.props.handleKeyDown?.({} as never, evt({key: "c", code: "KeyC", metaKey: true}))).toBe(false);
+    expect(
+      plugin.props.handleKeyDown?.(
+        {} as never,
+        evt({ key: "c", code: "KeyC", metaKey: true }),
+      ),
+    ).toBe(false);
     expect(handle).not.toHaveBeenCalled();
   });
 });

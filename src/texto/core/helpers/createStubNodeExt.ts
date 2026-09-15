@@ -1,5 +1,5 @@
-import type {NodeConfig} from '../@types/NodeConfig';
-import {Node} from '../Node';
+import type { NodeConfig } from "../@types/NodeConfig";
+import { Node } from "../Node";
 
 /**
  * Create a stub node extension based on a real node config
@@ -8,24 +8,24 @@ import {Node} from '../Node';
  * @param htmlTag - a stub
  * @returns stubbing node
  */
-export function createStubNodeExt(config: NodeConfig, htmlTag = 'texto-stub') {
-	return Node.create({
-		...config,
+export function createStubNodeExt(config: NodeConfig, htmlTag = "texto-stub") {
+  return Node.create({
+    ...config,
 
-		selectable: false,
-		draggable: false,
-		defining: false,
+    selectable: false,
+    draggable: false,
+    defining: false,
 
-		parseHTML() {
-			return [{tag: htmlTag}];
-		},
+    parseHTML() {
+      return [{ tag: htmlTag }];
+    },
 
-		renderHTML({HTMLAttributes}) {
-			return [htmlTag, HTMLAttributes];
-		},
+    renderHTML({ HTMLAttributes }) {
+      return [htmlTag, HTMLAttributes];
+    },
 
-		addCommands: undefined,
-		addProseMirrorPlugins: undefined,
-		addNodeView: undefined,
-	});
+    addCommands: undefined,
+    addProseMirrorPlugins: undefined,
+    addNodeView: undefined,
+  });
 }

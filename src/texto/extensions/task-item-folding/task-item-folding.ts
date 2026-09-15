@@ -1,12 +1,12 @@
-import { Extension } from '../../core';
-import { addCommands } from './foldingCommands';
+import { Extension } from "../../core";
+import { addCommands } from "./foldingCommands";
 import {
   createTaskFoldKeymapPlugin,
   createTaskFoldingPlugin,
   getFoldedTaskPositions,
   restoreFoldedTasks,
   taskFoldingKey,
-} from './taskFoldingPlugin';
+} from "./taskFoldingPlugin";
 
 export interface TaskItemFoldingOptions {
   /** Disable folding entirely (mobile, mirroring heading folding v1). */
@@ -18,13 +18,13 @@ export interface TaskItemFoldingStorage {
   positions: number[];
 }
 
-declare module '../../core' {
+declare module "../../core" {
   interface Commands<ReturnType> {
     taskItemFolding: {
-      toggleTaskFold: (pos: number) => ReturnType
-      foldTask: (pos: number) => ReturnType
-      unfoldTask: (pos: number) => ReturnType
-    }
+      toggleTaskFold: (pos: number) => ReturnType;
+      foldTask: (pos: number) => ReturnType;
+      unfoldTask: (pos: number) => ReturnType;
+    };
   }
 }
 
@@ -32,7 +32,7 @@ export const TaskItemFolding = Extension.create<
   TaskItemFoldingOptions,
   TaskItemFoldingStorage
 >({
-  name: 'taskItemFolding',
+  name: "taskItemFolding",
 
   addOptions() {
     return {
@@ -61,17 +61,21 @@ export const TaskItemFolding = Extension.create<
 
     return [
       createTaskFoldingPlugin({
-        taskItemTypeName: 'taskItem',
+        taskItemTypeName: "taskItem",
       }),
       // Enter at the end of a folded task item's text: unfold + new line
       // after the revealed nested content (heading-folding parity).
       // See taskFoldingPlugin.ts.
       createTaskFoldKeymapPlugin({
-        taskItemTypeName: 'taskItem',
+        taskItemTypeName: "taskItem",
       }),
     ];
   },
 });
 
 export { taskFoldingKey, getFoldedTaskPositions, restoreFoldedTasks };
-export type { TaskSectionRange, TaskFoldingMeta, TaskFoldingState } from './taskFoldingPlugin';
+export type {
+  TaskSectionRange,
+  TaskFoldingMeta,
+  TaskFoldingState,
+} from "./taskFoldingPlugin";

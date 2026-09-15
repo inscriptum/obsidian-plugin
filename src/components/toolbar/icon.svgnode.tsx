@@ -19,12 +19,19 @@ function makeToolbarIconNode(name: ToolbarIconName) {
       yield (
         <svg class="note-toolbar__icon" viewBox="0 0 24 24">
           {/* href (SVG2) + xlink:href (legacy) for max <use> compatibility */}
-          <use href={`#inscriptum-tlb-${name}`} xlinkHref={`#inscriptum-tlb-${name}`} />
+          <use
+            href={`#inscriptum-tlb-${name}`}
+            xlinkHref={`#inscriptum-tlb-${name}`}
+          />
         </svg>
       );
     }
   })();
 }
 
-export const toolbarIconNodes: Record<ToolbarIconName, ReturnType<typeof makeToolbarIconNode>> =
-  Object.fromEntries(TOOLBAR_ICON_NAMES.map((name) => [name, makeToolbarIconNode(name)]));
+export const toolbarIconNodes: Record<
+  ToolbarIconName,
+  ReturnType<typeof makeToolbarIconNode>
+> = Object.fromEntries(
+  TOOLBAR_ICON_NAMES.map((name) => [name, makeToolbarIconNode(name)]),
+);

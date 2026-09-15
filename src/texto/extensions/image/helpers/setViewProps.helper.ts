@@ -26,7 +26,11 @@ const LAYOUT_CLASSES: Partial<Record<ImageLayout, string>> = {
 };
 
 /** Sync the host element class list and explicit width with node attrs. */
-function syncLayoutStyles(element: HTMLElement, attrs: ImageOptionsAttrs, hasError: boolean): void {
+function syncLayoutStyles(
+  element: HTMLElement,
+  attrs: ImageOptionsAttrs,
+  hasError: boolean,
+): void {
   for (const cls of Object.values(LAYOUT_CLASSES)) {
     element.classList.remove(cls);
   }

@@ -1,11 +1,11 @@
-import type { CommandsSet } from '../../core/@types';
-import type { addCommands } from './foldingCommands';
+import type { CommandsSet } from "../../core/@types";
+import type { addCommands } from "./foldingCommands";
 
 export {
   TaskItemFolding,
   type TaskItemFoldingOptions,
   type TaskItemFoldingStorage,
-} from './task-item-folding';
+} from "./task-item-folding";
 export {
   taskFoldingKey,
   collectTaskSections,
@@ -15,7 +15,7 @@ export {
   type TaskSectionRange,
   type TaskFoldingMeta,
   type TaskFoldingState,
-} from './taskFoldingPlugin';
+} from "./taskFoldingPlugin";
 
 // Registers toggleTaskFold/foldTask/unfoldTask on the global Commands
 // interface (same pattern as extensions/heading/index.ts), so

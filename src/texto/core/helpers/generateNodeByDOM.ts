@@ -1,7 +1,7 @@
-import {type Node as ProsemirrorNode,DOMParser} from 'prosemirror-model';
+import { type Node as ProsemirrorNode, DOMParser } from "prosemirror-model";
 
-import type {Extensions} from '../@types';
-import {getSchema} from './getSchema';
+import type { Extensions } from "../@types";
+import { getSchema } from "./getSchema";
 
 /**
  * Generate a new ProsemirrorNode from HTML element by schema
@@ -10,9 +10,12 @@ import {getSchema} from './getSchema';
  * @param extensions - schema extensions
  * @returns ProsemirrorNode
  */
-export function generateNodeByDOM(dom: HTMLElement, extensions: Extensions): ProsemirrorNode {
-	const schema = getSchema(extensions);
+export function generateNodeByDOM(
+  dom: HTMLElement,
+  extensions: Extensions,
+): ProsemirrorNode {
+  const schema = getSchema(extensions);
 
-	const parser = DOMParser.fromSchema(schema);
-	return parser.parse(dom, {preserveWhitespace: 'full'});
+  const parser = DOMParser.fromSchema(schema);
+  return parser.parse(dom, { preserveWhitespace: "full" });
 }

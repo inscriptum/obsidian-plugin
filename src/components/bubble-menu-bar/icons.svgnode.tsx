@@ -21,7 +21,10 @@ function makeBubbleIconNode(name: BubbleIconName) {
     while (true) {
       yield (
         <svg viewBox="0 0 24 24">
-          <use href={`#inscriptum-bb-${name}`} xlinkHref={`#inscriptum-bb-${name}`} />
+          <use
+            href={`#inscriptum-bb-${name}`}
+            xlinkHref={`#inscriptum-bb-${name}`}
+          />
         </svg>
       );
     }

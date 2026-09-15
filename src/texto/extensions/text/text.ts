@@ -1,6 +1,6 @@
-import { Node } from '../../core'
+import { Node } from "../../core";
 
 export const Text = Node.create({
-  name: 'text',
-  group: 'inline',
-})
+  name: "text",
+  group: "inline",
+});

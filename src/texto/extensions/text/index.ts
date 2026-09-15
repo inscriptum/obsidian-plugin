@@ -1,4 +1,4 @@
-import { Text } from './text'
+import { Text } from "./text";
 
-export * from './text'
-export default Text
+export * from "./text";
+export default Text;

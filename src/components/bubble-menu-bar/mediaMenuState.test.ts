@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { EditorState, NodeSelection, TextSelection } from "prosemirror-state";
 import { buildSchema } from "../../../tests/helpers/buildSchema";
-import { getMediaMenuState, getSelectedMediaNode, isMediaNodeSelection } from "./mediaMenuState";
+import {
+  getMediaMenuState,
+  getSelectedMediaNode,
+  isMediaNodeSelection,
+} from "./mediaMenuState";
 
 const schema = buildSchema();
 
@@ -10,13 +14,22 @@ function mediaState(nodeType: "image" | "attachment") {
     key: "k-media",
     data: { id: "file.bin", filename: "report.pdf" },
   });
-  const doc = schema.nodes.noteDoc.create(null, [schema.nodes.noteTitle.create(), node]);
+  const doc = schema.nodes.noteDoc.create(null, [
+    schema.nodes.noteTitle.create(),
+    node,
+  ]);
   let pos = -1;
   doc.descendants((n, p) => {
-    if (n.type.name === nodeType) { pos = p; return false; }
+    if (n.type.name === nodeType) {
+      pos = p;
+      return false;
+    }
     return true;
   });
-  const state = EditorState.create({ doc, selection: NodeSelection.create(doc, pos) });
+  const state = EditorState.create({
+    doc,
+    selection: NodeSelection.create(doc, pos),
+  });
   return { state, doc };
 }
 
@@ -31,7 +44,10 @@ describe("isMediaNodeSelection", () => {
       schema.nodes.noteTitle.create(),
       schema.nodes.paragraph.create(null, schema.text("hello")),
     ]);
-    const state = EditorState.create({ doc, selection: TextSelection.create(doc, 1) });
+    const state = EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, 1),
+    });
     expect(isMediaNodeSelection(state)).toBe(false);
   });
 });
@@ -52,20 +68,49 @@ describe("getMediaMenuState", () => {
       data: { id: "file.bin", filename: "report.pdf" },
       align: "wrap-right",
     });
-    const doc = schema.nodes.noteDoc.create(null, [schema.nodes.noteTitle.create(), node]);
+    const doc = schema.nodes.noteDoc.create(null, [
+      schema.nodes.noteTitle.create(),
+      node,
+    ]);
     let pos = -1;
-    doc.descendants((n, p) => { if (n.type.name === "image") { pos = p; return false; } return true; });
-    const state = EditorState.create({ doc, selection: NodeSelection.create(doc, pos) });
+    doc.descendants((n, p) => {
+      if (n.type.name === "image") {
+        pos = p;
+        return false;
+      }
+      return true;
+    });
+    const state = EditorState.create({
+      doc,
+      selection: NodeSelection.create(doc, pos),
+    });
     expect(getMediaMenuState(state).align).toBe("wrap-right");
   });
 
   it("returns hasFile:false and align:left for a node without data.id", () => {
     const node = schema.nodes.image.create({ key: "k-empty", data: null });
-    const doc = schema.nodes.noteDoc.create(null, [schema.nodes.noteTitle.create(), node]);
+    const doc = schema.nodes.noteDoc.create(null, [
+      schema.nodes.noteTitle.create(),
+      node,
+    ]);
     let pos = -1;
-    doc.descendants((n, p) => { if (n.type.name === "image") { pos = p; return false; } return true; });
-    const state = EditorState.create({ doc, selection: NodeSelection.create(doc, pos) });
-    expect(getMediaMenuState(state)).toEqual({ nodeType: "image", filename: "", hasFile: false, align: "left" });
+    doc.descendants((n, p) => {
+      if (n.type.name === "image") {
+        pos = p;
+        return false;
+      }
+      return true;
+    });
+    const state = EditorState.create({
+      doc,
+      selection: NodeSelection.create(doc, pos),
+    });
+    expect(getMediaMenuState(state)).toEqual({
+      nodeType: "image",
+      filename: "",
+      hasFile: false,
+      align: "left",
+    });
   });
 
   it("returns a null state with align:null for a non-media selection", () => {
@@ -73,8 +118,16 @@ describe("getMediaMenuState", () => {
       schema.nodes.noteTitle.create(),
       schema.nodes.paragraph.create(null, schema.text("hello")),
     ]);
-    const state = EditorState.create({ doc, selection: TextSelection.create(doc, 1) });
-    expect(getMediaMenuState(state)).toEqual({ nodeType: null, filename: "", hasFile: false, align: null });
+    const state = EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, 1),
+    });
+    expect(getMediaMenuState(state)).toEqual({
+      nodeType: null,
+      filename: "",
+      hasFile: false,
+      align: null,
+    });
   });
 
   it("returns align:null for an attachment selection", () => {
@@ -96,7 +149,10 @@ describe("getSelectedMediaNode", () => {
       schema.nodes.noteTitle.create(),
       schema.nodes.paragraph.create(null, schema.text("hello")),
     ]);
-    const state = EditorState.create({ doc, selection: TextSelection.create(doc, 1) });
+    const state = EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, 1),
+    });
     expect(getSelectedMediaNode(state)).toBeNull();
   });
 });

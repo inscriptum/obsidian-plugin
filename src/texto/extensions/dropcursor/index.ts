@@ -1,4 +1,4 @@
-import { Dropcursor } from './dropcursor'
+import { Dropcursor } from "./dropcursor";
 
-export * from './dropcursor'
-export default Dropcursor
+export * from "./dropcursor";
+export default Dropcursor;

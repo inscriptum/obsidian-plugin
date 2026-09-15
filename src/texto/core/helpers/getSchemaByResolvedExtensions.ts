@@ -1,191 +1,265 @@
-import {type MarkSpec, type NodeSpec, Schema} from 'prosemirror-model';
+import { type MarkSpec, type NodeSpec, Schema } from "prosemirror-model";
 
-import type {AnyExtension, AnyRecord, Extensions} from '../@types';
-import type {AnyObject} from '../@types/AnyConfig';
-import type {MarkConfig} from '../@types/MarkConfig';
-import type {NodeConfig} from '../@types/NodeConfig';
-import {callOrReturn} from '../utilities/callOrReturn';
-import {isEmptyObject} from '../utilities/isEmptyObject';
-import {getAttributesFromExtensions} from './getAttributesFromExtensions';
-import {getExtensionField} from './getExtensionField';
-import {getRenderedAttributes} from './getRenderedAttributes';
-import {injectExtensionAttributesToParseRule} from './injectExtensionAttributesToParseRule';
-import {splitExtensions} from './splitExtensions';
+import type { AnyExtension, AnyRecord, Extensions } from "../@types";
+import type { AnyObject } from "../@types/AnyConfig";
+import type { MarkConfig } from "../@types/MarkConfig";
+import type { NodeConfig } from "../@types/NodeConfig";
+import { callOrReturn } from "../utilities/callOrReturn";
+import { isEmptyObject } from "../utilities/isEmptyObject";
+import { getAttributesFromExtensions } from "./getAttributesFromExtensions";
+import { getExtensionField } from "./getExtensionField";
+import { getRenderedAttributes } from "./getRenderedAttributes";
+import { injectExtensionAttributesToParseRule } from "./injectExtensionAttributesToParseRule";
+import { splitExtensions } from "./splitExtensions";
 
 type ExtendNodeSchema = ((extension: AnyExtension) => AnyRecord) | null;
 type ExtendMarkSchema = ((extension: AnyExtension) => AnyRecord) | null;
 
 function cleanUpSchemaItem<T extends AnyObject>(data: T) {
-	return Object.fromEntries(
-		Object.entries(data).filter(([key, value]) => {
-			if (key === 'attrs' && isEmptyObject(value as AnyRecord)) {
-				return false;
-			}
+  return Object.fromEntries(
+    Object.entries(data).filter(([key, value]) => {
+      if (key === "attrs" && isEmptyObject(value as AnyRecord)) {
+        return false;
+      }
 
-			return value !== null && value !== undefined;
-		}),
-	) as T;
+      return value !== null && value !== undefined;
+    }),
+  ) as T;
 }
 
 export function getSchemaByResolvedExtensions(extensions: Extensions): Schema {
-	const allAttributes = getAttributesFromExtensions(extensions);
-	const {nodeExtensions, markExtensions} = splitExtensions(extensions);
-	const topNode = nodeExtensions.find((extension) => getExtensionField(extension, 'topNode'))?.name;
+  const allAttributes = getAttributesFromExtensions(extensions);
+  const { nodeExtensions, markExtensions } = splitExtensions(extensions);
+  const topNode = nodeExtensions.find((extension) =>
+    getExtensionField(extension, "topNode"),
+  )?.name;
 
-	const nodes = Object.fromEntries(
-		nodeExtensions.map((extension) => {
-			const extensionAttributes = allAttributes.filter(
-				(attribute) => attribute.type === extension.name,
-			);
-			const context = {
-				name: extension.name,
-				options: extension.options as AnyRecord,
-				storage: extension.storage as AnyRecord,
-			};
+  const nodes = Object.fromEntries(
+    nodeExtensions.map((extension) => {
+      const extensionAttributes = allAttributes.filter(
+        (attribute) => attribute.type === extension.name,
+      );
+      const context = {
+        name: extension.name,
+        options: extension.options as AnyRecord,
+        storage: extension.storage as AnyRecord,
+      };
 
-			const extraNodeFields = extensions.reduce((fields, e) => {
-				const extendNodeSchema = getExtensionField<ExtendNodeSchema>(
-					e,
-					'extendNodeSchema',
-					context,
-				);
+      const extraNodeFields = extensions.reduce((fields, e) => {
+        const extendNodeSchema = getExtensionField<ExtendNodeSchema>(
+          e,
+          "extendNodeSchema",
+          context,
+        );
 
-				return {
-					...fields,
-					...(extendNodeSchema ? extendNodeSchema(extension) : {}),
-				};
-			}, {});
+        return {
+          ...fields,
+          ...(extendNodeSchema ? extendNodeSchema(extension) : {}),
+        };
+      }, {});
 
-			const schema: NodeSpec = cleanUpSchemaItem({
-				...extraNodeFields,
-				content: callOrReturn(
-					getExtensionField<NodeConfig['content']>(extension, 'content', context),
-				),
-				marks: callOrReturn(getExtensionField<NodeConfig['marks']>(extension, 'marks', context)),
-				group: callOrReturn(getExtensionField<NodeConfig['group']>(extension, 'group', context)),
-				inline: callOrReturn(getExtensionField<NodeConfig['inline']>(extension, 'inline', context)),
-				atom: callOrReturn(getExtensionField<NodeConfig['atom']>(extension, 'atom', context)),
-				selectable: callOrReturn(
-					getExtensionField<NodeConfig['selectable']>(extension, 'selectable', context),
-				),
-				draggable: callOrReturn(
-					getExtensionField<NodeConfig['draggable']>(extension, 'draggable', context),
-				),
-				code: callOrReturn(getExtensionField<NodeConfig['code']>(extension, 'code', context)),
-				defining: callOrReturn(
-					getExtensionField<NodeConfig['defining']>(extension, 'defining', context),
-				),
-				isolating: callOrReturn(
-					getExtensionField<NodeConfig['isolating']>(extension, 'isolating', context),
-				),
-				attrs: Object.fromEntries(
-					extensionAttributes.map((extensionAttribute) => {
-						return [extensionAttribute.name, {default: extensionAttribute?.attribute?.default as unknown}];
-					}),
-				),
-			});
+      const schema: NodeSpec = cleanUpSchemaItem({
+        ...extraNodeFields,
+        content: callOrReturn(
+          getExtensionField<NodeConfig["content"]>(
+            extension,
+            "content",
+            context,
+          ),
+        ),
+        marks: callOrReturn(
+          getExtensionField<NodeConfig["marks"]>(extension, "marks", context),
+        ),
+        group: callOrReturn(
+          getExtensionField<NodeConfig["group"]>(extension, "group", context),
+        ),
+        inline: callOrReturn(
+          getExtensionField<NodeConfig["inline"]>(extension, "inline", context),
+        ),
+        atom: callOrReturn(
+          getExtensionField<NodeConfig["atom"]>(extension, "atom", context),
+        ),
+        selectable: callOrReturn(
+          getExtensionField<NodeConfig["selectable"]>(
+            extension,
+            "selectable",
+            context,
+          ),
+        ),
+        draggable: callOrReturn(
+          getExtensionField<NodeConfig["draggable"]>(
+            extension,
+            "draggable",
+            context,
+          ),
+        ),
+        code: callOrReturn(
+          getExtensionField<NodeConfig["code"]>(extension, "code", context),
+        ),
+        defining: callOrReturn(
+          getExtensionField<NodeConfig["defining"]>(
+            extension,
+            "defining",
+            context,
+          ),
+        ),
+        isolating: callOrReturn(
+          getExtensionField<NodeConfig["isolating"]>(
+            extension,
+            "isolating",
+            context,
+          ),
+        ),
+        attrs: Object.fromEntries(
+          extensionAttributes.map((extensionAttribute) => {
+            return [
+              extensionAttribute.name,
+              { default: extensionAttribute?.attribute?.default as unknown },
+            ];
+          }),
+        ),
+      });
 
-			const parseHTML = callOrReturn(
-				getExtensionField<NodeConfig['parseHTML']>(extension, 'parseHTML', context),
-			);
+      const parseHTML = callOrReturn(
+        getExtensionField<NodeConfig["parseHTML"]>(
+          extension,
+          "parseHTML",
+          context,
+        ),
+      );
 
-			if (parseHTML) {
-				schema.parseDOM = parseHTML.map((parseRule) =>
-					injectExtensionAttributesToParseRule(parseRule, extensionAttributes),
-				);
-			}
+      if (parseHTML) {
+        schema.parseDOM = parseHTML.map((parseRule) =>
+          injectExtensionAttributesToParseRule(parseRule, extensionAttributes),
+        );
+      }
 
-			const renderHTML = getExtensionField<NodeConfig['renderHTML']>(extension, 'renderHTML', context);
+      const renderHTML = getExtensionField<NodeConfig["renderHTML"]>(
+        extension,
+        "renderHTML",
+        context,
+      );
 
-			if (renderHTML) {
-				schema.toDOM = (node) =>
-					renderHTML({
-						node,
-						HTMLAttributes: getRenderedAttributes(node, extensionAttributes),
-					});
-			}
+      if (renderHTML) {
+        schema.toDOM = (node) =>
+          renderHTML({
+            node,
+            HTMLAttributes: getRenderedAttributes(node, extensionAttributes),
+          });
+      }
 
-			const renderText = getExtensionField<NodeConfig['renderText']>(extension, 'renderText', context);
+      const renderText = getExtensionField<NodeConfig["renderText"]>(
+        extension,
+        "renderText",
+        context,
+      );
 
-			if (renderText) {
-				schema.toText = renderText;
-			}
+      if (renderText) {
+        schema.toText = renderText;
+      }
 
-			return [extension.name, schema];
-		}),
-	);
+      return [extension.name, schema];
+    }),
+  );
 
-	const marks = Object.fromEntries(
-		markExtensions.map((extension) => {
-			const extensionAttributes = allAttributes.filter(
-				(attribute) => attribute.type === extension.name,
-			);
-			const context = {
-				name: extension.name,
-				options: extension.options as AnyRecord,
-				storage: extension.storage as AnyRecord,
-			};
+  const marks = Object.fromEntries(
+    markExtensions.map((extension) => {
+      const extensionAttributes = allAttributes.filter(
+        (attribute) => attribute.type === extension.name,
+      );
+      const context = {
+        name: extension.name,
+        options: extension.options as AnyRecord,
+        storage: extension.storage as AnyRecord,
+      };
 
-			const extraMarkFields = extensions.reduce((fields, e) => {
-				const extendMarkSchema = getExtensionField<ExtendMarkSchema>(
-					e,
-					'extendMarkSchema',
-					context,
-				);
+      const extraMarkFields = extensions.reduce((fields, e) => {
+        const extendMarkSchema = getExtensionField<ExtendMarkSchema>(
+          e,
+          "extendMarkSchema",
+          context,
+        );
 
-				return {
-					...fields,
-					...(extendMarkSchema ? extendMarkSchema(extension) : {}),
-				};
-			}, {});
+        return {
+          ...fields,
+          ...(extendMarkSchema ? extendMarkSchema(extension) : {}),
+        };
+      }, {});
 
-			const schema: MarkSpec = cleanUpSchemaItem({
-				...extraMarkFields,
-				inclusive: callOrReturn(
-					getExtensionField<MarkConfig['inclusive']>(extension, 'inclusive', context),
-				),
-				excludes: callOrReturn(
-					getExtensionField<MarkConfig['excludes']>(extension, 'excludes', context),
-				),
-				group: callOrReturn(getExtensionField<MarkConfig['group']>(extension, 'group', context)),
-				spanning: callOrReturn(
-					getExtensionField<MarkConfig['spanning']>(extension, 'spanning', context),
-				),
-				code: callOrReturn(getExtensionField<MarkConfig['code']>(extension, 'code', context)),
-				attrs: Object.fromEntries(
-					extensionAttributes.map((extensionAttribute) => {
-						return [extensionAttribute.name, {default: extensionAttribute?.attribute?.default as unknown}];
-					}),
-				),
-			});
+      const schema: MarkSpec = cleanUpSchemaItem({
+        ...extraMarkFields,
+        inclusive: callOrReturn(
+          getExtensionField<MarkConfig["inclusive"]>(
+            extension,
+            "inclusive",
+            context,
+          ),
+        ),
+        excludes: callOrReturn(
+          getExtensionField<MarkConfig["excludes"]>(
+            extension,
+            "excludes",
+            context,
+          ),
+        ),
+        group: callOrReturn(
+          getExtensionField<MarkConfig["group"]>(extension, "group", context),
+        ),
+        spanning: callOrReturn(
+          getExtensionField<MarkConfig["spanning"]>(
+            extension,
+            "spanning",
+            context,
+          ),
+        ),
+        code: callOrReturn(
+          getExtensionField<MarkConfig["code"]>(extension, "code", context),
+        ),
+        attrs: Object.fromEntries(
+          extensionAttributes.map((extensionAttribute) => {
+            return [
+              extensionAttribute.name,
+              { default: extensionAttribute?.attribute?.default as unknown },
+            ];
+          }),
+        ),
+      });
 
-			const parseHTML = callOrReturn(
-				getExtensionField<MarkConfig['parseHTML']>(extension, 'parseHTML', context),
-			);
+      const parseHTML = callOrReturn(
+        getExtensionField<MarkConfig["parseHTML"]>(
+          extension,
+          "parseHTML",
+          context,
+        ),
+      );
 
-			if (parseHTML) {
-				schema.parseDOM = parseHTML.map((parseRule) =>
-					injectExtensionAttributesToParseRule(parseRule, extensionAttributes),
-				);
-			}
+      if (parseHTML) {
+        schema.parseDOM = parseHTML.map((parseRule) =>
+          injectExtensionAttributesToParseRule(parseRule, extensionAttributes),
+        );
+      }
 
-			const renderHTML = getExtensionField<MarkConfig['renderHTML']>(extension, 'renderHTML', context);
+      const renderHTML = getExtensionField<MarkConfig["renderHTML"]>(
+        extension,
+        "renderHTML",
+        context,
+      );
 
-			if (renderHTML) {
-				schema.toDOM = (mark) =>
-					renderHTML({
-						mark,
-						HTMLAttributes: getRenderedAttributes(mark, extensionAttributes),
-					});
-			}
+      if (renderHTML) {
+        schema.toDOM = (mark) =>
+          renderHTML({
+            mark,
+            HTMLAttributes: getRenderedAttributes(mark, extensionAttributes),
+          });
+      }
 
-			return [extension.name, schema];
-		}),
-	);
+      return [extension.name, schema];
+    }),
+  );
 
-	return new Schema({
-		topNode,
-		nodes,
-		marks,
-	});
+  return new Schema({
+    topNode,
+    nodes,
+    marks,
+  });
 }

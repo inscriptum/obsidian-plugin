@@ -1,5 +1,5 @@
-import {Platform} from 'obsidian';
+import { Platform } from "obsidian";
 
 export function isMacOS(): boolean {
-	return Platform.isMacOS;
+  return Platform.isMacOS;
 }

@@ -1,26 +1,26 @@
-import type {NodeType} from 'prosemirror-model';
+import type { NodeType } from "prosemirror-model";
 
-import type {AnyRecord, Command} from '../@types';
-import {getNodeType} from '../helpers/getNodeType';
-import {isNodeActive} from '../helpers/isNodeActive';
+import type { AnyRecord, Command } from "../@types";
+import { getNodeType } from "../helpers/getNodeType";
+import { isNodeActive } from "../helpers/isNodeActive";
 
 /**
  * Toggle a node with another node.
  */
 export function toggleNode(
-	typeOrName: string | NodeType,
-	toggleTypeOrName: string | NodeType,
-	attributes: AnyRecord = {},
+  typeOrName: string | NodeType,
+  toggleTypeOrName: string | NodeType,
+  attributes: AnyRecord = {},
 ): Command {
-	return ({state, commands}) => {
-		const type = getNodeType(typeOrName, state.schema);
-		const toggleType = getNodeType(toggleTypeOrName, state.schema);
-		const isActive = isNodeActive(state, type, attributes);
+  return ({ state, commands }) => {
+    const type = getNodeType(typeOrName, state.schema);
+    const toggleType = getNodeType(toggleTypeOrName, state.schema);
+    const isActive = isNodeActive(state, type, attributes);
 
-		if (isActive) {
-			return commands.setNode(toggleType);
-		}
+    if (isActive) {
+      return commands.setNode(toggleType);
+    }
 
-		return commands.setNode(type, attributes);
-	};
+    return commands.setNode(type, attributes);
+  };
 }

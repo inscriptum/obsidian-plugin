@@ -1,53 +1,62 @@
-import { Mark, markInputRule, markPasteRule, mergeAttributes } from '../../core'
-import type { AnyRecord } from '../../core/@types'
-import { addCommands } from './commands'
+import {
+  Mark,
+  markInputRule,
+  markPasteRule,
+  mergeAttributes,
+} from "../../core";
+import type { AnyRecord } from "../../core/@types";
+import { addCommands } from "./commands";
 
 export interface StrikeOptions {
-  HTMLAttributes: AnyRecord
+  HTMLAttributes: AnyRecord;
 }
 
-export const inputRegex = /(?:^|\s)(~~(?!\s+~~)((?:[^~]+))~~(?!\s+~~))$/
+export const inputRegex = /(?:^|\s)(~~(?!\s+~~)((?:[^~]+))~~(?!\s+~~))$/;
 
-export const pasteRegex = /(?:^|\s)(~~(?!\s+~~)((?:[^~]+))~~(?!\s+~~))/g
+export const pasteRegex = /(?:^|\s)(~~(?!\s+~~)((?:[^~]+))~~(?!\s+~~))/g;
 
 export const Strike = Mark.create<StrikeOptions>({
-  name: 'strike',
+  name: "strike",
 
   addOptions() {
     return {
       HTMLAttributes: {},
-    }
+    };
   },
 
   parseHTML() {
     return [
       {
-        tag: 's',
+        tag: "s",
       },
       {
-        tag: 'del',
+        tag: "del",
       },
       {
-        tag: 'strike',
+        tag: "strike",
       },
       {
-        style: 'text-decoration',
+        style: "text-decoration",
         consuming: false,
-        getAttrs: style => (style.includes('line-through') ? {} : false),
+        getAttrs: (style) => (style.includes("line-through") ? {} : false),
       },
-    ]
+    ];
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['s', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
+    return [
+      "s",
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
+      0,
+    ];
   },
 
   addCommands,
 
   addKeyboardShortcuts() {
     return {
-      'Mod-Shift-s': () => this.editor.commands.toggleStrike(),
-    }
+      "Mod-Shift-s": () => this.editor.commands.toggleStrike(),
+    };
   },
 
   addInputRules() {
@@ -56,7 +65,7 @@ export const Strike = Mark.create<StrikeOptions>({
         find: inputRegex,
         type: this.type,
       }),
-    ]
+    ];
   },
 
   addPasteRules() {
@@ -65,6 +74,6 @@ export const Strike = Mark.create<StrikeOptions>({
         find: pasteRegex,
         type: this.type,
       }),
-    ]
+    ];
   },
-})
+});

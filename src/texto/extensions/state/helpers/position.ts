@@ -1,7 +1,10 @@
-import type {Node} from 'prosemirror-model';
-import {EditorState} from 'prosemirror-state';
+import type { Node } from "prosemirror-model";
+import { EditorState } from "prosemirror-state";
 
-import {nodeStatePluginKey, NodeStatePluginSpec} from '../plugins/nodeState.plugin';
+import {
+  nodeStatePluginKey,
+  NodeStatePluginSpec,
+} from "../plugins/nodeState.plugin";
 
 /**
  * Find a node position by it's state key
@@ -12,17 +15,21 @@ import {nodeStatePluginKey, NodeStatePluginSpec} from '../plugins/nodeState.plug
  * @returns A position or null if it was not found
  */
 export function findPosByKey(state: EditorState, key: string): number | null {
-	const decos = nodeStatePluginKey.getState(state);
+  const decos = nodeStatePluginKey.getState(state);
 
-	if (decos == null) {
-		return null;
-	}
+  if (decos == null) {
+    return null;
+  }
 
-	const found = decos.find(undefined, undefined, (spec: NodeStatePluginSpec) => {
-		return spec.id === key;
-	});
+  const found = decos.find(
+    undefined,
+    undefined,
+    (spec: NodeStatePluginSpec) => {
+      return spec.id === key;
+    },
+  );
 
-	return found.length > 0 ? found[0].from : null;
+  return found.length > 0 ? found[0].from : null;
 }
 
 /**
@@ -34,7 +41,7 @@ export function findPosByKey(state: EditorState, key: string): number | null {
  * @returns A node or null if it was not found
  */
 export function getNodeByKey(state: EditorState, key: string): Node | null {
-	const pos = findPosByKey(state, key);
+  const pos = findPosByKey(state, key);
 
-	return pos != null ? state.doc.nodeAt(pos) : null;
+  return pos != null ? state.doc.nodeAt(pos) : null;
 }

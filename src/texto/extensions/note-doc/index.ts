@@ -1,6 +1,6 @@
-import {NoteDoc} from './NoteDoc';
+import { NoteDoc } from "./NoteDoc";
 
-export * from './NoteDoc';
-export * from './NoteTitle';
+export * from "./NoteDoc";
+export * from "./NoteTitle";
 
 export default NoteDoc;

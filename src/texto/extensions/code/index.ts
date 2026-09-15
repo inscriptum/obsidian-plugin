@@ -1,9 +1,9 @@
-import type { CommandsSet } from '../../core/@types'
-import type { addCommands } from './commands'
-import { Code } from './code'
+import type { CommandsSet } from "../../core/@types";
+import type { addCommands } from "./commands";
+import { Code } from "./code";
 
-export * from './code'
-export default Code
+export * from "./code";
+export default Code;
 
 declare global {
   interface Commands extends CommandsSet<ReturnType<typeof addCommands>> {}

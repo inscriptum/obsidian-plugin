@@ -11,7 +11,7 @@ type DomAttrs = {
 };
 
 function applyAttrs(el: HTMLElement, attrs?: DomAttrs | string): HTMLElement {
-  if (typeof attrs === 'string') {
+  if (typeof attrs === "string") {
     el.textContent = attrs;
     return el;
   }
@@ -30,7 +30,9 @@ function applyAttrs(el: HTMLElement, attrs?: DomAttrs | string): HTMLElement {
     }
   }
   if (attrs.append) {
-    const children = Array.isArray(attrs.append) ? attrs.append : [attrs.append];
+    const children = Array.isArray(attrs.append)
+      ? attrs.append
+      : [attrs.append];
     for (const child of children) {
       el.append(child);
     }
@@ -40,9 +42,15 @@ function applyAttrs(el: HTMLElement, attrs?: DomAttrs | string): HTMLElement {
 
 const g = globalThis as Record<string, unknown>;
 
-g.createEl = (tag: string, attrs?: DomAttrs | string) => applyAttrs(document.createElement(tag), attrs);
-g.createDiv = (attrs?: DomAttrs | string) => applyAttrs(document.createElement('div'), attrs);
-g.createSpan = (attrs?: DomAttrs | string) => applyAttrs(document.createElement('span'), attrs);
+g.createEl = (tag: string, attrs?: DomAttrs | string) =>
+  applyAttrs(document.createElement(tag), attrs);
+g.createDiv = (attrs?: DomAttrs | string) =>
+  applyAttrs(document.createElement("div"), attrs);
+g.createSpan = (attrs?: DomAttrs | string) =>
+  applyAttrs(document.createElement("span"), attrs);
 g.createSvg = (tag: string, attrs?: DomAttrs | string) =>
-  applyAttrs(document.createElementNS('http://www.w3.org/2000/svg', tag), attrs);
+  applyAttrs(
+    document.createElementNS("http://www.w3.org/2000/svg", tag),
+    attrs,
+  );
 g.createFragment = () => document.createDocumentFragment();

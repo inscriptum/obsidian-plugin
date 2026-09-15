@@ -92,7 +92,9 @@ export const IMAGE_LAYOUTS: ImageLayout[] = [
 ];
 
 export function isImageLayout(value: unknown): value is ImageLayout {
-  return typeof value === "string" && IMAGE_LAYOUTS.includes(value as ImageLayout);
+  return (
+    typeof value === "string" && IMAGE_LAYOUTS.includes(value as ImageLayout)
+  );
 }
 export type ImageElementPublicProps = Omit<
   InstanceType<typeof ImageElement>["props"],

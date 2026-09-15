@@ -20,7 +20,10 @@
   height: 22px;
 }
 
-.note-view-container.is-mobile .texto-extension-task-item-host .custom-icon svg {
+.note-view-container.is-mobile
+  .texto-extension-task-item-host
+  .custom-icon
+  svg {
   width: 22px;
   height: 22px;
   display: block;
@@ -30,7 +33,11 @@
    Base rule uses margin-top:.4em tuned for the 16px desktop box; for 22px
    we need ~3px so the checkbox center meets the text line center
    (~0.5 * 1.8 * 15.5px ≈ 14px). */
-.note-view-container.is-mobile .ProseMirror ul[data-type=taskList] .texto-extension-task-item-host>label {
+.note-view-container.is-mobile
+  .ProseMirror
+  ul[data-type="taskList"]
+  .texto-extension-task-item-host
+  > label {
   margin-top: 3px;
 }
 
@@ -50,7 +57,11 @@
    On tablets the headers stay in flow (desktop-like layout), so reserving
    their height would leave a big empty gap above the content. ─── */
 .note-view-container.is-mobile.is-phone .texto-editor {
-  padding-top: calc(var(--header-height, 40px) + var(--view-header-height, 44px) + 16px);
+  padding-top: calc(
+    var(--header-height, 40px) +
+    var(--view-header-height, 44px) +
+    16px
+  );
 }
 
 /* Phones only: when content scrolls beneath the fixed shell controls, fade
@@ -71,7 +82,11 @@
   top: 0;
   left: 0;
   right: 0;
-  height: calc(var(--header-height, 40px) + var(--view-header-height, 44px) + 16px);
+  height: calc(
+    var(--header-height, 40px) +
+    var(--view-header-height, 44px) +
+    16px
+  );
   pointer-events: none;
   opacity: 0;
   background: linear-gradient(
@@ -206,9 +221,15 @@
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar__row::-webkit-scrollbar,
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-table-bar::-webkit-scrollbar,
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-media-bar::-webkit-scrollbar {
+.note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar__row::-webkit-scrollbar,
+.note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-table-bar::-webkit-scrollbar,
+.note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-media-bar::-webkit-scrollbar {
   display: none;
 }
 
@@ -245,7 +266,9 @@
   opacity: 1;
   pointer-events: auto;
 }
-.note-view-container.is-mobile .bubble-menu-bar.layer-open-down .bubble-menu-layer,
+.note-view-container.is-mobile
+  .bubble-menu-bar.layer-open-down
+  .bubble-menu-layer,
 .note-view-container.is-mobile .bubble-menu-layer.show {
   transform: none;
 }
@@ -269,7 +292,10 @@
    overrides below (transparent background, square radius, 44px size,
    muted color) would flatten the swatches into black squares and turn the
    31px link actions into gray 44px squares. */
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:not(.bb-sw, .bb-go) {
+.note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  button:not(.bb-sw, .bb-go) {
   width: 44px;
   height: 44px;
   flex: 0 0 auto;
@@ -277,16 +303,26 @@
   background: transparent;
   color: var(--text-muted);
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:not(.bb-sw, .bb-go):hover {
+.note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  button:not(.bb-sw, .bb-go):hover {
   background: transparent;
   color: var(--text-normal);
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:not(.bb-sw, .bb-go).is-active {
+.note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  button:not(.bb-sw, .bb-go).is-active {
   background: transparent;
   box-shadow: none;
   color: var(--interactive-accent);
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar button:not(.bb-sw, .bb-go) svg {
+.note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  button:not(.bb-sw, .bb-go)
+  svg {
   width: 24px;
   height: 24px;
 }
@@ -300,13 +336,19 @@
   height: 32px;
   border-radius: 50%;
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-sw.is-active {
+.note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  .bb-sw.is-active {
   outline: 1px solid #e6e6f0;
 }
 .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-sep {
   background: var(--background-modifier-border);
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-btn[data-tip]::after {
+.note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  .bb-btn[data-tip]::after {
   display: none;
 }
 
@@ -323,7 +365,8 @@
    dismissed while a contenteditable element remains focused. On phones our
    toolbar is visible only while visualViewport reports a keyboard; iPad keeps
    the toolbar visible. ─── */
-.note-view-container.is-mobile.is-phone:not(.is-keyboard-open) .note-toolbar-host {
+.note-view-container.is-mobile.is-phone:not(.is-keyboard-open)
+.note-toolbar-host {
   display: none;
 }
 
@@ -339,17 +382,53 @@
    trailing edge when more items are reachable in that direction. The
    `can-scroll-left` / `can-scroll-right` classes are toggled from JS
    (setupScrollShadows in NoteView). */
-.note-view-container.is-mobile :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar, .bubble-menu-media-bar).can-scroll-right:not(.can-scroll-left) {
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
-  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+.note-view-container.is-mobile
+:is(
+  .note-toolbar,
+  .bubble-menu-bar__row,
+  .bubble-menu-table-bar,
+  .bubble-menu-media-bar
+).can-scroll-right:not(.can-scroll-left) {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
 }
-.note-view-container.is-mobile :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar, .bubble-menu-media-bar).can-scroll-left:not(.can-scroll-right) {
+.note-view-container.is-mobile
+  :is(
+    .note-toolbar,
+    .bubble-menu-bar__row,
+    .bubble-menu-table-bar,
+    .bubble-menu-media-bar
+  ).can-scroll-left:not(.can-scroll-right) {
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px);
   mask-image: linear-gradient(to right, transparent 0, #000 28px);
 }
-.note-view-container.is-mobile :is(.note-toolbar, .bubble-menu-bar__row, .bubble-menu-table-bar, .bubble-menu-media-bar).can-scroll-left.can-scroll-right {
-  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px calc(100% - 28px), transparent 100%);
-  mask-image: linear-gradient(to right, transparent 0, #000 28px calc(100% - 28px), transparent 100%);
+.note-view-container.is-mobile
+  :is(
+    .note-toolbar,
+    .bubble-menu-bar__row,
+    .bubble-menu-table-bar,
+    .bubble-menu-media-bar
+  ).can-scroll-left.can-scroll-right {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 28px calc(100% - 28px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 28px calc(100% - 28px),
+    transparent 100%
+  );
 }
 
 /* ─── 5. Tables: touch selection & column resize ───────────────────────
@@ -424,7 +503,7 @@
 }
 
 .note-view-container.is-mobile .texto-table__resize-handle::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   bottom: 0;
@@ -437,5 +516,5 @@
      handle centered on the border. */
   width: 8px;
   margin-left: -4px;
-  background: rgba(124, 106, 247, .5);
+  background: rgba(124, 106, 247, 0.5);
 }

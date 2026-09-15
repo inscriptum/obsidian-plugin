@@ -1,12 +1,18 @@
-import {DOMParser} from 'prosemirror-model';
+import { DOMParser } from "prosemirror-model";
 
-import type {Extensions} from '../@types';
-import {elementFromString} from '../utilities/elementFromString';
-import {getSchema} from './getSchema';
+import type { Extensions } from "../@types";
+import { elementFromString } from "../utilities/elementFromString";
+import { getSchema } from "./getSchema";
 
-export function generateJSON(html: string, extensions: Extensions): Record<string, unknown> {
-	const schema = getSchema(extensions);
-	const dom = elementFromString(html);
+export function generateJSON(
+  html: string,
+  extensions: Extensions,
+): Record<string, unknown> {
+  const schema = getSchema(extensions);
+  const dom = elementFromString(html);
 
-	return DOMParser.fromSchema(schema).parse(dom).toJSON() as Record<string, unknown>;
+  return DOMParser.fromSchema(schema).parse(dom).toJSON() as Record<
+    string,
+    unknown
+  >;
 }

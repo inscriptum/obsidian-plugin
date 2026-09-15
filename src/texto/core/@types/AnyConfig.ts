@@ -1,7 +1,12 @@
 import type { Transaction } from "prosemirror-state";
 
 import type { Editor } from "..";
-import type { AnyCommands, AnyRecord, Extensions, KeyboardShortcutCommand } from ".";
+import type {
+  AnyCommands,
+  AnyRecord,
+  Extensions,
+  KeyboardShortcutCommand,
+} from ".";
 
 /**
  * Arbitrary extension options/storage object.

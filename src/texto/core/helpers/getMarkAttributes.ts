@@ -1,31 +1,34 @@
-import type {Mark, MarkType} from 'prosemirror-model';
-import type {EditorState} from 'prosemirror-state';
+import type { Mark, MarkType } from "prosemirror-model";
+import type { EditorState } from "prosemirror-state";
 
-import type {AnyRecord} from '../@types';
-import {getMarkType} from './getMarkType';
+import type { AnyRecord } from "../@types";
+import { getMarkType } from "./getMarkType";
 
-export function getMarkAttributes(state: EditorState, typeOrName: string | MarkType): AnyRecord {
-	const type = getMarkType(typeOrName, state.schema);
-	const {from, to, empty} = state.selection;
-	const marks: Mark[] = [];
+export function getMarkAttributes(
+  state: EditorState,
+  typeOrName: string | MarkType,
+): AnyRecord {
+  const type = getMarkType(typeOrName, state.schema);
+  const { from, to, empty } = state.selection;
+  const marks: Mark[] = [];
 
-	if (empty) {
-		if (state.storedMarks) {
-			marks.push(...state.storedMarks);
-		}
+  if (empty) {
+    if (state.storedMarks) {
+      marks.push(...state.storedMarks);
+    }
 
-		marks.push(...state.selection.$head.marks());
-	} else {
-		state.doc.nodesBetween(from, to, (node) => {
-			marks.push(...node.marks);
-		});
-	}
+    marks.push(...state.selection.$head.marks());
+  } else {
+    state.doc.nodesBetween(from, to, (node) => {
+      marks.push(...node.marks);
+    });
+  }
 
-	const mark = marks.find((markItem) => markItem.type.name === type.name);
+  const mark = marks.find((markItem) => markItem.type.name === type.name);
 
-	if (!mark) {
-		return {};
-	}
+  if (!mark) {
+    return {};
+  }
 
-	return {...mark.attrs};
+  return { ...mark.attrs };
 }

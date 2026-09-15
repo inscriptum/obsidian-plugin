@@ -15,7 +15,7 @@
 }
 
 .note ::selection {
-  background: rgba(124, 106, 247, .3);
+  background: rgba(124, 106, 247, 0.3);
   color: #f2f2f7;
 }
 
@@ -31,7 +31,7 @@
   font-size: 34px;
   font-weight: 650;
   line-height: 1.22;
-  letter-spacing: -.022em;
+  letter-spacing: -0.022em;
   color: #f4f4f8;
   margin: 4px 0 8px;
 }
@@ -48,7 +48,7 @@
   font-size: 22px;
   font-weight: 650;
   line-height: 1.3;
-  letter-spacing: -.015em;
+  letter-spacing: -0.015em;
   color: #e2e3ea;
   margin: 42px 0 12px;
 }
@@ -57,7 +57,7 @@
   font-size: 17px;
   font-weight: 600;
   line-height: 1.4;
-  letter-spacing: -.01em;
+  letter-spacing: -0.01em;
   color: #d2d4de;
   margin: 30px 0 10px;
 }
@@ -92,8 +92,8 @@
 
 /* ─── Inline elements ─── */
 .note :not(pre) > code {
-  font-family: var(--font-mono, 'JetBrains Mono', 'SF Mono', monospace);
-  font-size: .84em;
+  font-family: var(--font-mono, "JetBrains Mono", "SF Mono", monospace);
+  font-size: 0.84em;
   color: var(--accent-2, #b3a3f7);
   background: #17171d;
   border: 1px solid #292932;
@@ -105,9 +105,12 @@
   color: var(--accent-2, #b3a3f7);
   text-decoration: underline;
   text-decoration-thickness: 1px;
-  text-decoration-color: rgba(179, 163, 247, .35);
+  text-decoration-color: rgba(179, 163, 247, 0.35);
   text-underline-offset: 3px;
-  transition: color 150ms, text-decoration-color 150ms, text-decoration-thickness 150ms;
+  transition:
+    color 150ms,
+    text-decoration-color 150ms,
+    text-decoration-thickness 150ms;
 }
 
 .note a:hover {
@@ -122,7 +125,7 @@
 }
 
 .note mark {
-  background: rgba(245, 158, 11, .28);
+  background: rgba(245, 158, 11, 0.28);
   color: inherit;
   border-radius: 3px;
   padding: 0 2px;
@@ -151,7 +154,7 @@
 
 .note ol li::marker {
   font-variant-numeric: tabular-nums;
-  font-size: .9em;
+  font-size: 0.9em;
   font-weight: 500;
   color: #7c7d8a;
 }
@@ -161,17 +164,25 @@
 .note ul ol,
 .note ol ul {
   margin: 0;
-  font-size: .96em;
+  font-size: 0.96em;
 }
 
 .note ul ul,
-.note ol ul { list-style-type: circle; }
+.note ol ul {
+  list-style-type: circle;
+}
 .note ul ul ul,
-.note ol ul ul { list-style-type: square; }
+.note ol ul ul {
+  list-style-type: square;
+}
 .note ol ol,
-.note ul ol { list-style-type: lower-alpha; }
+.note ul ol {
+  list-style-type: lower-alpha;
+}
 .note ol ol ol,
-.note ul ol ol { list-style-type: lower-roman; }
+.note ul ol ol {
+  list-style-type: lower-roman;
+}
 
 .note li > p {
   margin: 0;
@@ -181,7 +192,7 @@
 .note blockquote {
   margin: 30px 0;
   padding: 2px 0 2px 20px;
-  border-left: 3px solid rgba(124, 106, 247, .5);
+  border-left: 3px solid rgba(124, 106, 247, 0.5);
   color: #a9abb8;
   font-size: 15.5px;
   line-height: 1.75;
@@ -201,8 +212,6 @@
 
 /* Tables: styles in table.css (ProseMirror .tableWrapper) */
 
-
-
 /* ─── Checklist: smooth strikethrough when done ─── */
 .note .chk {
   margin: 18px 0 26px;
@@ -219,7 +228,7 @@
 .note .chk .box {
   position: absolute;
   left: 0;
-  top: .4em;
+  top: 0.4em;
   width: 16px;
   height: 16px;
   border-radius: 4.5px;
@@ -228,12 +237,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 180ms, border-color 180ms;
+  transition:
+    background 180ms,
+    border-color 180ms;
 }
 
 .note .chk li.on .box {
-  background: var(--accent-dim, rgba(124, 106, 247, .14));
-  border-color: rgba(124, 106, 247, .55);
+  background: var(--accent-dim, rgba(124, 106, 247, 0.14));
+  border-color: rgba(124, 106, 247, 0.55);
 }
 
 .note .chk li.on .box svg {
@@ -250,7 +261,7 @@
 .note .chk li.on {
   color: #8d8f9b;
   text-decoration: line-through;
-  text-decoration-color: rgba(141, 143, 155, .45);
+  text-decoration-color: rgba(141, 143, 155, 0.45);
   text-decoration-thickness: 1px;
 }
 
@@ -274,11 +285,11 @@
 }
 
 .note .code-lang {
-  font-family: var(--font-mono, 'JetBrains Mono', 'SF Mono', monospace);
+  font-family: var(--font-mono, "JetBrains Mono", "SF Mono", monospace);
   font-size: 11px;
   color: var(--accent-2, #b3a3f7);
   font-weight: 500;
-  letter-spacing: .06em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
@@ -286,7 +297,7 @@
   margin: 0;
   padding: 16px 18px;
   overflow-x: auto;
-  font-family: var(--font-mono, 'JetBrains Mono', 'SF Mono', monospace);
+  font-family: var(--font-mono, "JetBrains Mono", "SF Mono", monospace);
   font-size: 13px;
   line-height: 1.75;
   color: #c7c9d4;
@@ -302,20 +313,34 @@
 }
 
 .theme-light .note ::selection {
-  background: rgba(124, 106, 247, .25);
+  background: rgba(124, 106, 247, 0.25);
   color: #1d1d22;
 }
 
 /* ── Headings ── */
-.theme-light .note h1 { color: #1e1e24; }
-.theme-light .note .lead { color: #6a6a74; }
-.theme-light .note h2 { color: #26262d; }
-.theme-light .note h3 { color: #2f2f37; }
-.theme-light .note h4 { color: #38383f; }
+.theme-light .note h1 {
+  color: #1e1e24;
+}
+.theme-light .note .lead {
+  color: #6a6a74;
+}
+.theme-light .note h2 {
+  color: #26262d;
+}
+.theme-light .note h3 {
+  color: #2f2f37;
+}
+.theme-light .note h4 {
+  color: #38383f;
+}
 
 /* ── Text ── */
-.theme-light .note p strong { color: #1d1d22; }
-.theme-light .note em { color: #45454d; }
+.theme-light .note p strong {
+  color: #1d1d22;
+}
+.theme-light .note em {
+  color: #45454d;
+}
 
 /* ── Inline ── */
 .theme-light .note :not(pre) > code {
@@ -326,51 +351,61 @@
 
 .theme-light .note a {
   color: #6b5bd2;
-  text-decoration-color: rgba(91, 69, 216, .35);
+  text-decoration-color: rgba(91, 69, 216, 0.35);
 }
 
 .theme-light .note a:hover {
   color: #5a4bbf;
-  text-decoration-color: rgba(91, 69, 216, .5);
+  text-decoration-color: rgba(91, 69, 216, 0.5);
 }
 
 .theme-light .note mark {
-  background: rgba(245, 158, 11, .22);
+  background: rgba(245, 158, 11, 0.22);
 }
 
 /* ── Lists ── */
-.theme-light .note ol li::marker { color: #9a9aa5; }
+.theme-light .note ol li::marker {
+  color: #9a9aa5;
+}
 
 /* ── Blockquote ── */
 .theme-light .note blockquote {
   color: #5f5f69;
-  border-left-color: rgba(124, 106, 247, .55);
+  border-left-color: rgba(124, 106, 247, 0.55);
 }
 
 /* ── Divider ── */
-.theme-light .note hr { border-top-color: #e6e6ec; }
+.theme-light .note hr {
+  border-top-color: #e6e6ec;
+}
 
 /* ProseMirror tables: styles in table.css */
 
 /* ── Checklist ── */
-.theme-light .note .chk .box { border-color: #c9c9d2; }
+.theme-light .note .chk .box {
+  border-color: #c9c9d2;
+}
 
 .theme-light .note .chk li.on .box {
-  background: rgba(124, 106, 247, .14);
-  border-color: rgba(124, 106, 247, .55);
+  background: rgba(124, 106, 247, 0.14);
+  border-color: rgba(124, 106, 247, 0.55);
 }
 
 .theme-light .note .chk li.on {
   color: #8f8f99;
-  text-decoration-color: rgba(143, 143, 153, .5);
+  text-decoration-color: rgba(143, 143, 153, 0.5);
 }
 
 /* ── Code block ── */
-.theme-light .note .code-wrap { background: #f4f4f6; }
+.theme-light .note .code-wrap {
+  background: #f4f4f6;
+}
 
 .theme-light .note .code-header {
   background: #ededf0;
   border-bottom-color: #e0e0e6;
 }
 
-.theme-light .note .code-wrap pre { color: #3a3a42; }
+.theme-light .note .code-wrap pre {
+  color: #3a3a42;
+}

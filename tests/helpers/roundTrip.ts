@@ -1,5 +1,5 @@
-import type { JSONContent } from '../../src/texto/core/@types';
-import { buildSchema } from './buildSchema';
+import type { JSONContent } from "../../src/texto/core/@types";
+import { buildSchema } from "./buildSchema";
 
 export function roundTrip(json: JSONContent): JSONContent {
   const schema = buildSchema();

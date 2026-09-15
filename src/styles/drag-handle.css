@@ -55,7 +55,7 @@
 
 .note .texto-drag-handle:hover {
   color: var(--text-normal, #dadada);
-  background: rgba(128, 128, 140, .16);
+  background: rgba(128, 128, 140, 0.16);
 }
 
 /* Drop line — widget decoration at the snapped insertion position
@@ -78,7 +78,7 @@
   outline: 2px solid var(--accent-2, #b3a3f7);
   outline-offset: -2px;
   border-radius: 4px;
-  opacity: .55;
+  opacity: 0.55;
 }
 
 /* Fold chevrons double as drag handles (see dragHandlePlugin.ts):

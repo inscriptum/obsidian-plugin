@@ -1,4 +1,4 @@
-import {type EditorState, Selection} from 'prosemirror-state';
+import { type EditorState, Selection } from "prosemirror-state";
 
 /**
  * Check if a whole document was selected (Ctrl+A)
@@ -7,8 +7,8 @@ import {type EditorState, Selection} from 'prosemirror-state';
  * @returns true if a whole document was selected
  */
 export function isDocSelected(state: EditorState) {
-	const allFrom = Selection.atStart(state.doc).from;
-	const allEnd = Selection.atEnd(state.doc).to;
+  const allFrom = Selection.atStart(state.doc).from;
+  const allEnd = Selection.atEnd(state.doc).to;
 
-	return state.selection.from === allFrom && state.selection.to === allEnd;
+  return state.selection.from === allFrom && state.selection.to === allEnd;
 }

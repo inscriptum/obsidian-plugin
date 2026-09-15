@@ -4,17 +4,33 @@ import type { Instance } from "tippy.js";
 import { Editor, isTextSelection, posToDOMRect } from "../../texto/core";
 import { elTag } from "../../tags";
 import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
-import { getBubbleMenuState, TEXT_COLORS, type BubbleMenuState } from "./bubbleMenuState";
+import {
+  getBubbleMenuState,
+  TEXT_COLORS,
+  type BubbleMenuState,
+} from "./bubbleMenuState";
 import { bubbleIconNodes } from "./icons.svgnode";
 
 type OpenLayer = "styles" | "link" | null;
 
-const cls = (...parts: Array<string | false | null | undefined>) => parts.filter(Boolean).join(" ");
+const cls = (...parts: Array<string | false | null | undefined>) =>
+  parts.filter(Boolean).join(" ");
 
-const HEADING_LEVEL: Record<"h1" | "h2" | "h3", 1 | 2 | 3> = { h1: 1, h2: 2, h3: 3 };
+const HEADING_LEVEL: Record<"h1" | "h2" | "h3", 1 | 2 | 3> = {
+  h1: 1,
+  h2: 2,
+  h3: 3,
+};
 
 type MarkAction = "bold" | "italic" | "underline" | "strike" | "code" | "mark";
-type BlockAction = "paragraph" | "h1" | "h2" | "h3" | "quote" | "list" | "taskList";
+type BlockAction =
+  | "paragraph"
+  | "h1"
+  | "h2"
+  | "h3"
+  | "quote"
+  | "list"
+  | "taskList";
 
 /**
  * Full-featured bubble menu based on the docs/design/Bubble-Menu-Prototype design:
@@ -57,7 +73,8 @@ export const BubbleMenuBarElement = litView.element({
     for (const plugin of es.plugins) {
       const key = (plugin as KeyedPlugin).key?.key;
       if (key === "bubbleMenu") {
-        return (plugin.getState(es) as BubbleMenuPluginState | undefined)?.tippy;
+        return (plugin.getState(es) as BubbleMenuPluginState | undefined)
+          ?.tippy;
       }
     }
     return undefined;
@@ -122,7 +139,10 @@ export const BubbleMenuBarElement = litView.element({
     openLayer = openLayer === "styles" ? null : "styles";
     void this.next().then(() => {
       window.requestAnimationFrame(() => {
-        placeLayerCaret(".bubble-menu-layer--styles", '[data-bb-action="styles"]');
+        placeLayerCaret(
+          ".bubble-menu-layer--styles",
+          '[data-bb-action="styles"]',
+        );
         placeLayerDirection(".bubble-menu-layer--styles");
       });
     });
@@ -136,7 +156,9 @@ export const BubbleMenuBarElement = litView.element({
     openLayer = "link";
     void this.next().then(() => {
       window.requestAnimationFrame(() => {
-        const input = barEl().querySelector<HTMLInputElement>(".bubble-menu-link-input");
+        const input = barEl().querySelector<HTMLInputElement>(
+          ".bubble-menu-link-input",
+        );
         input?.focus();
         input?.select();
         placeLayerCaret(".bubble-menu-layer--link", '[data-bb-action="link"]');
@@ -264,7 +286,10 @@ export const BubbleMenuBarElement = litView.element({
     while (box && !box.hasAttribute("data-placement")) {
       box = box.parentElement;
     }
-    bar.classList.toggle("is-flip", box?.getAttribute("data-placement")?.startsWith("bottom") ?? false);
+    bar.classList.toggle(
+      "is-flip",
+      box?.getAttribute("data-placement")?.startsWith("bottom") ?? false,
+    );
   };
 
   /* ── State update from editor events ── */
@@ -394,7 +419,10 @@ export const BubbleMenuBarElement = litView.element({
               <span class="bb-aa">Aa</span>
             </button>
             <button
-              class={cls("bb-btn", (openLayer === "link" || state.link) && "is-active")}
+              class={cls(
+                "bb-btn",
+                (openLayer === "link" || state.link) && "is-active",
+              )}
               data-tip="Link"
               data-kbd="⌘K"
               onmousedown={(e: MouseEvent) => e.preventDefault()}
@@ -417,7 +445,11 @@ export const BubbleMenuBarElement = litView.element({
 
           {/* "Styles & color" layer — pops up above the menu */}
           <div
-            class={cls("bubble-menu-layer", "bubble-menu-layer--styles", openLayer === "styles" && "show")}
+            class={cls(
+              "bubble-menu-layer",
+              "bubble-menu-layer--styles",
+              openLayer === "styles" && "show",
+            )}
             role="dialog"
             aria-label="Text styles & color"
           >
@@ -499,7 +531,11 @@ export const BubbleMenuBarElement = litView.element({
             <div class="bb-sw-row">
               {TEXT_COLORS.map((sw) => (
                 <button
-                  class={cls("bb-sw", `bb-sw--${sw.css}`, (sw.color ?? null) === state.color && "is-active")}
+                  class={cls(
+                    "bb-sw",
+                    `bb-sw--${sw.css}`,
+                    (sw.color ?? null) === state.color && "is-active",
+                  )}
                   aria-label={sw.label}
                   onmousedown={(e: MouseEvent) => e.preventDefault()}
                   onclick={() => applyColor(sw.color)}
@@ -510,7 +546,11 @@ export const BubbleMenuBarElement = litView.element({
 
           {/* "Link" layer — expands below the menu */}
           <div
-            class={cls("bubble-menu-layer", "bubble-menu-layer--link", openLayer === "link" && "show")}
+            class={cls(
+              "bubble-menu-layer",
+              "bubble-menu-layer--link",
+              openLayer === "link" && "show",
+            )}
             role="dialog"
             aria-label="Insert link"
           >
@@ -561,7 +601,6 @@ export const BubbleMenuBarElement = litView.element({
               </div>
             )}
           </div>
-
         </div>
       );
     }

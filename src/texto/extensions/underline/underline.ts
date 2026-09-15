@@ -1,42 +1,46 @@
-import { Mark, mergeAttributes } from '../../core'
-import type { AnyRecord } from '../../core/@types'
-import { addCommands } from './commands'
+import { Mark, mergeAttributes } from "../../core";
+import type { AnyRecord } from "../../core/@types";
+import { addCommands } from "./commands";
 
 export interface UnderlineOptions {
-  HTMLAttributes: AnyRecord
+  HTMLAttributes: AnyRecord;
 }
 
 export const Underline = Mark.create<UnderlineOptions>({
-  name: 'underline',
+  name: "underline",
 
   addOptions() {
     return {
       HTMLAttributes: {},
-    }
+    };
   },
 
   parseHTML() {
     return [
       {
-        tag: 'u',
+        tag: "u",
       },
       {
-        style: 'text-decoration',
+        style: "text-decoration",
         consuming: false,
-        getAttrs: style => (style.includes('underline') ? {} : false),
+        getAttrs: (style) => (style.includes("underline") ? {} : false),
       },
-    ]
+    ];
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['u', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
+    return [
+      "u",
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
+      0,
+    ];
   },
 
   addCommands,
 
   addKeyboardShortcuts() {
     return {
-      'Mod-u': () => this.editor.commands.toggleUnderline(),
-    }
+      "Mod-u": () => this.editor.commands.toggleUnderline(),
+    };
   },
-})
+});

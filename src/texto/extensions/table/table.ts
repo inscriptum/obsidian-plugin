@@ -1,4 +1,4 @@
-import type { AnyRecord } from '../../core/@types';
+import type { AnyRecord } from "../../core/@types";
 
 import {
   callOrReturn,

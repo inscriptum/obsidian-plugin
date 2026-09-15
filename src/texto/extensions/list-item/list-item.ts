@@ -1,40 +1,44 @@
-import { mergeAttributes, Node } from '../../core'
-import type { AnyRecord } from '../../core/@types'
+import { mergeAttributes, Node } from "../../core";
+import type { AnyRecord } from "../../core/@types";
 
 export interface ListItemOptions {
-  HTMLAttributes: AnyRecord
+  HTMLAttributes: AnyRecord;
 }
 
 export const ListItem = Node.create<ListItemOptions>({
-  name: 'listItem',
+  name: "listItem",
 
   addOptions() {
     return {
       HTMLAttributes: {},
-    }
+    };
   },
 
-  content: 'paragraph block*',
+  content: "paragraph block*",
 
   defining: true,
 
   parseHTML() {
     return [
       {
-        tag: 'li',
+        tag: "li",
       },
-    ]
+    ];
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['li', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
+    return [
+      "li",
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
+      0,
+    ];
   },
 
   addKeyboardShortcuts() {
     return {
       Enter: () => this.editor.commands.splitListItem(this.name),
       Tab: () => this.editor.commands.sinkListItem(this.name),
-      'Shift-Tab': () => this.editor.commands.liftListItem(this.name),
-    }
+      "Shift-Tab": () => this.editor.commands.liftListItem(this.name),
+    };
   },
-})
+});

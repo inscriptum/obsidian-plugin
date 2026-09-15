@@ -1,28 +1,32 @@
-import {mergeAttributes, Node} from '../../../../core';
-import type { AnyRecord } from '../../../../core/@types';
+import { mergeAttributes, Node } from "../../../../core";
+import type { AnyRecord } from "../../../../core/@types";
 
 export interface TableRowOptions {
-	  HTMLAttributes: AnyRecord;
+  HTMLAttributes: AnyRecord;
 }
 
 export const TableRow = Node.create<TableRowOptions>({
-	name: 'tableRow',
+  name: "tableRow",
 
-	addOptions() {
-		return {
-			HTMLAttributes: {},
-		};
-	},
+  addOptions() {
+    return {
+      HTMLAttributes: {},
+    };
+  },
 
-	content: '(tableCell | tableHeader)*',
+  content: "(tableCell | tableHeader)*",
 
-	tableRole: 'row',
+  tableRole: "row",
 
-	parseHTML() {
-		return [{tag: 'tr'}];
-	},
+  parseHTML() {
+    return [{ tag: "tr" }];
+  },
 
-	renderHTML({HTMLAttributes}) {
-		return ['tr', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0];
-	},
+  renderHTML({ HTMLAttributes }) {
+    return [
+      "tr",
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
+      0,
+    ];
+  },
 });

@@ -1,10 +1,10 @@
-import { CommandsSet } from '../../core/@types'
+import { CommandsSet } from "../../core/@types";
 
-import { addCommands } from './commands'
-import { OrderedList } from './ordered-list'
+import { addCommands } from "./commands";
+import { OrderedList } from "./ordered-list";
 
-export * from './ordered-list'
-export default OrderedList
+export * from "./ordered-list";
+export default OrderedList;
 
 declare global {
   interface Commands extends CommandsSet<ReturnType<typeof addCommands>> {}

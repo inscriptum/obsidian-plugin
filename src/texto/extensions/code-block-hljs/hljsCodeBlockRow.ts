@@ -1,46 +1,50 @@
-import {mergeAttributes, Node} from '../../core';
-import type { AnyRecord } from '../../core/@types';
+import { mergeAttributes, Node } from "../../core";
+import type { AnyRecord } from "../../core/@types";
 
 export interface HljsCodeBlockRowOptions {
-	HTMLAttributes: AnyRecord;
+  HTMLAttributes: AnyRecord;
 }
 
 export const HljsCodeBlockRow = Node.create<HljsCodeBlockRowOptions>({
-	name: 'hljsCodeBlockRow',
+  name: "hljsCodeBlockRow",
 
-	group: 'hljsCodeBlock',
+  group: "hljsCodeBlock",
 
-	content: 'inline*',
+  content: "inline*",
 
-	marks: 'hljsMark',
+  marks: "hljsMark",
 
-	addOptions() {
-		return {
-			HTMLAttributes: {},
-		};
-	},
+  addOptions() {
+    return {
+      HTMLAttributes: {},
+    };
+  },
 
-	addAttributes() {
-		return {
-			class: {
-				default: 'l',
-			},
-		};
-	},
+  addAttributes() {
+    return {
+      class: {
+        default: "l",
+      },
+    };
+  },
 
-	parseHTML() {
-		return [
-			{
-				tag: 'div.l',
-				preserveWhitespace: 'full',
-				attrs: {
-					class: 'l',
-				},
-			},
-		];
-	},
+  parseHTML() {
+    return [
+      {
+        tag: "div.l",
+        preserveWhitespace: "full",
+        attrs: {
+          class: "l",
+        },
+      },
+    ];
+  },
 
-	renderHTML({HTMLAttributes}) {
-		return ['div', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0];
-	},
+  renderHTML({ HTMLAttributes }) {
+    return [
+      "div",
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
+      0,
+    ];
+  },
 });

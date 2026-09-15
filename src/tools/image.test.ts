@@ -18,7 +18,9 @@ function makeCtx(
   };
 }
 
-function makeProps(overrides: Partial<ImageElementPublicProps>): ImageElementPublicProps {
+function makeProps(
+  overrides: Partial<ImageElementPublicProps>,
+): ImageElementPublicProps {
   return {
     options: {},
     data: { id: "img.png" },
@@ -73,7 +75,9 @@ describe("imageOnSetViewProps", () => {
       makeCtx(() => `app://fresh/local/gone.png`, []) as never,
     );
     expect(update).toHaveBeenCalledTimes(1);
-    expect(update.mock.calls[0][0].state.error).toBe("File not found: gone.png");
+    expect(update.mock.calls[0][0].state.error).toBe(
+      "File not found: gone.png",
+    );
     expect(update.mock.calls[0][0].state.src).toBeUndefined();
     expect(result?.state?.error).toBe("File not found: gone.png");
   });
@@ -85,7 +89,9 @@ describe("imageOnSetViewProps", () => {
       update,
       makeCtx(() => "app://x", []) as never,
     );
-    expect(update.mock.calls[0][0].state.error).toBe("File not found: local/gone.png");
+    expect(update.mock.calls[0][0].state.error).toBe(
+      "File not found: local/gone.png",
+    );
   });
 
   it("does not re-update when the missing-file error is already shown", () => {
@@ -135,9 +141,18 @@ function makeDoc(nodes: FakeNode[]) {
 }
 
 describe("isImageIdReferenced", () => {
-  const a = { type: { name: "image" }, attrs: { key: "k1", data: { id: "x.png" } } };
-  const b = { type: { name: "image" }, attrs: { key: "k2", data: { id: "x.png" } } };
-  const c = { type: { name: "image" }, attrs: { key: "k3", data: { id: "y.png" } } };
+  const a = {
+    type: { name: "image" },
+    attrs: { key: "k1", data: { id: "x.png" } },
+  };
+  const b = {
+    type: { name: "image" },
+    attrs: { key: "k2", data: { id: "x.png" } },
+  };
+  const c = {
+    type: { name: "image" },
+    attrs: { key: "k3", data: { id: "y.png" } },
+  };
 
   it("finds another node referencing the same id", () => {
     expect(isImageIdReferenced(makeDoc([a, b]), "x.png", "k1")).toBe(true);
@@ -157,7 +172,12 @@ describe("isImageIdReferenced", () => {
   });
 
   it("ignores non-image nodes with the same data", () => {
-    const attachment = { type: { name: "attachment" }, attrs: { key: "k9", data: { id: "x.png" } } };
-    expect(isImageIdReferenced(makeDoc([a, attachment]), "x.png", "k1")).toBe(false);
+    const attachment = {
+      type: { name: "attachment" },
+      attrs: { key: "k9", data: { id: "x.png" } },
+    };
+    expect(isImageIdReferenced(makeDoc([a, attachment]), "x.png", "k1")).toBe(
+      false,
+    );
   });
 });

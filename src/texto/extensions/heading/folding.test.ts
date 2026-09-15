@@ -1,18 +1,18 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import { Editor } from '../../core/Editor';
-import type { JSONContent } from '../../core/@types';
-import { getExtensions } from '../../getExtensions';
+import { describe, it, expect, afterEach } from "vitest";
+import { Editor } from "../../core/Editor";
+import type { JSONContent } from "../../core/@types";
+import { getExtensions } from "../../getExtensions";
 import {
   collectTaskSections,
   getFoldedTaskPositions,
-} from '../task-item-folding/taskFoldingPlugin';
+} from "../task-item-folding/taskFoldingPlugin";
 import {
   collectHeadingSections,
   getFoldedHeadingPositions,
   headingFoldingKey,
   restoreFoldedHeadings,
-} from './foldingPlugin';
-import type { HeadingSectionRange } from './foldingPlugin';
+} from "./foldingPlugin";
+import type { HeadingSectionRange } from "./foldingPlugin";
 
 /**
  * Test document:
@@ -29,29 +29,29 @@ import type { HeadingSectionRange } from './foldingPlugin';
  */
 function testContent(): JSONContent {
   return {
-    type: 'noteDoc',
+    type: "noteDoc",
     content: [
-      { type: 'noteTitle', content: [{ type: 'text', text: 'Title' }] },
-      { type: 'paragraph', content: [{ type: 'text', text: 'Intro' }] },
+      { type: "noteTitle", content: [{ type: "text", text: "Title" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Intro" }] },
       {
-        type: 'heading',
+        type: "heading",
         attrs: { level: 2 },
-        content: [{ type: 'text', text: 'Section A' }],
+        content: [{ type: "text", text: "Section A" }],
       },
-      { type: 'paragraph', content: [{ type: 'text', text: 'A one' }] },
-      { type: 'paragraph', content: [{ type: 'text', text: 'A two' }] },
+      { type: "paragraph", content: [{ type: "text", text: "A one" }] },
+      { type: "paragraph", content: [{ type: "text", text: "A two" }] },
       {
-        type: 'heading',
+        type: "heading",
         attrs: { level: 3 },
-        content: [{ type: 'text', text: 'Subsection A1' }],
+        content: [{ type: "text", text: "Subsection A1" }],
       },
-      { type: 'paragraph', content: [{ type: 'text', text: 'A1 body' }] },
+      { type: "paragraph", content: [{ type: "text", text: "A1 body" }] },
       {
-        type: 'heading',
+        type: "heading",
         attrs: { level: 2 },
-        content: [{ type: 'text', text: 'Section B' }],
+        content: [{ type: "text", text: "Section B" }],
       },
-      { type: 'paragraph', content: [{ type: 'text', text: 'B body' }] },
+      { type: "paragraph", content: [{ type: "text", text: "B body" }] },
     ],
   };
 }
@@ -80,7 +80,7 @@ function createFixture(content: JSONContent = testContent()): Fixture {
 
   const headings: number[] = [];
   editor.state.doc.forEach((node, pos) => {
-    if (node.type.name === 'heading') {
+    if (node.type.name === "heading") {
       headings.push(pos);
     }
   });
@@ -88,9 +88,9 @@ function createFixture(content: JSONContent = testContent()): Fixture {
   let aOnePos = -1;
   let a1BodyPos = -1;
   editor.state.doc.forEach((node, pos) => {
-    if (node.type.name === 'paragraph') {
-      if (node.textContent === 'A one') aOnePos = pos;
-      if (node.textContent === 'A1 body') a1BodyPos = pos;
+    if (node.type.name === "paragraph") {
+      if (node.textContent === "A one") aOnePos = pos;
+      if (node.textContent === "A1 body") a1BodyPos = pos;
     }
   });
 
@@ -110,7 +110,7 @@ function createFixture(content: JSONContent = testContent()): Fixture {
 const fixtures: Fixture[] = [];
 
 function useFixture(content?: JSONContent): Fixture {
-  const fixture = createFixture((content ?? testContent()));
+  const fixture = createFixture(content ?? testContent());
   fixtures.push(fixture);
   return fixture;
 }
@@ -121,17 +121,21 @@ afterEach(() => {
   }
 });
 
-describe('collectHeadingSections', () => {
-  it('computes section bodies bounded by same-or-higher level headings', () => {
+describe("collectHeadingSections", () => {
+  it("computes section bodies bounded by same-or-higher level headings", () => {
     const fixture = useFixture();
     const sections = collectHeadingSections(
       fixture.editor.state.doc,
-      'heading',
+      "heading",
     );
 
     expect(sections.map((s) => s.level)).toEqual([2, 3, 2]);
 
-    const [a, a1, b] = sections as [HeadingSectionRange, HeadingSectionRange, HeadingSectionRange];
+    const [a, a1, b] = sections as [
+      HeadingSectionRange,
+      HeadingSectionRange,
+      HeadingSectionRange,
+    ];
 
     // Section A body: everything until the next h2 ("Section B" heading pos).
     expect(a.body!.from).toBe(a.headingEnd);
@@ -144,44 +148,46 @@ describe('collectHeadingSections', () => {
     expect(b.body!.to).toBe(fixture.editor.state.doc.content.size);
   });
 
-  it('gives a heading with no following content a null body', () => {
+  it("gives a heading with no following content a null body", () => {
     const fixture = useFixture({
-      type: 'noteDoc',
+      type: "noteDoc",
       content: [
-        { type: 'noteTitle' },
+        { type: "noteTitle" },
         {
-          type: 'heading',
+          type: "heading",
           attrs: { level: 2 },
-          content: [{ type: 'text', text: 'Only heading' }],
+          content: [{ type: "text", text: "Only heading" }],
         },
       ],
     } satisfies JSONContent);
 
     const sections = collectHeadingSections(
       fixture.editor.state.doc,
-      'heading',
+      "heading",
     );
     expect(sections).toHaveLength(1);
     expect(sections[0].body).toBeNull();
   });
 });
 
-describe('heading folding plugin', () => {
-  it('folds a section via the foldHeading command and hides body blocks', () => {
+describe("heading folding plugin", () => {
+  it("folds a section via the foldHeading command and hides body blocks", () => {
     const fixture = useFixture();
     const { editor, headings, aOnePos } = fixture;
 
     expect(editor.commands.foldHeading(headings[0])).toBe(true);
 
-    const chevron = fixture.el.querySelector('[data-testid="heading-fold-chevron"]');
+    const chevron = fixture.el.querySelector(
+      '[data-testid="heading-fold-chevron"]',
+    );
     expect(chevron).not.toBeNull();
 
     // Heading itself gets is-folded.
-    const headingDom = fixture.el.querySelector('h2');
-    expect(headingDom?.classList.contains('is-folded')).toBe(true);
+    const headingDom = fixture.el.querySelector("h2");
+    expect(headingDom?.classList.contains("is-folded")).toBe(true);
 
     // First body block is hidden.
-    const hidden = fixture.el.querySelectorAll('.texto-folded-content');
+    const hidden = fixture.el.querySelectorAll(".texto-folded-content");
     expect(hidden.length).toBe(4);
 
     // The plugin state records the position.
@@ -189,22 +195,24 @@ describe('heading folding plugin', () => {
 
     // Hidden nodes' DOM gets the display:none class.
     const aOneDom = editor.view.domAtPos(aOnePos + 1).node as HTMLElement;
-    expect(aOneDom.classList.contains('texto-folded-content')).toBe(true);
+    expect(aOneDom.classList.contains("texto-folded-content")).toBe(true);
   });
 
-  it('unfolds with unfoldHeading and removes all hiding decorations', () => {
+  it("unfolds with unfoldHeading and removes all hiding decorations", () => {
     const fixture = useFixture();
     const { editor, headings } = fixture;
 
     editor.commands.foldHeading(headings[0]);
     editor.commands.unfoldHeading(headings[0]);
 
-    expect(fixture.el.querySelector('.texto-folded-content')).toBeNull();
-    expect(fixture.el.querySelector('h2')?.classList.contains('is-folded')).toBe(false);
+    expect(fixture.el.querySelector(".texto-folded-content")).toBeNull();
+    expect(
+      fixture.el.querySelector("h2")?.classList.contains("is-folded"),
+    ).toBe(false);
     expect(getFoldedHeadingPositions(editor.state)).toEqual([]);
   });
 
-  it('toggleHeadingFold toggles from a selection inside the heading', () => {
+  it("toggleHeadingFold toggles from a selection inside the heading", () => {
     const fixture = useFixture();
     const { editor, headings, aOnePos } = fixture;
 
@@ -221,7 +229,7 @@ describe('heading folding plugin', () => {
     expect(getFoldedHeadingPositions(editor.state)).toEqual([]);
   });
 
-  it('pushes the caret out of the hidden region when folding', () => {
+  it("pushes the caret out of the hidden region when folding", () => {
     const fixture = useFixture();
     const { editor, headings, aOnePos } = fixture;
 
@@ -234,26 +242,26 @@ describe('heading folding plugin', () => {
     const { from, to } = editor.state.selection;
     const state = headingFoldingKey.getState(editor.state);
     expect(state).toBeDefined();
-    const sections = collectHeadingSections(editor.state.doc, 'heading');
+    const sections = collectHeadingSections(editor.state.doc, "heading");
     const body = sections[0].body!;
     expect(to <= body.from || from >= body.to).toBe(true);
   });
 
-  it('folds nested sub-sections independently', () => {
+  it("folds nested sub-sections independently", () => {
     const fixture = useFixture();
     const { editor, headings, a1BodyPos } = fixture;
 
     // Fold only the h3 subsection.
     editor.commands.foldHeading(headings[1]);
 
-    const hidden = fixture.el.querySelectorAll('.texto-folded-content');
+    const hidden = fixture.el.querySelectorAll(".texto-folded-content");
     expect(hidden.length).toBe(1);
 
     const a1BodyDom = editor.view.domAtPos(a1BodyPos + 1).node as HTMLElement;
-    expect(a1BodyDom.classList.contains('texto-folded-content')).toBe(true);
+    expect(a1BodyDom.classList.contains("texto-folded-content")).toBe(true);
   });
 
-  it('keeps folds mapped when the document is edited above them', () => {
+  it("keeps folds mapped when the document is edited above them", () => {
     const fixture = useFixture();
     const { editor, headings } = fixture;
 
@@ -261,8 +269,8 @@ describe('heading folding plugin', () => {
 
     // Insert a paragraph before "Section A" — all positions shift.
     editor.commands.insertContentAt(0 + editor.state.doc.firstChild!.nodeSize, {
-      type: 'paragraph',
-      content: [{ type: 'text', text: 'new intro' }],
+      type: "paragraph",
+      content: [{ type: "text", text: "new intro" }],
     });
 
     const positions = getFoldedHeadingPositions(editor.state);
@@ -270,18 +278,16 @@ describe('heading folding plugin', () => {
 
     // The new position must still point at the "Section B" heading.
     const node = editor.state.doc.nodeAt(positions[0]);
-    expect(node?.type.name).toBe('heading');
-    expect(node?.textContent).toBe('Section B');
+    expect(node?.type.name).toBe("heading");
+    expect(node?.textContent).toBe("Section B");
 
     // And its body is still hidden.
-    const hidden = fixture.el.querySelectorAll('.texto-folded-content');
+    const hidden = fixture.el.querySelectorAll(".texto-folded-content");
     expect(hidden.length).toBe(1);
-    expect(
-      (hidden[0] as HTMLElement).textContent,
-    ).toBe('B body');
+    expect((hidden[0] as HTMLElement).textContent).toBe("B body");
   });
 
-  it('drops folds whose heading was deleted', () => {
+  it("drops folds whose heading was deleted", () => {
     const fixture = useFixture();
     const { editor, headings } = fixture;
 
@@ -289,34 +295,37 @@ describe('heading folding plugin', () => {
 
     // Delete the "Section A" heading node.
     editor.commands.command(({ tr }) => {
-      tr.delete(headings[0], headings[0] + editor.state.doc.nodeAt(headings[0])!.nodeSize);
+      tr.delete(
+        headings[0],
+        headings[0] + editor.state.doc.nodeAt(headings[0])!.nodeSize,
+      );
       return true;
     });
 
     expect(getFoldedHeadingPositions(editor.state)).toEqual([]);
-    expect(fixture.el.querySelector('.texto-folded-content')).toBeNull();
+    expect(fixture.el.querySelector(".texto-folded-content")).toBeNull();
   });
 
-  it('restores folds from positions via the restore meta', () => {
+  it("restores folds from positions via the restore meta", () => {
     const fixture = useFixture();
     const { editor, headings } = fixture;
 
     restoreFoldedHeadings(editor.view, [headings[0], headings[2]]);
 
-    expect(getFoldedHeadingPositions(editor.state).sort((a, b) => a - b)).toEqual(
-      [headings[0], headings[2]],
-    );
-    expect(fixture.el.querySelectorAll('h2.is-folded').length).toBe(2);
+    expect(
+      getFoldedHeadingPositions(editor.state).sort((a, b) => a - b),
+    ).toEqual([headings[0], headings[2]]);
+    expect(fixture.el.querySelectorAll("h2.is-folded").length).toBe(2);
   });
 
-  it('does not mutate the document while folding (no docChanged)', () => {
+  it("does not mutate the document while folding (no docChanged)", () => {
     const fixture = useFixture();
     const { editor, headings } = fixture;
 
     const jsonBefore = JSON.stringify(editor.getJSON());
 
     let sawDocChange = false;
-    editor.on('transaction', ({ transaction }) => {
+    editor.on("transaction", ({ transaction }) => {
       if (transaction.docChanged) sawDocChange = true;
     });
 
@@ -327,7 +336,7 @@ describe('heading folding plugin', () => {
     expect(JSON.stringify(editor.getJSON())).toBe(jsonBefore);
   });
 
-  it('exposes positions through editor.storage for the host', () => {
+  it("exposes positions through editor.storage for the host", () => {
     const fixture = useFixture();
     const { editor, headings } = fixture;
 
@@ -337,7 +346,7 @@ describe('heading folding plugin', () => {
     expect(storage.positions).toEqual([headings[0]]);
   });
 
-  it('is disabled when the extension is configured off (mobile)', () => {
+  it("is disabled when the extension is configured off (mobile)", () => {
     const el = createDiv();
     document.body.appendChild(el);
 
@@ -364,8 +373,8 @@ describe('heading folding plugin', () => {
   });
 });
 
-describe('heading folding regressions', () => {
-  it('deleting a folded heading drops the fold instead of transferring it to the next heading', () => {
+describe("heading folding regressions", () => {
+  it("deleting a folded heading drops the fold instead of transferring it to the next heading", () => {
     // Regression: mapping.map(pos, -1) mapped a deleted heading's fold onto
     // the position of the NEXT heading (type check passed) — after deleting
     // a collapsed "Section A", "Section B" would collapse on its own.
@@ -385,10 +394,10 @@ describe('heading folding regressions', () => {
     });
 
     expect(getFoldedHeadingPositions(editor.state)).toEqual([]);
-    expect(fixture.el.querySelector('.texto-folded-content')).toBeNull();
+    expect(fixture.el.querySelector(".texto-folded-content")).toBeNull();
   });
 
-  it('deleting an earlier heading keeps later folds mapped onto their own headings', () => {
+  it("deleting an earlier heading keeps later folds mapped onto their own headings", () => {
     const fixture = useFixture();
     const { editor, headings } = fixture;
 
@@ -406,11 +415,11 @@ describe('heading folding regressions', () => {
     const positions = getFoldedHeadingPositions(editor.state);
     expect(positions).toHaveLength(1);
     const node = editor.state.doc.nodeAt(positions[0]);
-    expect(node?.type.name).toBe('heading');
-    expect(node?.textContent).toBe('Section B');
+    expect(node?.type.name).toBe("heading");
+    expect(node?.textContent).toBe("Section B");
   });
 
-  it('moves the caret out of the hidden body when a transaction lands it there', () => {
+  it("moves the caret out of the hidden body when a transaction lands it there", () => {
     // Regression: only fold-meta transactions pushed the caret out; a
     // programmatic jump (or paste/drop) into a hidden body left the caret
     // typing invisibly. Sink a selection into the hidden region without
@@ -424,14 +433,14 @@ describe('heading folding regressions', () => {
     editor.commands.setTextSelection(aOnePos + 2);
 
     const { from, to } = editor.state.selection;
-    const sections = collectHeadingSections(editor.state.doc, 'heading');
+    const sections = collectHeadingSections(editor.state.doc, "heading");
     const body = sections[0].body!;
     expect(to <= body.from || from >= body.to).toBe(true);
   });
 });
 
-describe('heading folding regressions: Cmd+A and Enter', () => {
-  it('selectAll keeps the whole-document selection while a fold exists (Cmd+A bug)', () => {
+describe("heading folding regressions: Cmd+A and Enter", () => {
+  it("selectAll keeps the whole-document selection while a fold exists (Cmd+A bug)", () => {
     // Regression: the caret push-out treated ANY selection overlapping a
     // hidden body as accidental — including the whole-document selection
     // from Cmd+A — and collapsed it back into the heading, so with any
@@ -451,35 +460,41 @@ describe('heading folding regressions: Cmd+A and Enter', () => {
     expect(from).toBe(1);
     expect(to).toBe(editor.state.doc.content.size - 1);
     // And it covers the whole folded section (not pushed into the heading).
-    const sections = collectHeadingSections(editor.state.doc, 'heading');
+    const sections = collectHeadingSections(editor.state.doc, "heading");
     const body = sections[0].body!;
     expect(from).toBeLessThanOrEqual(sections[0].headingPos);
     expect(to).toBeGreaterThanOrEqual(body.to);
   });
 
-  it('selectAll keeps the whole-document selection while a task fold exists', () => {
+  it("selectAll keeps the whole-document selection while a task fold exists", () => {
     // Same guard, task-item path: one folded task item must not swallow
     // Cmd+A either.
     const fixture = useFixture({
-      type: 'noteDoc',
+      type: "noteDoc",
       content: [
-        { type: 'noteTitle', content: [{ type: 'text', text: 'Title' }] },
+        { type: "noteTitle", content: [{ type: "text", text: "Title" }] },
         {
-          type: 'taskList',
+          type: "taskList",
           content: [
             {
-              type: 'taskItem',
+              type: "taskItem",
               attrs: { checked: false },
               content: [
-                { type: 'paragraph', content: [{ type: 'text', text: 'parent' }] },
                 {
-                  type: 'taskList',
+                  type: "paragraph",
+                  content: [{ type: "text", text: "parent" }],
+                },
+                {
+                  type: "taskList",
                   content: [
                     {
-                      type: 'taskItem',
+                      type: "taskItem",
                       attrs: { checked: false },
                       content: [
-                        { type: 'paragraph', content: [{ type: 'text', text: 'child' }] },
+                        {
+                          type: "paragraph",
+                          content: [{ type: "text", text: "child" }],
+                        },
                       ],
                     },
                   ],
@@ -496,7 +511,7 @@ describe('heading folding regressions: Cmd+A and Enter', () => {
     // Find the parent task item position programmatically.
     let parentPos = -1;
     editor.state.doc.descendants((node, pos) => {
-      if (node.type.name === 'taskItem' && node.childCount > 1) {
+      if (node.type.name === "taskItem" && node.childCount > 1) {
         parentPos = pos;
         return false;
       }
@@ -514,14 +529,14 @@ describe('heading folding regressions: Cmd+A and Enter', () => {
     // must stay wide (cover the folded item), not collapse to a caret.
     const { from, to } = editor.state.selection;
     expect(to - from).toBeGreaterThan(4);
-    const sections = collectTaskSections(editor.state.doc, 'taskItem');
+    const sections = collectTaskSections(editor.state.doc, "taskItem");
     const section = sections.find((s) => s.itemPos === parentPos)!;
     expect(section.body).not.toBeNull();
     expect(from).toBeLessThan(section.body!.from);
     expect(to).toBeGreaterThan(section.body!.from);
   });
 
-  it('Enter at the end of a folded heading unfolds and inserts a line after the body (Enter bug)', () => {
+  it("Enter at the end of a folded heading unfolds and inserts a line after the body (Enter bug)", () => {
     // Regression: Enter at the end of a folded heading's text ran the
     // core splitBlock INSIDE the hidden region — the new paragraph landed
     // right behind the heading, the caret was pushed back by the
@@ -539,8 +554,8 @@ describe('heading folding regressions: Cmd+A and Enter', () => {
       headings[0] + 1 + headingNode.content.size,
     );
 
-    const event = new KeyboardEvent('keydown', {
-      key: 'Enter',
+    const event = new KeyboardEvent("keydown", {
+      key: "Enter",
       bubbles: true,
       cancelable: true,
     });
@@ -548,7 +563,7 @@ describe('heading folding regressions: Cmd+A and Enter', () => {
     // callback must early-return true as well, otherwise later handlers
     // (core splitBlock) run too and double-apply Enter.
     let handled = false;
-    editor.view.someProp('handleKeyDown', (f) => {
+    editor.view.someProp("handleKeyDown", (f) => {
       handled = f(editor.view, event) || handled;
       return handled;
     });
@@ -556,30 +571,32 @@ describe('heading folding regressions: Cmd+A and Enter', () => {
 
     // 1. The section is unfolded.
     expect(getFoldedHeadingPositions(editor.state)).toEqual([]);
-    expect(fixture.el.querySelectorAll('.texto-folded-content').length).toBe(0);
+    expect(fixture.el.querySelectorAll(".texto-folded-content").length).toBe(0);
 
     // 2. A new empty paragraph exists after the section body, right
     //    before the next heading, and the caret is inside it.
-    const sections = collectHeadingSections(editor.state.doc, 'heading');
+    const sections = collectHeadingSections(editor.state.doc, "heading");
     const body = sections[0].body!;
     const $bodyEnd = editor.state.doc.resolve(body.to);
     // The last body block is the newly inserted empty paragraph...
-    expect($bodyEnd.nodeBefore?.textContent).toBe('');
-    expect($bodyEnd.nodeBefore?.type.name).toBe('paragraph');
+    expect($bodyEnd.nodeBefore?.textContent).toBe("");
+    expect($bodyEnd.nodeBefore?.type.name).toBe("paragraph");
     // ...and the block before it is the former last body block.
-    const $prevEnd = editor.state.doc.resolve(body.to - $bodyEnd.nodeBefore!.nodeSize);
-    expect($prevEnd.nodeBefore?.textContent).toBe('A1 body');
+    const $prevEnd = editor.state.doc.resolve(
+      body.to - $bodyEnd.nodeBefore!.nodeSize,
+    );
+    expect($prevEnd.nodeBefore?.textContent).toBe("A1 body");
 
     const { from } = editor.state.selection;
     const $sel = editor.state.doc.resolve(from);
-    expect($sel.parent.type.name).toBe('paragraph');
-    expect($sel.parent.textContent).toBe('');
+    expect($sel.parent.type.name).toBe("paragraph");
+    expect($sel.parent.textContent).toBe("");
     // The caret's block is the new paragraph: it ends exactly where the
     // section body ends (before the next heading).
     expect($sel.after()).toBe(body.to);
   });
 
-  it('plain Enter elsewhere keeps the core behavior with folds present', () => {
+  it("plain Enter elsewhere keeps the core behavior with folds present", () => {
     // The keymap plugin must not disturb Enter outside its one case.
     const fixture = useFixture();
     const { editor, headings, aOnePos } = fixture;
@@ -592,7 +609,11 @@ describe('heading folding regressions: Cmd+A and Enter', () => {
     const introPos = (() => {
       let pos = -1;
       editor.state.doc.forEach((node, offset) => {
-        if (node.type.name === 'paragraph' && node.textContent === 'Intro' && pos < 0) {
+        if (
+          node.type.name === "paragraph" &&
+          node.textContent === "Intro" &&
+          pos < 0
+        ) {
           pos = offset + 1;
         }
       });
@@ -602,13 +623,13 @@ describe('heading folding regressions: Cmd+A and Enter', () => {
     editor.commands.setTextSelection(introPos + 2);
     void aOnePos;
 
-    const event = new KeyboardEvent('keydown', {
-      key: 'Enter',
+    const event = new KeyboardEvent("keydown", {
+      key: "Enter",
       bubbles: true,
       cancelable: true,
     });
     let handled = false;
-    editor.view.someProp('handleKeyDown', (f) => {
+    editor.view.someProp("handleKeyDown", (f) => {
       handled = f(editor.view, event) || handled;
       return handled;
     });
@@ -617,8 +638,8 @@ describe('heading folding regressions: Cmd+A and Enter', () => {
     const folded = getFoldedHeadingPositions(editor.state);
     expect(folded).toHaveLength(1);
     const foldedNode = editor.state.doc.nodeAt(folded[0]);
-    expect(foldedNode?.type.name).toBe('heading');
-    expect(foldedNode?.textContent).toBe('Section A');
+    expect(foldedNode?.type.name).toBe("heading");
+    expect(foldedNode?.textContent).toBe("Section A");
     expect(handled).toBe(true);
   });
 });

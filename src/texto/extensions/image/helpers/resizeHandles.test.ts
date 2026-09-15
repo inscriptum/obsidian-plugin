@@ -23,7 +23,9 @@ describe("computeResizePercent", () => {
   });
 
   it("clamps to 100% maximum", () => {
-    expect(computeResizePercent({ ...base, dx: 1000, side: "right" })).toBe(100);
+    expect(computeResizePercent({ ...base, dx: 1000, side: "right" })).toBe(
+      100,
+    );
   });
 
   it("rounds to whole percents", () => {
@@ -32,6 +34,13 @@ describe("computeResizePercent", () => {
   });
 
   it("returns the minimum for a degenerate content width", () => {
-    expect(computeResizePercent({ startWidth: 320, dx: 10, side: "right", contentWidth: 0 })).toBe(5);
+    expect(
+      computeResizePercent({
+        startWidth: 320,
+        dx: 10,
+        side: "right",
+        contentWidth: 0,
+      }),
+    ).toBe(5);
   });
 });

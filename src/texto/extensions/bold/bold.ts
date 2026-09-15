@@ -1,64 +1,77 @@
-import { Mark, markInputRule, markPasteRule, mergeAttributes } from '../../core'
-import type { AnyRecord } from '../../core/@types'
-import { addCommands } from './commands'
+import {
+  Mark,
+  markInputRule,
+  markPasteRule,
+  mergeAttributes,
+} from "../../core";
+import type { AnyRecord } from "../../core/@types";
+import { addCommands } from "./commands";
 
 export interface BoldOptions {
-  HTMLAttributes: AnyRecord
+  HTMLAttributes: AnyRecord;
 }
 
-declare module '../../core' {
+declare module "../../core" {
   interface Commands<ReturnType> {
     bold: {
-      setBold: () => ReturnType
-      toggleBold: () => ReturnType
-      unsetBold: () => ReturnType
-    }
+      setBold: () => ReturnType;
+      toggleBold: () => ReturnType;
+      unsetBold: () => ReturnType;
+    };
   }
 }
 
-export const starInputRegex = /(?:^|\s)(\*\*(?!\s+\*\*)((?:[^*]+))\*\*(?!\s+\*\*))$/
+export const starInputRegex =
+  /(?:^|\s)(\*\*(?!\s+\*\*)((?:[^*]+))\*\*(?!\s+\*\*))$/;
 
-export const starPasteRegex = /(?:^|\s)(\*\*(?!\s+\*\*)((?:[^*]+))\*\*(?!\s+\*\*))/g
+export const starPasteRegex =
+  /(?:^|\s)(\*\*(?!\s+\*\*)((?:[^*]+))\*\*(?!\s+\*\*))/g;
 
-export const underscoreInputRegex = /(?:^|\s)(__(?!\s+__)((?:[^_]+))__(?!\s+__))$/
+export const underscoreInputRegex =
+  /(?:^|\s)(__(?!\s+__)((?:[^_]+))__(?!\s+__))$/;
 
-export const underscorePasteRegex = /(?:^|\s)(__(?!\s+__)((?:[^_]+))__(?!\s+__))/g
+export const underscorePasteRegex =
+  /(?:^|\s)(__(?!\s+__)((?:[^_]+))__(?!\s+__))/g;
 
 export const Bold = Mark.create<BoldOptions>({
-  name: 'bold',
+  name: "bold",
 
   addOptions() {
     return {
       HTMLAttributes: {},
-    }
+    };
   },
 
   parseHTML() {
     return [
       {
-        tag: 'strong',
+        tag: "strong",
       },
       {
-        tag: 'b',
-        getAttrs: node => node.style.fontWeight !== 'normal' && null,
+        tag: "b",
+        getAttrs: (node) => node.style.fontWeight !== "normal" && null,
       },
       {
-        style: 'font-weight',
-        getAttrs: value => /^(bold(er)?|[5-9]\d{2,})$/.test(value) && null,
+        style: "font-weight",
+        getAttrs: (value) => /^(bold(er)?|[5-9]\d{2,})$/.test(value) && null,
       },
-    ]
+    ];
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['strong', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
+    return [
+      "strong",
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
+      0,
+    ];
   },
 
   addCommands,
 
   addKeyboardShortcuts() {
     return {
-      'Mod-b': () => this.editor.commands.toggleBold(),
-    }
+      "Mod-b": () => this.editor.commands.toggleBold(),
+    };
   },
 
   addInputRules() {
@@ -71,7 +84,7 @@ export const Bold = Mark.create<BoldOptions>({
         find: underscoreInputRegex,
         type: this.type,
       }),
-    ]
+    ];
   },
 
   addPasteRules() {
@@ -84,6 +97,6 @@ export const Bold = Mark.create<BoldOptions>({
         find: underscorePasteRegex,
         type: this.type,
       }),
-    ]
+    ];
   },
-})
+});

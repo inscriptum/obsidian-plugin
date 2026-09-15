@@ -1,15 +1,19 @@
-import {EditorState} from 'prosemirror-state';
+import { EditorState } from "prosemirror-state";
 
-export const hasListBefore = (editorState: EditorState, _name: string, parentListTypes: string[]) => {
-	const {$anchor} = editorState.selection;
+export const hasListBefore = (
+  editorState: EditorState,
+  _name: string,
+  parentListTypes: string[],
+) => {
+  const { $anchor } = editorState.selection;
 
-	const previousNodePos = Math.max(0, $anchor.pos - 2);
+  const previousNodePos = Math.max(0, $anchor.pos - 2);
 
-	const previousNode = editorState.doc.resolve(previousNodePos).node();
+  const previousNode = editorState.doc.resolve(previousNodePos).node();
 
-	if (!previousNode || !parentListTypes.includes(previousNode.type.name)) {
-		return false;
-	}
+  if (!previousNode || !parentListTypes.includes(previousNode.type.name)) {
+    return false;
+  }
 
-	return true;
+  return true;
 };

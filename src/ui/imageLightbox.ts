@@ -1,6 +1,6 @@
-import type { App } from 'obsidian';
+import type { App } from "obsidian";
 
-const LIGHTBOX_CLASS = 'inscriptum-image-lightbox';
+const LIGHTBOX_CLASS = "inscriptum-image-lightbox";
 
 /**
  * Opens a fullscreen lightbox overlay with the image at the largest size
@@ -21,7 +21,7 @@ export function openImageLightbox(
   const overlay = createDiv();
   overlay.className = LIGHTBOX_CLASS;
 
-  const img = createEl('img');
+  const img = createEl("img");
   img.src = app.vault.adapter.getResourcePath(imageId);
   img.alt = filename || imageId;
   overlay.appendChild(img);
@@ -35,19 +35,19 @@ export function openImageLightbox(
 
   const close = () => {
     overlay.remove();
-    document.removeEventListener('keydown', onKeydown, true);
+    document.removeEventListener("keydown", onKeydown, true);
   };
 
   const onKeydown = (event: KeyboardEvent) => {
-    if (event.key === 'Escape') {
+    if (event.key === "Escape") {
       event.preventDefault();
       event.stopPropagation();
       close();
     }
   };
 
-  overlay.addEventListener('click', close);
-  document.addEventListener('keydown', onKeydown, true);
+  overlay.addEventListener("click", close);
+  document.addEventListener("keydown", onKeydown, true);
 
   document.body.appendChild(overlay);
 }

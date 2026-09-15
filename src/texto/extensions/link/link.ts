@@ -1,15 +1,15 @@
-import {Mark, markPasteRule, mergeAttributes} from '../../core';
-import type { ExtendedRegExpMatchArray } from '../../core/@types';
-import {find, registerCustomProtocol, reset} from 'linkifyjs';
-import type {Plugin} from 'prosemirror-state';
+import { Mark, markPasteRule, mergeAttributes } from "../../core";
+import type { ExtendedRegExpMatchArray } from "../../core/@types";
+import { find, registerCustomProtocol, reset } from "linkifyjs";
+import type { Plugin } from "prosemirror-state";
 
-import {autolink} from './helpers/autolink';
-import {clickHandler} from './helpers/clickHandler';
-import {pasteHandler} from './helpers/pasteHandler';
+import { autolink } from "./helpers/autolink";
+import { clickHandler } from "./helpers/clickHandler";
+import { pasteHandler } from "./helpers/pasteHandler";
 
 export interface LinkProtocolOptions {
-	scheme: string;
-	optionalSlashes?: boolean;
+  scheme: string;
+  optionalSlashes?: boolean;
 }
 
 export interface LinkHTMLAttributes {
@@ -20,226 +20,232 @@ export interface LinkHTMLAttributes {
 }
 
 export interface LinkOptions {
-	/**
-	 * If enabled, it adds links as you type.
-	 */
-	autolink: boolean;
-	/**
-	 * An array of custom protocols to be registered with linkifyjs.
-	 */
-	protocols: Array<LinkProtocolOptions | string>;
-	/**
-	 * If enabled, links will be opened on click.
-	 */
-	openOnClick: boolean;
-	/**
-	 * Adds a link to the current selection if the pasted content only contains an url.
-	 */
-	linkOnPaste: boolean;
-	/**
-	 * A list of HTML attributes to be rendered.
-	 */
-	HTMLAttributes: LinkHTMLAttributes;
-	/**
-	 * A validation function that modifies link verification for the auto linker.
-	 * @param url - The url to be validated.
-	 * @returns - True if the url is valid, false otherwise.
-	 */
-	validate?: (url: string) => boolean;
+  /**
+   * If enabled, it adds links as you type.
+   */
+  autolink: boolean;
+  /**
+   * An array of custom protocols to be registered with linkifyjs.
+   */
+  protocols: Array<LinkProtocolOptions | string>;
+  /**
+   * If enabled, links will be opened on click.
+   */
+  openOnClick: boolean;
+  /**
+   * Adds a link to the current selection if the pasted content only contains an url.
+   */
+  linkOnPaste: boolean;
+  /**
+   * A list of HTML attributes to be rendered.
+   */
+  HTMLAttributes: LinkHTMLAttributes;
+  /**
+   * A validation function that modifies link verification for the auto linker.
+   * @param url - The url to be validated.
+   * @returns - True if the url is valid, false otherwise.
+   */
+  validate?: (url: string) => boolean;
 }
 
 declare global {
-	interface Commands {
-		setLink: (attributes: {
-			href: string;
-			target?: string | null;
-			rel?: string | null;
-			class?: string | null;
-		}) => boolean
-		toggleLink: (attributes: {
-			href: string;
-			target?: string | null;
-			rel?: string | null;
-			class?: string | null;
-		}) => boolean
-		unsetLink: () => boolean
-	}
+  interface Commands {
+    setLink: (attributes: {
+      href: string;
+      target?: string | null;
+      rel?: string | null;
+      class?: string | null;
+    }) => boolean;
+    toggleLink: (attributes: {
+      href: string;
+      target?: string | null;
+      rel?: string | null;
+      class?: string | null;
+    }) => boolean;
+    unsetLink: () => boolean;
+  }
 }
 
 export const Link = Mark.create<LinkOptions>({
-	name: 'link',
+  name: "link",
 
-	priority: 1000,
+  priority: 1000,
 
-	keepOnSplit: false,
+  keepOnSplit: false,
 
-	exitable: true,
+  exitable: true,
 
-	onCreate() {
-		this.options.protocols.forEach((protocol) => {
-			if (typeof protocol === 'string') {
-				registerCustomProtocol(protocol);
-				return;
-			}
-			registerCustomProtocol(protocol.scheme, protocol.optionalSlashes);
-		});
-	},
+  onCreate() {
+    this.options.protocols.forEach((protocol) => {
+      if (typeof protocol === "string") {
+        registerCustomProtocol(protocol);
+        return;
+      }
+      registerCustomProtocol(protocol.scheme, protocol.optionalSlashes);
+    });
+  },
 
-	onDestroy() {
-		reset();
-	},
+  onDestroy() {
+    reset();
+  },
 
-	inclusive() {
-		return this.options.autolink;
-	},
+  inclusive() {
+    return this.options.autolink;
+  },
 
-	addOptions() {
-		return {
-			openOnClick: true,
-			linkOnPaste: true,
-			autolink: true,
-			protocols: [],
-			HTMLAttributes: {
-				target: '_blank',
-				rel: 'noopener noreferrer nofollow',
-				class: null,
-			},
-			validate: undefined,
-		};
-	},
+  addOptions() {
+    return {
+      openOnClick: true,
+      linkOnPaste: true,
+      autolink: true,
+      protocols: [],
+      HTMLAttributes: {
+        target: "_blank",
+        rel: "noopener noreferrer nofollow",
+        class: null,
+      },
+      validate: undefined,
+    };
+  },
 
-	addAttributes() {
-		return {
-			href: {
-				default: null,
-			},
-			target: {
-				default: this.options.HTMLAttributes.target,
-			},
-			rel: {
-				default: this.options.HTMLAttributes.rel,
-			},
-			class: {
-				default: this.options.HTMLAttributes.class,
-			},
-		};
-	},
+  addAttributes() {
+    return {
+      href: {
+        default: null,
+      },
+      target: {
+        default: this.options.HTMLAttributes.target,
+      },
+      rel: {
+        default: this.options.HTMLAttributes.rel,
+      },
+      class: {
+        default: this.options.HTMLAttributes.class,
+      },
+    };
+  },
 
-	parseHTML() {
-		return [{tag: 'a[href]:not([href *= "javascript:" i])'}];
-	},
+  parseHTML() {
+    return [{ tag: 'a[href]:not([href *= "javascript:" i])' }];
+  },
 
-	renderHTML({HTMLAttributes}) {
-		return [
-			'a',
-			mergeAttributes(
-				this.options.HTMLAttributes,
-				HTMLAttributes,
-				{'data-test-id': 'link'},
-				{title: HTMLAttributes['href']},
-			),
-			0,
-		];
-	},
+  renderHTML({ HTMLAttributes }) {
+    return [
+      "a",
+      mergeAttributes(
+        this.options.HTMLAttributes,
+        HTMLAttributes,
+        { "data-test-id": "link" },
+        { title: HTMLAttributes["href"] },
+      ),
+      0,
+    ];
+  },
 
-	addCommands() {
-		return {
-			setLink:
-				(attributes: LinkHTMLAttributes) =>
-				({chain}) => {
-					return chain().setMark(this.name, attributes).setMeta('preventAutolink', true).run();
-				},
+  addCommands() {
+    return {
+      setLink:
+        (attributes: LinkHTMLAttributes) =>
+        ({ chain }) => {
+          return chain()
+            .setMark(this.name, attributes)
+            .setMeta("preventAutolink", true)
+            .run();
+        },
 
-			toggleLink:
-				(attributes: LinkHTMLAttributes) =>
-				({chain}) => {
-					return chain()
-						.toggleMark(this.name, attributes, {extendEmptyMarkRange: true})
-						.setMeta('preventAutolink', true)
-						.run();
-				},
+      toggleLink:
+        (attributes: LinkHTMLAttributes) =>
+        ({ chain }) => {
+          return chain()
+            .toggleMark(this.name, attributes, { extendEmptyMarkRange: true })
+            .setMeta("preventAutolink", true)
+            .run();
+        },
 
-			unsetLink:
-				() =>
-				// if we move function definitions to the highest possible scope,
-				// we will not be able to type {chain}
-				({chain}) => {
-					return chain()
-						.unsetMark(this.name, {extendEmptyMarkRange: true})
-						.setMeta('preventAutolink', true)
-						.run();
-				},
-		};
-	},
+      unsetLink:
+        () =>
+        // if we move function definitions to the highest possible scope,
+        // we will not be able to type {chain}
+        ({ chain }) => {
+          return chain()
+            .unsetMark(this.name, { extendEmptyMarkRange: true })
+            .setMeta("preventAutolink", true)
+            .run();
+        },
+    };
+  },
 
-	addPasteRules() {
-		return [
-			markPasteRule({
-				find: (text) =>
-					find(text)
-						.filter((link) => {
-							if (this.options.validate) {
-								return this.options.validate(link.value);
-							}
+  addPasteRules() {
+    return [
+      markPasteRule({
+        find: (text) =>
+          find(text)
+            .filter((link) => {
+              if (this.options.validate) {
+                return this.options.validate(link.value);
+              }
 
-							return true;
-						})
-						.filter((link) => link.isLink)
-						.map((link) => ({
-							text: link.value,
-							index: link.start,
-							data: link,
-						})),
-				type: this.type,
-				getAttributes: (match: ExtendedRegExpMatchArray, pasteEvent: ClipboardEvent) => {
-					const html = pasteEvent?.clipboardData?.getData('text/html');
-					const hrefRegex = /href="([^"]*)"/;
+              return true;
+            })
+            .filter((link) => link.isLink)
+            .map((link) => ({
+              text: link.value,
+              index: link.start,
+              data: link,
+            })),
+        type: this.type,
+        getAttributes: (
+          match: ExtendedRegExpMatchArray,
+          pasteEvent: ClipboardEvent,
+        ) => {
+          const html = pasteEvent?.clipboardData?.getData("text/html");
+          const hrefRegex = /href="([^"]*)"/;
 
-					const existingLink = html?.match(hrefRegex);
+          const existingLink = html?.match(hrefRegex);
 
-					if (existingLink) {
-						return {
-							href: existingLink[1],
-						};
-					}
+          if (existingLink) {
+            return {
+              href: existingLink[1],
+            };
+          }
 
-					return {
-						href: match.data?.href as string | undefined,
-					};
-				},
-			}),
-		];
-	},
+          return {
+            href: match.data?.href as string | undefined,
+          };
+        },
+      }),
+    ];
+  },
 
-	addProseMirrorPlugins() {
-		const plugins: Plugin[] = [];
+  addProseMirrorPlugins() {
+    const plugins: Plugin[] = [];
 
-		if (this.options.autolink) {
-			plugins.push(
-				autolink({
-					type: this.type,
-					validate: this.options.validate,
-				}),
-			);
-		}
+    if (this.options.autolink) {
+      plugins.push(
+        autolink({
+          type: this.type,
+          validate: this.options.validate,
+        }),
+      );
+    }
 
-		if (this.options.openOnClick) {
-			plugins.push(
-				clickHandler({
-					type: this.type,
-				}),
-			);
-		}
+    if (this.options.openOnClick) {
+      plugins.push(
+        clickHandler({
+          type: this.type,
+        }),
+      );
+    }
 
-		if (this.options.linkOnPaste) {
-			plugins.push(
-				pasteHandler({
-					editor: this.editor,
-					type: this.type,
-				}),
-			);
-		}
+    if (this.options.linkOnPaste) {
+      plugins.push(
+        pasteHandler({
+          editor: this.editor,
+          type: this.type,
+        }),
+      );
+    }
 
-		return plugins;
-	},
+    return plugins;
+  },
 });

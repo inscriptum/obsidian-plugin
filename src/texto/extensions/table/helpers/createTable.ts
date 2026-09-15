@@ -1,45 +1,50 @@
-import {Fragment, Node as ProsemirrorNode, Schema} from 'prosemirror-model';
+import { Fragment, Node as ProsemirrorNode, Schema } from "prosemirror-model";
 
-import {createCell} from './createCell';
-import {getTableNodeTypes, SchemaWithCache} from './getTableNodeTypes';
+import { createCell } from "./createCell";
+import { getTableNodeTypes, SchemaWithCache } from "./getTableNodeTypes";
 
 export function createTable(
-	schema: Schema,
-	rowsCount: number,
-	colsCount: number,
-	withHeaderRow: boolean,
-	cellContent?: Fragment | ProsemirrorNode | Array<ProsemirrorNode>,
+  schema: Schema,
+  rowsCount: number,
+  colsCount: number,
+  withHeaderRow: boolean,
+  cellContent?: Fragment | ProsemirrorNode | Array<ProsemirrorNode>,
 ): ProsemirrorNode {
-	const types = getTableNodeTypes(schema as SchemaWithCache);
-	const headerCells: ProsemirrorNode[] = [];
-	const cells: ProsemirrorNode[] = [];
+  const types = getTableNodeTypes(schema as SchemaWithCache);
+  const headerCells: ProsemirrorNode[] = [];
+  const cells: ProsemirrorNode[] = [];
 
-	for (let index = 0; index < colsCount; index += 1) {
-		const cell = createCell(types.cell, cellContent);
+  for (let index = 0; index < colsCount; index += 1) {
+    const cell = createCell(types.cell, cellContent);
 
-		if (cell) {
-			cells.push(cell);
-		}
+    if (cell) {
+      cells.push(cell);
+    }
 
-		if (withHeaderRow) {
-			const headerCell = createCell(types.header_cell, cellContent);
+    if (withHeaderRow) {
+      const headerCell = createCell(types.header_cell, cellContent);
 
-			if (headerCell) {
-				headerCells.push(headerCell);
-			}
-		}
-	}
+      if (headerCell) {
+        headerCells.push(headerCell);
+      }
+    }
+  }
 
-	const rows: ProsemirrorNode[] = [];
+  const rows: ProsemirrorNode[] = [];
 
-	for (let index = 0; index < rowsCount; index += 1) {
-		rows.push(types.row.createChecked(null, withHeaderRow && index === 0 ? headerCells : cells));
-	}
+  for (let index = 0; index < rowsCount; index += 1) {
+    rows.push(
+      types.row.createChecked(
+        null,
+        withHeaderRow && index === 0 ? headerCells : cells,
+      ),
+    );
+  }
 
-	return types.table.createChecked(
-		{
-			data: {rowsCount, colsCount},
-		},
-		rows,
-	);
+  return types.table.createChecked(
+    {
+      data: { rowsCount, colsCount },
+    },
+    rows,
+  );
 }

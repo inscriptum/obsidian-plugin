@@ -3,9 +3,7 @@
   "content": [
     {
       "type": "noteTitle",
-      "content": [
-        { "type": "text", "text": "Test Title" }
-      ]
+      "content": [{ "type": "text", "text": "Test Title" }]
     },
     {
       "type": "paragraph",
@@ -25,40 +23,80 @@
     {
       "type": "paragraph",
       "content": [
-        { "type": "text", "marks": [{ "type": "link", "attrs": { "href": "https://example.com", "target": "_blank" } }], "text": "link" },
+        {
+          "type": "text",
+          "marks": [
+            {
+              "type": "link",
+              "attrs": { "href": "https://example.com", "target": "_blank" }
+            }
+          ],
+          "text": "link"
+        },
         { "type": "text", "text": " and " },
         { "type": "text", "marks": [{ "type": "strike" }], "text": "strike" },
         { "type": "text", "text": " and " },
         { "type": "text", "marks": [{ "type": "code" }], "text": "code" },
         { "type": "text", "text": " and " },
-        { "type": "text", "marks": [{ "type": "underline" }], "text": "underline" }
+        {
+          "type": "text",
+          "marks": [{ "type": "underline" }],
+          "text": "underline"
+        }
       ]
     },
     {
       "type": "paragraph",
       "content": [
-        { "type": "text", "marks": [{ "type": "highlight", "attrs": { "color": "yellow" } }], "text": "highlighted" },
+        {
+          "type": "text",
+          "marks": [{ "type": "highlight", "attrs": { "color": "yellow" } }],
+          "text": "highlighted"
+        },
         { "type": "text", "text": " and " },
-        { "type": "text", "marks": [{ "type": "textStyle", "attrs": { "color": "red" } }], "text": "colored" }
+        {
+          "type": "text",
+          "marks": [{ "type": "textStyle", "attrs": { "color": "red" } }],
+          "text": "colored"
+        }
       ]
     },
     {
       "type": "blockquote",
       "content": [
-        { "type": "paragraph", "content": [{ "type": "text", "text": "Quote" }] }
+        {
+          "type": "paragraph",
+          "content": [{ "type": "text", "text": "Quote" }]
+        }
       ]
     },
     {
       "type": "bulletList",
       "content": [
-        { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "Item 1" }] }] }
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [{ "type": "text", "text": "Item 1" }]
+            }
+          ]
+        }
       ]
     },
     {
       "type": "orderedList",
       "attrs": { "start": 1 },
       "content": [
-        { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "First" }] }] }
+        {
+          "type": "listItem",
+          "content": [
+            {
+              "type": "paragraph",
+              "content": [{ "type": "text", "text": "First" }]
+            }
+          ]
+        }
       ]
     }
   ]

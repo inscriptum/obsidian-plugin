@@ -1,5 +1,5 @@
-import type { TFolder } from 'obsidian';
-import { vi } from 'vitest';
+import type { TFolder } from "obsidian";
+import { vi } from "vitest";
 
 export class Vault {
   read = vi.fn();
@@ -15,18 +15,18 @@ export class TFile {
   name: string;
   basename: string;
   extension: string;
-  stat: {ctime: number; mtime: number; size: number};
+  stat: { ctime: number; mtime: number; size: number };
   vault: Vault | null;
   parent: TFolder | null;
 
   constructor(path: string) {
     this.path = path;
-    const parts = path.split('/');
+    const parts = path.split("/");
     const filename = parts[parts.length - 1];
-    const dotIndex = filename.lastIndexOf('.');
+    const dotIndex = filename.lastIndexOf(".");
     this.name = filename;
     this.basename = dotIndex > 0 ? filename.slice(0, dotIndex) : filename;
-    this.extension = dotIndex > 0 ? filename.slice(dotIndex + 1) : '';
+    this.extension = dotIndex > 0 ? filename.slice(dotIndex + 1) : "";
     this.stat = { ctime: 0, mtime: 0, size: 0 };
     this.vault = null;
     this.parent = null;
@@ -69,4 +69,3 @@ export abstract class ItemView {
   abstract onOpen(): Promise<void>;
   abstract onClose(): Promise<void>;
 }
-

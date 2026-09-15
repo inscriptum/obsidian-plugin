@@ -1,49 +1,51 @@
-import { mergeAttributes, Node } from '../../core'
-import type { AnyRecord } from '../../core/@types'
-import { addCommands } from './commands'
+import { mergeAttributes, Node } from "../../core";
+import type { AnyRecord } from "../../core/@types";
+import { addCommands } from "./commands";
 
 export interface ParagraphOptions {
-  HTMLAttributes: AnyRecord
+  HTMLAttributes: AnyRecord;
 }
 
-declare module '../../core' {
+declare module "../../core" {
   interface Commands<ReturnType> {
     paragraph: {
-      setParagraph: () => ReturnType
-    }
+      setParagraph: () => ReturnType;
+    };
   }
 }
 
 export const Paragraph = Node.create<ParagraphOptions>({
-  name: 'paragraph',
+  name: "paragraph",
 
   priority: 1000,
 
   addOptions() {
     return {
       HTMLAttributes: {},
-    }
+    };
   },
 
-  group: 'block',
+  group: "block",
 
-  content: 'inline*',
+  content: "inline*",
 
   parseHTML() {
-    return [
-      { tag: 'p' },
-    ]
+    return [{ tag: "p" }];
   },
 
   renderHTML({ HTMLAttributes }) {
-    return ['p', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes), 0]
+    return [
+      "p",
+      mergeAttributes(this.options.HTMLAttributes, HTMLAttributes),
+      0,
+    ];
   },
 
   addCommands,
 
   addKeyboardShortcuts() {
     return {
-      'Mod-Alt-0': () => this.editor.commands.setParagraph(),
-    }
+      "Mod-Alt-0": () => this.editor.commands.setParagraph(),
+    };
   },
-})
+});

@@ -1,7 +1,7 @@
-import type {EditorState} from 'prosemirror-state';
-import type {Decoration} from 'prosemirror-view';
+import type { EditorState } from "prosemirror-state";
+import type { Decoration } from "prosemirror-view";
 
-import {buildSelectionOverlayDecoration, overlayTableKey} from './overlay';
+import { buildSelectionOverlayDecoration, overlayTableKey } from "./overlay";
 
 // The last overlay decoration handed out by overlayForDraw.
 let lastOverlay: Decoration | null = null;
@@ -44,24 +44,24 @@ const TOUCH_COMPAT_GRACE_MS = 400;
 
 /** Start of a cell drag gesture: freeze the overlay and open the suppress window. */
 export function beginCellDrag(): void {
-	dragActive = true;
-	touchCompatSuppressUntil = Number.MAX_SAFE_INTEGER;
+  dragActive = true;
+  touchCompatSuppressUntil = Number.MAX_SAFE_INTEGER;
 }
 
 /** End of a cell drag: the overlay follows the selection again. */
 export function endCellDrag(): void {
-	dragActive = false;
-	// The gesture is over, but the compatibility mouse events of the touch may
-	// still arrive (they are only guaranteed absent when the touchstart was
-	// preventDefault'ed, like in the circle drag). Keep the suppression window
-	// open for a short grace that covers them; it expires on its own, so a
-	// later legitimate tap is never swallowed.
-	touchCompatSuppressUntil = Date.now() + TOUCH_COMPAT_GRACE_MS;
+  dragActive = false;
+  // The gesture is over, but the compatibility mouse events of the touch may
+  // still arrive (they are only guaranteed absent when the touchstart was
+  // preventDefault'ed, like in the circle drag). Keep the suppression window
+  // open for a short grace that covers them; it expires on its own, so a
+  // later legitimate tap is never swallowed.
+  touchCompatSuppressUntil = Date.now() + TOUCH_COMPAT_GRACE_MS;
 }
 
 /** Whether a cell drag gesture is currently running. */
 export function isCellDragActive(): boolean {
-	return dragActive;
+  return dragActive;
 }
 
 /**
@@ -69,7 +69,7 @@ export function isCellDragActive(): boolean {
  * cell drag should be swallowed (see handleMouseDown).
  */
 export function isTouchCompatMouseSuppressed(): boolean {
-	return Date.now() < touchCompatSuppressUntil;
+  return Date.now() < touchCompatSuppressUntil;
 }
 
 /**
@@ -77,7 +77,7 @@ export function isTouchCompatMouseSuppressed(): boolean {
  * the window after a short grace (covers the following mouseup/click).
  */
 export function consumeTouchCompatMouse(): void {
-	touchCompatSuppressUntil = Date.now() + TOUCH_COMPAT_GRACE_MS;
+  touchCompatSuppressUntil = Date.now() + TOUCH_COMPAT_GRACE_MS;
 }
 
 /**
@@ -95,13 +95,17 @@ export function consumeTouchCompatMouse(): void {
  * same table (see lastOverlayTableKey); otherwise a fresh overlay is built.
  */
 export function overlayForDraw(state: EditorState): Decoration | null {
-	if (dragActive && lastOverlay && lastOverlayTableKey === overlayTableKey(state)) {
-		return lastOverlay;
-	}
+  if (
+    dragActive &&
+    lastOverlay &&
+    lastOverlayTableKey === overlayTableKey(state)
+  ) {
+    return lastOverlay;
+  }
 
-	lastOverlay = buildSelectionOverlayDecoration(state);
-	lastOverlayTableKey = overlayTableKey(state);
-	return lastOverlay;
+  lastOverlay = buildSelectionOverlayDecoration(state);
+  lastOverlayTableKey = overlayTableKey(state);
+  return lastOverlay;
 }
 
 /**
@@ -115,11 +119,11 @@ export function overlayForDraw(state: EditorState): Decoration | null {
 let pendingGestureCancel: (() => void) | null = null;
 
 export function setPendingCellGestureCancel(fn: (() => void) | null): void {
-	pendingGestureCancel = fn;
+  pendingGestureCancel = fn;
 }
 
 export function cancelPendingCellGesture(): void {
-	const fn = pendingGestureCancel;
-	pendingGestureCancel = null;
-	fn?.();
+  const fn = pendingGestureCancel;
+  pendingGestureCancel = null;
+  fn?.();
 }

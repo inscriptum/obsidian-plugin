@@ -18,10 +18,16 @@ function makeEditorWithImage(align?: string) {
   ]);
   let pos = -1;
   doc.descendants((n, p) => {
-    if (n.type.name === "image") { pos = p; return false; }
+    if (n.type.name === "image") {
+      pos = p;
+      return false;
+    }
     return true;
   });
-  const state = EditorState.create({ doc, selection: NodeSelection.create(doc, pos) });
+  const state = EditorState.create({
+    doc,
+    selection: NodeSelection.create(doc, pos),
+  });
   const dispatch = vi.fn();
   const editor = {
     state,

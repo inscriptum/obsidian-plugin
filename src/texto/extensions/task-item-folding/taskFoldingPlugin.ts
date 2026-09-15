@@ -1,12 +1,12 @@
-import type { Node as ProseMirrorNode, ResolvedPos } from 'prosemirror-model';
+import type { Node as ProseMirrorNode, ResolvedPos } from "prosemirror-model";
 import {
   Plugin,
   PluginKey,
   Selection,
   type EditorState,
   type Transaction,
-} from 'prosemirror-state';
-import { Decoration, DecorationSet } from 'prosemirror-view';
+} from "prosemirror-state";
+import { Decoration, DecorationSet } from "prosemirror-view";
 
 /**
  * Task item folding — collapse the nested content (subtasks) of a task item,
@@ -32,20 +32,20 @@ import { Decoration, DecorationSet } from 'prosemirror-view';
  */
 
 export const taskFoldingKey = new PluginKey<TaskFoldingState>(
-  'inscriptumTaskFolding',
+  "inscriptumTaskFolding",
 );
 
 export type TaskFoldingMeta =
-  | { type: 'toggle'; pos: number }
-  | { type: 'fold'; pos: number }
-  | { type: 'unfold'; pos: number }
-  | { type: 'restore'; positions: number[] }
+  | { type: "toggle"; pos: number }
+  | { type: "fold"; pos: number }
+  | { type: "unfold"; pos: number }
+  | { type: "restore"; positions: number[] }
   /** Complete replacement of the fold set for one transaction: positions
    *  are already computed against the transaction's NEW doc. Sent by the
    *  drag & drop block move (see extensions/drag-handle) — a move deletes
    *  the folded unit and re-inserts it elsewhere, which plain position
    *  mapping cannot follow. */
-  | { type: 'setFolds'; positions: number[] };
+  | { type: "setFolds"; positions: number[] };
 
 export interface TaskFoldingState {
   /** Positions (doc offsets, before the node) of folded task items. */
@@ -65,10 +65,10 @@ export interface TaskSectionRange {
 /** CSS classes used by the decorations (see styles/heading-folding.css and
  *  styles/task-item.css). Reuses the heading folding class names. */
 export const TASK_FOLDING_CSS = {
-  itemCollapsed: 'is-folded',
-  contentHidden: 'texto-folded-content',
+  itemCollapsed: "is-folded",
+  contentHidden: "texto-folded-content",
   /** Layout class on the chevron span rendered by the item node view. */
-  chevron: 'texto-task-fold-chevron',
+  chevron: "texto-task-fold-chevron",
 } as const;
 
 export interface TaskFoldingPluginOptions {
@@ -93,7 +93,7 @@ export function createTaskFoldingPlugin(
         // transaction's new doc — skip the generic remap below, which
         // cannot follow content that was deleted and re-inserted
         // elsewhere (the drag & drop block move).
-        if (meta?.type === 'setFolds') {
+        if (meta?.type === "setFolds") {
           const next = new Set<number>();
           for (const pos of meta.positions) {
             const node = tr.doc.nodeAt(pos);
@@ -141,17 +141,17 @@ export function createTaskFoldingPlugin(
 
         if (meta != null) {
           const next = new Set(folded);
-          if (meta.type === 'toggle') {
+          if (meta.type === "toggle") {
             if (next.has(meta.pos)) {
               next.delete(meta.pos);
             } else {
               next.add(meta.pos);
             }
-          } else if (meta.type === 'fold') {
+          } else if (meta.type === "fold") {
             next.add(meta.pos);
-          } else if (meta.type === 'unfold') {
+          } else if (meta.type === "unfold") {
             next.delete(meta.pos);
-          } else if (meta.type === 'restore') {
+          } else if (meta.type === "restore") {
             for (const pos of meta.positions) {
               // Only items that still have a nested body — a restore onto a
               // body-less item would persist as an invisible no-op fold.
@@ -256,7 +256,7 @@ export function createTaskFoldingPlugin(
       }
 
       const tr = newState.tr;
-      tr.setSelection(next).setMeta('addToHistory', false);
+      tr.setSelection(next).setMeta("addToHistory", false);
       return tr;
     },
   });
@@ -285,7 +285,7 @@ export function createTaskFoldKeymapPlugin(
 
     props: {
       handleKeyDown(view, event) {
-        if (event.key !== 'Enter') {
+        if (event.key !== "Enter") {
           return false;
         }
         // Plain Enter only: Shift-Enter (hard break) etc. stay with the
@@ -339,7 +339,7 @@ export function createTaskFoldKeymapPlugin(
         // 1. Unfold on the same transaction — the meta hook drops the fold
         //    so the nested content is visible again in the final state.
         tr.setMeta(taskFoldingKey, {
-          type: 'unfold',
+          type: "unfold",
           pos: itemPos,
         } satisfies TaskFoldingMeta);
 
@@ -356,17 +356,10 @@ export function createTaskFoldKeymapPlugin(
         }
         const itemEnd = itemPos + itemNode.nodeSize;
         const $at = tr.doc.resolve(itemEnd);
-        const newItem = itemType.create(
-          { checked: false },
-          [paragraphType.create()],
-        );
-        if (
-          !$at.parent.canReplaceWith(
-            $at.index(),
-            $at.index(),
-            itemType,
-          )
-        ) {
+        const newItem = itemType.create({ checked: false }, [
+          paragraphType.create(),
+        ]);
+        if (!$at.parent.canReplaceWith($at.index(), $at.index(), itemType)) {
           return false;
         }
         tr.insert(itemEnd, newItem);
@@ -399,9 +392,7 @@ function findTaskItemPos(
 }
 
 /** Plugin key for the Enter-at-folded-task-item keymap plugin. */
-export const taskFoldKeymapKey = new PluginKey(
-  'inscriptumTaskFoldKeymap',
-);
+export const taskFoldKeymapKey = new PluginKey("inscriptumTaskFoldKeymap");
 
 /** Build fold/hide node decorations for the fold state. */
 function buildFoldDecorations(
@@ -442,11 +433,7 @@ function buildFoldDecorations(
     // the callback must not prune descent there (unlike the heading plugin,
     // where body blocks are direct children of the doc).
     doc.nodesBetween(bodyFrom, bodyTo, (node, pos) => {
-      if (
-        node.isBlock &&
-        pos >= bodyFrom &&
-        pos + node.nodeSize <= bodyTo
-      ) {
+      if (node.isBlock && pos >= bodyFrom && pos + node.nodeSize <= bodyTo) {
         decorations.push(
           Decoration.node(
             pos,
@@ -511,6 +498,6 @@ export function restoreFoldedTasks(
   view: { state: EditorState; dispatch: (tr: Transaction) => void },
   positions: number[],
 ): void {
-  const meta: TaskFoldingMeta = { type: 'restore', positions };
+  const meta: TaskFoldingMeta = { type: "restore", positions };
   view.dispatch(view.state.tr.setMeta(taskFoldingKey, meta));
 }

@@ -34,11 +34,11 @@ never keep the menu invisible. */
    160ms cubic-bezier(.2,.8,.3,1), exit 120ms (see tippyOptions in NoteView). */
 .tippy-box[data-animation="bubble-pop"] {
   transition-property: transform, opacity;
-  transition-timing-function: cubic-bezier(.2, .8, .3, 1);
+  transition-timing-function: cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 .tippy-box[data-animation="bubble-pop"][data-state="hidden"] {
   opacity: 0;
-  transform: scale(.965) translateY(4px);
+  transform: scale(0.965) translateY(4px);
 }
 .tippy-box[data-animation="bubble-pop"][data-state="visible"] {
   opacity: 1;
@@ -59,8 +59,8 @@ never keep the menu invisible. */
   border: 1px solid #30303a;
   border-radius: 11px;
   box-shadow:
-    0 16px 44px rgba(0, 0, 0, .55),
-    0 3px 10px rgba(0, 0, 0, .35);
+    0 16px 44px rgba(0, 0, 0, 0.55),
+    0 3px 10px rgba(0, 0, 0, 0.35);
   user-select: none;
 }
 
@@ -129,7 +129,9 @@ never keep the menu invisible. */
   border-radius: 6px;
   color: #83838f;
   cursor: pointer;
-  transition: color .1s, background-color .1s;
+  transition:
+    color 0.1s,
+    background-color 0.1s;
 }
 /* Hover fill applies to action buttons; swatches hover with their own scale
    effect (see .bb-sw:hover), not a dark fill. */
@@ -143,15 +145,15 @@ never keep the menu invisible. */
    active state with their own outline (see .bb-sw.is-active below). */
 .bubble-menu-bar button.is-active:not(.bb-sw) {
   color: #c0b1ff;
-  background-color: rgba(124, 106, 247, .16);
-  box-shadow: inset 0 0 0 1px rgba(124, 106, 247, .35);
+  background-color: rgba(124, 106, 247, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(124, 106, 247, 0.35);
 }
 .bubble-menu-bar button.is-active:not(.bb-sw):hover {
-  background-color: rgba(124, 106, 247, .24);
+  background-color: rgba(124, 106, 247, 0.24);
 }
 /* Unavailable table operation (merge/split) */
 .bubble-menu-bar button.is-disabled {
-  opacity: .35;
+  opacity: 0.35;
   pointer-events: none;
 }
 /* Destructive "Delete table" button */
@@ -160,10 +162,10 @@ never keep the menu invisible. */
 }
 .bubble-menu-bar button.danger:hover {
   color: #f8a0a0;
-  background-color: rgba(248, 113, 113, .12);
+  background-color: rgba(248, 113, 113, 0.12);
 }
 .bubble-menu-bar button:focus-visible {
-  outline: 1px solid rgba(124, 106, 247, .8);
+  outline: 1px solid rgba(124, 106, 247, 0.8);
   outline-offset: 1px;
 }
 .bubble-menu-bar button svg {
@@ -177,7 +179,7 @@ never keep the menu invisible. */
 .bubble-menu-bar .bb-aa {
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: -.02em;
+  letter-spacing: -0.02em;
   line-height: 1;
 }
 
@@ -202,13 +204,15 @@ never keep the menu invisible. */
   color: #babcc8;
   font-size: 11px;
   font-weight: 400;
-  letter-spacing: .01em;
+  letter-spacing: 0.01em;
   padding: 4px 8px;
   border-radius: 6px;
   opacity: 0;
   pointer-events: none;
   z-index: 60;
-  transition: opacity .12s .25s, transform .12s .25s;
+  transition:
+    opacity 0.12s 0.25s,
+    transform 0.12s 0.25s;
 }
 .bubble-menu-bar .bb-btn[data-tip][data-kbd]::after {
   content: attr(data-tip) "  ·  " attr(data-kbd);
@@ -251,12 +255,14 @@ never keep the menu invisible. */
   background: #19191e;
   border: 1px solid #30303a;
   border-radius: 11px;
-  box-shadow: 0 16px 44px rgba(0, 0, 0, .5);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.5);
   padding: 6px;
   opacity: 0;
   pointer-events: none;
   transform: translateY(-5px);
-  transition: opacity .12s ease, transform .16s cubic-bezier(.2, .8, .3, 1);
+  transition:
+    opacity 0.12s ease,
+    transform 0.16s cubic-bezier(0.2, 0.8, 0.3, 1);
   z-index: 2;
 }
 .bubble-menu-bar.layer-open-down .bubble-menu-layer {
@@ -313,7 +319,7 @@ never keep the menu invisible. */
   font-size: 10.5px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: .08em;
+  letter-spacing: 0.08em;
   color: #60606c;
   padding: 6px 10px 4px;
   user-select: none;
@@ -332,7 +338,9 @@ never keep the menu invisible. */
   color: #a9abb6;
   font-size: 12.5px;
   cursor: pointer;
-  transition: background-color .08s, color .08s;
+  transition:
+    background-color 0.08s,
+    color 0.08s;
 }
 .bubble-menu-bar .bb-mi:hover {
   background: #23232a;
@@ -403,7 +411,7 @@ never keep the menu invisible. */
   cursor: pointer;
   outline: 1px solid transparent;
   outline-offset: 2px;
-  transition: transform .1s;
+  transition: transform 0.1s;
 }
 .bubble-menu-bar .bb-sw:hover {
   transform: scale(1.14);
@@ -430,7 +438,13 @@ never keep the menu invisible. */
   content: "";
   position: absolute;
   inset: 1px;
-  background: linear-gradient(45deg, transparent 45%, #7a2230 45%, #7a2230 55%, transparent 55%);
+  background: linear-gradient(
+    45deg,
+    transparent 45%,
+    #7a2230 45%,
+    #7a2230 55%,
+    transparent 55%
+  );
   border-radius: 50%;
 }
 
@@ -453,11 +467,13 @@ never keep the menu invisible. */
   padding: 7px 10px;
   outline: none;
   user-select: text;
-  transition: border-color .1s, box-shadow .1s;
+  transition:
+    border-color 0.1s,
+    box-shadow 0.1s;
 }
 .bubble-menu-bar .bubble-menu-link-input:focus {
-  border-color: rgba(124, 106, 247, .55);
-  box-shadow: 0 0 0 3px rgba(124, 106, 247, .14);
+  border-color: rgba(124, 106, 247, 0.55);
+  box-shadow: 0 0 0 3px rgba(124, 106, 247, 0.14);
 }
 .bubble-menu-bar .bubble-menu-link-input::placeholder {
   color: #565660;
@@ -467,14 +483,14 @@ never keep the menu invisible. */
   height: 31px;
   flex: none;
   border-radius: 7px;
-  background: rgba(124, 106, 247, .16);
-  border: 1px solid rgba(124, 106, 247, .4);
+  background: rgba(124, 106, 247, 0.16);
+  border: 1px solid rgba(124, 106, 247, 0.4);
   color: #c8baff;
   cursor: pointer;
-  transition: background-color .1s;
+  transition: background-color 0.1s;
 }
 .bubble-menu-bar .bb-go:hover {
-  background: rgba(124, 106, 247, .26);
+  background: rgba(124, 106, 247, 0.26);
 }
 .bubble-menu-bar .bb-go svg {
   width: 15px;
@@ -483,12 +499,12 @@ never keep the menu invisible. */
 }
 /* Trash button (remove link) — same shape as bb-go, destructive (danger) color */
 .bubble-menu-bar .bb-go.bb-del {
-  background: rgba(248, 113, 113, .12);
-  border-color: rgba(248, 113, 113, .35);
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.35);
   color: #e07a7a;
 }
 .bubble-menu-bar .bb-go.bb-del:hover {
-  background: rgba(248, 113, 113, .22);
+  background: rgba(248, 113, 113, 0.22);
   color: #f8a0a0;
 }
 .bubble-menu-bar .bb-go.bb-del svg {

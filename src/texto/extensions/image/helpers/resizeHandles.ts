@@ -35,7 +35,10 @@ export function computeResizePercent({
   const newWidth = Math.max(MIN_IMAGE_WIDTH_PX, startWidth + delta);
   const percent = Math.round((newWidth / contentWidth) * 100);
 
-  return Math.min(MAX_IMAGE_WIDTH_PERCENT, Math.max(MIN_IMAGE_WIDTH_PERCENT, percent));
+  return Math.min(
+    MAX_IMAGE_WIDTH_PERCENT,
+    Math.max(MIN_IMAGE_WIDTH_PERCENT, percent),
+  );
 }
 
 /**

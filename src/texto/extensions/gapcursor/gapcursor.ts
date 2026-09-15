@@ -1,12 +1,10 @@
-import { Extension } from '../../core'
-import { gapCursor } from 'prosemirror-gapcursor'
+import { Extension } from "../../core";
+import { gapCursor } from "prosemirror-gapcursor";
 
 export const Gapcursor = Extension.create({
-  name: 'gapCursor',
+  name: "gapCursor",
 
   addProseMirrorPlugins() {
-    return [
-      gapCursor(),
-    ]
+    return [gapCursor()];
   },
-})
+});

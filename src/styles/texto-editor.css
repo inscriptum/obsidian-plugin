@@ -1,61 +1,61 @@
 .ProseMirror {
-	--texto-gapcursor__color: #2c2d2e;
+  --texto-gapcursor__color: #2c2d2e;
 
-	position: relative;
-	word-wrap: break-word;
-	white-space: pre-wrap;
-	font-variant-ligatures: none;
-	font-feature-settings: 'liga' 0; /* the above doesn't seem to work in Edge */
+  position: relative;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+  font-variant-ligatures: none;
+  font-feature-settings: "liga" 0; /* the above doesn't seem to work in Edge */
 }
 
 @supports (white-space: break-spaces) {
-	.ProseMirror {
-		white-space: break-spaces;
-	}
+  .ProseMirror {
+    white-space: break-spaces;
+  }
 }
 
-.ProseMirror [contenteditable='false'] {
-	white-space: normal;
+.ProseMirror [contenteditable="false"] {
+  white-space: normal;
 }
 
-.ProseMirror [contenteditable='false'] [contenteditable='true'] {
-	white-space: pre-wrap;
+.ProseMirror [contenteditable="false"] [contenteditable="true"] {
+  white-space: pre-wrap;
 }
 
 .ProseMirror pre {
-	white-space: pre-wrap;
+  white-space: pre-wrap;
 }
 
 img.ProseMirror-separator {
-	display: inline !important;
-	border: none !important;
-	margin: 0 !important;
-	width: 1px !important;
-	height: 1px !important;
+  display: inline !important;
+  border: none !important;
+  margin: 0 !important;
+  width: 1px !important;
+  height: 1px !important;
 }
 
 .ProseMirror-gapcursor {
-	display: none;
-	pointer-events: none;
-	position: absolute;
-	margin: 0;
+  display: none;
+  pointer-events: none;
+  position: absolute;
+  margin: 0;
 }
 
 .ProseMirror-gapcursor::after {
-	content: '';
-	display: block;
-	position: absolute;
-	top: -2px;
-	width: 20px;
-	border-top: 1px solid var(--texto-gapcursor__color);
-	animation: ProseMirror-cursor-blink 1.1s steps(2, start) infinite;
+  content: "";
+  display: block;
+  position: absolute;
+  top: -2px;
+  width: 20px;
+  border-top: 1px solid var(--texto-gapcursor__color);
+  animation: ProseMirror-cursor-blink 1.1s steps(2, start) infinite;
 }
 
 /* stylelint-disable-next-line keyframes-name-pattern */
 @keyframes ProseMirror-cursor-blink {
-	to {
-		visibility: hidden;
-	}
+  to {
+    visibility: hidden;
+  }
 }
 
 /* Hide the DOM selection while ProseMirror draws a non-text selection
@@ -64,101 +64,109 @@ img.ProseMirror-separator {
    typography-v2.css, otherwise the head cell's text would be visually
    highlighted along with the cells. */
 .ProseMirror.ProseMirror-hideselection *::selection {
-	background: transparent;
+  background: transparent;
 }
 
 .ProseMirror.ProseMirror-hideselection * {
-	caret-color: transparent;
+  caret-color: transparent;
 }
 
 .ProseMirror-focused .ProseMirror-gapcursor {
-	display: block;
+  display: block;
 }
 
-.tippy-box[data-animation='fade'][data-state='hidden'] {
-	opacity: 0;
+.tippy-box[data-animation="fade"][data-state="hidden"] {
+  opacity: 0;
 }
 
 /* -------------------------------------------------------- */
 
 /* Basic editor styles — v2: margins are controlled by typography-v2.css */
 .ProseMirror > * + * {
-	margin-top: 0;
-	outline: 0;
+  margin-top: 0;
+  outline: 0;
 }
 
-.ProseMirror ul:not([data-type='taskList']),
+.ProseMirror ul:not([data-type="taskList"]),
 .ProseMirror ol {
-	padding-left: 28px;
-	padding-right: 0;
+  padding-left: 28px;
+  padding-right: 0;
 }
 
 .ProseMirror ol,
 .ProseMirror ul,
-.ProseMirror ul[data-type='taskList'] {
-	padding-top: 4px;
-	padding-bottom: 4px;
+.ProseMirror ul[data-type="taskList"] {
+  padding-top: 4px;
+  padding-bottom: 4px;
 }
 
 .ProseMirror ul > li,
 .ProseMirror ol > li {
-	padding-left: 4px;
+  padding-left: 4px;
 }
 
 .ProseMirror ol > li > *:not(hr),
 .ProseMirror ul > li > *:not(hr) {
-	padding-top: 4px;
-	padding-bottom: 4px;
+  padding-top: 4px;
+  padding-bottom: 4px;
 }
 
 .ProseMirror ol ol,
 .ProseMirror ol ul,
 .ProseMirror ul ol,
 .ProseMirror ul ul {
-	padding-top: 0;
-	padding-bottom: 0;
-	padding-left: 20px;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 20px;
 }
 
-.ProseMirror ul[data-type='taskList'] {
-	list-style: none;
-	padding: 0;
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding: 0;
 }
 
-.ProseMirror ul[data-type='taskList'] p {
-	margin: 0;
-	padding: 0;
+.ProseMirror ul[data-type="taskList"] p {
+  margin: 0;
+  padding: 0;
 }
 
-.ProseMirror ul[data-type='taskList'] .texto-extension-task-item-host {
-	display: flex;
-	align-items: flex-start;
+.ProseMirror ul[data-type="taskList"] .texto-extension-task-item-host {
+  display: flex;
+  align-items: flex-start;
 }
 
-.ProseMirror ul[data-type='taskList'] .texto-extension-task-item-host > label {
-	flex: 0 0 auto;
-	/* Matches typography-v2.html .chk: box 16px + li padding-left 34px = 18px gap to text */
-	margin-right: 18px;
-	/* Matches typography-v2.html .chk .box { top: .4em } — shifts the checkbox
+.ProseMirror ul[data-type="taskList"] .texto-extension-task-item-host > label {
+  flex: 0 0 auto;
+  /* Matches typography-v2.html .chk: box 16px + li padding-left 34px = 18px gap to text */
+  margin-right: 18px;
+  /* Matches typography-v2.html .chk .box { top: .4em } — shifts the checkbox
 	   down from the top of the line so it sits in the optical center of the first
 	   line of text, rather than above it (paragraph line-height adds "air" on top). */
-	margin-top: 0.4em;
-	user-select: none;
-	display: flex;
-	align-items: center;
+  margin-top: 0.4em;
+  user-select: none;
+  display: flex;
+  align-items: center;
 }
 
-.ProseMirror ul[data-type='taskList'] .texto-extension-task-item-host > div {
-	flex: 1 1 auto;
+.ProseMirror ul[data-type="taskList"] .texto-extension-task-item-host > div {
+  flex: 1 1 auto;
 }
 
 /* Nested lists inside a task item (subtasks): the flex layout already aligns
    them with the parent text; drop extra vertical margins/padding so subtasks
    sit tight under their parent. A left gutter is reserved so a nested item's
    fold chevron (see task-item.css) doesn't overlap the parent's text. */
-.ProseMirror ul[data-type='taskList'] .texto-extension-task-item-host .content ul,
-.ProseMirror ul[data-type='taskList'] .texto-extension-task-item-host .content ol {
-	margin: 0;
-	padding-top: 0;
-	padding-bottom: 0;
+.ProseMirror
+  ul[data-type="taskList"]
+  .texto-extension-task-item-host
+  .content
+  ul,
+.ProseMirror
+  ul[data-type="taskList"]
+  .texto-extension-task-item-host
+  .content
+  ol {
+  margin: 0;
+  padding-top: 0;
+  padding-bottom: 0;
 }

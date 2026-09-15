@@ -1,7 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
-import { Editor } from './Editor';
-import { getExtensions } from '../getExtensions';
-import { createEmptyNote } from '../../storage/noteStorage';
+import { describe, it, expect, vi } from "vitest";
+import { Editor } from "./Editor";
+import { getExtensions } from "../getExtensions";
+import { createEmptyNote } from "../../storage/noteStorage";
 
 function createEditor(content = createEmptyNote()) {
   return new Editor({
@@ -11,17 +11,17 @@ function createEditor(content = createEmptyNote()) {
   });
 }
 
-describe('editor lifecycle', () => {
-  it('creates editor and parses initial content', () => {
+describe("editor lifecycle", () => {
+  it("creates editor and parses initial content", () => {
     const editor = createEditor();
 
     expect(editor.schema).toBeDefined();
-    expect(editor.getJSON().type).toBe('noteDoc');
+    expect(editor.getJSON().type).toBe("noteDoc");
 
     editor.destroy();
   });
 
-  it('emits update event on content change', () => {
+  it("emits update event on content change", () => {
     const onUpdate = vi.fn();
 
     const editor = new Editor({
@@ -33,10 +33,10 @@ describe('editor lifecycle', () => {
 
     editor.commands.setContent(
       {
-        type: 'noteDoc',
+        type: "noteDoc",
         content: [
-          { type: 'noteTitle', content: [] },
-          { type: 'paragraph', content: [{ type: 'text', text: 'changed' }] },
+          { type: "noteTitle", content: [] },
+          { type: "paragraph", content: [{ type: "text", text: "changed" }] },
         ],
       },
       true,
@@ -47,7 +47,7 @@ describe('editor lifecycle', () => {
     editor.destroy();
   });
 
-  it('handles empty content without errors', () => {
+  it("handles empty content without errors", () => {
     const editor = createEditor();
 
     expect(editor.isEmpty).toBe(true);

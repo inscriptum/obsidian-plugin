@@ -60,9 +60,7 @@ export type RemoveThis<T> = T extends AnyFn
   ? (...args: Parameters<T>) => ReturnType<T>
   : T;
 
-export type MaybeReturnType<T> = T extends AnyFn
-  ? ReturnType<T>
-  : T;
+export type MaybeReturnType<T> = T extends AnyFn ? ReturnType<T> : T;
 
 export type MaybeThisParameterType<T> =
   Exclude<T, Primitive> extends AnyFn
@@ -172,12 +170,11 @@ export type GlobalAttributes = {
 
 export type PickValue<T, K extends keyof T> = T[K];
 
-export type UnionToIntersection<U> = (
+export type UnionToIntersection<U> =
   // `any` keeps this conditional type distributive over unions.
-  U extends unknown ? (k: U) => void : never
-) extends (k: infer I) => void
-  ? I
-  : never;
+  (U extends unknown ? (k: U) => void : never) extends (k: infer I) => void
+    ? I
+    : never;
 
 export type Diff<T extends KeyOfAny, U extends KeyOfAny> = ({
   [P in T]: P;
@@ -245,10 +242,7 @@ type AllCommandsByType<T> = Pick<
   KeysWithTypeOf<AllCommands, (...args: never[]) => T>
 >;
 
-export type UnionCommands<
-  T extends AnyFn = Command,
-  R = ReturnType<T>,
-> = {
+export type UnionCommands<T extends AnyFn = Command, R = ReturnType<T>> = {
   [K in keyof AllCommandsByType<T>]: (...args: Parameters<AllCommands[K]>) => R;
 };
 
