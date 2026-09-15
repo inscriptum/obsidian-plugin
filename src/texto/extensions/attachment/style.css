@@ -1,7 +1,7 @@
 /* texto/attachment — extension base styles (library defaults).
    Obsidian-specific overrides: src/styles/* (imported after this file). */
 
-.texto-extension-attachment {
+.texto-extension-attachment-host {
 	--texto-attachment__block_padding: 0 8px;
 	--texto-attachment__block_font-size: 15px;
 	--texto-attachment__loading_font-size: 13px;
@@ -11,11 +11,20 @@
 	--texto-attachment__secondary_background_hover: rgb(0 16 61 / 4%);
 	--texto-attachment__progress_secondary_color: rgb(255 255 255 / 81%);
 	--texto-attachment__icon_color: #A5A7AD;
+	--texto-attachment-container__outline-color: #5a9eff;
+	--texto-attachment-container__border-radius: 4px;
 
 	padding: 2px 0;
 	gap: 10px;
 	width: 100%;
 	user-select: none;
+
+	&[class$='selectednode'] .attachment-container {
+		pointer-events: all;
+
+		border-radius: var(--texto-attachment-container__border-radius);
+			box-shadow: 0 0 0 2px var(--texto-attachment-container__outline-color);
+	}
 
 	.delete-btn {
 		position: relative;
@@ -55,7 +64,7 @@
 		gap: 8px;
 		height: 44px;
 		background: var(--texto-attachment__secondary_background);
-		border-radius: 12px;
+		border-radius: var(--texto-attachment-container__border-radius);
 		flex: none;
 		order: 0;
 		align-self: stretch;
@@ -84,7 +93,7 @@
 		padding: var(--texto-attachment__block_padding);
 		gap: 8px;
 		height: 44px;
-		border-radius: 12px;
+		border-radius: var(--texto-attachment-container__border-radius);
 		flex: none;
 		order: 0;
 		align-self: stretch;
@@ -116,7 +125,7 @@
 		padding: var(--texto-attachment__block_padding);
 		gap: 8px;
 		height: 44px;
-		border-radius: 12px;
+		border-radius: var(--texto-attachment-container__border-radius);
 		overflow: hidden;
 		background: linear-gradient(
 			90deg,

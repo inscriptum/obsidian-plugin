@@ -119,7 +119,7 @@ export const attachmentElement = litView.element({
     }
 
     params = yield (
-      <div class="texto-extension-attachment" onclick={params.onClick}>
+      <div class="attachment-container" onclick={params.onClick}>
         <AttachmentContainer />
 
         <input

@@ -133,6 +133,7 @@ export const Attachment = Node.create<AttachmentOptions>({
 
 	addNodeView() {
 		const element = new AttachmentElement();
+    element.addClass("texto-extension-attachment-host");
 
 		return ({node, getPos, editor}) => {
 			if (!isFunction(getPos)) {
