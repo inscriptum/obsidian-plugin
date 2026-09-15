@@ -331,7 +331,7 @@ class InscriptumSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Diagnostic log")
       .setDesc(
-        "When turned on, inscriptum keeps a technical journal of its note-saving activity (which file, when, size, result) in a hidden file named .inscriptum-log.jsonl in your vault. If a note is ever damaged or lost, this journal helps figure out what happened. Leave it off in everyday use and turn it on when troubleshooting a problem — it never interferes with saving.",
+        "When turned on, inscriptum keeps a technical journal of its note-saving activity in a hidden file named .inscriptum-log.jsonl in your vault. If a note is ever damaged or lost, this journal helps figure out what happened. Leave it off in everyday use and turn it on when troubleshooting a problem.",
       )
       .addToggle((toggle) =>
         toggle

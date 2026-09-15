@@ -9,16 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Optional diagnostic log, off by default: enable it in the plugin settings ("Diagnostic log") or with `localStorage.setItem("inscriptum-write-log", "1")` in the Obsidian console — the plugin then appends one JSON line per event to the hidden file `.inscriptum-log.jsonl` at the vault root (entries carry a `kind` field; note writes are logged first: time, trigger, path, sizes, result, duration). The setting persists; delete the localStorage key to drop the quick override.
+- Optional diagnostic log, off by default: enable it in the plugin settings ("Diagnostic log") or with `localStorage.setItem("inscriptum-write-log", "1")` in the Obsidian console — the plugin then appends one JSON line per event to the hidden file `.inscriptum-log.jsonl` at the vault root (entries carry a `kind` field; note writes are logged first: time, trigger, path, sizes, result, duration).
 - Block drag & drop on desktop
-- Image positioning and text wrap: a selected image's bubble menu now has layout controls — align left (default), center, right, full content width, and float left/right with text wrapping around the image (50% width). The active mode is highlighted, the choice is stored in the note file, survives reloads and is undoable. Layout controls also appear in the mobile bottom toolbar. "Full width" is a true full-bleed: the image stretches edge-to-edge across the whole note pane, beyond the editor's text indent, and always resets any custom width (pure CSS via container query units — no measuring, resize lag or jitter). Full-width images are not user-resizable.
+- Image positioning and text wrap: a selected image's bubble menu now has layout controls.
 - Image resizing: a selected image shows drag handles on its left and right edges. Dragging changes the width live and saves it as a percent of the content width (5–100%, min 80px), so proportions hold on mobile. Undoable as a single step. Handles are hidden for error placeholders, empty image nodes and full-width images.
 - Click-to-zoom for images: clicking a selected image opens a fullscreen lightbox with the image at the largest size that fits the screen (file name shown below). Close with a click anywhere or `Esc`. Does nothing for images whose file is missing.
 
 ### Fixed
 
-- Note files could be wiped to 0 bytes when a save raced with a plugin reload or app restart: writes used Obsidian's truncate-then-write, so a renderer that died mid-write left an empty file behind (one such wipe destroyed a real note on 2026-09-15). Note saves are now atomic — content lands in a hidden temp file that replaces the target with a single rename — and every save is verified on disk afterwards. If the replace still fails, the temp file holding the complete new content is preserved and its path is reported in the error and in the write log. (Second round of issues/empty-note-wipe-guard.)
-- Caret lost on every autosave when the same note is open in two panes: each save made the idle pane re-sync its document, which fired the image-add hook whose blur command cleared the document-wide selection — including the live caret of the pane the user was typing in, so the next keystrokes landed in the note title (renaming the file). The blur command now only clears the selection when it actually belongs to the blurred editor, and the image-add hook no longer blurs while disk content is being applied.
+- Note files could be wiped to 0 bytes when a save raced with a plugin reload or app restart: writes used Obsidian's truncate-then-write, so a renderer that died mid-write left an empty file behind.
 - Select all with fold sections
 - Adding a new line inside folded sections
 - Broken images after their attachment files were deleted behind the editor's back. Three fixes:

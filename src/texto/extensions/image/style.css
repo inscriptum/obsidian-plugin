@@ -8,7 +8,6 @@
   --texto-image-block__padding: 8px 0;
   --texto-image__secondary_background: #f6f7f8;
   --texto-image__progress_secondary_color: rgb(255 255 255 / 81%);
-  --texto-image-delete-btn__background_hover: #00103d0a;
   --texto-image-container__outline-color: #5a9eff;
   --texto-image__icon_color: #a5a7ad;
   --texto-image__icon_color_negative: #ed0a34;
@@ -87,20 +86,6 @@
     border-radius: 4px;
     overflow: hidden;
     background: var(--texto-image__secondary_background);
-  }
-
-  .delete-btn {
-    cursor: pointer;
-    position: absolute;
-    top: 0;
-    right: 0;
-    border: none;
-    background: transparent;
-    display: flex;
-    margin: 8px 8px 0 0;
-    justify-content: center;
-    align-items: center;
-    padding: 8px;
   }
 
   .hidden {
@@ -182,6 +167,10 @@
 .texto-extension-image-host.texto-image-layout-full {
   width: 100cqw;
   margin-inline: calc((100% - 100cqw) / 2);
+
+  & .image {
+    border-radius: 0;
+  }
 }
 
 /* Full-width images are not user-resizable. */

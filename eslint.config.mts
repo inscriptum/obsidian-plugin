@@ -6,6 +6,8 @@ export default defineConfig(
   globalIgnores([
     "node_modules",
     "dist",
+    ".harness",
+    "dist-harness",
     "local",
     "demo",
     "tests",

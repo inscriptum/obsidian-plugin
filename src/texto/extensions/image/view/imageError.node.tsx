@@ -1,9 +1,7 @@
 import { litView } from "@web-companions/lit";
 
-import { placeholderDeleteIconNote } from "./placeholder.deleteIcon.node";
 import { imageErrorIconNode } from "./imageErrorIcon.svgnode";
 
-const PlaceholderDeleteIconNode = placeholderDeleteIconNote();
 const ImageErrorIconNode = imageErrorIconNode();
 
 export const imageErrorNode = litView.node(function* (params: {
@@ -23,9 +21,6 @@ export const imageErrorNode = litView.node(function* (params: {
           <div class="info-wrap">
             <span class="error_text">{params.text}</span>
           </div>
-          <button class="delete-btn" onclick={params.onRemove}>
-            <PlaceholderDeleteIconNode />
-          </button>
         </div>
       </div>
     );
