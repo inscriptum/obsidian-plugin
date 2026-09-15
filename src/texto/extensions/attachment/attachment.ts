@@ -40,6 +40,7 @@ export type AttachmentOptionsAttrs = {
 export interface AttachmentOptions {
 	attributes: AttachmentOptionsAttrs;
 	placeholderText: string;
+	fileIconId?: string;
 	hooks?: AttachmentOptionsHooks;
 }
 

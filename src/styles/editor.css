@@ -3,11 +3,21 @@
 @import './typography-v2.css';
 @import './heading-folding.css';
 @import './drag-handle.css';
+
+/* ── texto extension base styles (library defaults) ──
+   Each extension owns its style.css next to the code; when texto is
+   extracted into a standalone library these files ship with it as-is. */
+@import '../texto/extensions/code-block-hljs/style.css';
+@import '../texto/extensions/attachment/style.css';
+@import '../texto/extensions/image/style.css';
+@import '../texto/extensions/table/style.css';
+@import '../texto/extensions/task-item/style.css';
+
+/* ── app override layer (Obsidian-specific) ──
+   Imported AFTER the bases; keep only Obsidian token mappings and
+   plugin-owned UI here. */
 @import './code-block-hljs.css';
-@import './attachment.css';
 @import './image.css';
-@import './table.css';
-@import './task-item.css';
 @import './mobile.css';
 @import './search.css';
 

@@ -1,3 +1,6 @@
+/* texto/attachment — extension base styles (library defaults).
+   Obsidian-specific overrides: src/styles/* (imported after this file). */
+
 .texto-extension-attachment {
 	--texto-attachment__block_padding: 0 8px;
 	--texto-attachment__block_font-size: 15px;
@@ -138,6 +141,7 @@
 
 	.icon-note-wrap {
 		line-height: 0;
+		width: 20px;
 	}
 
 	.info-wrap {

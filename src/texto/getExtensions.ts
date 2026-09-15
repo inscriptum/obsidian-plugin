@@ -68,7 +68,10 @@ export function getExtensions(
       hooks: hooks.image,
       errorIconId: "inscriptum-ico-fileUnknown",
     }),
-    Attachment.configure({ hooks: hooks.attachment }),
+    Attachment.configure({
+      hooks: hooks.attachment,
+      fileIconId: "inscriptum-ico-file",
+    }),
     HljsCodeBlock,
     HljsCodeBlockRow,
     HljsMark,

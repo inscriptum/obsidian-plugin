@@ -8,7 +8,6 @@
 /* ─── Base note container ─── */
 .note {
   outline: none;
-  caret-color: var(--accent-2, #b3a3f7);
   text-rendering: optimizeLegibility;
   font-size: 15.5px;
   color: #c2c4cf;

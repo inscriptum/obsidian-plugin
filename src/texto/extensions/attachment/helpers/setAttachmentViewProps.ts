@@ -44,6 +44,7 @@ export function setAttachmentViewProps(
 	// We don't know when their code will be run and which a node's position will be at that time.
 	// So that, we will get the node's position by a unique key.
 	element.props = {
+		options,
 		state: prepareViewState(attrs, options),
 		onDeleteFile: (event: MouseEvent) => {
 			event.stopPropagation();

@@ -1,3 +1,6 @@
+/* texto/image — extension base styles (library defaults).
+   Obsidian-specific overrides: src/styles/image.css (imported after this file). */
+
 .texto-extension-image-host {
 	--texto-image-text__font-size: 15px;
 	--texto-image-subtext__font-size: 13px;
@@ -18,11 +21,11 @@
 	.image-container {
 		padding: var(--texto-image-block__padding);
 		pointer-events: none;
-		width: var(--texto-image-container__width);
+		width: 100%;
 
 		& .image {
-			width: var(--texto-image-container__width);
-			border-radius: 8px;
+			width: 100%;
+			border-radius: 4px;
 		}
 	}
 
@@ -62,7 +65,7 @@
 		cursor: wait;
 		display: flex;
 		align-items: flex-end;
-		border-radius: 12px;
+		border-radius: 4px;
 		overflow: hidden;
 		background: linear-gradient(
 			90deg,
@@ -81,7 +84,7 @@
 		color: var(--texto-image__secondary_color);
 		display: flex;
 		align-items: flex-end;
-		border-radius: 12px;
+		border-radius: 4px;
 		overflow: hidden;
 		background: var(--texto-image__secondary_background);
 	}
@@ -163,4 +166,100 @@
 	100% {
 		background-position: -100% 0;
 	}
+}
+
+/* ── Image layout (align / wrap) ──────────────────────────────────────
+   Classes are applied to the host element by setViewProps (syncLayoutClass):
+   left = default (no class), center/right = margin auto, full = full-bleed,
+   wrap-left/right = float with text wrapping around the image.
+   (.image-container / .image widths are 100% of the host — see the top of
+   this file — so host width alone controls the rendered image size.)
+
+   Full-bleed is pure CSS: 100cqw is the .texto-editor inline size (it is a
+   size container, see styles/editor.css), and the symmetric margin trick
+   negates the editor content indent. The browser recomputes it natively on
+   every resize — no JS measuring, no lag. */
+.texto-extension-image-host.texto-image-layout-full {
+	width: 100cqw;
+	margin-inline: calc((100% - 100cqw) / 2);
+}
+
+/* Full-width images are not user-resizable. */
+.texto-extension-image-host.texto-image-layout-full .image-resize-handle {
+	display: none !important;
+}
+
+.texto-extension-image-host.texto-image-layout-center {
+	margin-inline: auto;
+}
+
+.texto-extension-image-host.texto-image-layout-right {
+	margin-left: auto;
+}
+
+.texto-extension-image-host.texto-image-layout-wrap-left {
+	float: left;
+	width: 50%;
+	margin: 4px 16px 8px 0;
+}
+
+.texto-extension-image-host.texto-image-layout-wrap-right {
+	float: right;
+	width: 50%;
+	margin: 4px 0 8px 16px;
+}
+
+/* ── Image width resize handles ───────────────────────────────────────
+   Visible only while the node is selected; drag changes the width live,
+   committed to attrs.width (percent) on pointerup. */
+.texto-extension-image-host {
+	position: relative;
+}
+
+.texto-extension-image-host .image-resize-handle {
+	position: absolute;
+	top: 50%;
+	width: 10px;
+	height: 36px;
+	border-radius: 5px;
+	background: var(--texto-image-container__outline-color, #5a9eff);
+	box-shadow: 0 0 0 2px rgb(255 255 255 / 85%);
+	cursor: ew-resize;
+	opacity: 0;
+	pointer-events: none;
+	transform: translateY(-50%);
+	touch-action: none;
+	transition: opacity 0.12s ease;
+	z-index: 5;
+}
+
+.texto-extension-image-host .image-resize-handle-left {
+	left: -5px;
+}
+
+.texto-extension-image-host .image-resize-handle-right {
+	right: -5px;
+}
+
+.texto-extension-image-host[class$='selectednode'] .image-resize-handle {
+	opacity: 1;
+	pointer-events: all;
+}
+
+.texto-extension-image-host[class$='selectednode'] .image-resize-handle:hover {
+	box-shadow: 0 0 0 2px rgb(255 255 255 / 95%);
+	filter: brightness(1.08);
+}
+
+/* While a resize drag is active: suppress text selection everywhere. */
+body.texto-image-resizing {
+	cursor: ew-resize;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+/* No resize handles for error blocks ("file not found") and empty
+   placeholders — there is no image to resize. */
+.texto-extension-image-host.texto-image-no-file .image-resize-handle {
+	display: none !important;
 }
