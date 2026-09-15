@@ -300,8 +300,9 @@ describe("noteStorage", () => {
 
       expect(vault.adapter.append).toHaveBeenCalledTimes(1);
       const [logPath, line] = vault.adapter.append.mock.calls[0];
-      expect(logPath).toBe(".inscriptum-write-log.jsonl");
+      expect(logPath).toBe(".inscriptum-log.jsonl");
       const entry = JSON.parse(line);
+      expect(entry.kind).toBe("note-write");
       expect(entry).toMatchObject({
         path: "notes/test.note",
         trigger: "close",

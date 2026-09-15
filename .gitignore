@@ -11,4 +11,4 @@ local/
 /docs/superpowers/
 # Browser-test harness build output (see scripts/build-harness.mjs)
 dist-harness/
-.inscriptum-write-log.jsonl
+.inscriptum-log.jsonl

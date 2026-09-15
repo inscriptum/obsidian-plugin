@@ -188,6 +188,7 @@ export async function writeNoteRaw(
     result = "error";
     error = `${String(err)} (new content kept in ${tmpPath})`;
     void logNoteWrite(vault, {
+      kind: "note-write",
       ts: new Date().toISOString(),
       trigger,
       path: file.path,
@@ -203,6 +204,7 @@ export async function writeNoteRaw(
   }
 
   void logNoteWrite(vault, {
+    kind: "note-write",
     ts: new Date().toISOString(),
     trigger,
     path: file.path,
@@ -217,8 +219,11 @@ export async function writeNoteRaw(
  *  localStorage.setItem("inscriptum-write-log", "1").
  *  The durable switch is the plugin setting (see setWriteLogEnabled). */
 const WRITE_LOG_FLAG = "inscriptum-write-log";
-/** Hidden file at the vault root — JSON lines, one note write per line. */
-const WRITE_LOG_PATH = ".inscriptum-write-log.jsonl";
+/** Hidden file at the vault root — JSON lines, one event per line. General
+ *  plugin activity log: entries carry a `kind` field ("note-write" today,
+ *  more kinds can join later). Dot-prefixed → invisible in the file
+ *  explorer, easy to attach to a bug report. */
+const LOG_PATH = ".inscriptum-log.jsonl";
 
 /** Plugin-setting override, driven by the settings toggle in main.ts.
  *  Off by default: nothing is written until either the setting or the
@@ -240,6 +245,8 @@ export function isWriteLogEnabled(): boolean {
 }
 
 export interface NoteWriteLogEntry {
+  /** What kind of event this is — the general log hosts several kinds. */
+  kind: "note-write";
   ts: string;
   /** What initiated the save: autosave | blur | unload-file | close |
    *  conflict-keep-local | blocked-empty | unknown. */
@@ -262,7 +269,7 @@ export async function logNoteWrite(
   if (!isWriteLogEnabled()) return;
   const line = JSON.stringify(entry);
   try {
-    await vault.adapter.append(WRITE_LOG_PATH, `${line}\n`);
+    await vault.adapter.append(LOG_PATH, `${line}\n`);
   } catch {
     // a broken log must never break a save
   }
@@ -276,6 +283,7 @@ export async function logWriteBlocked(
   bytes: number,
 ): Promise<void> {
   await logNoteWrite(vault, {
+    kind: "note-write",
     ts: new Date().toISOString(),
     trigger: `blocked-empty (${trigger})`,
     path,

@@ -329,9 +329,9 @@ class InscriptumSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     new Setting(containerEl)
-      .setName("Log note writes")
+      .setName("Diagnostic log")
       .setDesc(
-        'Diagnostics for storage problems: every note save appends one JSON line to .inscriptum-write-log.jsonl at the vault root (time, trigger, path, sizes, result, duration). Off by default; the log never breaks a save. Can also be toggled without opening settings via localStorage.setItem("inscriptum-write-log", "1") in the console.',
+        "When turned on, inscriptum keeps a technical journal of its note-saving activity (which file, when, size, result) in a hidden file named .inscriptum-log.jsonl in your vault. If a note is ever damaged or lost, this journal helps figure out what happened. Leave it off in everyday use and turn it on when troubleshooting a problem — it never interferes with saving.",
       )
       .addToggle((toggle) =>
         toggle
