@@ -25,20 +25,20 @@ const ICON_PATHS: Record<string, string> = {
 };
 
 /** Raw Tabler-outline path markup (MIT), 24×24 viewBox, as in the Figma/HTML mocks. */
-const TOOLBAR_ICON_PATHS: Record<string, string> = {
+const TOOLBAR_ICON_PATHS = {
   paragraph: `<line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/>`,
   h1: `<path d="M19 18v-8l-2 2"/><path d="M4 6v12"/><path d="M12 6v12"/><path d="M11 18h2"/><path d="M3 18h2"/><path d="M4 12l8 0"/><path d="M3 6h2"/><path d="M11 6h2"/>`,
   h2: `<path d="M4 6v12"/><path d="M12 6v12"/><path d="M11 18h2"/><path d="M3 18h2"/><path d="M4 12l8 0"/><path d="M3 6h2"/><path d="M11 6h2"/><path d="M17 12a2 2 0 1 1 4 0c0 .591 -.417 1.318 -.816 1.858l-3.184 4.143h4"/>`,
-  h3: `<path d="M4 6v12"/><path d="M12 6v12"/><path d="M11 18h2"/><path d="M3 18h2"/><path d="M4 12l8 0"/><path d="M3 6h2"/><path d="M11 6h2"/><path d="M17 12a2 2 0 1 1 3.998 -.164l-.002 .164a2 2 0 1 1 -3.998 .164l.002 -.164"/>`,
+  h3: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M19 14a2 2 0 1 0 -2 -2" /><path d="M17 16a2 2 0 1 0 2 -2" /><path d="M4 6v12" /><path d="M12 6v12" /><path d="M11 18h2" /><path d="M3 18h2" /><path d="M4 12h8" /><path d="M3 6h2" /><path d="M11 6h2" />`,
   blockquote: `<path d="M6 15h15"/><path d="M21 19h-15"/><path d="M15 11h6"/><path d="M21 7h-6"/><path d="M9 9h1a1 1 0 1 1 -1 1v-2.5a2 2 0 0 1 2 -2"/><path d="M3 9h1a1 1 0 1 1 -1 1v-2.5a2 2 0 0 1 2 -2"/>`,
-  taskList: `<path d="M3.5 5.5l1.5 1.5l2.5 -2.5"/><path d="M3.5 11.5l1.5 1.5l2.5 -2.5"/><path d="M3.5 17.5l1.5 1.5l2.5 -2.5"/><path d="M11 6l9 0"/><path d="M11 12l9 0"/><path d="M11 18l9 0"/>`,
+  taskList: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M13 5h8" /><path d="M13 9h5" /><path d="M13 15h8" /><path d="M13 19h5" /><path d="M3 5a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" /><path d="M3 15a1 1 0 0 1 1 -1h4a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-4a1 1 0 0 1 -1 -1l0 -4" />`,
   bulletList: `<path d="M9 6l11 0"/><path d="M9 12l11 0"/><path d="M9 18l11 0"/><path d="M5 6l0 .01"/><path d="M5 12l0 .01"/><path d="M5 18l0 .01"/>`,
   orderedList: `<path d="M11 6h9"/><path d="M11 12h9"/><path d="M12 18h8"/><path d="M4 16a2 2 0 1 1 4 0c0 .591 -.5 1 -1 1.5l-3 2.5h4"/><path d="M6 10v-6l-2 2"/>`,
   code: `<path d="M7 8l-4 4l4 4"/><path d="M17 8l4 4l-4 4"/><path d="M14 4l-4 16"/>`,
   image: `<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 15l6-6 2 2 4-4 6 5"/><circle cx="8.5" cy="9.5" r="1.5"/>`,
   paperclip: `<path d="M15 7l-6.5 6.5a1.5 1.5 0 0 0 3 3l6.5 -6.5a3 3 0 0 0 -6 -6l-6.5 6.5a4.5 4.5 0 0 0 9 9l6.5 -6.5"/>`,
   table: `<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/><path d="M10 10v9"/>`,
-};
+} as const;
 
 /** Bubble-menu icons — paths from the Bubble-Menu-Prototype, Tabler outline
  *  (MIT) for bold/italic/strike/code/link/blocks, Lucide (MIT) for highlighter
@@ -53,12 +53,12 @@ const BUBBLE_ICON_PATHS: Record<string, string> = {
   link: `<path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-1.5 1.5"/><path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l1.5 -1.5"/>`,
   clear: `<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>`,
   paragraph: `<line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/>`,
-  h1: `<path d="M19 18v-8l-2 2"/><path d="M4 6v12"/><path d="M12 6v12"/><path d="M11 18h2"/><path d="M3 18h2"/><path d="M4 12l8 0"/><path d="M3 6h2"/><path d="M11 6h2"/>`,
-  h2: `<path d="M4 6v12"/><path d="M12 6v12"/><path d="M11 18h2"/><path d="M3 18h2"/><path d="M4 12l8 0"/><path d="M3 6h2"/><path d="M11 6h2"/><path d="M17 12a2 2 0 1 1 4 0c0 .591 -.417 1.318 -.816 1.858l-3.184 4.143h4"/>`,
-  h3: `<path d="M4 6v12"/><path d="M12 6v12"/><path d="M11 18h2"/><path d="M3 18h2"/><path d="M4 12l8 0"/><path d="M3 6h2"/><path d="M11 6h2"/><path d="M17 12a2 2 0 1 1 3.998 -.164l-.002 .164a2 2 0 1 1 -3.998 .164l.002 -.164"/>`,
-  blockquote: `<path d="M6 15h15"/><path d="M21 19h-15"/><path d="M15 11h6"/><path d="M21 7h-6"/><path d="M9 9h1a1 1 0 1 1 -1 1v-2.5a2 2 0 0 1 2 -2"/><path d="M3 9h1a1 1 0 1 1 -1 1v-2.5a2 2 0 0 1 2 -2"/>`,
-  list: `<path d="M9 6h11"/><path d="M9 12h11"/><path d="M9 18h11"/><path d="M4 6h.01"/><path d="M4 12h.01"/><path d="M4 18h.01"/>`,
-  taskList: `<path d="M3.5 5.5l1.5 1.5l2.5 -2.5"/><path d="M3.5 11.5l1.5 1.5l2.5 -2.5"/><path d="M3.5 17.5l1.5 1.5l2.5 -2.5"/><path d="M11 6l9 0"/><path d="M11 12l9 0"/><path d="M11 18l9 0"/>`,
+  h1: TOOLBAR_ICON_PATHS.h1,
+  h2: TOOLBAR_ICON_PATHS.h2,
+  h3: TOOLBAR_ICON_PATHS.h3,
+  blockquote: TOOLBAR_ICON_PATHS.blockquote,
+  list: TOOLBAR_ICON_PATHS.bulletList,
+  taskList: TOOLBAR_ICON_PATHS.taskList,
   check: `<path d="M5 12l5 5l10 -10"/>`,
   rowAbove: `<path d="M4 18v-4a1 1 0 0 1 1 -1h14a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-14a1 1 0 0 1 -1 -1z"/><path d="M12 9v-4"/><path d="M9 6l3 -3l3 3"/>`,
   rowBelow: `<path d="M4 18v-4a1 1 0 0 1 1 -1h14a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-14a1 1 0 0 1 -1 -1z"/><path d="M12 9v4"/><path d="M9 16l3 3l3 -3"/>`,
@@ -84,8 +84,10 @@ const BUBBLE_ICON_PATHS: Record<string, string> = {
 export type ToolbarIconName = keyof typeof TOOLBAR_ICON_PATHS;
 export type BubbleIconName = keyof typeof BUBBLE_ICON_PATHS;
 
-export const TOOLBAR_ICON_NAMES: ToolbarIconName[] =
-  Object.keys(TOOLBAR_ICON_PATHS);
+export const TOOLBAR_ICON_NAMES = Object.keys(
+  TOOLBAR_ICON_PATHS,
+) as ToolbarIconName[];
+
 export const BUBBLE_ICON_NAMES: BubbleIconName[] =
   Object.keys(BUBBLE_ICON_PATHS);
 

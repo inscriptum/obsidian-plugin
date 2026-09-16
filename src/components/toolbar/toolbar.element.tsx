@@ -52,12 +52,6 @@ const GROUPS: ToolbarButton[][] = [
   // Group 2 — blocks
   [
     {
-      activeKey: "blockquote",
-      label: "Quote",
-      icon: "blockquote",
-      action: (e) => e.chain().focus().toggleBlockquote().run(),
-    },
-    {
       activeKey: "taskList",
       label: "To-do list",
       icon: "taskList",
@@ -75,6 +69,21 @@ const GROUPS: ToolbarButton[][] = [
       icon: "orderedList",
       action: (e) => e.chain().focus().toggleOrderedList().run(),
     },
+  ],
+  // Group 3 — insert
+  [
+    {
+      activeKey: null,
+      label: "Table",
+      icon: "table",
+      action: (e) => e.chain().focus().insertTable().run(),
+    },
+    {
+      activeKey: "blockquote",
+      label: "Quote",
+      icon: "blockquote",
+      action: (e) => e.chain().focus().toggleBlockquote().run(),
+    },
     {
       activeKey: "codeBlock",
       label: "Code block",
@@ -82,7 +91,7 @@ const GROUPS: ToolbarButton[][] = [
       action: (e) => e.chain().focus().toggleHljsCodeBlock().run(),
     },
   ],
-  // Group 3 — insert
+  // Group 4 — insert
   [
     {
       activeKey: null,
@@ -95,12 +104,6 @@ const GROUPS: ToolbarButton[][] = [
       label: "Attach",
       icon: "paperclip",
       action: (e) => e.chain().focus().setAttachment(true).run(),
-    },
-    {
-      activeKey: null,
-      label: "Table",
-      icon: "table",
-      action: (e) => e.chain().focus().insertTable().run(),
     },
   ],
 ];
@@ -188,7 +191,6 @@ export const ToolbarElement = litView.element({
                 <button
                   class={`note-toolbar__btn${btn.activeKey && state[btn.activeKey] ? " is-active" : ""}`}
                   aria-label={btn.label}
-                  title={btn.label}
                   onclick={() => btn.action(props.editor)}
                 >
                   <span class="note-toolbar__icon">
