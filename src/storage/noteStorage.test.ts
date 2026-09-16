@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import type { JSONContent } from "../texto/core/@types";
 import type { Vault as ObsidianVault } from "obsidian";
 import { Vault, TFile } from "../__mocks__/obsidian";
 import {
@@ -7,6 +8,7 @@ import {
   writeNote,
   createEmptyNote,
   parseNoteDoc,
+  sanitizeNoteDoc,
   isEmptyNoteDoc,
   isWriteLogEnabled,
   setWriteLogEnabled,
@@ -360,5 +362,60 @@ describe("noteStorage", () => {
       localStorage.removeItem(flag);
       expect(isWriteLogEnabled()).toBe(false);
     });
+  });
+});
+
+describe("sanitizeNoteDoc / parseNoteDoc", () => {
+  it("strips empty text nodes at any depth", () => {
+    const doc: JSONContent = {
+      type: "noteDoc",
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: "keep" }] },
+        {
+          type: "hljsCodeBlock",
+          content: [
+            { type: "hljsCodeBlockRow", content: [{ type: "text", text: "" }] },
+            { type: "hljsCodeBlockRow", content: [{ type: "text", text: "code" }] },
+          ],
+        },
+      ],
+    };
+    const clean = sanitizeNoteDoc(doc);
+    const rows = clean.content![1].content as JSONContent[];
+    expect(rows[0].content).toEqual([]);
+    expect(rows[1].content![0].text).toBe("code");
+  });
+
+  it("drops text nodes with a missing text field, keeps whitespace text", () => {
+    const doc: JSONContent = {
+      type: "paragraph",
+      content: [
+        { type: "text", marks: [{ type: "bold" }] },
+        { type: "text", text: "  " },
+        { type: "text", text: "word" },
+      ],
+    };
+    const clean = sanitizeNoteDoc(doc);
+    expect(clean.content).toHaveLength(2);
+    expect(clean.content![0].text).toBe("  ");
+    expect(clean.content![1].text).toBe("word");
+  });
+
+  it("handles docs without content arrays", () => {
+    expect(sanitizeNoteDoc({ type: "image", attrs: { src: "x" } })).toEqual({
+      type: "image",
+      attrs: { src: "x" },
+    });
+  });
+
+  it("parseNoteDoc sanitizes on read", () => {
+    const raw = JSON.stringify({
+      type: "noteDoc",
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: "" }] },
+      ],
+    });
+    const doc = parseNoteDoc(raw);
+    expect(doc.content![0].content).toEqual([]);
   });
 });

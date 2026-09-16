@@ -39,7 +39,26 @@ export async function readNoteWithRaw(
  *  empty doc loaded into the editor gets persisted by autosave and wipes
  *  the real content (see issues/empty-note-wipe-guard). */
 export function parseNoteDoc(raw: string): JSONContent {
-  return JSON.parse(raw) as JSONContent;
+  // Legacy files can carry schema-invalid empty text nodes ("text": "") —
+  // prosemirror's nodeFromJSON rejects them ("Empty text nodes are not
+  // allowed") and the note would never open. Strip them on read; the next
+  // normalized autosave rewrites the file without them.
+  return sanitizeNoteDoc(JSON.parse(raw) as JSONContent);
+}
+
+/** Recursively drop empty text nodes ("text" missing or "") from a parsed
+ *  note doc and return it. Nothing else is touched: whitespace-only text is
+ *  schema-valid and kept; nodes left with an empty content array are valid
+ *  for this schema (e.g. hljsCodeBlockRow is "inline*"). */
+export function sanitizeNoteDoc<T extends JSONContent>(doc: T): T {
+  if (Array.isArray(doc.content)) {
+    doc.content = doc.content
+      .map((child) =>
+        child.type === "text" && !child.text ? null : sanitizeNoteDoc(child),
+      )
+      .filter((child) => child != null);
+  }
+  return doc;
 }
 
 /** True when the doc is the pristine empty note shape: a noteDoc whose

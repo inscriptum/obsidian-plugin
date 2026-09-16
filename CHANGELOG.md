@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Notes containing schema-invalid empty text nodes (written by older builds — e.g. an empty line in an hljs code block) could not be opened at all: the editor rejected the content ("Empty text nodes are not allowed") and the view was left in a broken, error-spamming state. Empty text nodes are now stripped on read and the file is healed by the next save; if content still fails to load, the note shows a clean error state instead of an error cascade, and the file on disk is never modified.
 - Mobile: the "Styles & color" menu was broken — the style rows (Paragraph, Headings, Blockquote, Lists) were squashed into 44×44 squares, their leading icons were centered out of the panel and clipped (so no icons were visible), labels overlapped the checkmarks, and the docked layer was cut off mid-list by a stale JS height cap. Style rows are now full-width 44px rows with visible icons, the active style keeps its fill and checkmark, and the layer height is bounded by CSS so every item and the color swatches stay reachable.
 
 ## [0.7.2] - 2026-09-16

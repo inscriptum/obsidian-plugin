@@ -430,6 +430,17 @@ export class NoteView extends FileView {
             autofocus: "start",
           });
 
+          // The constructor survives its own init failures (e.g. content the
+          // schema rejects): it emits onError, destroys the half-built view
+          // and returns a dead instance whose `view` is undefined — touching
+          // anything on it (isDestroyed, registerPlugin) throws and used to
+          // cascade through this view. Treat it as a failed init.
+          if (this.editor.view == null) {
+            this.editor = null;
+            this.renderBrokenContentState(file);
+            return;
+          }
+
           editorRef.current = this.editor;
           this.editor.registerPlugin(createDocumentSearchPlugin());
           // Layout-transformed Ctrl/Cmd+letter events (non-Latin keyboard
@@ -699,6 +710,29 @@ export class NoteView extends FileView {
     });
     box.createEl("p", {
       text: "Try reopening the note; if sync is still running, let it finish first.",
+    });
+  }
+
+  /** Error state for a note whose file is valid but whose content was
+   *  rejected by the editor schema (the constructor returned a destroyed
+   *  instance — see the initEditor guard). No editor is created, so nothing
+   *  can be saved over the file. */
+  private renderBrokenContentState(file: TFile): void {
+    this.contentEl.empty();
+    const box = this.contentEl.createDiv({
+      cls: "inscriptum-unreadable-note",
+    });
+    box.createEl("p", {
+      cls: "inscriptum-unreadable-note-title",
+      text: "This note could not be opened.",
+    });
+    box.createEl("p", {
+      text:
+        `The content of "${file.path}" could not be loaded into the editor. ` +
+        "Nothing was loaded or saved — the file on disk was not modified.",
+    });
+    box.createEl("p", {
+      text: "Try updating the plugin; if the error persists, the file may need manual fixing.",
     });
   }
 
