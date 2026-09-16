@@ -90,9 +90,15 @@ export async function writeNote(
  *  1. desktop: node fs.rename over the existing target — truly atomic
  *     (readers see old or new content, never a truncated file);
  *  2. adapter rename (target absent — e.g. first save);
- *  3. adapter remove + rename (target present on mobile): a tiny window
- *     where the target is missing, but the temp file with the full new
- *     content survives any crash and is reported in the write log.
+ *  3. in-place adapter write of the target (target present on mobile).
+ *
+ * 3 is NOT atomic: a crash mid-write can truncate the target. It replaced
+ * the previous remove+rename fallback because adapter.remove on the OPEN
+ * note file fires a vault "delete" and Obsidian immediately closes the
+ * note — on mobile every autosave kicked the user out of the note
+ * (issues/mobile-edit-exits-note, 0.7.x regression). The truncation window
+ * is mitigated: the temp file written in step 0 still holds the complete
+ * new content and is named in the write log entry.
  *
  * On failure the temp file is kept (it holds the complete new content and
  * is named in the log entry) — never delete the only good copy.
@@ -105,13 +111,16 @@ export async function writeNote(
  *    destination ("Destination file already exists!"), so the raw fs call
  *    is the only true replace here.
  * 2. Adapter rename — works when the target does not exist yet.
- * 3. Adapter remove + rename — target exists on mobile/no-node: a tiny
- *    missing-file window, mitigated by keeping the temp file on failure.
+ * 3. In-place adapter write — target exists on mobile/no-node. NEVER
+ *    adapter.remove the target: a vault "delete" for the open note closes
+ *    the note view (mobile regression). The temp file with the full new
+ *    content is cleaned up after a successful write.
  */
 async function replaceFile(
   vault: Vault,
   tmpPath: string,
   targetPath: string,
+  data: string,
 ): Promise<void> {
   const nodeFs = getNodeFs();
   const adapter = vault.adapter;
@@ -128,10 +137,16 @@ async function replaceFile(
     return;
   } catch {
     // adapter.rename refuses to overwrite an existing destination —
-    // fall through to remove + rename.
+    // fall through to the in-place write.
   }
-  await adapter.remove(targetPath);
-  await adapter.rename(tmpPath, targetPath);
+  await adapter.write(targetPath, data);
+  // Success: the temp copy is no longer needed. Dot-prefixed, so removing
+  // it produces no vault events and stays invisible to the user.
+  try {
+    await adapter.remove(tmpPath);
+  } catch {
+    // a leftover temp file is harmless (and reported in the write log)
+  }
 }
 
 /** The node fs module on desktop Obsidian; null on mobile / when blocked. */
@@ -170,7 +185,7 @@ export async function writeNoteRaw(
   let error: string | undefined;
   try {
     await adapter.write(tmpPath, data);
-    await replaceFile(vault, tmpPath, file.path);
+    await replaceFile(vault, tmpPath, file.path, data);
     // Verify the file on disk actually holds what we wrote — a mismatch
     // means the storage layer lied about the write succeeding.
     try {

@@ -203,25 +203,28 @@ describe("noteStorage", () => {
       expect(vault.adapter.remove).not.toHaveBeenCalled();
     });
 
-    it("falls back to remove+rename when the target exists and rename refuses", async () => {
+    it("overwrites in place on mobile when the target exists and rename refuses — never removes the target", async () => {
       const file = new TFile("test.note");
       const vault = new Vault();
       vault.adapter.stat.mockResolvedValue({ size: 123 });
-      vault.adapter.rename
-        .mockRejectedValueOnce(new Error("Destination file already exists!"))
-        .mockResolvedValueOnce(undefined);
+      vault.adapter.rename.mockRejectedValue(
+        new Error("Destination file already exists!"),
+      );
 
       await writeNote(file, vault as unknown as ObsidianVault, {
         type: "noteDoc",
         content: [],
       });
 
-      expect(vault.adapter.remove).toHaveBeenCalledWith("test.note");
-      expect(vault.adapter.rename).toHaveBeenCalledTimes(2);
-      expect(vault.adapter.rename).toHaveBeenLastCalledWith(
-        vault.adapter.write.mock.calls[0][0],
-        "test.note",
-      );
+      const tmpPath = vault.adapter.write.mock.calls[0][0];
+      const data = JSON.stringify({ type: "noteDoc", content: [] }, null, 2);
+      // in-place overwrite of the target — a vault "delete" for the open
+      // note would close the note view on mobile
+      expect(vault.adapter.write).toHaveBeenLastCalledWith("test.note", data);
+      expect(vault.adapter.remove).not.toHaveBeenCalledWith("test.note");
+      expect(vault.adapter.rename).toHaveBeenCalledTimes(1);
+      // the temp copy is cleaned up only after a successful write
+      expect(vault.adapter.remove).toHaveBeenCalledWith(tmpPath);
     });
 
     it("keeps the temp file for recovery when every replace strategy fails", async () => {
@@ -231,6 +234,9 @@ describe("noteStorage", () => {
       vault.adapter.rename.mockRejectedValue(
         new Error("Destination file already exists!"),
       );
+      vault.adapter.write
+        .mockResolvedValueOnce(undefined) // temp write succeeds
+        .mockRejectedValueOnce(new Error("disk full")); // in-place write fails
 
       await expect(
         writeNote(file, vault as unknown as ObsidianVault, {
@@ -240,10 +246,7 @@ describe("noteStorage", () => {
       ).rejects.toThrow(/new content kept in \.test\.note\./);
 
       // the temp file (the only good copy) was NOT deleted
-      expect(vault.adapter.remove).toHaveBeenCalledWith("test.note");
-      expect(vault.adapter.remove).not.toHaveBeenCalledWith(
-        expect.stringContaining(".tmp"),
-      );
+      expect(vault.adapter.remove).not.toHaveBeenCalled();
     });
 
     it("flags verify-failed when the file is 0 bytes after a non-empty write", async () => {
