@@ -6,6 +6,7 @@ import { isMediaNodeSelection } from "../bubble-menu-bar/mediaMenuState";
 import { elTag } from "../../tags";
 import { getToolbarState, type ToolbarState } from "./toolbarState";
 import { toolbarIconNodes } from "./icon.svgnode";
+import { normalizeLinkUrl } from "./linkUrl";
 import type { ToolbarIconName } from "../icons/iconSprite";
 
 interface ToolbarButton {
@@ -73,6 +74,14 @@ const GROUPS: ToolbarButton[][] = [
   // Group 3 — insert
   [
     {
+      activeKey: "link",
+      label: "Link",
+      icon: "link",
+      // Not a plain editor chain: the button toggles the toolbar's link layer
+      // (component state). onclick routes on activeKey === "link".
+      action: () => {},
+    },
+    {
       activeKey: null,
       label: "Table",
       icon: "table",
@@ -91,7 +100,7 @@ const GROUPS: ToolbarButton[][] = [
       action: (e) => e.chain().focus().toggleHljsCodeBlock().run(),
     },
   ],
-  // Group 4 — insert
+  // Group 4 — insert media
   [
     {
       activeKey: null,
@@ -172,6 +181,103 @@ export const ToolbarElement = litView.element({
     void this.next();
   };
 
+  /* ── Link layer (toolbar Link button) ──
+     A small URL row docked into the toolbar: on desktop it pops under the bar,
+     on mobile it docks above the toolbar row (see toolbar.css / mobile.css).
+     With a text selection it links the selection; with an empty caret inside
+     an existing link it updates that link's href; with a bare caret it inserts
+     the URL as the link's own text. */
+  let linkLayerOpen = false;
+  let linkDraft = "";
+
+  // The host class re-docks the layer row on mobile (see mobile.css 3.1).
+  const syncLinkLayerClass = () => {
+    root.classList.toggle("is-link-open", linkLayerOpen);
+  };
+
+  const closeLinkLayer = () => {
+    if (linkLayerOpen) {
+      linkLayerOpen = false;
+      syncLinkLayerClass();
+      void this.next();
+    }
+  };
+
+  const toggleLinkLayer = () => {
+    if (linkLayerOpen) {
+      closeLinkLayer();
+      return;
+    }
+    // Prefill when the caret/selection sits on a link.
+    linkDraft = String(props.editor.getAttributes("link").href ?? "");
+    linkLayerOpen = true;
+    syncLinkLayerClass();
+    void this.next().then(() => {
+      window.requestAnimationFrame(() => {
+        const input = root.querySelector<HTMLInputElement>(".tb-link-input");
+        input?.focus();
+        input?.select();
+      });
+    });
+  };
+
+  const applyToolbarLink = () => {
+    const url = normalizeLinkUrl(linkDraft);
+    const editor = props.editor;
+    const { selection } = editor.state;
+    if (url) {
+      if (selection.empty && editor.isActive("link")) {
+        // Bare caret on a link: rewrite that link's href, keep its text.
+        editor
+          .chain()
+          .focus()
+          .extendMarkRange("link")
+          .setMark("link", { href: url })
+          .setMeta("preventAutolink", true)
+          .run();
+      } else if (selection.empty) {
+        // No selection: the URL becomes the link's own text.
+        editor
+          .chain()
+          .focus()
+          .insertContent({
+            type: "text",
+            text: url,
+            marks: [{ type: "link", attrs: { href: url } }],
+          })
+          .setMeta("preventAutolink", true)
+          .run();
+      } else {
+        editor
+          .chain()
+          .focus()
+          .setMark("link", { href: url })
+          .setMeta("preventAutolink", true)
+          .run();
+      }
+    }
+    closeLinkLayer();
+  };
+
+  const removeToolbarLink = () => {
+    props.editor
+      .chain()
+      .focus()
+      .unsetMark("link", { extendEmptyMarkRange: true })
+      .run();
+    closeLinkLayer();
+  };
+
+  // Tap/click outside the toolbar dismisses the layer (the Link button itself
+  // is inside the root and toggles via its own handler).
+  const onDocPointerDown = (event: PointerEvent) => {
+    if (!linkLayerOpen) return;
+    const target = event.target as Node | null;
+    if (target && root.contains(target)) return;
+    closeLinkLayer();
+  };
+  document.addEventListener("pointerdown", onDocPointerDown, true);
+
   props.editor.on("selectionUpdate", refreshState);
   props.editor.on("update", refreshState);
 
@@ -189,9 +295,13 @@ export const ToolbarElement = litView.element({
               gi > 0 ? <div class="note-toolbar__sep"></div> : null,
               group.map((btn) => (
                 <button
-                  class={`note-toolbar__btn${btn.activeKey && state[btn.activeKey] ? " is-active" : ""}`}
+                  class={`note-toolbar__btn${(btn.activeKey && state[btn.activeKey]) || (btn.activeKey === "link" && linkLayerOpen) ? " is-active" : ""}`}
                   aria-label={btn.label}
-                  onclick={() => btn.action(props.editor)}
+                  onclick={() =>
+                    btn.activeKey === "link"
+                      ? toggleLinkLayer()
+                      : btn.action(props.editor)
+                  }
                 >
                   <span class="note-toolbar__icon">
                     {toolbarIconNodes[btn.icon]({})}
@@ -209,6 +319,46 @@ export const ToolbarElement = litView.element({
               <span>{wordCount} w.</span>
             </div>
           </div>
+          {linkLayerOpen ? (
+            <div class="tb-link-layer">
+              <input
+                class="tb-link-input"
+                type="url"
+                placeholder="https://…"
+                spellcheck="false"
+                aria-label="Link URL"
+                value={linkDraft}
+                oninput={(e: Event) => {
+                  linkDraft = (e.target as HTMLInputElement).value;
+                }}
+                onkeydown={(e: KeyboardEvent) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    applyToolbarLink();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    closeLinkLayer();
+                  }
+                }}
+              />
+              <button
+                class="tb-link-go"
+                aria-label="Apply link"
+                onclick={applyToolbarLink}
+              >
+                <span class="tb-link-icon">{toolbarIconNodes.check({})}</span>
+              </button>
+              <button
+                class="tb-link-go tb-link-del"
+                aria-label="Remove link"
+                onclick={removeToolbarLink}
+              >
+                <span class="tb-link-icon">{toolbarIconNodes.trash({})}</span>
+              </button>
+            </div>
+          ) : null}
           {isMobileSwap && props.selectionBar ? (
             <div
               class={`mobile-sel-bar mobile-sel-bar--text${mode === "text" ? " is-active" : ""}`}
@@ -238,6 +388,7 @@ export const ToolbarElement = litView.element({
     props.editor.off("update", refreshState);
     root.removeEventListener("pointerdown", preventButtonFocus, true);
     root.removeEventListener("mousedown", preventButtonFocus, true);
+    document.removeEventListener("pointerdown", onDocPointerDown, true);
     if (saveTimer) {
       window.clearTimeout(saveTimer);
     }

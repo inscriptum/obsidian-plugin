@@ -200,6 +200,53 @@
   display: none;
 }
 
+/* ─── 3.1 Toolbar link layer ───
+   The toolbar Link button opens a URL row (.tb-link-layer, a sibling of
+   .note-toolbar inside the host). On mobile it DOCKS as a full-width row above
+   the toolbar buttons — same pattern as the docked bubble-menu layers: static
+   position, flex-column host, nothing floats. The desktop popover styles from
+   toolbar.css are neutralized. The buttons here are plain .tb-link-go, NOT
+   .note-toolbar__btn, so neither the 52px toolbar overrides nor the
+   bubble-menu generic flattener (rule-bubble-menu-buttons) touches them. */
+.note-view-container.is-mobile .note-toolbar-host.is-link-open {
+  display: flex;
+  flex-direction: column;
+}
+.note-view-container.is-mobile .note-toolbar-host.is-link-open .tb-link-layer {
+  position: static;
+  order: -1;
+  width: 100%;
+  padding: 6px 10px 2px;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+.note-view-container.is-mobile
+  .note-toolbar-host.is-link-open
+  .tb-link-input {
+  padding: 9px 11px;
+  font-size: 15px;
+}
+.note-view-container.is-mobile
+  .note-toolbar-host.is-link-open
+  .tb-link-go {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-m);
+}
+.note-view-container.is-mobile
+  .note-toolbar-host.is-link-open
+  .tb-link-go
+  .tb-link-icon,
+.note-view-container.is-mobile
+  .note-toolbar-host.is-link-open
+  .tb-link-go
+  svg {
+  width: 20px;
+  height: 20px;
+}
+
 /* Selection bars (bubble menu) inside the toolbar: full width, scrollable. */
 .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar {
   background: transparent;

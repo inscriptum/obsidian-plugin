@@ -10,6 +10,7 @@ export interface ToolbarState {
   bulletList: boolean;
   orderedList: boolean;
   codeBlock: boolean;
+  link: boolean;
 }
 
 /**
@@ -29,5 +30,6 @@ export function getToolbarState(
     bulletList: editor.isActive("bulletList"),
     orderedList: editor.isActive("orderedList"),
     codeBlock: editor.isActive("hljsCodeBlock"),
+    link: editor.isActive("link"),
   };
 }

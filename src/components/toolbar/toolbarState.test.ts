@@ -23,7 +23,12 @@ describe("getToolbarState", () => {
       bulletList: false,
       orderedList: false,
       codeBlock: false,
+      link: false,
     });
+  });
+
+  it("detects link", () => {
+    expect(getToolbarState(makeEditor({ link: true })).link).toBe(true);
   });
 
   it("detects paragraph", () => {

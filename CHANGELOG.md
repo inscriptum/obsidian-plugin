@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Link button in the note toolbar (desktop and mobile). With text selected it opens a URL row that links the selection (existing href prefilled, trash removes the link); with a bare caret it inserts the URL as the link's own text, and placed on an existing link it rewrites that link's href. Bare domains get an `https://` default; the button highlights while the caret is inside a link. On mobile the URL row docks above the toolbar buttons, on desktop it pops under the bar.
+
 ### Fixed
 
 - Mobile: the "Styles & color" menu was broken — the style rows (Paragraph, Headings, Blockquote, Lists) were squashed into 44×44 squares, their leading icons were centered out of the panel and clipped (so no icons were visible), labels overlapped the checkmarks, and the docked layer was cut off mid-list by a stale JS height cap. Style rows are now full-width 44px rows with visible icons, the active style keeps its fill and checkmark, and the layer height is bounded by CSS so every item and the color swatches stay reachable.
