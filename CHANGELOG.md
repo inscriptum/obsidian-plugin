@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Update toolbar buttons
+
 ### Fixed
 
+- Drag handle beside floated images, both sides of it.
 - Mobile: any edit kicked the user out of the note. The 0.7.0 atomic-write fallback replaced a save with remove+rename of the note file; the remove fired a vault "delete" for the OPEN note and Obsidian closed the view. The mobile fallback now overwrites the file in place — the note stays open — while the temp file written beforehand still guards against data loss on a crash mid-write.
 
 ## [0.7.1] - 2026-09-15

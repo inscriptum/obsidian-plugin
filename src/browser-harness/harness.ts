@@ -64,13 +64,16 @@ const toStr = (value: unknown): string =>
       ? ""
       : JSON.stringify(value);
 defineHelper("addClass", (el, [classes]) => {
-  for (const cls of classes as string[]) el.classList.add(cls);
+  // Obsidian's addClass accepts a string (ONE class) or an array.
+  const list = Array.isArray(classes) ? classes : [classes as string];
+  for (const cls of list) el.classList.add(cls);
 });
 defineHelper("addClasses", (el, [classes]) => {
   for (const list of classes as string[][]) el.classList.add(...list);
 });
 defineHelper("removeClass", (el, [classes]) => {
-  for (const cls of classes as string[]) el.classList.remove(cls);
+  const list = Array.isArray(classes) ? classes : [classes as string];
+  for (const cls of list) el.classList.remove(cls);
 });
 defineHelper("removeClasses", (el, [classes]) => {
   for (const list of classes as string[][]) el.classList.remove(...list);

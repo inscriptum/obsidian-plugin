@@ -834,8 +834,13 @@ function createDragHandleView(
         hoverChevronEl = chevron;
         chevron.classList.add(DRAG_HANDLE_CSS.chevronHover);
       }
-    } else if (!isListNode(unit.node)) {
-      wanted.push({ block: unit, kind: "unit" });
+    } else {
+      // The new unit has no chevron — a chevron revealed for the
+      // PREVIOUS unit must not stay force-revealed behind it.
+      clearHoverChevron();
+      if (!isListNode(unit.node)) {
+        wanted.push({ block: unit, kind: "unit" });
+      }
     }
     for (const list of listAncestorsOf(unit)) {
       if (list.node.childCount > 1) {
@@ -941,13 +946,119 @@ function createDragHandleView(
 
   /** The hovered unit: the deepest unit whose strip contains Y (equal
    *  depths — the tighter strip wins; sibling strips don't overlap, the
-   *  tolerance only bridges inter-block margins). */
+   *  tolerance only bridges inter-block margins).
+   *
+   *  Float amendment: a floated atom and the paragraphs wrapping it share
+   *  the same Y lines, and the wrapping paragraphs' strips are always
+   *  tighter (their boxes are full-width), so tightness alone would give
+   *  them the gutter beside the image too — the image's handle would
+   *  vanish as soon as the pointer left the image (the gutter is where
+   *  that handle lives). On equal depth the unit whose VISIBLE content
+   *  starts closest to the gutter wins (first-line left for text, box
+   *  left for atoms): beside a wrap-left image that is the image, beside
+   *  a wrap-right one that is the text. */
+  /** Left edge of the unit's visible content (viewport coords): the
+   *  first LINE box for text (it avoids floats — for a top-level
+   *  paragraph that is coordsAtPos(from+1), NOT the border box, which
+   *  spans the whole width beside a float), the box itself for atoms
+   *  and containers. Lazily computed — only tied candidates need it. */
+  const lineLeftOf = (unit: {
+    block: DraggableBlock;
+    lineLeft?: number;
+  }): number => {
+    if (unit.lineLeft != null) return unit.lineLeft;
+    let value = Infinity;
+    const dom = blockDomAt(view, unit.block.from);
+    if (dom != null) {
+      value = dom.getBoundingClientRect().left;
+    }
+    // firstTextPos only resolves for items (item > paragraph); a plain
+    // paragraph has inline content and anchors at from+1 (its content
+    // start boundary — verified to equal the first line box left).
+    const textPos = unit.block.node.inlineContent
+      ? (firstTextPos(unit.block) ?? unit.block.from + 1)
+      : null;
+    if (textPos != null) {
+      try {
+        const coords = view.coordsAtPos(textPos);
+        if (Number.isFinite(coords.left)) value = coords.left;
+      } catch {
+        // keep the box left
+      }
+    }
+    unit.lineLeft = value;
+    return value;
+  };
+
+  /** The deepest strip unit STRICTLY deeper than `than` whose line owns
+   *  the pointer: Y within the strip and X left of the unit's visible
+   *  content start — the empty zone left of a nested item's text is that
+   *  item's own gutter, but posAtCoords attributes it to the shallower
+   *  parent (the parent's box spans it), which made nested items
+   *  ungrabbable. Null when no such unit exists. */
+  const deepestUnitBelow = (
+    than: DraggableBlock,
+    x: number,
+    y: number,
+  ): DraggableBlock | null => {
+    const units = collectUnits();
+    // `than` is a plain DraggableBlock (no strip depth) — match it against
+    // the collected units to compare depths on the same scale. Every
+    // draggable unit (top-level block, list/task item) IS a strip unit, so
+    // the match always exists; without it there is nothing deeper to find.
+    const thanUnit = units.find(
+      (u) => u.block.from === than.from && u.block.to === than.to,
+    );
+    let best: {
+      block: DraggableBlock;
+      top: number;
+      bottom: number;
+      depth: number;
+      lineLeft?: number;
+    } | null = null;
+    for (const unit of units) {
+      if (thanUnit != null) {
+        // `than` is a strip unit: only strictly deeper units may take the
+        // line over it.
+        if (unit.depth <= thanUnit.depth) continue;
+      } else {
+        // `than` is a container that is not itself a unit — posAtCoords
+        // landed on the list node beside its items' lines (sub-pixel
+        // boundary resolution): the candidates are the container's OWN
+        // units, and the deepest one whose line owns X wins.
+        if (
+          unit.block.from < than.from ||
+          unit.block.to > than.to
+        ) {
+          continue;
+        }
+      }
+      if (
+        y < unit.top - LINE_STICKY_TOLERANCE ||
+        y > unit.bottom + LINE_STICKY_TOLERANCE
+      ) {
+        continue;
+      }
+      if (x >= lineLeftOf(unit)) continue;
+      if (
+        best == null ||
+        unit.depth > best.depth ||
+        (unit.depth === best.depth &&
+          unit.bottom - unit.top < best.bottom - best.top)
+      ) {
+        best = unit;
+      }
+    }
+    return best?.block ?? null;
+  };
+
   const resolveUnitAtY = (y: number): DraggableBlock | null => {
     let best: {
       block: DraggableBlock;
       top: number;
       bottom: number;
       depth: number;
+      lineLeft?: number;
     } | null = null;
     for (const unit of collectUnits()) {
       if (
@@ -960,7 +1071,11 @@ function createDragHandleView(
         best == null ||
         unit.depth > best.depth ||
         (unit.depth === best.depth &&
-          unit.bottom - unit.top < best.bottom - best.top)
+          // closer-to-gutter visible content owns the shared line; the
+          // epsilon absorbs sub-pixel jitter before the tightness rule
+          (Math.abs(lineLeftOf(unit) - lineLeftOf(best)) > 1
+            ? lineLeftOf(unit) < lineLeftOf(best)
+            : unit.bottom - unit.top < best.bottom - best.top))
       ) {
         best = unit;
       }
@@ -998,6 +1113,63 @@ function createDragHandleView(
     // cancel the grab look).
     if (dragBlock != null) {
       return;
+    }
+    // X-accurate resolution OVER CONTENT: posAtCoords hit-tests the actual
+    // element under the pointer, so a point over a floated image resolves
+    // to the IMAGE even though the full-width boxes of the paragraphs
+    // wrapping it cover the same area, and a point over wrapped text
+    // resolves to that paragraph (issues/drag-handle-float-image — the
+    // Y-only strips picked whichever was vertically tighter, which hid the
+    // image handle completely beside multi-paragraph floats).
+    // The Y-strip model stays as the GUTTER fallback: posAtCoords is null
+    // left of the content — exactly where the handles live — and the
+    // strip-owns-the-line rule must keep working there.
+    const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
+    if (coords != null) {
+      // inside = the inner position of the deepest node under the point
+      // (the image itself, the paragraph…); -1 when the point is between
+      // nodes — then pos (the nearest boundary) is the best guess.
+      const pos =
+        coords.inside != null && coords.inside >= 0 ? coords.inside : coords.pos;
+      if (pos != null) {
+        const block = findDraggableBlock(
+          view.state.doc,
+          pos,
+          options.excludedTypes,
+          view.state,
+        );
+        // Guard against posAtCoords clamping far-away points (below the
+        // doc, outside the content): the unit must still own the pointer's
+        // line, same tolerance as the strip model.
+        const strip = block != null ? hoveredStrip(block) : null;
+        if (
+          block != null &&
+          strip != null &&
+          event.clientY >= strip.top - LINE_STICKY_TOLERANCE &&
+          event.clientY <= strip.bottom + LINE_STICKY_TOLERANCE
+        ) {
+          // Nested gutter zone: left of a nested item's text posAtCoords
+          // lands in the shallower parent (its box spans that area), but
+          // the deeper unit owns its own line — its handle lives exactly
+          // there. Yield to it, unless the posAtCoords unit is an ATOM:
+          // a floated image paints its box at the point, which beats the
+          // invisible full-width boxes of the wrapping units. (The gate is
+          // isAtom, NOT inlineContent: a taskItem is inlineContent=false
+          // too, but beside its nested child it paints no content at the
+          // child's line — it must yield exactly like a paragraph.)
+          let unit = block;
+          if (!block.node.isAtom) {
+            const deeper = deepestUnitBelow(
+              block,
+              event.clientX,
+              event.clientY,
+            );
+            if (deeper != null) unit = deeper;
+          }
+          render(unit);
+          return;
+        }
+      }
     }
     const unit = resolveUnitAtY(event.clientY);
     if (unit == null) {
@@ -1671,6 +1843,13 @@ function grabChevronOf(
  *    it; non-text units (image/attachment atoms) anchor to their DOM top —
  *    coordsAtPos(from+1) resolves to their END boundary, which used to
  *    drop the handle to the block bottom.
+ *  - `left` is the caret rect's left edge (viewport coords) — for inline
+ *    content blocks it is the FIRST LINE's left edge, which avoids floats:
+ *    a paragraph wrapped around a floated image has a full-width border
+ *    box, but its first LINE starts right of the image
+ *    (issues/drag-handle-float-image). Consumers must gate it by
+ *    node.inlineContent: for atoms the caret is the node's END boundary
+ *    (meaningless as an X anchor). Null when the caret lookup failed.
  *  - For list/task items the caret at the unit start is degenerate (their
  *    label/checkbox is contenteditable=false), so the first paragraph's
  *    inner position is resolved instead.
@@ -1679,7 +1858,7 @@ function firstLineAnchor(
   view: EditorView,
   block: DraggableBlock,
   container: HTMLElement,
-): { top: number; height: number } | null {
+): { top: number; height: number; left: number | null } | null {
   const blockDom = blockDomAt(view, block.from);
   if (blockDom == null) {
     return null;
@@ -1692,6 +1871,7 @@ function firstLineAnchor(
   const blockRect = blockDom.getBoundingClientRect();
   let top = toContentY(blockRect.top);
   let height = HANDLE_DEFAULT_HEIGHT;
+  let left: number | null = null;
   const textPos = firstTextPos(block);
   const anchorCaret = (coordsPos: number, firstLineOnly: boolean): boolean => {
     try {
@@ -1704,8 +1884,15 @@ function firstLineAnchor(
         // end-boundary caret lies a whole block height below the top.
         // Allow up to two line heights of slack, measured against the caret
         // itself, which tolerates any sane line-height/margin ratio.
+        // The check must be SYMMETRIC: a floated atom's end-boundary caret
+        // resolves ABOVE the box (the float is out of flow — measured at
+        // ~18px above the image top), and an above-caret is just as bogus
+        // as a below-caret — such a unit anchors to its DOM rect instead.
         const slack = 2 * Math.max(coords.bottom - coords.top, 1);
-        if (coords.top - blockRect.top > slack) {
+        if (
+          coords.top - blockRect.top > slack ||
+          coords.bottom <= blockRect.top
+        ) {
           return false;
         }
       }
@@ -1725,6 +1912,11 @@ function firstLineAnchor(
       }
       top = caretTop;
       height = caretHeight;
+      // The consumer gates this by node.inlineContent: for an atom the
+      // caret is its end boundary (not a first-line left edge).
+      if (Number.isFinite(coords.left)) {
+        left = coords.left;
+      }
       return true;
     } catch {
       return false;
@@ -1735,7 +1927,7 @@ function firstLineAnchor(
   } else {
     anchorCaret(block.from + 1, true);
   }
-  return { top, height };
+  return { top, height, left };
 }
 
 /**
@@ -1745,6 +1937,17 @@ function firstLineAnchor(
  * shifts between neighbors. Fold-chevron units never reach here on plain
  * hover (their chevron is the grab point), only as a hold-grab overlay at
  * the chevron's own place (showHandleAtChevron).
+ *
+ * X base by unit kind:
+ *  - items and lists: the LIST's left edge (deliberate: a stable column,
+ *    the handle must not shift between neighboring items);
+ *  - inline-content units (paragraph, code block…): the first LINE's left
+ *    edge — float-aware. A block box next to a float keeps its full width
+ *    (only its line boxes shorten), so the block-box left can sit BEHIND a
+ *    floated image; the line-box left is where the text the user points at
+ *    actually starts (issues/drag-handle-float-image);
+ *  - atoms (image/attachment) and caret failures: the block box's left —
+ *    the previous behavior.
  */
 function positionHandle(
   view: EditorView,
@@ -1762,19 +1965,22 @@ function positionHandle(
   }
   const containerRect = container.getBoundingClientRect();
 
-  let base = blockDom.getBoundingClientRect().left;
   const isItem = DRAG_HANDLE_ITEM_TYPES.includes(block.node.type.name);
   const isListUnit = block.node.type.name.endsWith("List");
-  const listBlock = isItem
-    ? enclosingListBlock(view, block)
-    : isListUnit
-      ? block
-      : null;
-  if (listBlock != null) {
-    const listDom = blockDomAt(view, listBlock.from);
-    if (listDom != null) {
-      base = Math.min(base, listDom.getBoundingClientRect().left);
+  let base: number;
+  if (isItem || isListUnit) {
+    base = blockDom.getBoundingClientRect().left;
+    const listBlock = isItem ? enclosingListBlock(view, block) : block;
+    if (listBlock != null) {
+      const listDom = blockDomAt(view, listBlock.from);
+      if (listDom != null) {
+        base = Math.min(base, listDom.getBoundingClientRect().left);
+      }
     }
+  } else if (anchor.left != null && block.node.inlineContent) {
+    base = anchor.left;
+  } else {
+    base = blockDom.getBoundingClientRect().left;
   }
   const left = base - HANDLE_GAP - HANDLE_WIDTH;
 
