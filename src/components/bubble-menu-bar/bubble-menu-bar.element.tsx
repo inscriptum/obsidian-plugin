@@ -109,6 +109,15 @@ export const BubbleMenuBarElement = litView.element({
       const bar = barEl();
       const layer = bar.querySelector<HTMLElement>(layerSel);
       if (!layer) return;
+      // Mobile: the layer is DOCKED as a static row inside the toolbar (see
+      // mobile.css) and the toolbar grows upward with it — the floating-popup
+      // "which side has room" math does not apply (the bar's pre-layout-shift
+      // rect would cap the layer mid-list). Clear the inline cap and let the
+      // CSS cap (max-height: calc(100vh - 120px)) bound the height.
+      if (isMobileContext) {
+        layer.style.removeProperty("max-height");
+        return;
+      }
       const barRect = bar.getBoundingClientRect();
       const layerHeight = layer.offsetHeight;
       const gap = 9; // calc(100% + 9px)
@@ -123,15 +132,6 @@ export const BubbleMenuBarElement = litView.element({
         openUp = spaceAbove >= spaceBelow;
       }
       bar.classList.toggle("layer-open-down", !openUp);
-      // Mobile only: cap the layer height to the space available on its side so
-      // it can never extend off-screen — e.g. on a short/landscape viewport where
-      // the bar sits near the screen bottom and the layer opens upward, its top
-      // would otherwise clip above the viewport (top items unreachable). Desktop
-      // keeps the natural layer height (floating popup, no scrolling).
-      if (isMobileContext) {
-        const available = (openUp ? spaceAbove : spaceBelow) - gap - 8;
-        layer.style.maxHeight = `${Math.max(140, Math.min(window.innerHeight - 24, available))}px`;
-      }
     });
   };
 

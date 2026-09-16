@@ -286,16 +286,19 @@
 }
 
 /* Bubble-menu buttons match the native menu: no dark hover/active fills,
-   muted icon color, 24px icons, no tooltip popovers. Color swatches (.bb-sw)
-   and the link-layer action buttons (.bb-go: apply check, trash) are
-   EXCLUDED: they keep their own look from bubble-menu.css — the generic
-   overrides below (transparent background, square radius, 44px size,
-   muted color) would flatten the swatches into black squares and turn the
-   31px link actions into gray 44px squares. */
+   muted icon color, 24px icons, no tooltip popovers. Color swatches (.bb-sw),
+   the link-layer action buttons (.bb-go: apply check, trash) and the
+   styles-layer menu rows (.bb-mi: icon + label + tick) are EXCLUDED: they
+   keep their own look from bubble-menu.css — the generic overrides below
+   (transparent background, square radius, 44px size, muted color) would
+   flatten the swatches into black squares, turn the 31px link actions into
+   gray 44px squares, and squeeze each styles row into a centered 44px square
+   where its label overflows and the leading icon is centered out of the
+   panel (negative x, clipped) — see rule-bubble-menu-buttons. */
 .note-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go) {
+  button:not(.bb-sw, .bb-go, .bb-mi) {
   width: 44px;
   height: 44px;
   flex: 0 0 auto;
@@ -306,14 +309,14 @@
 .note-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go):hover {
+  button:not(.bb-sw, .bb-go, .bb-mi):hover {
   background: transparent;
   color: var(--text-normal);
 }
 .note-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go).is-active {
+  button:not(.bb-sw, .bb-go, .bb-mi).is-active {
   background: transparent;
   box-shadow: none;
   color: var(--interactive-accent);
@@ -321,7 +324,7 @@
 .note-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go)
+  button:not(.bb-sw, .bb-go, .bb-mi)
   svg {
   width: 24px;
   height: 24px;
@@ -341,6 +344,46 @@
   .bubble-menu-bar
   .bb-sw.is-active {
   outline: 1px solid #e6e6f0;
+}
+
+/* Styles-layer menu rows (.bb-mi): full-width icon + label + tick rows.
+   Layout only — colors and the h1/h2/h3 font-size hierarchy stay with the
+   desktop rules in bubble-menu.css (this selector out-specifies them, so a
+   color/font-size here would flatten .bb-mi--h1/--h2/--h3 and .is-active).
+   The layer panel is a dark surface; the desktop palette already targets it. */
+.note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  .bb-mi {
+  justify-content: flex-start;
+  width: 100%;
+  min-height: 44px;
+  padding: 4px 10px;
+}
+.note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  .bb-mi
+  svg {
+  width: 20px;
+  height: 20px;
+}
+.note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  .bb-mi
+  .bb-tick {
+  width: 16px;
+  height: 16px;
+}
+.note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  .bb-mi
+  .bb-tick
+  svg {
+  width: 16px;
+  height: 16px;
 }
 .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-sep {
   background: var(--background-modifier-border);

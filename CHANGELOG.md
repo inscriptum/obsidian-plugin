@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Mobile: the "Styles & color" menu was broken — the style rows (Paragraph, Headings, Blockquote, Lists) were squashed into 44×44 squares, their leading icons were centered out of the panel and clipped (so no icons were visible), labels overlapped the checkmarks, and the docked layer was cut off mid-list by a stale JS height cap. Style rows are now full-width 44px rows with visible icons, the active style keeps its fill and checkmark, and the layer height is bounded by CSS so every item and the color swatches stay reachable.
+
 ## [0.7.2] - 2026-09-16
 
 ### Changed
