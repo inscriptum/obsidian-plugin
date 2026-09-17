@@ -9,6 +9,7 @@ import {
 import { CellSelection, isInTable } from "prosemirror-tables";
 import { Editor, isTextSelection } from "./texto/core";
 import {
+  readNote,
   readNoteWithRaw,
   writeNote,
   parseNoteDoc,
@@ -105,6 +106,10 @@ export class NoteView extends FileView {
    *  src/tools/isPressedCommand.ts). */
   static onEditorCreated: ((editor: Editor) => void) | null = null;
 
+  /** Called by the "Export as website" pane-menu item; the plugin host
+   *  installs the actual export action (see main.ts). */
+  static onExportRequested: ((view: NoteView) => void) | null = null;
+
   private _skipNextReload = true;
 
   // ── Mobile: our own bottom toolbar (native-styled) ──
@@ -173,6 +178,28 @@ export class NoteView extends FileView {
         .setIcon("search")
         .onClick(() => this.openSearch()),
     );
+    menu.addItem((item) =>
+      item
+        .setTitle("Export as website")
+        .setIcon("globe")
+        .onClick(() => NoteView.onExportRequested?.(this)),
+    );
+  }
+
+  /** The document for export features: the live editor content when the
+   *  editor exists (fresher than disk by up to the autosave delay), the
+   *  parsed file otherwise. Null when there is nothing to export. */
+  public async getDocForExport(): Promise<JSONContent | null> {
+    if (this.editor && !this.editor.isDestroyed) {
+      return this.editor.getJSON();
+    }
+    if (!this.file) return null;
+    try {
+      return await readNote(this.file, this.app.vault);
+    } catch (err) {
+      console.error("Failed to read note for export:", err);
+      return null;
+    }
   }
 
   /** Mobile layout is gated on Platform.isMobile ("UI is in mobile mode").

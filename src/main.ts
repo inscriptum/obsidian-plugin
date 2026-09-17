@@ -20,15 +20,19 @@ import {
   type CommandLike,
 } from "./tools/isPressedCommand";
 import type { JSONContent } from "./texto/core/@types";
+import { exportNoteAsWebsite } from "./export/exportWebsite";
 
 interface InscriptumSettings {
   /** Append one JSONL line per note save to .inscriptum-write-log.jsonl
    *  (diagnostics for storage problems). Off by default. */
   writeLog: boolean;
+  /** Vault folder for "Export as website" output, one subfolder per note. */
+  exportFolder: string;
 }
 
 const DEFAULT_SETTINGS: InscriptumSettings = {
   writeLog: false,
+  exportFolder: "export",
 };
 
 /** Runtime shape of the command registry. Obsidian's public typings omit
@@ -72,6 +76,11 @@ export default class NotesPlugin extends Plugin {
       this.restorePatchedCommands();
     });
 
+    NoteView.onExportRequested = (view) => void this.exportNoteAsWebsite(view);
+    this.register(() => {
+      NoteView.onExportRequested = null;
+    });
+
     this.addRibbonIcon("notebook-pen", "New inscriptum", () => {
       this.createNewNote();
     });
@@ -92,6 +101,18 @@ export default class NotesPlugin extends Plugin {
         const view = this.app.workspace.getActiveViewOfType(NoteView);
         if (!view) return false;
         if (!checking) view.openSearch();
+        return true;
+      },
+    });
+
+    this.addCommand({
+      id: "export-note-as-website",
+      name: "Export current note as website",
+      icon: "globe",
+      checkCallback: (checking) => {
+        const view = this.app.workspace.getActiveViewOfType(NoteView);
+        if (!view) return false;
+        if (!checking) void this.exportNoteAsWebsite(view);
         return true;
       },
     });
@@ -261,8 +282,40 @@ export default class NotesPlugin extends Plugin {
     setWriteLogEnabled(false);
   }
 
-  private createNewNote(initialFolderPath?: string) {
-    const activeFile = this.app.workspace.getActiveFile();
+  /** "Export as website": serialize the note into a self-contained static
+   *  page (index.html + note.css + images) inside the vault. */
+  private async exportNoteAsWebsite(view: NoteView): Promise<void> {
+    const file = view.file;
+    if (!file) return;
+
+    let doc: JSONContent | null = null;
+    try {
+      doc = await view.getDocForExport();
+    } catch (err) {
+      console.error("Failed to read note content for export:", err);
+    }
+    if (doc == null) {
+      new Notice("Nothing to export: the note could not be read.");
+      return;
+    }
+
+    try {
+      const result = await exportNoteAsWebsite(
+        this.app,
+        file,
+        doc,
+        this.settings.exportFolder,
+      );
+      new Notice(`Exported to ${result.folder}`);
+    } catch (err) {
+      new Notice(
+        `Export failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      console.error("Website export failed:", err);
+    }
+  }
+
+  private createNewNote(initialFolderPath?: string) {    const activeFile = this.app.workspace.getActiveFile();
     const defaultFolder =
       initialFolderPath !== undefined
         ? (this.app.vault.getFolderByPath(initialFolderPath) ??
@@ -327,6 +380,22 @@ class InscriptumSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
+
+    new Setting(containerEl)
+      .setName("Export folder")
+      .setDesc(
+        "Vault folder where the 'Export as website' command writes its output. Each note becomes a self-contained subfolder (index.html, note.css, images) that can be hosted anywhere or opened directly from disk.",
+      )
+      .addText((text) =>
+        text
+          .setValue(this.plugin.settings.exportFolder)
+          .onChange(async (value) => {
+            this.plugin.settings.exportFolder = normalizePath(
+              value.trim() || DEFAULT_SETTINGS.exportFolder,
+            );
+            await this.plugin.saveSettings();
+          }),
+      );
 
     new Setting(containerEl)
       .setName("Diagnostic log")
