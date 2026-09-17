@@ -97,16 +97,181 @@
     font-variant-ligatures: normal;
     font-size: var(--texto-code-block__font-size);
 
-    .hljs-codeblock__select {
+    /* Language picker docked top-left… */
+    .hljs-codeblock__controls {
       position: absolute;
-      height: var(--texto-code-block__ln-select__hight);
+      left: 0.4rem;
+      top: var(--texto-code-block__ln-select__top);
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      z-index: 1;
+    }
+
+    /* …and wrap/copy buttons docked top-right (wrap first, then copy). */
+    .hljs-codeblock__actions {
+      position: absolute;
       right: var(--texto-code-block__ln-select__right);
       top: var(--texto-code-block__ln-select__top);
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      z-index: 1;
+    }
+
+    .hljs-codeblock__btn {
+      appearance: none;
+      -webkit-appearance: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      height: 22px;
+      padding: 0;
+      margin: 0;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      box-shadow: none;
+      color: inherit;
+      opacity: 0.5;
+      cursor: pointer;
+      transition: opacity 0.1s;
+    }
+
+    .hljs-codeblock__btn:hover {
+      opacity: 1;
+    }
+
+    .hljs-codeblock__btn:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+
+    .hljs-codeblock__btn.is-active {
+      opacity: 1;
+      color: var(--interactive-accent, #7c6af7);
+    }
+
+    .hljs-codeblock__btn svg {
+      display: block;
+      width: 15px;
+      height: 15px;
+    }
+
+    /* Copy feedback without a re-render: both icons are in the DOM, the
+       .is-copied class only swaps which one is visible (a generator
+       re-render here would detach the code block's contentDOM). */
+    .hljs-codeblock__btn .hljs-codeblock__btn-ico {
+      display: none;
+    }
+
+    .hljs-codeblock__btn--copy .hljs-codeblock__btn-ico--copy {
+      display: block;
+    }
+
+    .hljs-codeblock__btn--copy.is-copied .hljs-codeblock__btn-ico--copy {
+      display: none;
+    }
+
+    .hljs-codeblock__btn--copy.is-copied .hljs-codeblock__btn-ico--check {
+      display: block;
+    }
+
+    .hljs-codeblock__select {
+      height: var(--texto-code-block__ln-select__hight);
       opacity: var(--texto-code-block__ln-select__opacity);
     }
 
+    /* Coarse pointers (mobile): custom language dropdown — the native select
+       picker is dismissed instantly by the WebView's keyboard/focus handling
+       (and showPicker() is a silent no-op on Android WebView). */
+    .hljs-codeblock__lang {
+      position: relative;
+    }
+
+    .hljs-codeblock__lang-btn {
+      appearance: none;
+      -webkit-appearance: none;
+      display: flex;
+      align-items: center;
+      height: var(--texto-code-block__ln-select__hight);
+      padding: 0 8px;
+      margin: 0;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      box-shadow: none;
+      color: inherit;
+      opacity: 0.6;
+      font-family: var(--texto-code-block__font-family);
+      font-size: 12px;
+      cursor: pointer;
+      transition: opacity 0.1s;
+    }
+
+    .hljs-codeblock__lang-btn:hover,
+    .hljs-codeblock__lang-btn.is-open {
+      opacity: 1;
+    }
+
+    .hljs-codeblock__lang-popup {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      min-width: 130px;
+      max-height: 45vh;
+      overflow-y: auto;
+      background: var(--texto-code-block__background);
+      border: 1px solid var(--background-modifier-border, #30303a);
+      border-radius: 6px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+      z-index: 20;
+    }
+
+    .hljs-codeblock__lang-popup.show {
+      display: block;
+    }
+
+    .hljs-codeblock__lang-opt {
+      appearance: none;
+      display: block;
+      width: 100%;
+      padding: 8px 12px;
+      border: none;
+      background: transparent;
+      color: inherit;
+      text-align: left;
+      font-family: var(--texto-code-block__font-family);
+      font-size: 12.5px;
+      cursor: pointer;
+    }
+
+    .hljs-codeblock__lang-opt:hover {
+      background: color-mix(in srgb, var(--text-normal) 8%, transparent);
+    }
+
+    .hljs-codeblock__lang-opt.is-selected {
+      color: var(--interactive-accent, #7c6af7);
+    }
+
+    .hljs-codeblock__lang-btn:disabled {
+      opacity: 0.3;
+      cursor: default;
+    }
+
+
     & pre {
       display: block;
+    }
+
+    /* Soft-wrap mode (per-block `wrap` attribute): long lines wrap at the
+       block width instead of scrolling horizontally. */
+    &.is-wrapped code {
+      white-space: pre-wrap;
+      overflow-wrap: break-word;
+      overflow-x: hidden;
     }
   }
 }

@@ -41,6 +41,8 @@ interface HljsCodeBlockAttrs {
   autocapitalize: string;
   spellcheck: string;
   class: string;
+  /** Soft-wrap mode: when true, long lines wrap at the block width. */
+  wrap?: boolean;
 }
 
 const CodeBlockSelectLangElement = codeBlockSelectLangElement(
@@ -92,6 +94,9 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
         parseHTML: (element) => {
           return element.firstElementChild?.classList.value;
         },
+      },
+      wrap: {
+        default: false,
       },
     };
   },
@@ -442,6 +447,10 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
     container.props.domCodeEl = domCodeEl;
     container.classList.add("hljs-codeblock");
 
+    // Content fingerprint for update(): skips the hljs regeneration when the
+    // update was attr-only (see the update hook below).
+    let lastContentKey: string | null = null;
+
     return ({ editor, node, getPos }) => {
       container.props.disabled = !editor.isEditable;
 
@@ -468,6 +477,9 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
 
       updateHljsElCssClass(domCodeEl, (node.attrs as HljsCodeBlockAttrs).class);
 
+      const wrapped = (node.attrs as HljsCodeBlockAttrs).wrap === true;
+      container.classList.toggle("is-wrapped", wrapped);
+
       if (isFunction(getPos)) {
         const pos = getPos();
 
@@ -478,6 +490,37 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
           domCodeEl,
         );
 
+        // Live position at click time — the captured `pos` goes stale when
+        // content before the block changes.
+        container.props.wrapped = wrapped;
+        container.props.onToggleWrap = () => {
+          const currentPos = isFunction(getPos) ? getPos() : null;
+          const current =
+            currentPos == null
+              ? null
+              : editor.state.doc.nodeAt(currentPos);
+          if (current == null || current.type !== this.type) return;
+          editor.view.dispatch(
+            editor.view.state.tr.setNodeMarkup(currentPos, undefined, {
+              ...(current.attrs as HljsCodeBlockAttrs),
+              wrap: !(current.attrs as HljsCodeBlockAttrs).wrap,
+            }),
+          );
+        };
+
+        container.props.onCopy = () => {
+          const currentPos = isFunction(getPos) ? getPos() : null;
+          const current =
+            currentPos == null
+              ? null
+              : editor.state.doc.nodeAt(currentPos);
+          if (current == null || current.type !== this.type) return;
+          const text = getHljsBlockContentAsText(current);
+          void navigator.clipboard.writeText(text).catch((err: unknown) => {
+            console.error("[TEXTO]: Failed to copy code block:", err);
+          });
+        };
+
         if (node.content.size === 0) {
           editor.view.dispatch(editor.view.state.tr.deleteRange(pos, pos + 2));
         }
@@ -487,44 +530,65 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
         dom: container,
         contentDOM: domCodeEl,
         ignoreMutation: (mutation) => {
-          if (mutation.target === container) {
-            // Take an actual block, pay attention we can't use "node" because it has an obsolete object
-            const nodePos = this.editor.view.posAtDOM(mutation.target, 0) - 1;
-            const hljsBlockNode = this.editor.state.doc.nodeAt(nodePos);
+          // Content mutations (typing inside the code) must reach PM.
+          if (mutation.type === "selection") return false;
+          if (domCodeEl.contains(mutation.target)) return false;
 
-            // Remove empty blocks
-            if (
-              mutation.type === "childList" &&
-              mutation.addedNodes.length === 0 &&
-              mutation.removedNodes.length > 0 &&
-              hljsBlockNode?.type === this.type &&
-              hljsBlockNode.childCount === 1 &&
-              hljsBlockNode.firstChild?.content.size === 0
-            ) {
-              // HACK: Remove a node and add a new empty paragraph to prevent removing a previous node
-              // @see https://github.com/ProseMirror/prosemirror-view/blob/master/src/input.ts#L753
-              // @see https://discuss.prosemirror.net/t/contenteditable-on-android-is-the-absolute-worst/3810/14
-              // @see https://github.com/ProseMirror/prosemirror/issues/903
-              this.editor
-                .chain()
-                .deleteNode(this.type)
-                .insertContentAt(nodePos, {
-                  type: "paragraph",
-                })
-                .run();
-            }
-
-            // Ignore mutations for our container because we control it's view by ourselves.
-            // Additionally, in mobile Chrome browser mutations with container lead to a bug with an extra line.
+          if (mutation.target !== container) {
+            // Deeper mutations are our own controls subtree (language button
+            // and its popup, wrap/copy buttons): fully component-controlled.
+            // PM must ignore them, or it rebuilds the node view and wipes UI
+            // state (e.g. closes the language popup right after opening).
             return true;
           }
 
-          return false;
+          // Take an actual block, pay attention we can't use "node" because it has an obsolete object
+          const nodePos = this.editor.view.posAtDOM(mutation.target, 0) - 1;
+          const hljsBlockNode = this.editor.state.doc.nodeAt(nodePos);
+
+          // Remove empty blocks
+          if (
+            mutation.type === "childList" &&
+            mutation.addedNodes.length === 0 &&
+            mutation.removedNodes.length > 0 &&
+            hljsBlockNode?.type === this.type &&
+            hljsBlockNode.childCount === 1 &&
+            hljsBlockNode.firstChild?.content.size === 0
+          ) {
+            // HACK: Remove a node and add a new empty paragraph to prevent removing a previous node
+            // @see https://github.com/ProseMirror/prosemirror-view/blob/master/src/input.ts#L753
+            // @see https://discuss.prosemirror.net/t/contenteditable-on-android-is-the-absolute-worst/3810/14
+            // @see https://github.com/ProseMirror/prosemirror/issues/903
+            this.editor
+              .chain()
+              .deleteNode(this.type)
+              .insertContentAt(nodePos, {
+                type: "paragraph",
+              })
+              .run();
+          }
+
+          // Ignore mutations for our container because we control it's view by ourselves.
+          // Additionally, in mobile Chrome browser mutations with container lead to a bug with an extra line.
+          return true;
         },
         update: (updatedNode) => {
           if (updatedNode.type !== this.type) {
             return false;
           }
+
+          // The render closure is NOT re-invoked on updates — sync the
+          // soft-wrap state (class + button) here, whatever changed the attr
+          // (toggle click, undo, external change). The props mutation alone
+          // does not re-render the generator (external props changes don't
+          // trigger it), so the button class is set directly; a later
+          // generator re-render recomputes the same class from props.
+          const wrapped = (updatedNode.attrs as HljsCodeBlockAttrs).wrap === true;
+          container.classList.toggle("is-wrapped", wrapped);
+          container.props.wrapped = wrapped;
+          container
+            .querySelector(".hljs-codeblock__btn--wrap")
+            ?.classList.toggle("is-active", wrapped);
 
           const codeText = getHljsBlockContentAsText(updatedNode);
 
@@ -532,6 +596,25 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
             (updatedNode.attrs as HljsCodeBlockAttrs).class,
             this.options.languageClassPrefix,
           );
+
+          // Coarse-pointer UI: keep the language button label in sync (the
+          // render closure is not re-invoked on updates).
+          const langLabel = container.querySelector(
+            ".hljs-codeblock__lang-label",
+          );
+          if (langLabel != null) {
+            langLabel.textContent = isString(language) ? language : "auto";
+          }
+
+          // Attr-only updates (soft-wrap toggle, undo of one) must not run the
+          // regeneration: on legacy blocks whose stored rows differ from a
+          // fresh hljs regeneration, the size comparison below fails and the
+          // block gets deleted + re-inserted (visible jitter, caret loss).
+          const contentKey = `${codeText}\u0000${language ?? ""}`;
+          if (contentKey === lastContentKey) {
+            return true;
+          }
+          lastContentKey = contentKey;
 
           const codeNodeJson = generateHljsNodeJson(codeText, language);
           const newNode = editor.schema.nodeFromJSON(codeNodeJson);
@@ -556,8 +639,15 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
               editor.commands.deleteNode(this.type);
             });
             // 2. Create a new Code Block with a correct content
+            //    (keep the original attrs — e.g. `wrap` — across the replace)
             queueMicrotask(() => {
-              editor.commands.insertContent(codeNodeJson);
+              editor.commands.insertContent({
+                ...codeNodeJson,
+                attrs: {
+                  ...updatedNode.attrs,
+                  ...(codeNodeJson.attrs ?? {}),
+                },
+              });
             });
 
             return false;
