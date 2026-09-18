@@ -3,7 +3,7 @@ import { p } from "@web-companions/gfc";
 import { Editor, isTextSelection } from "../../texto/core";
 import { CellSelection, isInTable } from "prosemirror-tables";
 import { isMediaNodeSelection } from "../bubble-menu-bar/mediaMenuState";
-import { elTag } from "../../tags";
+import { elTag, BUILD_TAG, TAG_VERSION } from "../../tags";
 import { getToolbarState, type ToolbarState } from "./toolbarState";
 import { toolbarIconNodes } from "./icon.svgnode";
 import { normalizeLinkUrl } from "./linkUrl";
@@ -311,6 +311,11 @@ export const ToolbarElement = litView.element({
             ])}
             <div class="note-toolbar__spacer"></div>
             <div class="note-toolbar__meta">
+              {BUILD_TAG ? (
+                <span class="note-toolbar__build" title={TAG_VERSION}>
+                  {BUILD_TAG}
+                </span>
+              ) : null}
               <span
                 class={`note-toolbar__dot${saved ? "" : " is-pending"}`}
               ></span>
@@ -318,6 +323,17 @@ export const ToolbarElement = litView.element({
               <span>·</span>
               <span>{wordCount} w.</span>
             </div>
+            {document.body.classList.contains("is-mobile") ? (
+              <button
+                class="note-toolbar__btn"
+                aria-label="Hide keyboard"
+                onclick={() => props.editor.commands.blur()}
+              >
+                <span class="note-toolbar__icon">
+                  {toolbarIconNodes.keyboardHide({})}
+                </span>
+              </button>
+            ) : null}
           </div>
           {linkLayerOpen ? (
             <div class="tb-link-layer">

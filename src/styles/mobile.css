@@ -132,6 +132,15 @@
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
+/* While the keyboard is open, Obsidian resizes the webview down to the
+   keyboard top, which puts the home-indicator area behind the keyboard —
+   but iOS keeps reporting the same inset, so the padding would render as
+   a dead strip between the toolbar and the keys (iOS only: the env() is
+   always 0 on Android). */
+.note-view-container.is-mobile.is-keyboard-open .note-toolbar-host {
+  padding-bottom: 0;
+}
+
 /* The toolbar fills the width, blends into the bar and scrolls horizontally. */
 .note-view-container.is-mobile .note-toolbar {
   position: static;
@@ -145,6 +154,22 @@
   overflow-y: hidden;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+}
+
+/* Stop scroll chaining: when the horizontal scroller reaches its edge the
+   gesture must not hand over to the Obsidian workspace, whose horizontal
+   swipes open the file sidebar / info drawer (and dismiss the keyboard).
+   overscroll-behavior needs iOS 16+; touch-action: pan-x keeps older iOS
+   from starting vertical chains (e.g. diagonal swipes) in this bar. */
+.note-view-container.is-mobile
+:is(
+  .note-toolbar,
+  .bubble-menu-bar__row,
+  .bubble-menu-table-bar,
+  .bubble-menu-media-bar
+) {
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
 }
 .note-view-container.is-mobile .note-toolbar::-webkit-scrollbar {
   display: none;
@@ -222,15 +247,11 @@
   box-shadow: none;
   background: transparent;
 }
-.note-view-container.is-mobile
-  .note-toolbar-host.is-link-open
-  .tb-link-input {
+.note-view-container.is-mobile .note-toolbar-host.is-link-open .tb-link-input {
   padding: 9px 11px;
   font-size: 15px;
 }
-.note-view-container.is-mobile
-  .note-toolbar-host.is-link-open
-  .tb-link-go {
+.note-view-container.is-mobile .note-toolbar-host.is-link-open .tb-link-go {
   width: 44px;
   height: 44px;
   border-radius: var(--radius-m);
@@ -239,10 +260,7 @@
   .note-toolbar-host.is-link-open
   .tb-link-go
   .tb-link-icon,
-.note-view-container.is-mobile
-  .note-toolbar-host.is-link-open
-  .tb-link-go
-  svg {
+.note-view-container.is-mobile .note-toolbar-host.is-link-open .tb-link-go svg {
   width: 20px;
   height: 20px;
 }
@@ -398,20 +416,13 @@
    desktop rules in bubble-menu.css (this selector out-specifies them, so a
    color/font-size here would flatten .bb-mi--h1/--h2/--h3 and .is-active).
    The layer panel is a dark surface; the desktop palette already targets it. */
-.note-view-container.is-mobile
-  .mobile-sel-bar
-  .bubble-menu-bar
-  .bb-mi {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-mi {
   justify-content: flex-start;
   width: 100%;
   min-height: 44px;
   padding: 4px 10px;
 }
-.note-view-container.is-mobile
-  .mobile-sel-bar
-  .bubble-menu-bar
-  .bb-mi
-  svg {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-mi svg {
   width: 20px;
   height: 20px;
 }

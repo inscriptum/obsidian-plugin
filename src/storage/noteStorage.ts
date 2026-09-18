@@ -309,6 +309,23 @@ export async function logNoteWrite(
   }
 }
 
+/** Free-form diagnostic line for on-device debugging (the App Store iOS build
+ *  has no attachable DevTools): gated by the same writeLog setting, and on an
+ *  iCloud vault the log file syncs back to the Mac for inspection. */
+export async function logDiagEvent(vault: Vault, msg: string): Promise<void> {
+  if (!isWriteLogEnabled()) return;
+  const line = JSON.stringify({
+    kind: "diag",
+    ts: new Date().toISOString(),
+    msg,
+  });
+  try {
+    await vault.adapter.append(LOG_PATH, `${line}\n`);
+  } catch {
+    // a broken log must never break a save
+  }
+}
+
 /** Log a write that the empty-overwrite guard refused (never hit the disk). */
 export async function logWriteBlocked(
   vault: Vault,

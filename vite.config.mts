@@ -10,10 +10,17 @@ export default defineConfig(({ mode }) => ({
     // Suffix for custom element tags (see src/tags.ts): unique per build so
     // plugin reloads/updates register fresh classes. Dev gets a per-build
     // hash so `vite build --watch` reloads also pick up changes fully.
+    // ios-debug.mjs passes INSCRIPTUM_BUILD_TAG so a deploy can be verified
+    // on-device (shown in the toolbar, logged on note open).
     "process.env.EDITOR_VERSION": JSON.stringify(
       mode === "development"
         ? `${version}-dev-${Date.now().toString(36)}`
-        : version,
+        : process.env.INSCRIPTUM_BUILD_TAG
+          ? `${version}-${process.env.INSCRIPTUM_BUILD_TAG}`
+          : version,
+    ),
+    "process.env.EDITOR_BUILD_TAG": JSON.stringify(
+      process.env.INSCRIPTUM_BUILD_TAG ?? "",
     ),
   },
   build: {

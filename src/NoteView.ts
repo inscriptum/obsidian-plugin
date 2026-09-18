@@ -15,8 +15,10 @@ import {
   parseNoteDoc,
   isEmptyNoteDoc,
   logWriteBlocked,
+  logDiagEvent,
 } from "./storage/noteStorage";
 import { FileChangedModal } from "./ui/FileChangedModal";
+import { BUILD_TAG, TAG_VERSION } from "./tags";
 import { getDesiredFileName } from "./storage/fileNaming";
 import {
   saveAttachmentFile,
@@ -118,6 +120,7 @@ export class NoteView extends FileView {
   private scrollShadowCleanup: (() => void) | null = null;
   private mobileScrollCleanup: (() => void) | null = null;
   private mobileNavWasHidden: boolean | null = null;
+  private lastEditorPointer: { x: number; y: number; t: number } | null = null;
   private keyboardListenerHandles: Array<{
     remove: () => Promise<void> | void;
   }> = [];
@@ -291,6 +294,9 @@ export class NoteView extends FileView {
     const generation = this.keyboardListenerGeneration;
     const update = (height: number, reserveSpace: boolean) => {
       const open = height > 0;
+      this.logDiag(
+        `keyboard ${open ? height : 0}px reserve=${reserveSpace} (innerH=${window.innerHeight})`,
+      );
       this.contentEl.classList.toggle("is-keyboard-open", open);
       // Capacitor/Obsidian already resizes the view above the keyboard. The
       // viewport fallback may overlay it, so only that path needs padding.
@@ -314,6 +320,9 @@ export class NoteView extends FileView {
       }
     ).Capacitor;
     const keyboard = capacitor?.Plugins?.Keyboard;
+    this.logDiag(
+      `keyboard path: ${keyboard?.addListener ? "capacitor" : "visualViewport fallback"}`,
+    );
 
     if (keyboard?.addListener) {
       update(0, false);
@@ -399,6 +408,12 @@ export class NoteView extends FileView {
     noteEl.addClass("texto-editor-host");
     const toolbarEl = new ToolbarElement();
     toolbarEl.addClass("note-toolbar-host");
+    // Obsidian's mobile drawer-swipe handler walks up from the touch target
+    // and skips the gesture when an ancestor carries data-ignore-swipe (the
+    // same opt-out its own sliders/graph controls use). Without this, a fling
+    // past the scroller edge hands the gesture to the shell and opens the
+    // file/info drawer — dismissing the keyboard and disturbing focus.
+    toolbarEl.setAttribute("data-ignore-swipe", "true");
     const bubbleMenuBarEl = new BubbleMenuBarElement();
     bubbleMenuBarEl.addClass("bubble-menu-bar-host");
     const tableBubbleMenuEl = new TableBubbleMenuElement();
@@ -492,6 +507,49 @@ export class NoteView extends FileView {
 
           if (isMobile) {
             this.setupMobileScrollBehavior(editorEl);
+            // After Obsidian drawer interactions WKWebView stops synthesizing
+            // mouse events (verified on-device: pointerdown/pointerup reach
+            // ProseMirror, but mousedown/click never fire), so ProseMirror's
+            // own tap-to-focus never runs and taps go nowhere. React on
+            // pointerup — always delivered — instead of click. In a healthy
+            // state PM has already focused itself on mousedown by the time
+            // this runs, so this is a no-op outside the broken state.
+            this.registerDomEvent(editorEl, "pointerdown", (event) => {
+              const pe = event as PointerEvent;
+              this.lastEditorPointer = {
+                x: pe.clientX,
+                y: pe.clientY,
+                t: Date.now(),
+              };
+            });
+            this.registerDomEvent(editorEl, "pointerup", (event) => {
+              const editor = this.editor;
+              if (!editor || editor.isDestroyed) return;
+              const start = this.lastEditorPointer;
+              this.lastEditorPointer = null;
+              const drawerOpen = [
+                ...document.querySelectorAll(".workspace-drawer"),
+              ].some((d) => getComputedStyle(d).display !== "none");
+              if (drawerOpen) {
+                // The swipe that opens an Obsidian drawer starts on the
+                // editor; refocusing on its release would float the keyboard
+                // above the drawer. Native Obsidian keeps the editor
+                // unfocused while a drawer is open — mirror that.
+                if (editor.view.hasFocus()) editor.commands.blur();
+                return;
+              }
+              // Only an actual tap (not a scroll/swipe gesture) refocuses.
+              const isTap =
+                start != null &&
+                Math.hypot(
+                  (event as PointerEvent).clientX - start.x,
+                  (event as PointerEvent).clientY - start.y,
+                ) < 12 &&
+                Date.now() - start.t < 600;
+              if (isTap && !editor.view.hasFocus()) {
+                editor.view.focus();
+              }
+            });
           }
 
           this.editor.on("blur", () => {
@@ -499,6 +557,13 @@ export class NoteView extends FileView {
           });
 
           this._skipNextReload = true;
+
+          // Build marker for on-device debugging: confirms which exact build
+          // is loaded (the iOS app keeps stale plugin code until a full
+          // restart — see scripts/ios-debug.mjs).
+          console.info(
+            `[inscriptum] build: ${TAG_VERSION}${BUILD_TAG ? ` (tag: ${BUILD_TAG})` : ""}`,
+          );
 
           noteEl.props.editor = this.editor;
 
@@ -1238,6 +1303,21 @@ export class NoteView extends FileView {
       // (onUnloadFile/onClose destroy the editor) — re-check before use,
       // otherwise this.editor.commands throws on null.
       if (!this.editor || this.editor.isDestroyed) return;
+      // Identical content: replacing the doc resets the selection and drops
+      // the keyboard. active-leaf-change fires on every leaf re-activation
+      // (foregrounding the app on iOS), so the no-op replacement must go.
+      if (raw === this.syncedRaw) {
+        this.logDiag(`reload skipped (identical): ${this.file.path}`);
+        return;
+      }
+      // A real external change while there are unsaved local edits belongs
+      // to the conflict flow (processExternalChange shows FileChangedModal)
+      // — never clobber the user's typing from here.
+      if (this.dirty) {
+        this.logDiag(`reload skipped (dirty): ${this.file.path}`);
+        return;
+      }
+      this.logDiag(`reload replaced: ${this.file.path}`);
       this.applyingRemoteChange = true;
       try {
         this.editor.commands.setContent(content);
@@ -1248,6 +1328,12 @@ export class NoteView extends FileView {
     } catch (err) {
       console.error("Failed to reload note content:", err);
     }
+  }
+
+  /** Diagnostics into the vault log (gated by the writeLog setting): the
+   *  only observability channel on the iOS App Store build. */
+  private logDiag(msg: string): void {
+    void logDiagEvent(this.app.vault, msg);
   }
 
   /**

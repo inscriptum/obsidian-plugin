@@ -1,7 +1,9 @@
-// Vite replaces `process.env.EDITOR_VERSION` at build time.
+// Vite replaces `process.env.EDITOR_VERSION` / `process.env.EDITOR_BUILD_TAG`
+// at build time.
 declare const process: {
   env: {
     EDITOR_VERSION?: string;
+    EDITOR_BUILD_TAG?: string;
   };
 };
 /**
@@ -31,6 +33,11 @@ declare const process: {
  */
 /** The suffix for custom element tags (see tags.ts doc comment). */
 export const TAG_VERSION = process.env.EDITOR_VERSION ?? "dev";
+
+/** Debug build marker: empty for release builds; set by ios-debug.mjs
+ *  (INSCRIPTUM_BUILD_TAG) so a deploy can be verified on-device — shown in
+ *  the toolbar and logged to the browser console on note open. */
+export const BUILD_TAG = process.env.EDITOR_BUILD_TAG ?? "";
 
 /** Appends the build version to a base tag name. */
 export const elTag = (base: string): string => `${base}-${TAG_VERSION}`;

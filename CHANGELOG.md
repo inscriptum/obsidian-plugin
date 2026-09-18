@@ -12,6 +12,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - "Export as website" command and note pane-menu item: a note becomes a
   self-contained static page (`index.html`, `note.css` with embedded fonts,
   `images/`) inside the vault, ready to host anywhere.
+- `npm run ios:debug` — deploys the plugin into the Obsidian iCloud vault for
+  a real iPhone/iPad, with a per-deploy build tag: shown as a toolbar badge in
+  debug builds, logged to the browser console on note open
+  (`[inscriptum] build: 0.8.0-ios-<tag>`) and included in custom element tag
+  names, so the actually loaded build is always verifiable on-device.
+- Hide-keyboard button (chevron) at the right end of the mobile toolbar.
+- Diagnostics channel into the vault log (`.inscriptum-log.jsonl`, gated by
+  the existing `writeLog` setting): active keyboard path, keyboard offsets
+  and note-reload verdicts — the only observability channel on the iOS App
+  Store build.
+
+### Fixed
+
+- iOS: a dead strip between the toolbar and the keyboard — the safe-area
+  inset kept padding the toolbar while the inset area was hidden behind the
+  keyboard (`is-keyboard-open` now zeroes it).
+- iOS: toolbar/selection-bar horizontal flings past their edge opened the
+  file/info drawers and dismissed the keyboard (scroll chaining is contained;
+  the toolbar host carries `data-ignore-swipe`, Obsidian's own opt-out from
+  its drawer-swipe gesture).
+- iOS: taps on the note periodically did nothing after drawer interactions —
+  WKWebView stopped synthesizing mouse events, so ProseMirror never saw the
+  tap; focus now also recovers on `pointerup` (always delivered), only for
+  real taps, and the editor stays unfocused while a drawer is open (matching
+  native Obsidian — no keyboard floating above it).
+- Desktop: switching back to a note pane no longer resets the caret/selection
+  when the file on disk is unchanged; external changes with unsaved local
+  edits now route to the conflict dialog instead of silently reloading.
 
 ---
 
