@@ -8,6 +8,7 @@ import { getToolbarState, type ToolbarState } from "./toolbarState";
 import { toolbarIconNodes } from "./icon.svgnode";
 import { normalizeLinkUrl } from "./linkUrl";
 import type { ToolbarIconName } from "../icons/iconSprite";
+import { isMobileKeyboardOpen } from "../../tools/isMobileKeyboardOpen";
 
 interface ToolbarButton {
   /** Key in ToolbarState for highlight, or null for action buttons (image/attach/table). */
@@ -323,7 +324,7 @@ export const ToolbarElement = litView.element({
               <span>·</span>
               <span>{wordCount} w.</span>
             </div>
-            {document.body.classList.contains("is-mobile") ? (
+            {isMobileKeyboardOpen() ? (
               <button
                 class="note-toolbar__btn"
                 aria-label="Hide keyboard"

@@ -43,7 +43,7 @@ const TOOLBAR_ICON_PATHS = {
   trash: `<path d="M4 7l16 0"/><path d="M10 11l0 6"/><path d="M14 11l0 6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/><path d="M9 7v-3h6v3"/>`,
   copy: `<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15h-1a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v1"/>`,
   wrap: `<path d="M3 6h18"/><path d="M3 12h14a3 3 0 1 1 0 6h-4"/><path d="m15 16l-2 2l2 2"/><path d="M3 18h6"/>`,
-  keyboardHide: `<path d="M6 9l6 6l6 -6"/>`,
+  keyboardHide: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M2 5a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8" /><path d="M6 7l0 .01" /><path d="M10 7l0 .01" /><path d="M14 7l0 .01" /><path d="M18 7l0 .01" /><path d="M6 11l0 .01" /><path d="M18 11l0 .01" /> <path d="M10 11l4 0" /><path d="M10 19l2 2l2 -2" />`,
 } as const;
 
 /** Bubble-menu icons — paths from the Bubble-Menu-Prototype, Tabler outline
