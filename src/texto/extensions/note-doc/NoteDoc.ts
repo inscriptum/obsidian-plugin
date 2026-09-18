@@ -5,6 +5,7 @@ import {
   NotePlaceholdersOptions,
   notePlaceholdersPlugin,
 } from "./plugins/notePlaceholders.plugin";
+import { trailingParagraphPlugin } from "./trailingParagraph";
 
 interface NoteDocOptions extends NotePlaceholdersOptions {
   titleOptions?: TitleOptions;
@@ -41,6 +42,7 @@ export const NoteDoc = Node.create<NoteDocOptions>({
         this.options,
         this.options.titleOptions?.HTMLAttributes,
       ),
+      trailingParagraphPlugin(),
     ];
   },
 });

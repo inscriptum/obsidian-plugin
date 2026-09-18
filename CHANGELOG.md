@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Every note now ends with an empty paragraph: when the last block is anything else (code block, image, table, heading, list, …) the editor keeps a paragraph below it, so the caret can always be placed at the end of the note. Previously a trailing code block or image left nowhere to put the caret (a stub cursor on desktop; on mobile the note could not be continued at all), and a click near a trailing image selected it, so the next keystroke replaced it.
 - iOS: a dead strip between the toolbar and the keyboard — the safe-area inset kept padding the toolbar while the inset area was hidden behind the keyboard (`is-keyboard-open` now zeroes it).
 - iOS: toolbar/selection-bar horizontal flings past their edge opened the file/info drawers and dismissed the keyboard (scroll chaining is contained; the toolbar host carries `data-ignore-swipe`, Obsidian's own opt-out from its drawer-swipe gesture).
 - iOS: taps on the note periodically did nothing after drawer interactions — WKWebView stopped synthesizing mouse events, so ProseMirror never saw the tap; focus now also recovers on `pointerup` (always delivered), only for real taps, and the editor stays unfocused while a drawer is open (matching native Obsidian — no keyboard floating above it).

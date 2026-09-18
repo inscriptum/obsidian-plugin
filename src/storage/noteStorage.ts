@@ -1,5 +1,6 @@
 import type { TFile, Vault } from "obsidian";
 import type { JSONContent } from "../texto/core/@types";
+import { ensureTrailingParagraphJSON } from "../texto/extensions/note-doc/trailingParagraph";
 
 export const EMPTY_DOC: JSONContent = {
   type: "noteDoc",
@@ -43,7 +44,9 @@ export function parseNoteDoc(raw: string): JSONContent {
   // prosemirror's nodeFromJSON rejects them ("Empty text nodes are not
   // allowed") and the note would never open. Strip them on read; the next
   // normalized autosave rewrites the file without them.
-  return sanitizeNoteDoc(JSON.parse(raw) as JSONContent);
+  return ensureTrailingParagraphJSON(
+    sanitizeNoteDoc(JSON.parse(raw) as JSONContent),
+  );
 }
 
 /** Recursively drop empty text nodes ("text" missing or "") from a parsed

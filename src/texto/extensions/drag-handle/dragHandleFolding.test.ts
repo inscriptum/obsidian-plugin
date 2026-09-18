@@ -180,7 +180,9 @@ describe("dragging collapsed blocks", () => {
     const after = view.state.doc;
     const texts = after.content.content.map((n) => n.textContent);
     // New order: title, 'H1 two' section, THEN the whole 'H1 one' section
-    // (heading + both hidden paragraphs), then the taskList.
+    // (heading + both hidden paragraphs), then the taskList. The trailing
+    // empty paragraph is the guaranteed caret anchor after a non-paragraph
+    // last block (see note-doc/trailingParagraph).
     expect(texts).toEqual([
       "Title",
       "H1 two",
@@ -189,6 +191,7 @@ describe("dragging collapsed blocks", () => {
       "body of one",
       "more of one",
       "parent tasksubplain task",
+      "",
     ]);
     // The fold moved with the section: it now points at 'H1 one' in the
     // NEW doc (after 'H1 two' + its body).
