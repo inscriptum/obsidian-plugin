@@ -9,37 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- "Export as website" command and note pane-menu item: a note becomes a
-  self-contained static page (`index.html`, `note.css` with embedded fonts,
-  `images/`) inside the vault, ready to host anywhere.
-- `npm run ios:debug` — deploys the plugin into the Obsidian iCloud vault for
-  a real iPhone/iPad, with a per-deploy build tag: shown as a toolbar badge in
-  debug builds, logged to the browser console on note open
-  (`[inscriptum] build: 0.8.0-ios-<tag>`) and included in custom element tag
-  names, so the actually loaded build is always verifiable on-device.
-- Hide-keyboard button (chevron) at the right end of the mobile toolbar.
-- Diagnostics channel into the vault log (`.inscriptum-log.jsonl`, gated by
-  the existing `writeLog` setting): active keyboard path, keyboard offsets
-  and note-reload verdicts — the only observability channel on the iOS App
-  Store build.
+- "Export as website" command and note pane-menu item: a note becomes a self-contained static page (`index.html`, `note.css` with embedded fonts, `images/`) inside the vault, ready to host anywhere.
+- Hide-keyboard button at the right end of the mobile toolbar.
 
 ### Fixed
 
-- iOS: a dead strip between the toolbar and the keyboard — the safe-area
-  inset kept padding the toolbar while the inset area was hidden behind the
-  keyboard (`is-keyboard-open` now zeroes it).
-- iOS: toolbar/selection-bar horizontal flings past their edge opened the
-  file/info drawers and dismissed the keyboard (scroll chaining is contained;
-  the toolbar host carries `data-ignore-swipe`, Obsidian's own opt-out from
-  its drawer-swipe gesture).
-- iOS: taps on the note periodically did nothing after drawer interactions —
-  WKWebView stopped synthesizing mouse events, so ProseMirror never saw the
-  tap; focus now also recovers on `pointerup` (always delivered), only for
-  real taps, and the editor stays unfocused while a drawer is open (matching
-  native Obsidian — no keyboard floating above it).
-- Desktop: switching back to a note pane no longer resets the caret/selection
-  when the file on disk is unchanged; external changes with unsaved local
-  edits now route to the conflict dialog instead of silently reloading.
+- iOS: a dead strip between the toolbar and the keyboard — the safe-area inset kept padding the toolbar while the inset area was hidden behind the keyboard (`is-keyboard-open` now zeroes it).
+- iOS: toolbar/selection-bar horizontal flings past their edge opened the file/info drawers and dismissed the keyboard (scroll chaining is contained; the toolbar host carries `data-ignore-swipe`, Obsidian's own opt-out from its drawer-swipe gesture).
+- iOS: taps on the note periodically did nothing after drawer interactions — WKWebView stopped synthesizing mouse events, so ProseMirror never saw the tap; focus now also recovers on `pointerup` (always delivered), only for real taps, and the editor stays unfocused while a drawer is open (matching native Obsidian — no keyboard floating above it).
+- Desktop: switching back to a note pane no longer resets the caret/selection when the file on disk is unchanged; external changes with unsaved local edits now route to the conflict dialog instead of silently reloading.
 
 ---
 
@@ -55,6 +33,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Notes containing schema-invalid empty text nodes could not be opened at all.
 - Mobile: the "Styles & color" menu was broken.
 
+---
+
 ## [0.7.2] - 2026-09-16
 
 ### Changed
@@ -65,6 +45,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Drag handle beside floated images, both sides of it.
 - Mobile: any edit kicked the user out of the note. The 0.7.0 atomic-write fallback replaced a save with remove+rename of the note file; the remove fired a vault "delete" for the OPEN note and Obsidian closed the view. The mobile fallback now overwrites the file in place — the note stays open — while the temp file written beforehand still guards against data loss on a crash mid-write.
+
+---
 
 ## [0.7.1] - 2026-09-15
 
@@ -78,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fold chevron ↔ drag interplay (headings, foldable tasks): hovering no longer swaps the chevron for the dots handle — the chevron is force-revealed in the gutter instead; a quick click folds/unfolds as before, pressing and holding swaps the dots handle in, and moving from there drags the unit. Pointer jitter while holding no longer cancels the grab, and a held release without movement still toggles the fold (exactly once — no pointer capture on chevron presses). The chevron is now fully hidden while the dots handle is in its place — even with the pointer hovering it, where Chrome latches :hover to the pressed chevron — and the dots are centered on the chevron's glyph instead of its box edge.
 - A list with a single item shows only that item's drag handle — no second whole-list handle for the same move (a single-item list IS its item).
 - Block drag handle stayed visible and glued to a stale position after the document changed (typing, adding blocks): the handle is now hidden on any document change while the pointer is idle — it reappears when the mouse moves again and resolves the block under it. An active drag is unaffected.
+
+---
 
 ## [0.7.0] - 2026-09-15
 
@@ -99,6 +83,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - A persisted image error state no longer sticks forever: when the attachment file is available again (renamed back, restored from trash/backup), the image is reloaded on the next render. When the file is missing, the error block now explains what happened (`File not found: <file name>`) instead of showing a silent gray box. Image load failures report the file name too.
   - Empty leftover image nodes (from an interrupted paste/upload in a previous session) are removed when the editor opens, instead of staying as unremovable "select a file" placeholders forever.
 
+---
+
 ## [0.6.1] - 2026-09-08
 
 ### Added
@@ -109,6 +95,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Data-loss protection: a note file can no longer be silently wiped with an empty note body. Previously, if the file could not be read/parsed (e.g. a partially hydrated read right after opening the vault with restored tabs, or a truncated sync write), the editor silently fell back to an empty document which was then autosaved over the real content. Now: the note load is retried briefly, on failure an error state is shown instead of an editor (nothing is saved), and a last-resort write guard blocks saving an empty document over a file that still has content.
 
+---
+
 ## [0.6.0] - 2026-09-07
 
 ### Added
@@ -116,6 +104,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Nested task items (subtasks): pressing `Tab` inside a task item sinks it under the previous one, `Shift-Tab` lifts it back, and Enter continues the list at the same nesting level. Checking a parent item no longer strikes through its subtasks.
 - Folding (collapsing) of subtasks, like native Obsidian outlines: a chevron to the left of a task item with nested content hides its subtasks; the item itself stays visible and editable. Fold state persists per note (like heading folds) and survives edits. Desktop only in this first iteration; on mobile subtasks can still be created and edited, without the fold chevron.
 - Heading and task folding now survive aggressive edits correctly: deleting a collapsed section drops its fold instead of silently transferring it to the next section, and the caret is pushed out of a hidden region on *any* edit that lands it there (e.g. sinking a task under a collapsed parent with `Tab`), not only when folding from inside it.
+
+---
 
 ## [0.5.0] - 2026-09-03
 
@@ -138,6 +128,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - While a note is open, colliding Obsidian commands (Toggle bold/italics, Find in note, Insert link, Toggle preview) route their hotkeys into the note editor; outside notes they behave as before.
 - Mobile (phones and tablets): the link menu no longer shows the "Enter apply · Esc cancel" keyboard hints — touch devices have no such keys. Desktop keeps the hints.
 
+---
+
 ## [0.4.3] - 2026-08-31
 
 ### Fixed
@@ -152,6 +144,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Mobile: the drag-selection circle in the corner of the selected cell is no longer shown; cell selection is done with a long-press anywhere in the cell.
 - Mobile: the column-resize handle is now a wider, purely overlay grip that does not extend the table's scroll area, with a subtle square translucent guide line.
 - Mobile: the "Fill & color" panel no longer floats above the toolbar as a popup. It now docks as a full-width row directly above the toolbar actions, like a native menu.
+
+---
 
 ## [0.4.2] - 2026-08-28
 
@@ -171,12 +165,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Selection is now applied once, on finger lift; while dragging, the picked range is previewed with a lightweight overlay outside the editor DOM.
 
+---
+
 ## [0.4.1] - 2026-08-27
 
 ### Fixed
 
 - Fixed tables selection
 - Fixed the tablet mobile layout: the editor no longer reserves the phone-only fixed header height (no big empty gap on top), and the top scroll-fade mask is no longer shown; both now apply to phones only. The in-note search bar also keeps its normal position on tablets.
+
+---
 
 ## [0.4.0] - 2026-08-25
 
@@ -190,6 +188,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed the mobile new-note dialog stretching to full screen with empty space; it is now a compact card with the fields directly under the title.
+
+---
 
 ## [0.3.0] - 2026-08-24
 
@@ -211,11 +211,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New `.note` documents now follow the selected folder, including nested folders.
 - Removed obsolete custom-element and browser-feature CSS warnings.
 
+---
+
 ## [0.2.4] - 2026-08-23
 
 ### Fixed
 
 - Improved code styles, fixed some warnings
+
+---
 
 ## [0.2.3] - 2026-08-23
 
@@ -228,17 +232,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a subtle top fade when scrolling content beneath the fixed mobile controls.
 - Removed the duplicate file name from the mobile view header.
 
+---
+
 ## [0.2.2] - 2026-08-21
 
 ### Fixed
 
 - Fixed the mobile toolbar not appearing when the keyboard could not be detected (e.g. in desktop mobile emulation) by showing it on editor focus instead.
 
+---
+
 ## [0.2.1] - 2026-08-21
 
 ### Changed
 
 - On mobile, replaced the native bottom-menu integration with a dedicated bottom toolbar: on phones it appears only while the keyboard is open (the native menu shows otherwise), and on iPad it is always visible.
+
+---
 
 ## [0.2.0] - 2026-08-21
 
@@ -255,6 +265,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed images not loading after restarting Obsidian (stale resource URL).
 - Fixed attachments opening immediately on click instead of being selected first.
 
+---
+
 ## [0.1.3] - 2026-08-18
 
 ### Changed
@@ -265,6 +277,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed toolbar and bubble-menu icons not showing on iPad (iOS Safari collapsed inline `<svg>` inside flex buttons) by sizing the icons via CSS and rendering them through sprite `<use>` elements.
 - Added `xlink:href` alongside `href` on every `<use>` for broader SVG compatibility.
+
+---
 
 ## [0.1.2] - 2026-08-17
 
@@ -277,6 +291,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved stability and reliability.
 - Updated dependencies.
 
+---
+
 ## [0.1.1] - 2026-08-10
 
 ### Fixed
@@ -284,6 +300,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed a crash that could prevent the plugin from loading on mobile devices (Android and iOS).
 - Improved compatibility with the latest Obsidian versions.
 - Various under-the-hood reliability improvements.
+
+---
 
 ## [0.1.0] - 2026-08-09
 
