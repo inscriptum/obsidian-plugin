@@ -67,15 +67,48 @@ function languageLabel(codeClass: string | null): string {
 }
 
 /** Standalone icons (same shapes as the editor's `inscriptum-tlb-*` sprite
- *  symbols — the exported page ships no sprite, so they are inlined). */
-function iconSvg(paths: string): string {
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+ *  symbols — the exported page ships no sprite, so they are inlined). Built
+ *  via createElementNS; the serialized markup matches the icon literals used
+ *  by the editor sprite. */
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+type IconShape = { tag: string; attrs: Record<string, string> };
+
+function svgIcon(doc: Document, shapes: IconShape[]): SVGElement {
+  const svg = doc.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  for (const { tag, attrs } of shapes) {
+    const shape = doc.createElementNS(SVG_NS, tag);
+    for (const [name, value] of Object.entries(attrs)) {
+      shape.setAttribute(name, value);
+    }
+    svg.appendChild(shape);
+  }
+  return svg;
 }
 
-const COPY_ICON = iconSvg(
-  `<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15h-1a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v1"/>`,
-);
-const CHECK_ICON = iconSvg(`<path d="M5 12l5 5l10 -10"/>`);
+const COPY_ICON: IconShape[] = [
+  { tag: "rect", attrs: { x: "9", y: "9", width: "12", height: "12", rx: "2" } },
+  {
+    tag: "path",
+    attrs: { d: "M5 15h-1a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v1" },
+  },
+];
+const CHECK_ICON: IconShape[] = [
+  { tag: "path", attrs: { d: "M5 12l5 5l10 -10" } },
+];
+
+function iconSpan(doc: Document, cls: string, icon: IconShape[]): HTMLElement {
+  const span = doc.createElement("span");
+  span.className = cls;
+  span.appendChild(svgIcon(doc, icon));
+  return span;
+}
 
 /** Wraps a serialized `<pre><code>` into the editor's code block chrome:
  *  language label docked top-left, copy button docked top-right. The copy
@@ -103,9 +136,20 @@ function wrapCodeBlock(parsed: Document, pre: Element): void {
   copyButton.className = "hljs-codeblock__btn hljs-codeblock__btn--copy";
   copyButton.title = "Copy code";
   copyButton.setAttribute("aria-label", "Copy code");
-  copyButton.innerHTML =
-    `<span class="hljs-codeblock__btn-ico hljs-codeblock__btn-ico--copy">${COPY_ICON}</span>` +
-    `<span class="hljs-codeblock__btn-ico hljs-codeblock__btn-ico--check">${CHECK_ICON}</span>`;
+  copyButton.appendChild(
+    iconSpan(
+      parsed,
+      "hljs-codeblock__btn-ico hljs-codeblock__btn-ico--copy",
+      COPY_ICON,
+    ),
+  );
+  copyButton.appendChild(
+    iconSpan(
+      parsed,
+      "hljs-codeblock__btn-ico hljs-codeblock__btn-ico--check",
+      CHECK_ICON,
+    ),
+  );
   actions.appendChild(copyButton);
 
   pre.replaceWith(block);

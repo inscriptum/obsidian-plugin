@@ -561,7 +561,7 @@ export class NoteView extends FileView {
           // Build marker for on-device debugging: confirms which exact build
           // is loaded (the iOS app keeps stale plugin code until a full
           // restart — see scripts/ios-debug.mjs).
-          console.info(
+          console.debug(
             `[inscriptum] build: ${TAG_VERSION}${BUILD_TAG ? ` (tag: ${BUILD_TAG})` : ""}`,
           );
 
