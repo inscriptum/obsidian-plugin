@@ -73,7 +73,9 @@ button.notebook-section-gutter {
 }
 
 .notebook-section-gutter svg {
-  transition: stroke 0.2s;
+  transition:
+    stroke 0.2s,
+    transform 0.2s;
 }
 
 button.notebook-section-gutter:hover,
@@ -85,15 +87,10 @@ button.notebook-section-gutter:hover svg {
   stroke: var(--text-normal);
 }
 
-/* Folded pages point right; expanded rotate the chevron down. */
+/* Folded pages point right; expanded rotate the chevron down. The gutter
+   stays in ONE fixed spot for both states (aligned with the first line). */
 .notebook-section.is-expanded button.notebook-section-gutter svg {
   transform: rotate(90deg);
-}
-
-/* Expanded sections: the margin aligns with the editor's first text line
-   (the um editor carries no top padding). */
-.notebook-section.is-expanded .notebook-section-margin {
-  top: 8px;
 }
 
 /* ── Content column ──
