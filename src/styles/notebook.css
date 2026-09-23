@@ -96,22 +96,27 @@ button.notebook-section-gutter:hover svg {
   top: 23px;
 }
 
-/* ── Content column ── */
+/* ── Content column ──
+   The body is the page frame: a left rule for expanded pages and a bottom
+   separator on every page — the controls row lives INSIDE the frame, so
+   the line closes each page including the last one. */
 
 .notebook-section-body {
   min-width: 0;
-  padding: 2px 0 2px 16px;
+  padding: 2px 0 0 16px;
 }
 
-/* Thin rule left of expanded content; light separator between pages. */
 .notebook-section.is-expanded .notebook-section-body {
   border-left: 1px solid var(--background-modifier-border);
 }
 
-/* Blog: every page but the last carries a bottom separator. */
-.notebook-section:not(:nth-last-child(1)) .notebook-section-body {
+.notebook-section .notebook-section-body {
   border-bottom: 1px solid var(--background-modifier-border);
-  padding-bottom: var(--size-2-2);
+}
+
+.notebook-section-content {
+  min-height: 20px;
+  padding-bottom: var(--size-2-1);
 }
 
 /* ── Collapsed row ── */
@@ -210,7 +215,7 @@ button.notebook-section-control {
   justify-content: center;
   padding: 1px 4px;
   border: none;
-  border-radius: 0;
+  border-radius: var(--radius-s);
   box-shadow: none;
   background: transparent;
   appearance: none;
@@ -220,8 +225,8 @@ button.notebook-section-control {
 }
 
 button.notebook-section-control svg {
-  width: 17px;
-  height: 17px;
+  width: 20px;
+  height: 20px;
   stroke-width: 1.25;
   transition:
     stroke 0.2s,
@@ -232,13 +237,11 @@ button.notebook-section-control:hover svg {
   stroke: var(--text-normal);
 }
 
-/* Delete icon keeps the plus's three-level emphasis, in red. The steps are
-   driven by the icon's opacity (red is always full-saturation): idle is
-   additionally muted by the group's 0.3, the group hover lifts it to 0.75,
-   and hovering the trash itself shows it at full strength. */
+/* Delete icon keeps the plus's three-level emphasis, in red — with a soft
+   red tint on its own hover so the highlight is unmistakable. */
 button.notebook-section-control.is-danger svg {
   stroke: var(--text-error);
-  opacity: 0.5;
+  opacity: 0.35;
 }
 
 .notebook-section-controls:hover button.notebook-section-control.is-danger svg,
@@ -249,6 +252,10 @@ button.notebook-section-control.is-danger svg {
 }
 
 /* Own hover outranks the group-hover rule above (same property). */
+.notebook-section-controls button.notebook-section-control.is-danger:hover {
+  background: color-mix(in srgb, var(--text-error) 10%, transparent);
+}
+
 .notebook-section-controls button.notebook-section-control.is-danger:hover svg {
   opacity: 1;
 }

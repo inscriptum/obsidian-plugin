@@ -113,7 +113,11 @@ function chevronSvg(): SVGSVGElement {
 interface SectionHandle {
   id: string;
   root: HTMLElement;
+  /** Bordered page frame: holds the content plus the controls row, so the
+   *  bottom separator visually groups the controls with their page. */
   body: HTMLElement;
+  /** The part that swaps between the collapsed title row and the editor. */
+  content: HTMLElement;
   noteEl: NoteElement | null;
   editor: Editor | null;
   editorRef: { current: Editor | null };
@@ -318,11 +322,13 @@ export class NotebookView extends FileView {
     margin.appendChild(gutter);
 
     const body = root.createDiv("notebook-section-body");
+    const content = body.createDiv("notebook-section-content");
 
-    // Ghost controls under the section: add-after / delete (visible on hover).
+    // Ghost controls under the section content but INSIDE the page frame
+    // (above its bottom separator) — so they visibly belong to this page.
     // The first page carries no delete control — it anchors the notebook
     // (the blog does the same for order 0).
-    const controls = root.createDiv("notebook-section-controls");
+    const controls = body.createDiv("notebook-section-controls");
     const addBtn = createEl("button", { cls: "notebook-section-control" });
     addBtn.setAttribute("aria-label", "Add note after");
     setIcon(addBtn, "plus");
@@ -342,6 +348,7 @@ export class NotebookView extends FileView {
       id,
       root,
       body,
+      content,
       noteEl: null,
       editor: null,
       editorRef: { current: null },
@@ -356,8 +363,8 @@ export class NotebookView extends FileView {
   /** The one-line collapsed representation: the note title, or a muted
    *  placeholder when empty. */
   private renderCollapsedTitle(handle: SectionHandle, title: string): void {
-    handle.body.empty();
-    const row = handle.body.createDiv("notebook-section-collapsed");
+    handle.content.empty();
+    const row = handle.content.createDiv("notebook-section-collapsed");
     const label = row.createDiv("notebook-section-title");
     if (title.trim().length > 0) {
       label.setText(title);
@@ -382,7 +389,7 @@ export class NotebookView extends FileView {
   private editTitleInline(handle: SectionHandle): void {
     const descriptor = this.notebook?.note(handle.id);
     if (!descriptor) return;
-    const row = handle.body.querySelector(".notebook-section-collapsed");
+    const row = handle.content.querySelector(".notebook-section-collapsed");
     if (row == null || row.querySelector("input") != null) return;
 
     const input = document.createElement("input");
@@ -458,11 +465,11 @@ export class NotebookView extends FileView {
       notebook.setExpanded(id, true);
       this.scheduleSave();
       handle.root.addClass("is-expanded");
-      handle.body.empty();
+      handle.content.empty();
 
       const noteEl = makeNoteElement();
       noteEl.addClass("notebook-note-host");
-      handle.body.appendChild(noteEl);
+      handle.content.appendChild(noteEl);
       handle.noteEl = noteEl;
 
       const editor = await this.createEditorForSection(handle, content);
@@ -506,7 +513,7 @@ export class NotebookView extends FileView {
     // Removing the element destroys the editor (NoteElement cleanup).
     handle.noteEl?.remove();
     handle.noteEl = null;
-    handle.body.empty();
+    handle.content.empty();
 
     const descriptor = this.notebook?.note(id);
     this.renderCollapsedTitle(handle, descriptor?.title ?? "");
