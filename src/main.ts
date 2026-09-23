@@ -420,6 +420,8 @@ export default class NotesPlugin extends Plugin {
   ): Promise<void> {
     const notebook = UmNotebook.empty();
     notebook.addNote(undefined, name);
+    // The starter page lands expanded (persisted in the manifest).
+    notebook.setExpanded(notebook.notes()[0]?.id, true);
     const path = normalizePath(
       folderPath ? `${folderPath}/${name}.um` : `${name}.um`,
     );

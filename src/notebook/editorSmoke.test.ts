@@ -26,7 +26,9 @@ function build(content: JSONContent): { ok: boolean; error?: string } {
 describe("editor smoke: content shapes used by NotebookView", () => {
   it("builds an editor for createEmptyNote() (new notebook note)", () => {
     const r = build(createEmptyNote());
-    expect({ ok: r.ok, error: r.error?.slice(0, 300) }).toMatchObject({ ok: true });
+    expect({ ok: r.ok, error: r.error?.slice(0, 300) }).toMatchObject({
+      ok: true,
+    });
   });
 
   it("builds an editor for a note with title text", () => {
@@ -34,7 +36,9 @@ describe("editor smoke: content shapes used by NotebookView", () => {
     const title = doc.content?.find((n) => n.type === "noteTitle");
     if (title) title.content = [{ type: "text", text: "Hello" }];
     const r = build(doc);
-    expect({ ok: r.ok, error: r.error?.slice(0, 300) }).toMatchObject({ ok: true });
+    expect({ ok: r.ok, error: r.error?.slice(0, 300) }).toMatchObject({
+      ok: true,
+    });
   });
 
   it("builds an editor for an image note without a key attr", () => {
@@ -44,6 +48,8 @@ describe("editor smoke: content shapes used by NotebookView", () => {
       attrs: { data: { id: "01TESTIMG", size: "70", filename: "dot.png" } },
     });
     const r = build(doc);
-    expect({ ok: r.ok, error: r.error?.slice(0, 300) }).toMatchObject({ ok: true });
+    expect({ ok: r.ok, error: r.error?.slice(0, 300) }).toMatchObject({
+      ok: true,
+    });
   });
 });
