@@ -738,6 +738,9 @@ export class NotebookView extends FileView {
     bubbleMenuBarEl.props.editor = editor;
     tableBubbleMenuEl.props.editor = editor;
     mediaBubbleMenuEl.props.editor = editor;
+    // Required prop of the media menu (open/delete actions route through
+    // the app); without it the element's generator never starts.
+    mediaBubbleMenuEl.props.app = this.app;
 
     editor.registerPlugin(
       bubbleMenuPlugin({

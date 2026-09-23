@@ -122,6 +122,20 @@ export function imageOnSetViewPropsContainer(
     };
   }
 
+  if (id == null) {
+    // Brand-new image (toolbar insert / paste / drop): the picked file must
+    // be packed into the container — never saved next to the document.
+    return {
+      ...props,
+      onFileSelected: (file: File | null) => {
+        if (file)
+          void packImage(file, notebook, (updatedAttrs) =>
+            update(updatedAttrs),
+          );
+      },
+    };
+  }
+
   // External vault image — standard resolution anchored at the notebook file.
   return imageOnSetViewProps(props, update, ctx);
 }
