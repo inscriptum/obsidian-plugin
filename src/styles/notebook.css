@@ -91,9 +91,9 @@ button.notebook-section-gutter:hover svg {
 }
 
 /* Expanded sections: the margin aligns with the editor's first text line
-   (the editor host carries ~32px top padding). */
+   (the um editor carries no top padding). */
 .notebook-section.is-expanded .notebook-section-margin {
-  top: 23px;
+  top: 8px;
 }
 
 /* ── Content column ──
@@ -191,6 +191,13 @@ button.notebook-section-gutter:hover svg {
 
 .notebook-note-host {
   min-height: 120px;
+}
+
+/* Notebook pages frame themselves, so the editor's own top/bottom padding
+   (32px/120px for plain .note files) is dropped — only for the um view. */
+.notebook-view-container .texto-editor {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 /* ── Controls: add-after / delete ──
