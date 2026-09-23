@@ -227,27 +227,45 @@ button.notebook-section-control:hover svg {
   stroke: var(--text-normal);
 }
 
-/* Delete icon stays red in every state (base, group hover, own hover). */
-button.notebook-section-control.is-danger svg,
+/* Delete icon keeps the plus's three-level emphasis, in red:
+   faint at rest, stronger on the controls-group hover, full on its own. */
+button.notebook-section-control.is-danger svg {
+  stroke: color-mix(in srgb, var(--text-error) 45%, transparent);
+}
+
+.notebook-section-controls:hover button.notebook-section-control.is-danger svg,
+.notebook-section-controls:focus-within
+  button.notebook-section-control.is-danger
+  svg {
+  stroke: color-mix(in srgb, var(--text-error) 75%, transparent);
+}
+
 button.notebook-section-control.is-danger:hover svg {
   stroke: var(--text-error);
 }
 
-/* ── Undo action inside a delete notice ── */
+/* ── Undo action inside a delete notice ──
+   Compact text action that fits the notice in both themes (the raw button
+   otherwise inherits wide modal styling). */
 
 .notebook-notice-action {
+  flex: 0 0 auto;
+  align-self: center;
+  width: auto;
   margin-left: var(--size-4-2);
-  padding: 2px 10px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-s);
+  padding: 0;
+  border: none;
   background: transparent;
-  color: var(--text-normal);
+  color: var(--text-on-accent);
   font-size: var(--font-ui-small);
+  text-decoration: underline;
+  text-underline-offset: 2px;
   cursor: pointer;
+  opacity: 0.85;
 }
 
 .notebook-notice-action:hover {
-  background: var(--background-modifier-hover);
+  opacity: 1;
 }
 
 /* ── Empty notebook ── */

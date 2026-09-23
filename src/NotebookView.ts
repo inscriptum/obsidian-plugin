@@ -319,19 +319,23 @@ export class NotebookView extends FileView {
     const body = root.createDiv("notebook-section-body");
 
     // Ghost controls under the section: add-after / delete (visible on hover).
+    // The first page carries no delete control — it anchors the notebook
+    // (the blog does the same for order 0).
     const controls = root.createDiv("notebook-section-controls");
     const addBtn = createEl("button", { cls: "notebook-section-control" });
     addBtn.setAttribute("aria-label", "Add note after");
     setIcon(addBtn, "plus");
     addBtn.addEventListener("click", () => this.addNoteAfter(id));
-    const delBtn = createEl("button", {
-      cls: "notebook-section-control is-danger",
-    });
-    delBtn.setAttribute("aria-label", "Delete note");
-    setIcon(delBtn, "trash-2");
-    delBtn.addEventListener("click", () => this.deleteNote(id));
     controls.appendChild(addBtn);
-    controls.appendChild(delBtn);
+    if (order > 0) {
+      const delBtn = createEl("button", {
+        cls: "notebook-section-control is-danger",
+      });
+      delBtn.setAttribute("aria-label", "Delete note");
+      setIcon(delBtn, "trash-2");
+      delBtn.addEventListener("click", () => this.deleteNote(id));
+      controls.appendChild(delBtn);
+    }
 
     const handle: SectionHandle = {
       id,
@@ -812,9 +816,9 @@ export class NotebookView extends FileView {
 
     new ConfirmModal(this.app, {
       title: "Delete note",
-      message: "Страница будет удалена, продолжить?",
-      confirmText: "Удалить",
-      cancelText: "Отменить",
+      message: "The page will be deleted. Continue?",
+      confirmText: "Delete",
+      cancelText: "Cancel",
       onConfirm: () => {
         if (this.notebook == null || this.notebook.note(id) == null) return;
         const wasFolded = this.foldedIds.has(id);
@@ -827,10 +831,10 @@ export class NotebookView extends FileView {
 
         const name = removed.descriptor.title?.trim();
         const notice = new Notice(
-          name ? `Заметка «${name}» удалена` : "Заметка удалена",
+          name ? `Note "${name}" deleted` : "Note deleted",
           7000,
         );
-        this.addNoticeAction(notice, "Отменить", () => {
+        this.addNoticeAction(notice, "Undo", () => {
           if (this.notebook == null) return;
           this.notebook.restoreNote(removed);
           if (wasFolded) this.foldedIds.add(removed.descriptor.id);
