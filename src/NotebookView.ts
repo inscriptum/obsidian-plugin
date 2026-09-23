@@ -131,9 +131,9 @@ interface SectionHandle {
 export class NotebookView extends FileView {
   private notebook: UmNotebook | null = null;
   private sections = new Map<string, SectionHandle>();
-  /** Note ids currently collapsed; everything else is expanded. Notes start
-   *  collapsed (spec section 14). */
-  private foldedIds = new Set<string>();
+  /** Expansion state lives on the note descriptors in the manifest
+   *  (`expanded`, persisted with the container); a note without the flag is
+   *  collapsed — the spec's initial default (section 14). */
   /** Expansion builds in flight, to prevent double editor creation for the
    *  same note. */
   private pendingExpansions = new Set<string>();
@@ -211,8 +211,8 @@ export class NotebookView extends FileView {
     }
     this.notebook = notebook;
     notebook.savedFingerprint = await umFingerprint(this.app.vault, file);
-    // Spec section 14: notes SHOULD initially be collapsed.
-    this.foldedIds = new Set(notebook.notes().map((n) => n.id));
+    // Expansion state comes from the manifest (`expanded` per note); notes
+    // without the flag start collapsed (spec section 14).
     this.render();
   }
 
@@ -294,9 +294,10 @@ export class NotebookView extends FileView {
       this.sectionsEl.appendChild(this.buildAddNoteRow());
     }
 
-    // Re-expand notes that are not folded (preserved across reloads).
+    // Re-expand notes marked expanded in the manifest (state survives
+    // reloads and moves with the file).
     for (const descriptor of this.notebook.notes()) {
-      if (!this.foldedIds.has(descriptor.id)) {
+      if (this.notebook.isExpanded(descriptor.id)) {
         void this.expandSection(descriptor.id, { focus: false });
       }
     }
@@ -414,7 +415,7 @@ export class NotebookView extends FileView {
 
   /** Re-render the collapsed title text after inline editing. */
   private renderSectionTitleOnly(handle: SectionHandle): void {
-    if (!this.foldedIds.has(handle.id)) return;
+    if (this.notebook?.isExpanded(handle.id)) return;
     const descriptor = this.notebook?.note(handle.id);
     this.renderCollapsedTitle(handle, descriptor?.title ?? "");
   }
@@ -429,7 +430,7 @@ export class NotebookView extends FileView {
   // ── Expand / collapse ──
 
   private toggleSection(id: string, opts?: { expand?: boolean }): void {
-    const isFolded = this.foldedIds.has(id);
+    const isFolded = !this.notebook?.isExpanded(id);
     if (!isFolded && opts?.expand === true) return; // already expanded
     if (isFolded) void this.expandSection(id, { focus: true });
     else void this.collapseSection(id);
@@ -446,14 +447,16 @@ export class NotebookView extends FileView {
     if (content == null) return;
     // Already expanded (or expansion in flight) — nothing to build.
     if (handle.editor != null || this.pendingExpansions.has(id)) {
-      this.foldedIds.delete(id);
+      notebook.setExpanded(id, true);
+      this.scheduleSave();
       if (opts?.focus) handle.editor?.view.focus();
       return;
     }
 
     this.pendingExpansions.add(id);
     try {
-      this.foldedIds.delete(id);
+      notebook.setExpanded(id, true);
+      this.scheduleSave();
       handle.root.addClass("is-expanded");
       handle.body.empty();
 
@@ -469,7 +472,8 @@ export class NotebookView extends FileView {
         handle.noteEl = null;
         noteEl.remove();
         handle.root.removeClass("is-expanded");
-        this.foldedIds.add(id);
+        notebook.setExpanded(id, false);
+        this.scheduleSave();
         this.renderSectionTitleOnly(handle);
         return;
       }
@@ -482,14 +486,15 @@ export class NotebookView extends FileView {
 
   private async collapseSection(id: string): Promise<void> {
     const handle = this.sections.get(id);
-    if (!handle || this.foldedIds.has(id)) return;
+    if (!handle || this.notebook?.isExpanded(id) !== true) return;
 
     // Flush the editor content into the in-memory notebook first.
     this.flushSectionToNotebook(handle);
 
     const ownedToolbar = this.toolbarEl?.props.editor === handle.editor;
 
-    this.foldedIds.add(id);
+    this.notebook.setExpanded(id, false);
+    this.scheduleSave();
     handle.root.removeClass("is-expanded");
     for (const el of handle.bubbleEls) el.remove();
     handle.bubbleEls = [];
@@ -829,9 +834,9 @@ export class NotebookView extends FileView {
     if (!notebook) return;
     const notes = notebook.notes();
     const lastId = notes[notes.length - 1]?.id;
-    notebook.addNote(lastId, "");
-    // render() rebuilds the section list and auto-expands every note that is
-    // not folded — including the newly added one.
+    const added = notebook.addNote(lastId, "");
+    // Open the new page for editing right away and remember it expanded.
+    notebook.setExpanded(added.id, true);
     this.render();
     void this.flushSave("add-note");
   }
@@ -840,7 +845,8 @@ export class NotebookView extends FileView {
   private addNoteAfter(id: string): void {
     const notebook = this.notebook;
     if (!notebook || !notebook.note(id)) return;
-    notebook.addNote(id, "");
+    const added = notebook.addNote(id, "");
+    notebook.setExpanded(added.id, true);
     this.render();
     void this.flushSave("add-note");
   }
@@ -859,10 +865,8 @@ export class NotebookView extends FileView {
       cancelText: "Cancel",
       onConfirm: () => {
         if (this.notebook == null || this.notebook.note(id) == null) return;
-        const wasFolded = this.foldedIds.has(id);
         const removed = this.notebook.removeNote(id);
         if (removed == null) return;
-        this.foldedIds.delete(id);
         this.pendingExpansions.delete(id);
         this.render();
         void this.flushSave("delete-note");
@@ -874,8 +878,8 @@ export class NotebookView extends FileView {
         );
         this.addNoticeAction(notice, "Undo", () => {
           if (this.notebook == null) return;
+          // The restored descriptor carries its persisted expanded flag.
           this.notebook.restoreNote(removed);
-          if (wasFolded) this.foldedIds.add(removed.descriptor.id);
           this.render();
           void this.flushSave("undo-delete");
         });

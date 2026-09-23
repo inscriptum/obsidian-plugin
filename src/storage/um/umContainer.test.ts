@@ -407,6 +407,32 @@ describe("UmNotebook", () => {
     const nb = notebookWithTwoNotes();
     expect(nb.removeNote("missing")).toBeNull();
   });
+
+  it("persists the expanded flag and defaults to collapsed", () => {
+    const nb = notebookWithTwoNotes();
+    expect(nb.isExpanded(nb.notes()[0].id)).toBe(false); // absent = collapsed
+    nb.setExpanded(nb.notes()[0].id, true);
+
+    const reopened = UmNotebook.fromBytes(nb.serialize());
+    expect(reopened.isExpanded(nb.notes()[0].id)).toBe(true);
+    expect(reopened.isExpanded(nb.notes()[1].id)).toBe(false);
+
+    // Collapsing removes the flag from the manifest.
+    reopened.setExpanded(reopened.notes()[0].id, false);
+    const final = UmNotebook.fromBytes(reopened.serialize());
+    expect(final.notes()[0].expanded).toBeUndefined();
+    expect(final.notes()[0].expanded === undefined).toBe(true);
+  });
+
+  it("restores the expanded flag together with a removed note", () => {
+    const nb = notebookWithTwoNotes();
+    const first = nb.notes()[0];
+    nb.setExpanded(first.id, true);
+    const removed = nb.removeNote(first.id);
+    expect(nb.isExpanded(first.id)).toBe(false);
+    nb.restoreNote(removed);
+    expect(nb.isExpanded(first.id)).toBe(true);
+  });
 });
 
 describe("path helpers", () => {

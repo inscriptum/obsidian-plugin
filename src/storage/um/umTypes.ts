@@ -26,6 +26,9 @@ export interface UmNoteDescriptor {
   order: number;
   /** Display title. Optional per spec; our implementation always writes it. */
   title?: string;
+  /** Notebook UI expanded state. Absent or false = collapsed (the spec's
+   *  initial default); we write it only for expanded notes. */
+  expanded?: boolean;
 }
 
 export interface UmAssetDescriptor {

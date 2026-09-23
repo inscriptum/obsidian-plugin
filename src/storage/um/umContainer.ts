@@ -111,6 +111,12 @@ export function parseUmContainer(bytes: Uint8Array): UmContainerData {
     if (raw.title !== undefined && typeof raw.title !== "string") {
       throw new UmError("bad-descriptor", `Note "${id}" has an invalid title`);
     }
+    if (raw.expanded !== undefined && typeof raw.expanded !== "boolean") {
+      throw new UmError(
+        "bad-descriptor",
+        `Note "${id}" has an invalid expanded flag`,
+      );
+    }
     if (seenIds.has(id)) {
       throw new UmError("duplicate-id", `Duplicate note id: ${id}`);
     }

@@ -85,6 +85,23 @@ export class UmNotebook {
     return this.data.notes.get(id);
   }
 
+  /** Notebook UI expanded state — persisted on the descriptor (absent =
+   *  collapsed, the spec's initial default). */
+  isExpanded(id: string): boolean {
+    return this.note(id)?.expanded === true;
+  }
+
+  setExpanded(id: string, expanded: boolean): void {
+    const descriptor = this.note(id);
+    if (!descriptor || descriptor.expanded === expanded) return;
+    if (expanded) {
+      descriptor.expanded = true;
+    } else {
+      delete descriptor.expanded;
+    }
+    this.structureChanged = true;
+  }
+
   /** The display title of a note, mirrored from its document's first line
    *  (the noteTitle node). */
   private syncTitleFromDoc(id: string, doc: JSONContent): void {
