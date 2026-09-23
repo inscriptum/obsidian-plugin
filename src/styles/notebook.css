@@ -26,42 +26,47 @@
 
 .notebook-section {
   position: relative;
-  padding-left: 56px;
+  padding-left: 74px;
 }
 
 /* ── Left margin: page order + chevron ──
-   Blog language: bare hairline glyphs, no button chrome; muted by default,
+   Copied from the blog draft view: bare glyphs (no button chrome —
+   background/border/box-shadow all off), hairline strokes, muted color
    darkening on hover with a 0.2s transition. */
 
 .notebook-section-margin {
   position: absolute;
   left: 0;
-  top: 7px;
+  top: -5px;
   display: flex;
   align-items: center;
   gap: 0;
-  width: 52px;
+  width: 70px;
 }
 
 .notebook-section-order {
-  min-width: 22px;
+  min-width: 24px;
   text-align: right;
   color: var(--text-faint);
-  font-size: var(--font-ui-small);
+  font-size: 15px;
   line-height: 1;
   user-select: none;
   transition: color 0.2s;
 }
 
-.notebook-section-gutter {
+button.notebook-section-gutter {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: none;
+  border-radius: 0;
+  box-shadow: none;
   background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
   color: var(--text-faint);
   cursor: pointer;
   transition: color 0.2s;
@@ -71,31 +76,31 @@
   transition: stroke 0.2s;
 }
 
-.notebook-section-gutter:hover,
+button.notebook-section-gutter:hover,
 .notebook-section-margin:hover .notebook-section-order {
   color: var(--text-normal);
 }
 
-.notebook-section-gutter:hover svg {
+button.notebook-section-gutter:hover svg {
   stroke: var(--text-normal);
 }
 
 /* Folded pages point right; expanded rotate the chevron down. */
-.notebook-section.is-expanded .notebook-section-gutter svg {
-  transform: rotate(-90deg);
+.notebook-section.is-expanded button.notebook-section-gutter svg {
+  transform: rotate(90deg);
 }
 
 /* Expanded sections: the margin aligns with the editor's first text line
    (the editor host carries ~32px top padding). */
 .notebook-section.is-expanded .notebook-section-margin {
-  top: 38px;
+  top: 23px;
 }
 
 /* ── Content column ── */
 
 .notebook-section-body {
   min-width: 0;
-  padding: 2px 0 2px 20px;
+  padding: 2px 0 2px 16px;
 }
 
 /* Thin rule left of expanded content; light separator between pages. */
@@ -179,15 +184,14 @@
 }
 
 /* ── Controls: add-after / delete ──
-   Blog language: the group is always visible but very muted (0.3), the
-   group's hover brings it to full strength, and a hovered icon darkens. */
+   Copied from the blog: bare buttons (transparent, no border/box-shadow),
+   group always visible but very muted (0.3), the group's hover brings it
+   to full strength, a hovered icon darkens. */
 
 .notebook-section-controls {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--size-2-1);
-  width: 64px;
+  gap: 0;
   padding: 0 0 var(--size-2-1) 8px;
   opacity: 0.3;
   transition: opacity 0.2s;
@@ -198,26 +202,28 @@
   opacity: 1;
 }
 
-.notebook-section-control {
+button.notebook-section-control {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
+  padding: 1px 6px;
   border: none;
+  border-radius: 0;
+  box-shadow: none;
   background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
   color: var(--text-faint);
   cursor: pointer;
 }
 
-.notebook-section-control svg {
-  width: 20px;
-  height: 20px;
+button.notebook-section-control svg {
+  width: 24px;
+  height: 24px;
   transition: stroke 0.2s;
 }
 
-.notebook-section-control:hover svg {
+button.notebook-section-control:hover svg {
   stroke: var(--text-normal);
 }
 
@@ -258,4 +264,14 @@
 .notebook-add-note:hover {
   color: var(--text-normal);
   background: var(--background-modifier-hover);
+}
+
+/* Obsidian's `button:not(.clickable-icon)` base outranks a bare class —
+   restate the bare-button reset for every state. */
+button.notebook-section-gutter:hover,
+button.notebook-section-control:hover,
+button.notebook-section-gutter:focus,
+button.notebook-section-control:focus {
+  background-color: transparent;
+  box-shadow: none;
 }

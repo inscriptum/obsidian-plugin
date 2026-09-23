@@ -89,17 +89,18 @@ const makeMediaBubbleMenuElement = () =>
     () => new MediaBubbleMenuElement() as unknown as HTMLElement,
   );
 
-/** Chevron toggle icon for a section gutter — hairline tabler-style stroke
- *  like the blog draft view (folded state; CSS rotates it when expanded). */
+/** Chevron toggle icon for a section gutter — copied from the blog draft
+ *  view: 44×44 tabler chevron, hairline 0.5 stroke (folded state; CSS
+ *  rotates it when expanded). */
 function chevronSvg(): SVGSVGElement {
   const ns = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("width", "20");
-  svg.setAttribute("height", "20");
+  svg.setAttribute("width", "44");
+  svg.setAttribute("height", "44");
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("fill", "none");
   svg.setAttribute("stroke", "currentColor");
-  svg.setAttribute("stroke-width", "1");
+  svg.setAttribute("stroke-width", "0.5");
   svg.setAttribute("stroke-linecap", "round");
   svg.setAttribute("stroke-linejoin", "round");
   const polyline = document.createElementNS(ns, "polyline");
