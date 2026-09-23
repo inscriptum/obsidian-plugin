@@ -114,9 +114,9 @@ button.notebook-section-gutter:hover svg {
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-/* Breathing room between pages (symmetric with the page's bottom gap). */
-.notebook-section + .notebook-section .notebook-section-body {
-  padding-top: 32px;
+/* Visual gap between the page frames themselves (frames must not touch). */
+.notebook-section + .notebook-section {
+  margin-top: 32px;
 }
 
 .notebook-section-content {
