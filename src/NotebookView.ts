@@ -3,6 +3,7 @@ import {
   Menu,
   Notice,
   Platform,
+  setIcon,
   TFile,
   WorkspaceLeaf,
 } from "obsidian";
@@ -282,10 +283,14 @@ export class NotebookView extends FileView {
 
     for (const descriptor of this.notebook.notes()) {
       this.sectionsEl.appendChild(
-        this.buildSection(descriptor.id, descriptor.title),
+        this.buildSection(descriptor.id, descriptor.title, descriptor.order),
       );
     }
-    this.sectionsEl.appendChild(this.buildAddNoteRow());
+    // Per-section controls cover add-after everywhere; a dedicated row is
+    // only needed so an empty notebook is not a dead end.
+    if (this.notebook.notes().length === 0) {
+      this.sectionsEl.appendChild(this.buildAddNoteRow());
+    }
 
     // Re-expand notes that are not folded (preserved across reloads).
     for (const descriptor of this.notebook.notes()) {
@@ -295,16 +300,34 @@ export class NotebookView extends FileView {
     }
   }
 
-  private buildSection(id: string, title: string): HTMLElement {
+  private buildSection(id: string, title: string, order: number): HTMLElement {
     const root = createDiv("notebook-section");
 
+    // Left margin: page order (the first page is unlabeled, like the blog
+    // draft view) + the fold chevron.
+    const margin = root.createDiv("notebook-section-margin");
+    const orderLabel = margin.createDiv("notebook-section-order");
+    if (order > 0) orderLabel.setText(String(order));
     const gutter = createEl("button", { cls: "notebook-section-gutter" });
     gutter.setAttribute("aria-label", "Toggle note");
     gutter.appendChild(chevronSvg());
     gutter.addEventListener("click", () => this.toggleSection(id));
+    margin.appendChild(gutter);
 
     const body = root.createDiv("notebook-section-body");
-    root.prepend(gutter);
+
+    // Ghost controls under the section: add-after / delete (visible on hover).
+    const controls = root.createDiv("notebook-section-controls");
+    const addBtn = createEl("button", { cls: "notebook-section-control" });
+    addBtn.setAttribute("aria-label", "Add note after");
+    setIcon(addBtn, "file-plus");
+    addBtn.addEventListener("click", () => this.addNoteAfter(id));
+    const delBtn = createEl("button", { cls: "notebook-section-control" });
+    delBtn.setAttribute("aria-label", "Delete note");
+    setIcon(delBtn, "file-x");
+    delBtn.addEventListener("click", () => this.deleteNote(id));
+    controls.appendChild(addBtn);
+    controls.appendChild(delBtn);
 
     const handle: SectionHandle = {
       id,
@@ -473,9 +496,12 @@ export class NotebookView extends FileView {
   }
 
   /** Copy the live editor JSON into the notebook model (change-gated, so
-   *  idempotent flushes don't mark the notebook dirty). */
+   *  idempotent flushes don't mark the notebook dirty). Notes that were
+   *  removed from the manifest are skipped — their editor flush must not
+   *  resurrect them. */
   private flushSectionToNotebook(handle: SectionHandle): void {
     if (!this.notebook || !handle.editor || handle.editor.isDestroyed) return;
+    if (!this.notebook.note(handle.id)) return;
     const json = handle.editor.getJSON();
     const current = this.notebook.noteContent(handle.id);
     if (current != null && JSON.stringify(current) === JSON.stringify(json)) {
@@ -764,7 +790,72 @@ export class NotebookView extends FileView {
     void this.flushSave("add-note");
   }
 
+  /** Insert a new note right after the given section (per-section + control). */
+  private addNoteAfter(id: string): void {
+    const notebook = this.notebook;
+    if (!notebook || !notebook.note(id)) return;
+    notebook.addNote(id, "");
+    this.render();
+    void this.flushSave("add-note");
+  }
+
+  /** Remove a section's note. The write happens through the normal autosave
+   *  path; an Undo notice can put the note back before that matters. */
+  private deleteNote(id: string): void {
+    const notebook = this.notebook;
+    if (!notebook || !notebook.note(id)) return;
+    const wasFolded = this.foldedIds.has(id);
+    const removed = notebook.removeNote(id);
+    if (removed == null) return;
+    this.foldedIds.delete(id);
+    this.pendingExpansions.delete(id);
+    this.render();
+    void this.flushSave("delete-note");
+
+    const name = removed.descriptor.title?.trim();
+    const notice = new Notice(
+      name ? `Note "${name}" deleted` : "Note deleted",
+      7000,
+    );
+    this.addNoticeAction(notice, "Undo", () => {
+      if (this.notebook == null) return;
+      this.notebook.restoreNote(removed);
+      if (wasFolded) this.foldedIds.add(removed.descriptor.id);
+      this.render();
+      void this.flushSave("undo-delete");
+    });
+  }
+
+  /** Attach an action button to a notice: the native Notice.addAction when
+   *  the runtime has it, otherwise a plain button inside the notice. */
+  private addNoticeAction(notice: Notice, title: string, cb: () => void): void {
+    const withAction = notice as unknown as {
+      addAction?: (
+        icon: string,
+        title: string,
+        cb: (evt: MouseEvent) => unknown,
+      ) => HTMLElement;
+    };
+    if (typeof withAction.addAction === "function") {
+      withAction.addAction("undo", title, cb);
+      return;
+    }
+    const btn = notice.noticeEl.createEl("button", {
+      text: title,
+      cls: "notebook-notice-action",
+    });
+    btn.addEventListener("click", () => {
+      cb();
+      notice.hide();
+    });
+  }
+
   // ── Saving ──
+
+  /** Saves are chained: two flushes racing (e.g. delete's write still in
+   *  flight when Undo fires) must land on disk in trigger order, or the
+   *  older snapshot can overwrite the newer one. */
+  private saveChain: Promise<void> = Promise.resolve();
 
   private scheduleSave(): void {
     if (this.saveTimer != null) window.clearTimeout(this.saveTimer);
@@ -775,6 +866,12 @@ export class NotebookView extends FileView {
   }
 
   private async flushSave(trigger = "autosave"): Promise<void> {
+    const run = this.saveChain.then(() => this.writePendingChanges(trigger));
+    this.saveChain = run.catch(() => {});
+    return run;
+  }
+
+  private async writePendingChanges(trigger: string): Promise<void> {
     const notebook = this.notebook;
     const file = this.file;
     if (!notebook || !file) return;

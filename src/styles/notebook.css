@@ -1,4 +1,7 @@
-/* NotebookView (.um) — a flat document of collapsible note sections. */
+/* NotebookView (.um) — flat document of collapsible note sections.
+   Layout follows the blog draft view: page order + fold chevron in the left
+   margin, content column with a thin rule, light separators between pages,
+   ghost add/delete controls under each section. */
 
 .notebook-view-container {
   display: flex;
@@ -13,39 +16,46 @@
 .notebook-scroller {
   flex: 1 1 auto;
   overflow-y: auto;
-  padding: var(--size-4-3) var(--size-4-4) var(--size-4-8);
+  padding: var(--size-4-4) var(--size-4-5) var(--size-4-10);
 }
 
 .notebook-sections {
-  max-width: 740px;
+  max-width: 880px;
   margin: 0 auto;
 }
 
 .notebook-section {
   position: relative;
+  padding-left: 56px;
+}
+
+/* ── Left margin: page order + chevron ── */
+
+.notebook-section-margin {
+  position: absolute;
+  left: 0;
+  top: 7px;
   display: flex;
-  align-items: flex-start;
-  gap: var(--size-2-2);
-  padding: var(--size-2-1) 0;
+  align-items: center;
+  gap: 0;
+  width: 52px;
 }
 
-.notebook-section + .notebook-section {
-  border-top: 1px solid var(--background-modifier-border);
+.notebook-section-order {
+  min-width: 22px;
+  text-align: right;
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+  line-height: 1;
+  user-select: none;
 }
 
-.notebook-section.is-expanded {
-  padding: var(--size-2-3) 0;
-}
-
-/* Chevron toggle — sits left of the section content, blog-style. */
 .notebook-section-gutter {
-  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin-top: 2px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   border: none;
   background: transparent;
@@ -59,13 +69,32 @@
   background: var(--background-modifier-hover);
 }
 
+/* Folded pages point right; expanded rotate the chevron down. */
 .notebook-section.is-expanded .notebook-section-gutter svg {
   transform: rotate(-90deg);
 }
 
+/* Expanded sections: the margin aligns with the editor's first text line
+   (the editor host carries ~32px top padding). */
+.notebook-section.is-expanded .notebook-section-margin {
+  top: 38px;
+}
+
+/* ── Content column ── */
+
 .notebook-section-body {
-  flex: 1 1 auto;
   min-width: 0;
+  padding: 2px 0 2px 20px;
+}
+
+/* Thin rule left of expanded content; light separator between pages. */
+.notebook-section.is-expanded .notebook-section-body {
+  border-left: 1px solid var(--background-modifier-border);
+}
+
+.notebook-section + .notebook-section .notebook-section-body {
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: var(--size-2-2);
 }
 
 /* ── Collapsed row ── */
@@ -74,7 +103,7 @@
   display: flex;
   align-items: center;
   gap: var(--size-2-2);
-  min-height: 28px;
+  min-height: 30px;
   padding: var(--size-2-1) var(--size-2-2);
   border-radius: var(--radius-s);
   cursor: pointer;
@@ -99,6 +128,11 @@
 
 .notebook-section-edit {
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
   color: var(--text-faint);
   font-size: var(--font-ui-small);
   opacity: 0;
@@ -125,13 +159,70 @@
   border-color: var(--interactive-accent);
 }
 
-/* ── Expanded section: reuse the standard note editor host ── */
+/* ── Expanded section ── */
 
 .notebook-note-host {
   min-height: 120px;
 }
 
-/* ── Add note ── */
+/* ── Ghost controls: add-after / delete ── */
+
+.notebook-section-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 0 var(--size-2-1) 10px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.notebook-section:hover .notebook-section-controls,
+.notebook-section-controls:focus-within {
+  opacity: 1;
+}
+
+.notebook-section-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  border-radius: var(--radius-s);
+}
+
+.notebook-section-control:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.notebook-section-control svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* ── Undo action inside a delete notice ── */
+
+.notebook-notice-action {
+  margin-left: var(--size-4-2);
+  padding: 2px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+}
+
+.notebook-notice-action:hover {
+  background: var(--background-modifier-hover);
+}
+
+/* ── Empty notebook ── */
 
 .notebook-add-note {
   display: flex;

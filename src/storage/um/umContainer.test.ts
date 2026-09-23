@@ -379,6 +379,34 @@ describe("UmNotebook", () => {
     expect(nb.note(id)?.title).toBe("");
     expect(noteDocTitle(doc)).toBe("");
   });
+
+  it("removeNote drops the note and reindexes; restoreNote puts it back", () => {
+    const nb = notebookWithTwoNotes();
+    const second = nb.notes()[1];
+    const removed = nb.removeNote(second.id);
+    expect(removed).not.toBeNull();
+    expect(nb.notes().map((n) => n.id)).toEqual([nb.notes()[0].id]);
+    expect(nb.notes()[0].order).toBe(0);
+    expect(nb.noteContent(second.id)).toBeUndefined();
+
+    nb.restoreNote(removed);
+    expect(nb.notes().map((n) => n.title)).toEqual(["First", "Second"]);
+    expect(nb.noteContent(second.id)).toEqual(helloDoc("Second"));
+    expect(nb.notes()[1].order).toBe(1);
+  });
+
+  it("removeNote of the first note restores at the original index", () => {
+    const nb = notebookWithTwoNotes();
+    const first = nb.notes()[0];
+    const removed = nb.removeNote(first.id);
+    nb.restoreNote(removed);
+    expect(nb.notes().map((n) => n.title)).toEqual(["First", "Second"]);
+  });
+
+  it("removeNote returns null for an unknown id", () => {
+    const nb = notebookWithTwoNotes();
+    expect(nb.removeNote("missing")).toBeNull();
+  });
 });
 
 describe("path helpers", () => {

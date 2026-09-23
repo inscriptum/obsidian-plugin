@@ -142,6 +142,41 @@ export class UmNotebook {
     return descriptor;
   }
 
+  /** Everything needed to undo a removal. */
+  removeNote(id: string): {
+    descriptor: UmNoteDescriptor;
+    doc: JSONContent;
+    index: number;
+  } | null {
+    const sorted = sortNoteDescriptors(this.data.manifest.notes);
+    const index = sorted.findIndex((n) => n.id === id);
+    if (index === -1) return null;
+    const [descriptor] = sorted.splice(index, 1);
+    reindexOrders(sorted);
+    this.data.manifest.notes = sorted;
+    const doc = this.data.notes.get(id);
+    if (doc == null) return null;
+    this.data.notes.delete(id);
+    this.dirtyNotes.delete(id);
+    this.structureChanged = true;
+    return { descriptor, doc, index };
+  }
+
+  /** Put a removed note back at its former position (delete undo). */
+  restoreNote(removed: {
+    descriptor: UmNoteDescriptor;
+    doc: JSONContent;
+    index: number;
+  }): void {
+    const sorted = sortNoteDescriptors(this.data.manifest.notes);
+    const at = Math.min(Math.max(removed.index, 0), sorted.length);
+    sorted.splice(at, 0, removed.descriptor);
+    reindexOrders(sorted);
+    this.data.manifest.notes = sorted;
+    this.data.notes.set(removed.descriptor.id, removed.doc);
+    this.structureChanged = true;
+  }
+
   // ── Assets ──
 
   assetIds(): Set<string> {
