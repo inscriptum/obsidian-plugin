@@ -22,6 +22,7 @@
     "@web-companions/gfc": "2.5.0",
     "@web-companions/h": "0.3.4",
     "@web-companions/lit": "0.2.1",
+    "fflate": "0.8.3",
     "highlight.js": "11.11.1",
     "linkifyjs": "4.3.3",
     "lit-html": "2.8.0",

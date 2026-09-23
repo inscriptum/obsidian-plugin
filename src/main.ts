@@ -11,8 +11,11 @@ import {
   WorkspaceLeaf,
 } from "obsidian";
 import { NoteView, NOTE_VIEW_TYPE } from "./NoteView";
+import { NotebookView, NOTEBOOK_VIEW_TYPE } from "./NotebookView";
 import { installIconSprite } from "./components/icons/iconSprite";
 import { createEmptyNote, setWriteLogEnabled } from "./storage/noteStorage";
+import { createUmFile } from "./storage/um/umVault";
+import { UmNotebook } from "./storage/um/umNotebook";
 import { NewNoteModal } from "./ui/NewNoteModal";
 import {
   findCommandsCollidingWith,
@@ -62,6 +65,13 @@ export default class NotesPlugin extends Plugin {
       (leaf: WorkspaceLeaf) => new NoteView(leaf),
     );
 
+    this.registerExtensions(["um"], NOTEBOOK_VIEW_TYPE);
+
+    this.registerView(
+      NOTEBOOK_VIEW_TYPE,
+      (leaf: WorkspaceLeaf) => new NotebookView(leaf),
+    );
+
     // Obsidian's own command hotkeys (e.g. "Toggle bold" on Mod+b) match by
     // `event.key` and swallow Cmd/Ctrl+letter combos before they reach the
     // editor DOM — on macOS the key under Meta is always Latin, so this hits
@@ -90,6 +100,14 @@ export default class NotesPlugin extends Plugin {
       name: "New note",
       callback: () => {
         this.createNewNote();
+      },
+    });
+
+    this.addCommand({
+      id: "create-new-notebook",
+      name: "New notebook (.um)",
+      callback: () => {
+        this.createNewNotebook();
       },
     });
 
@@ -315,7 +333,8 @@ export default class NotesPlugin extends Plugin {
     }
   }
 
-  private createNewNote(initialFolderPath?: string) {    const activeFile = this.app.workspace.getActiveFile();
+  private createNewNote(initialFolderPath?: string) {
+    const activeFile = this.app.workspace.getActiveFile();
     const defaultFolder =
       initialFolderPath !== undefined
         ? (this.app.vault.getFolderByPath(initialFolderPath) ??
@@ -331,28 +350,81 @@ export default class NotesPlugin extends Plugin {
       async (result) => {
         if (!result) return;
 
-        const { name, folderPath } = result;
-        const newFilePath = `${name}.note`;
-
+        const { name, folderPath, kind } = result;
         try {
-          const path = normalizePath(
-            folderPath ? `${folderPath}/${newFilePath}` : newFilePath,
-          );
-          const initialContent = JSON.stringify(
-            createNoteWithTitle(name),
-            null,
-            2,
-          );
-          const file = await this.app.vault.create(path, initialContent);
-          await this.app.workspace.getLeaf("tab").openFile(file);
+          if (kind === "notebook") {
+            await this.createNotebookFile(name, folderPath);
+          } else {
+            await this.createNoteFile(name, folderPath);
+          }
         } catch (error) {
           new Notice(
-            `Failed to create note: ${error instanceof Error ? error.message : String(error)}`,
+            `Failed to create: ${error instanceof Error ? error.message : String(error)}`,
           );
-          console.error("Failed to create note:", error);
+          console.error("Failed to create note/notebook:", error);
         }
       },
     ).open();
+  }
+
+  /** "New notebook (.um)": the creation modal with Notebook preselected. */
+  private createNewNotebook() {
+    const activeFile = this.app.workspace.getActiveFile();
+    const defaultFolder =
+      activeFile?.parent ??
+      this.app.fileManager.getNewFileParent("", "Untitled.um");
+
+    new NewNoteModal(
+      this.app,
+      this.app.vault.getAllFolders(true),
+      defaultFolder?.path ?? "",
+      async (result) => {
+        if (!result) return;
+        try {
+          if (result.kind === "notebook") {
+            await this.createNotebookFile(result.name, result.folderPath);
+          } else {
+            await this.createNoteFile(result.name, result.folderPath);
+          }
+        } catch (error) {
+          new Notice(
+            `Failed to create: ${error instanceof Error ? error.message : String(error)}`,
+          );
+          console.error("Failed to create note/notebook:", error);
+        }
+      },
+      { kind: "notebook", namePlaceholder: "Notebook name" },
+    ).open();
+  }
+
+  /** Create a plain `.note` with the title filled from the name, then open it. */
+  private async createNoteFile(
+    name: string,
+    folderPath: string,
+  ): Promise<void> {
+    const path = normalizePath(
+      folderPath ? `${folderPath}/${name}.note` : `${name}.note`,
+    );
+    const file = await this.app.vault.create(
+      path,
+      JSON.stringify(createNoteWithTitle(name), null, 2),
+    );
+    await this.app.workspace.getLeaf("tab").openFile(file);
+  }
+
+  /** Create a `.um` container with one starter note whose manifest title
+   *  matches the notebook name, then open it. */
+  private async createNotebookFile(
+    name: string,
+    folderPath: string,
+  ): Promise<void> {
+    const notebook = UmNotebook.empty();
+    notebook.addNote(undefined, name);
+    const path = normalizePath(
+      folderPath ? `${folderPath}/${name}.um` : `${name}.um`,
+    );
+    const file = await createUmFile(this.app.vault, path, notebook);
+    await this.app.workspace.getLeaf("tab").openFile(file);
   }
 }
 

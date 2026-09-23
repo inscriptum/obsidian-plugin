@@ -1,0 +1,154 @@
+/* NotebookView (.um) — a flat document of collapsible note sections. */
+
+.notebook-view-container {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.notebook-toolbar-host {
+  flex: 0 0 auto;
+}
+
+.notebook-scroller {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: var(--size-4-3) var(--size-4-4) var(--size-4-8);
+}
+
+.notebook-sections {
+  max-width: 740px;
+  margin: 0 auto;
+}
+
+.notebook-section {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--size-2-2);
+  padding: var(--size-2-1) 0;
+}
+
+.notebook-section + .notebook-section {
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.notebook-section.is-expanded {
+  padding: var(--size-2-3) 0;
+}
+
+/* Chevron toggle — sits left of the section content, blog-style. */
+.notebook-section-gutter {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-top: 2px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  border-radius: var(--radius-s);
+}
+
+.notebook-section-gutter:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.notebook-section.is-expanded .notebook-section-gutter svg {
+  transform: rotate(-90deg);
+}
+
+.notebook-section-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* ── Collapsed row ── */
+
+.notebook-section-collapsed {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-2);
+  min-height: 28px;
+  padding: var(--size-2-1) var(--size-2-2);
+  border-radius: var(--radius-s);
+  cursor: pointer;
+}
+
+.notebook-section-collapsed:hover {
+  background: var(--background-modifier-hover);
+}
+
+.notebook-section-title {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-ui-medium);
+}
+
+.notebook-section-title.is-empty {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.notebook-section-edit {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.notebook-section-collapsed:hover .notebook-section-edit {
+  opacity: 1;
+}
+
+.notebook-title-input {
+  flex: 1 1 auto;
+  width: 100%;
+  padding: 2px 6px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-medium);
+}
+
+.notebook-title-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+}
+
+/* ── Expanded section: reuse the standard note editor host ── */
+
+.notebook-note-host {
+  min-height: 120px;
+}
+
+/* ── Add note ── */
+
+.notebook-add-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: var(--size-2-3);
+  padding: var(--size-2-2) 0;
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+}
+
+.notebook-add-note:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
