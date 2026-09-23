@@ -487,13 +487,17 @@ export class NotebookView extends FileView {
     // Flush the editor content into the in-memory notebook first.
     this.flushSectionToNotebook(handle);
 
+    const ownedToolbar = this.toolbarEl?.props.editor === handle.editor;
+
     this.foldedIds.add(id);
     handle.root.removeClass("is-expanded");
     for (const el of handle.bubbleEls) el.remove();
     handle.bubbleEls = [];
-    if (this.toolbarEl?.props.editor === handle.editor) this.destroyToolbar();
+    // Detach the dying editor before rebinding: the toolbar must not be
+    // handed to an editor that is about to be destroyed.
     handle.editor = null;
     handle.editorRef.current = null;
+    if (ownedToolbar) this.rebindOrIdleToolbar();
     // Removing the element destroys the editor (NoteElement cleanup).
     handle.noteEl?.remove();
     handle.noteEl = null;
@@ -526,7 +530,7 @@ export class NotebookView extends FileView {
     this.sections.clear();
     this.pendingExpansions.clear();
     if (this.sectionsEl) this.sectionsEl.empty();
-    this.destroyToolbar();
+    this.showIdleToolbar();
   }
 
   // ── Editor creation ──
@@ -575,7 +579,12 @@ export class NotebookView extends FileView {
       if (!isMobile) this.ensureToolbar(editor);
     });
 
-    if (!isMobile) this.createBubbleMenus(editor, handle);
+    if (!isMobile) {
+      // The toolbar is always visible: bind it to the most recently
+      // expanded page right away (focus re-binds it later).
+      this.ensureToolbar(editor);
+      this.createBubbleMenus(editor, handle);
+    }
     return editor;
   }
 
@@ -667,11 +676,15 @@ export class NotebookView extends FileView {
     };
   }
 
-  // ── Toolbar (single, follows the focused section) ──
+  // ── Toolbar (always visible; follows the focused section) ──
 
   private ensureToolbar(editor: Editor): void {
     if (this.toolbarEl != null && this.toolbarEl.props.editor === editor)
       return;
+    this.rebuildToolbar(editor);
+  }
+
+  private rebuildToolbar(editor: Editor): void {
     this.destroyToolbar();
     if (!this.toolbarHost) return;
     const toolbarEl = makeToolbarElement();
@@ -685,6 +698,28 @@ export class NotebookView extends FileView {
   private destroyToolbar(): void {
     this.toolbarEl?.remove();
     this.toolbarEl = null;
+    this.toolbarHost?.querySelector(".note-toolbar--idle")?.remove();
+  }
+
+  /** When the section owning the toolbar collapses, hand the toolbar to
+   *  another expanded section; with none left, keep the bar visible as an
+   *  empty idle strip so the row never disappears. */
+  private rebindOrIdleToolbar(): void {
+    for (const handle of this.sections.values()) {
+      if (handle.editor != null && !handle.editor.isDestroyed) {
+        this.rebuildToolbar(handle.editor);
+        return;
+      }
+    }
+    this.showIdleToolbar();
+  }
+
+  private showIdleToolbar(): void {
+    this.destroyToolbar();
+    if (!this.toolbarHost) return;
+    if (this.toolbarHost.querySelector(".note-toolbar--idle") == null) {
+      this.toolbarHost.createDiv("note-toolbar note-toolbar--idle");
+    }
   }
 
   // ── Bubble menus (desktop, per expanded section) ──
