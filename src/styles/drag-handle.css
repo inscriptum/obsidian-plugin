@@ -99,8 +99,11 @@
    specificity, in later stylesheets — task-item/style.css is imported
    after this file) would otherwise keep the chevron visible under the
    dots overlay. */
-.note .texto-heading-fold-chevron-host.is-hover:not(.is-grabbed):not(.is-dragging),
-.note .texto-heading-fold-chevron-host .texto-heading-fold-chevron.is-hover:not(.is-grabbed):not(.is-dragging),
+.note
+.texto-heading-fold-chevron-host.is-hover:not(.is-grabbed):not(.is-dragging),
+.note
+  .texto-heading-fold-chevron-host
+  .texto-heading-fold-chevron.is-hover:not(.is-grabbed):not(.is-dragging),
 .note .texto-task-fold-chevron.is-hover:not(.is-grabbed):not(.is-dragging) {
   opacity: 1;
 }

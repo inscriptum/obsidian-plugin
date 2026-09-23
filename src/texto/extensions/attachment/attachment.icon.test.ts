@@ -1,7 +1,10 @@
 import { describe, it, expect, afterEach, beforeAll } from "vitest";
 import { Editor } from "../../core/Editor";
 import { getExtensions } from "../../getExtensions";
-import { performBlockMove, findDraggableBlock } from "../drag-handle/dragHandlePlugin";
+import {
+  performBlockMove,
+  findDraggableBlock,
+} from "../drag-handle/dragHandlePlugin";
 import { VIEW_TAG } from "./attachment";
 import type { AttachmentElementType } from "./attachment";
 

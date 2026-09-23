@@ -105,7 +105,8 @@ ul.chk,
    The hold-grab/drag states hide the chevron (dots handle takes its place;
    those rules live in styles/drag-handle.css, imported BEFORE this file —
    so the exclusion here is what lets them win). */
-.texto-extension-task-item-host .texto-task-fold-chevron.is-hover:not(.is-grabbed):not(.is-dragging) {
+.texto-extension-task-item-host
+.texto-task-fold-chevron.is-hover:not(.is-grabbed):not(.is-dragging) {
   opacity: 1;
 }
 

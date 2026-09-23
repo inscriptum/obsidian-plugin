@@ -8,7 +8,12 @@ import {
   HljsCodeBlockRow,
   HljsMark,
 } from "../texto/extensions/code-block-hljs";
-import { Table, TableCell, TableHeader, TableRow } from "../texto/extensions/table";
+import {
+  Table,
+  TableCell,
+  TableHeader,
+  TableRow,
+} from "../texto/extensions/table";
 import { TaskList } from "../texto/extensions/task-list";
 import { TaskItem } from "../texto/extensions/task-item";
 import { Blockquote } from "../texto/extensions/blockquote";
