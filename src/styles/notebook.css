@@ -114,6 +114,11 @@ button.notebook-section-gutter:hover svg {
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
+/* Breathing room between pages (symmetric with the page's bottom gap). */
+.notebook-section + .notebook-section .notebook-section-body {
+  padding-top: 32px;
+}
+
 .notebook-section-content {
   min-height: 20px;
   padding-bottom: var(--size-2-1);
@@ -251,13 +256,12 @@ button.notebook-section-control.is-danger svg {
   opacity: 0.75;
 }
 
-/* Own hover outranks the group-hover rule above (same property). */
-.notebook-section-controls button.notebook-section-control.is-danger:hover {
-  background: color-mix(in srgb, var(--text-error) 10%, transparent);
-}
-
+/* Own hover outranks the group-hover rule above (same properties): the
+   icon-only emphasis — full-strength red, slightly thicker stroke, no
+   button chrome of any kind. */
 .notebook-section-controls button.notebook-section-control.is-danger:hover svg {
   opacity: 1;
+  stroke-width: 1.6;
 }
 
 /* ── Undo action inside a delete notice ──
