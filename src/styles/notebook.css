@@ -220,28 +220,34 @@ button.notebook-section-control {
 button.notebook-section-control svg {
   width: 24px;
   height: 24px;
-  transition: stroke 0.2s;
+  transition: stroke 0.2s, opacity 0.2s;
 }
 
 button.notebook-section-control:hover svg {
   stroke: var(--text-normal);
 }
 
-/* Delete icon keeps the plus's three-level emphasis, in red:
-   faint at rest, stronger on the controls-group hover, full on its own. */
+/* Delete icon keeps the plus's three-level emphasis, in red. The steps are
+   driven by the icon's opacity (red is always full-saturation): idle is
+   additionally muted by the group's 0.3, the group hover lifts it to 0.75,
+   and hovering the trash itself shows it at full strength. */
 button.notebook-section-control.is-danger svg {
-  stroke: color-mix(in srgb, var(--text-error) 45%, transparent);
+  stroke: var(--text-error);
+  opacity: 0.5;
 }
 
 .notebook-section-controls:hover button.notebook-section-control.is-danger svg,
 .notebook-section-controls:focus-within
   button.notebook-section-control.is-danger
   svg {
-  stroke: color-mix(in srgb, var(--text-error) 75%, transparent);
+  opacity: 0.75;
 }
 
-button.notebook-section-control.is-danger:hover svg {
-  stroke: var(--text-error);
+/* Own hover outranks the group-hover rule above (same property). */
+.notebook-section-controls
+  button.notebook-section-control.is-danger:hover
+  svg {
+  opacity: 1;
 }
 
 /* ── Undo action inside a delete notice ──
