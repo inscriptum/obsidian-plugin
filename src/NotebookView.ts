@@ -803,28 +803,66 @@ export class NotebookView extends FileView {
     void this.flushSave("add-note");
   }
 
-  /** Remove a section's note after an explicit confirmation (the dialog
-   *  wording promises no recovery, so no undo notice here). The write
-   *  happens through the normal autosave path. */
+  /** Remove a section's note after an explicit confirmation. Right after the
+   *  deletion an Undo notice offers to put it back (the save chain keeps the
+   *  delete and undo writes in order). */
   private deleteNote(id: string): void {
     const notebook = this.notebook;
     if (!notebook || !notebook.note(id)) return;
 
     new ConfirmModal(this.app, {
       title: "Delete note",
-      message:
-        "Страница будет удалена без возможности восстановления, продолжить?",
+      message: "Страница будет удалена, продолжить?",
       confirmText: "Удалить",
       cancelText: "Отменить",
       onConfirm: () => {
         if (this.notebook == null || this.notebook.note(id) == null) return;
-        this.notebook.removeNote(id);
+        const wasFolded = this.foldedIds.has(id);
+        const removed = this.notebook.removeNote(id);
+        if (removed == null) return;
         this.foldedIds.delete(id);
         this.pendingExpansions.delete(id);
         this.render();
         void this.flushSave("delete-note");
+
+        const name = removed.descriptor.title?.trim();
+        const notice = new Notice(
+          name ? `Заметка «${name}» удалена` : "Заметка удалена",
+          7000,
+        );
+        this.addNoticeAction(notice, "Отменить", () => {
+          if (this.notebook == null) return;
+          this.notebook.restoreNote(removed);
+          if (wasFolded) this.foldedIds.add(removed.descriptor.id);
+          this.render();
+          void this.flushSave("undo-delete");
+        });
       },
     }).open();
+  }
+
+  /** Attach an action button to a notice: the native Notice.addAction when
+   *  the runtime has it, otherwise a plain button inside the notice. */
+  private addNoticeAction(notice: Notice, title: string, cb: () => void): void {
+    const withAction = notice as unknown as {
+      addAction?: (
+        icon: string,
+        title: string,
+        cb: (evt: MouseEvent) => unknown,
+      ) => HTMLElement;
+    };
+    if (typeof withAction.addAction === "function") {
+      withAction.addAction("undo", title, cb);
+      return;
+    }
+    const btn = notice.noticeEl.createEl("button", {
+      text: title,
+      cls: "notebook-notice-action",
+    });
+    btn.addEventListener("click", () => {
+      cb();
+      notice.hide();
+    });
   }
 
   // ── Saving ──
