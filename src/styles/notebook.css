@@ -38,14 +38,13 @@
 
 /* Blog look: bare ☰ button (menu-2 glyph, 38px, hairline stroke) hanging
    outside the closed drawer and docking inside when it opens. The button.*
-   prefix out-ranks Obsidian's button:not(.clickable-icon) chrome. */
+   prefix out-ranks Obsidian's button:not(.clickable-icon) chrome.
+   When the drawer opens, ☰ morphs into ✕ (crossfade + rotation) — the
+   button then closes the drawer. */
 button.notebook-nav-toggle {
   position: absolute;
   top: 8px;
-  right: -48px;
-  display: inline-flex;
-  align-items: flex-start;
-  justify-content: center;
+  right: 0;
   width: 38px;
   height: 38px;
   padding: 0;
@@ -64,10 +63,35 @@ button.notebook-nav-toggle {
 }
 
 button.notebook-nav-toggle svg {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 38px;
   height: 38px;
   stroke-width: 0.5px;
-  transition: stroke 0.2s;
+  transition:
+    stroke 0.2s,
+    opacity 0.35s,
+    transform 0.35s;
+}
+
+button.notebook-nav-toggle .icon-close {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.6);
+}
+
+.notebook-nav.is-open button.notebook-nav-toggle {
+  right: 0;
+}
+
+.notebook-nav.is-open button.notebook-nav-toggle .icon-menu {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.6);
+}
+
+.notebook-nav.is-open button.notebook-nav-toggle .icon-close {
+  opacity: 1;
+  transform: rotate(0deg);
 }
 
 button.notebook-nav-toggle:hover,
@@ -81,23 +105,20 @@ button.notebook-nav-toggle:hover svg {
   stroke: var(--text-normal);
 }
 
-.notebook-nav.is-open button.notebook-nav-toggle {
-  right: 8px;
-}
-
-/* Blog TOC look: inset line, uppercase notebook title row, page rows with
-   the number hanging left and the header truncated. */
+/* Blog TOC look: inset line, page rows with the number right before the
+   header — one aligned line, compact left indent. */
 .notebook-nav-list {
   flex: 1 1 auto;
   overflow-y: auto;
   margin-top: var(--size-4-2);
-  padding: 1.6rem 0 1.6rem 4rem;
+  padding: 1.6rem 0 1.6rem 1.6rem;
+  box-shadow: inset 1px 0 0 var(--background-modifier-border);
 }
 
 .notebook-nav-item {
   display: flex;
-  margin-left: -4rem;
-  padding: 0.4rem 2rem;
+  align-items: baseline;
+  padding: 0.4rem 0.8rem 0.4rem 0;
   cursor: pointer;
   color: var(--text-muted);
 }
@@ -107,9 +128,8 @@ button.notebook-nav-toggle:hover svg {
 }
 
 .notebook-nav-numb {
-  width: 3.2rem;
+  width: 2.4rem;
   padding-right: 0.8rem;
-  padding-top: 0.4rem;
   text-align: right;
   color: var(--text-faint);
   font-size: var(--font-ui-small);
@@ -381,10 +401,14 @@ button.notebook-section-gutter:hover svg {
 }
 
 /* Notebook pages frame themselves, so the editor's own top/bottom padding
-   (32px/120px for plain .note files) is dropped — only for the um view. */
+   (32px/120px for plain .note files) is dropped — only for the um view.
+   The inner editor never scrolls on its own: the notebook scroller scrolls
+   the whole document, and a nested auto-scroller produces phantom
+   scrollbars on sub-pixel rounding. */
 .notebook-view-container .texto-editor {
   padding-top: 0;
   padding-bottom: 0;
+  overflow-y: visible;
 }
 
 /* ── Drag & drop reorder ── */

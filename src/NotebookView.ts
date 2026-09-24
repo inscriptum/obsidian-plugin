@@ -114,6 +114,7 @@ const makeMediaBubbleMenuElement = () =>
 function menuSvg(): SVGSVGElement {
   const ns = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "icon-menu");
   svg.setAttribute("width", "38");
   svg.setAttribute("height", "38");
   svg.setAttribute("viewBox", "0 0 24 24");
@@ -128,6 +129,33 @@ function menuSvg(): SVGSVGElement {
     line.setAttribute("y1", y);
     line.setAttribute("x2", "20");
     line.setAttribute("y2", y);
+    svg.appendChild(line);
+  }
+  return svg;
+}
+
+/** The ✕ that replaces ☰ while the drawer is open. */
+function closeSvg(): SVGSVGElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("class", "icon-close");
+  svg.setAttribute("width", "38");
+  svg.setAttribute("height", "38");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  for (const [x1, y1, x2, y2] of [
+    ["7", "7", "17", "17"],
+    ["17", "7", "7", "17"],
+  ]) {
+    const line = document.createElementNS(ns, "line");
+    line.setAttribute("x1", x1);
+    line.setAttribute("y1", y1);
+    line.setAttribute("x2", x2);
+    line.setAttribute("y2", y2);
     svg.appendChild(line);
   }
   return svg;
@@ -942,7 +970,9 @@ export class NotebookView extends FileView {
   private buildNavSidebar(): void {
     const nav = this.contentEl.createDiv("notebook-nav");
     const toggle = nav.createEl("button", { cls: "notebook-nav-toggle" });
+    // ☰ when closed, ✕ when open (CSS morphs between the two glyphs).
     toggle.appendChild(menuSvg());
+    toggle.appendChild(closeSvg());
     toggle.setAttribute("aria-label", "Pages");
     toggle.addEventListener("click", () => this.toggleNav());
     this.navListEl = nav.createDiv("notebook-nav-list");
