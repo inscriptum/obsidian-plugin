@@ -8,7 +8,24 @@ import {
   WorkspaceLeaf,
 } from "obsidian";
 import { CellSelection, isInTable } from "prosemirror-tables";
+import { TextSelection } from "prosemirror-state";
 import { Editor, isTextSelection } from "./texto/core";
+import {
+  createPhysicalShortcutPlugin,
+  isForwardedShortcut,
+  markForwardedShortcut,
+  matchPressedCommand,
+  nameToKeyboardEvent,
+} from "./tools/isPressedCommand";
+import {
+  createDocumentSearchPlugin,
+  documentSearchKey,
+  findDocumentMatches,
+} from "./search/documentSearch";
+import {
+  searchNotebook,
+  type NotebookSearchMatch,
+} from "./notebook/notebookSearch";
 import { getExtensions, type ExtensionHooks } from "./texto/getExtensions";
 import { readUmFile, umFingerprint, writeUmFile } from "./storage/um/umVault";
 import { UmNotebook } from "./storage/um/umNotebook";
@@ -49,6 +66,10 @@ export const NOTEBOOK_VIEW_TYPE = "notebook-view";
 const AUTOSAVE_DELAY = 500;
 /** Coalescing window for vault "modify" events (mirrors NoteView). */
 const EXTERNAL_CHANGE_DEBOUNCE = 300;
+
+/** True while a forwarded `editor.commands` dispatch is in flight (see
+ *  handleEditorShortcut). */
+let dispatchingEditorShortcut = false;
 
 /**
  * Construct a versioned custom element, surviving a plugin reload without
@@ -133,6 +154,11 @@ interface SectionHandle {
  * assets; other attachments stay external vault files.
  */
 export class NotebookView extends FileView {
+  /** Called whenever a page editor is created; lets the plugin host sync
+   *  the set of physically intercepted shortcut keys (see main.ts and
+   *  src/tools/isPressedCommand.ts). */
+  static onEditorCreated: ((editor: Editor) => void) | null = null;
+
   private notebook: UmNotebook | null = null;
   private sections = new Map<string, SectionHandle>();
   /** Expansion state lives on the note descriptors in the manifest
@@ -147,10 +173,28 @@ export class NotebookView extends FileView {
   private toolbarHost: HTMLElement | null = null;
   private toolbarEl: ToolbarElement | null = null;
 
+  /** The page editor the user last focused — hotkey routing and the
+   *  toolbar target it. */
+  private focusedEditorValue: Editor | null = null;
+
+  // ── Notebook-wide search ──
+  private searchPanelEl: HTMLElement | null = null;
+  private searchInputEl: HTMLInputElement | null = null;
+  private searchCountEl: HTMLElement | null = null;
+  private searchMatches: NotebookSearchMatch[] = [];
+  private searchIndex = 0;
+
   private dirty = false;
   private saveTimer: number | null = null;
   private externalChangeTimer: number | null = null;
   private conflictModalOpen = false;
+
+  /** The page editor the user last focused; hotkey routing and command
+   *  patching target it (see main.ts routeToNoteView). */
+  get focusedEditor(): Editor | null {
+    if (this.focusedEditorValue?.isDestroyed) return null;
+    return this.focusedEditorValue;
+  }
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -176,10 +220,87 @@ export class NotebookView extends FileView {
     super.onPaneMenu(menu, source);
     menu.addItem((item) =>
       item
+        .setTitle("Find in notebook")
+        .setIcon("search")
+        .onClick(() => this.openNotebookSearch()),
+    );
+    menu.addItem((item) =>
+      item
         .setTitle("Add note")
         .setIcon("plus")
         .onClick(() => this.addNote()),
     );
+  }
+
+  /** Hotkey routing into the focused page's editor (see main.ts and
+   *  tools/isPressedCommand). Returns false when the event was consumed. */
+  handleEditorShortcut(event: KeyboardEvent): false | undefined {
+    if (this.app.workspace.getActiveViewOfType(NotebookView) !== this) return;
+    if (isForwardedShortcut(event)) return;
+    if (dispatchingEditorShortcut) return;
+    const editor = this.focusedEditorValue;
+    if (!editor) return;
+
+    // Find owns Mod+F (opens the notebook-wide search).
+    if (
+      event.code === "KeyF" &&
+      (event.metaKey || event.ctrlKey) &&
+      !event.altKey &&
+      !event.shiftKey
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.openNotebookSearch();
+      return false;
+    }
+
+    // Mod+K opens the link layer: re-dispatch a Latin-keyed synthetic event
+    // so the bubble menu's layout-dependent check works on any layout.
+    if (
+      event.code === "KeyK" &&
+      (event.metaKey || event.ctrlKey) &&
+      !event.altKey &&
+      !event.shiftKey
+    ) {
+      event.preventDefault();
+      event.stopPropagation();
+      this.forwardLatinShortcut(event);
+      return false;
+    }
+
+    const shortcut = matchPressedCommand(event, editor.registeredShortcuts);
+    if (!shortcut) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    dispatchingEditorShortcut = true;
+    try {
+      const reDispatch = nameToKeyboardEvent(shortcut);
+      if (reDispatch) {
+        markForwardedShortcut(reDispatch);
+        editor.view.someProp("handleKeyDown", (f) =>
+          f(editor.view, reDispatch),
+        );
+      }
+    } finally {
+      dispatchingEditorShortcut = false;
+    }
+    return false;
+  }
+
+  private forwardLatinShortcut(event: KeyboardEvent): void {
+    const forwarded = new KeyboardEvent("keydown", {
+      key: "k",
+      code: "KeyK",
+      metaKey: event.metaKey,
+      ctrlKey: event.ctrlKey,
+      altKey: event.altKey,
+      shiftKey: event.shiftKey,
+      bubbles: true,
+      cancelable: true,
+    });
+    markForwardedShortcut(forwarded);
+    document.dispatchEvent(forwarded);
   }
 
   async onOpen(): Promise<void> {
@@ -289,7 +410,11 @@ export class NotebookView extends FileView {
 
     for (const descriptor of this.notebook.notes()) {
       this.sectionsEl.appendChild(
-        this.buildSection(descriptor.id, descriptor.title, descriptor.order),
+        this.buildSection(
+          descriptor.id,
+          descriptor.title ?? "",
+          descriptor.order,
+        ),
       );
     }
     // Per-section controls cover add-after everywhere; a dedicated row is
@@ -499,6 +624,9 @@ export class NotebookView extends FileView {
     this.flushSectionToNotebook(handle);
 
     const ownedToolbar = this.toolbarEl?.props.editor === handle.editor;
+    if (this.focusedEditorValue === handle.editor) {
+      this.focusedEditorValue = null;
+    }
 
     this.notebook.setExpanded(id, false);
     this.scheduleSave();
@@ -588,8 +716,19 @@ export class NotebookView extends FileView {
     editorRef.current = editor;
 
     editor.on("focus", () => {
+      this.focusedEditorValue = editor;
       if (!isMobile) this.ensureToolbar(editor);
     });
+
+    editor.registerPlugin(createDocumentSearchPlugin());
+    // Non-Latin keyboard layouts: resolve Cmd/Ctrl+letter combos by physical
+    // key code and route them through the view (see tools/isPressedCommand).
+    editor.registerPlugin(
+      createPhysicalShortcutPlugin({
+        getCommands: () => editor.registeredShortcuts,
+        handleShortcut: (event) => this.handleEditorShortcut(event) === false,
+      }),
+    );
 
     if (!isMobile) {
       // The toolbar is always visible: bind it to the most recently
@@ -597,6 +736,7 @@ export class NotebookView extends FileView {
       this.ensureToolbar(editor);
       this.createBubbleMenus(editor, handle);
     }
+    NotebookView.onEditorCreated?.(editor);
     return editor;
   }
 
@@ -731,6 +871,171 @@ export class NotebookView extends FileView {
     if (!this.toolbarHost) return;
     if (this.toolbarHost.querySelector(".note-toolbar--idle") == null) {
       this.toolbarHost.createDiv("note-toolbar note-toolbar--idle");
+    }
+  }
+
+  // ── Notebook-wide search ──
+
+  openNotebookSearch(): void {
+    this.buildSearchPanel();
+    const input = this.searchInputEl;
+    if (!input) return;
+    input.focus();
+    input.select();
+    if (input.value) this.recomputeSearch();
+  }
+
+  private closeNotebookSearch(): void {
+    this.searchPanelEl?.remove();
+    this.searchPanelEl = null;
+    this.searchInputEl = null;
+    this.searchCountEl = null;
+    this.searchMatches = [];
+    this.setSearchQueryOnExpandedEditors(null);
+  }
+
+  private buildSearchPanel(): void {
+    if (this.searchPanelEl) return;
+    const panel = this.contentEl.createDiv("notebook-search");
+    this.searchPanelEl = panel;
+
+    const input = panel.createEl("input", {
+      cls: "notebook-search-input",
+      attr: {
+        type: "text",
+        placeholder: "Search notebook",
+        spellcheck: "false",
+      },
+    });
+    this.searchInputEl = input;
+    input.addEventListener("input", () => this.recomputeSearch());
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        this.moveSearchMatch(event.shiftKey ? -1 : 1);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.closeNotebookSearch();
+      }
+    });
+
+    this.searchCountEl = panel.createDiv("notebook-search-count");
+
+    const prev = panel.createEl("button", { cls: "notebook-search-btn" });
+    setIcon(prev, "chevron-up");
+    prev.setAttribute("aria-label", "Previous match");
+    prev.addEventListener("click", () => this.moveSearchMatch(-1));
+
+    const next = panel.createEl("button", { cls: "notebook-search-btn" });
+    setIcon(next, "chevron-down");
+    next.setAttribute("aria-label", "Next match");
+    next.addEventListener("click", () => this.moveSearchMatch(1));
+
+    const close = panel.createEl("button", { cls: "notebook-search-btn" });
+    setIcon(close, "x");
+    close.setAttribute("aria-label", "Close search");
+    close.addEventListener("click", () => this.closeNotebookSearch());
+  }
+
+  private recomputeSearch(): void {
+    const notebook = this.notebook;
+    const query = this.searchInputEl?.value ?? "";
+    if (!notebook) return;
+    // Unsaved editor changes must be visible to the search.
+    for (const handle of this.sections.values()) {
+      this.flushSectionToNotebook(handle);
+    }
+    this.searchMatches = searchNotebook(
+      notebook.notes().map((descriptor) => ({
+        id: descriptor.id,
+        title: descriptor.title ?? "",
+        doc: notebook.noteContent(descriptor.id) ?? {
+          type: "noteDoc" as const,
+        },
+      })),
+      query,
+    );
+    this.searchIndex = 0;
+    this.updateSearchCount();
+    this.setSearchQueryOnExpandedEditors(query || null);
+    this.jumpToCurrentMatch();
+  }
+
+  private setSearchQueryOnExpandedEditors(query: string | null): void {
+    for (const handle of this.sections.values()) {
+      const editor = handle.editor;
+      if (!editor || editor.isDestroyed) continue;
+      editor.view.dispatch(
+        editor.state.tr.setMeta(
+          documentSearchKey,
+          query ? { query, activeIndex: 0 } : { clear: true },
+        ),
+      );
+    }
+  }
+
+  private updateSearchCount(): void {
+    if (!this.searchCountEl) return;
+    this.searchCountEl.setText(
+      this.searchMatches.length > 0
+        ? `${this.searchIndex + 1}/${this.searchMatches.length}`
+        : "0 results",
+    );
+  }
+
+  private moveSearchMatch(direction: number): void {
+    if (this.searchMatches.length === 0) return;
+    this.searchIndex =
+      (this.searchIndex + direction + this.searchMatches.length) %
+      this.searchMatches.length;
+    this.updateSearchCount();
+    this.jumpToCurrentMatch();
+  }
+
+  private jumpToCurrentMatch(): void {
+    const match = this.searchMatches[this.searchIndex];
+    if (!match) return;
+    const handle = this.sections.get(match.noteId);
+    if (!handle) return;
+    if (handle.editor != null) {
+      this.selectSearchMatch(match);
+      return;
+    }
+    void this.expandSection(match.noteId, { focus: false }).then(() =>
+      this.selectSearchMatch(match),
+    );
+  }
+
+  private selectSearchMatch(match: NotebookSearchMatch): void {
+    const handle = this.sections.get(match.noteId);
+    const editor = handle?.editor;
+    if (!editor || editor.isDestroyed) return;
+    // Edits since the search ran may have shifted positions: re-locate the
+    // query in the live document and keep the offset nearest to the match.
+    const live = findDocumentMatches(
+      editor.state.doc,
+      this.searchInputEl?.value ?? "",
+    );
+    if (live.length === 0) return;
+    let target = live[0];
+    for (const candidate of live) {
+      if (candidate.from >= match.from) {
+        target = candidate;
+        break;
+      }
+    }
+    try {
+      editor.view.dispatch(
+        editor.state.tr
+          .setSelection(
+            TextSelection.create(editor.state.doc, target.from, target.to),
+          )
+          .scrollIntoView(),
+      );
+      editor.view.focus();
+    } catch (err) {
+      console.error("Failed to jump to search match:", err);
     }
   }
 

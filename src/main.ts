@@ -86,6 +86,14 @@ export default class NotesPlugin extends Plugin {
       this.restorePatchedCommands();
     });
 
+    // Notebook page editors participate in the same hotkey routing.
+    NotebookView.onEditorCreated = (editor) => {
+      this.patchCollidingCommands(editor.registeredShortcuts);
+    };
+    this.register(() => {
+      NotebookView.onEditorCreated = null;
+    });
+
     NoteView.onExportRequested = (view) => void this.exportNoteAsWebsite(view);
     this.register(() => {
       NoteView.onExportRequested = null;
@@ -224,13 +232,24 @@ export default class NotesPlugin extends Plugin {
    *  when the combo was consumed (or is claimable while checking). */
   private routeToNoteView(ownedNames: string[], checking: boolean): boolean {
     const view = this.app.workspace.getActiveViewOfType(NoteView);
-    if (!view?.hasEditor) return false;
-    if (checking) return true;
-    for (const name of ownedNames) {
-      const event = nameToKeyboardEvent(name);
-      if (event) view.handleEditorShortcut(event);
+    if (view?.hasEditor) {
+      if (checking) return true;
+      for (const name of ownedNames) {
+        const event = nameToKeyboardEvent(name);
+        if (event) view.handleEditorShortcut(event);
+      }
+      return true;
     }
-    return true;
+    const notebook = this.app.workspace.getActiveViewOfType(NotebookView);
+    if (notebook?.focusedEditor) {
+      if (checking) return true;
+      for (const name of ownedNames) {
+        const event = nameToKeyboardEvent(name);
+        if (event) notebook.handleEditorShortcut(event);
+      }
+      return true;
+    }
+    return false;
   }
 
   private restorePatchedCommands(): void {

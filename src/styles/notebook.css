@@ -4,9 +4,69 @@
    ghost add/delete controls under each section. */
 
 .notebook-view-container {
+  position: relative;
   display: flex;
   flex-direction: column;
   padding: 0;
+}
+
+/* ── Notebook-wide search panel ── */
+
+.notebook-search {
+  position: absolute;
+  top: var(--size-2-2);
+  right: var(--size-4-4);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-1);
+  padding: var(--size-2-1) var(--size-2-2);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-primary);
+  box-shadow: var(--shadow-s);
+}
+
+.notebook-search-input {
+  width: 200px;
+  padding: 2px 6px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+.notebook-search-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+}
+
+.notebook-search-count {
+  min-width: 44px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  white-space: nowrap;
+}
+
+.notebook-search-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.notebook-search-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
 }
 
 .notebook-toolbar-host {
