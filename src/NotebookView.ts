@@ -183,6 +183,22 @@ export class NotebookView extends FileView {
   private searchMatches: NotebookSearchMatch[] = [];
   private searchIndex = 0;
 
+  // ── Pages navigation sidebar (blog-style, hidden by default) ──
+  private navEl: HTMLElement | null = null;
+  private navListEl: HTMLElement | null = null;
+  private navOpen = false;
+
+  // ── Drag & drop reorder ──
+  private drag: {
+    id: string;
+    pointerId: number;
+    startX: number;
+    startY: number;
+    active: boolean;
+  } | null = null;
+  private dropLineEl: HTMLElement | null = null;
+  private suppressGutterToggle = false;
+
   private dirty = false;
   private saveTimer: number | null = null;
   private externalChangeTimer: number | null = null;
@@ -307,6 +323,8 @@ export class NotebookView extends FileView {
     this.contentEl.addClass("notebook-view-container");
 
     this.toolbarHost = this.contentEl.createDiv("notebook-toolbar-host");
+    // Blog-style pages navigation drawer (hidden by default, ☰ toggle).
+    this.buildNavSidebar();
 
     this.scrollerEl = this.contentEl.createDiv("notebook-scroller");
     this.sectionsEl = this.scrollerEl.createDiv("notebook-sections");
@@ -429,6 +447,7 @@ export class NotebookView extends FileView {
         void this.expandSection(descriptor.id, { focus: false });
       }
     }
+    this.rebuildNavList();
   }
 
   private buildSection(id: string, title: string, order: number): HTMLElement {
@@ -442,7 +461,17 @@ export class NotebookView extends FileView {
     const gutter = createEl("button", { cls: "notebook-section-gutter" });
     gutter.setAttribute("aria-label", "Toggle note");
     gutter.appendChild(chevronSvg());
-    gutter.addEventListener("click", () => this.toggleSection(id));
+    // Click toggles the fold; a pointer drag reorders the page.
+    gutter.addEventListener("click", () => {
+      if (this.suppressGutterToggle) {
+        this.suppressGutterToggle = false;
+        return;
+      }
+      this.toggleSection(id);
+    });
+    gutter.addEventListener("pointerdown", (event) =>
+      this.onGutterPointerDown(event, id),
+    );
     margin.appendChild(gutter);
 
     const body = root.createDiv("notebook-section-body");
@@ -458,6 +487,11 @@ export class NotebookView extends FileView {
     setIcon(addBtn, "plus");
     addBtn.addEventListener("click", () => this.addNoteAfter(id));
     controls.appendChild(addBtn);
+    const copyBtn = createEl("button", { cls: "notebook-section-control" });
+    copyBtn.setAttribute("aria-label", "Duplicate note");
+    setIcon(copyBtn, "copy");
+    copyBtn.addEventListener("click", () => this.duplicateNote(id));
+    controls.appendChild(copyBtn);
     if (order > 0) {
       const delBtn = createEl("button", {
         cls: "notebook-section-control is-danger",
@@ -533,6 +567,7 @@ export class NotebookView extends FileView {
         // Renaming updates the document's first line (source of truth);
         // the manifest title mirror follows.
         this.notebook.setDisplayTitle(handle.id, input.value);
+        this.rebuildNavList();
         void this.flushSave("rename");
       }
       this.renderSectionTitleOnly(handle);
@@ -722,6 +757,7 @@ export class NotebookView extends FileView {
     editor.on("focus", () => {
       this.focusedEditorValue = editor;
       if (!isMobile) this.ensureToolbar(editor);
+      this.updateNavActive();
     });
 
     editor.registerPlugin(createDocumentSearchPlugin());
@@ -876,6 +912,181 @@ export class NotebookView extends FileView {
     if (this.toolbarHost.querySelector(".note-toolbar--idle") == null) {
       this.toolbarHost.createDiv("note-toolbar note-toolbar--idle");
     }
+  }
+
+  // ── Pages navigation sidebar (blog-style drawer) ──
+
+  private buildNavSidebar(): void {
+    const nav = this.contentEl.createDiv("notebook-nav");
+    const toggle = nav.createEl("button", { cls: "notebook-nav-toggle" });
+    setIcon(toggle, "menu");
+    toggle.setAttribute("aria-label", "Pages");
+    toggle.addEventListener("click", () => this.toggleNav());
+    this.navListEl = nav.createDiv("notebook-nav-list");
+    this.navEl = nav;
+    this.rebuildNavList();
+  }
+
+  private toggleNav(): void {
+    this.navOpen = !this.navOpen;
+    this.navEl?.toggleClass("is-open", this.navOpen);
+    if (this.navOpen) this.rebuildNavList();
+  }
+
+  private rebuildNavList(): void {
+    if (!this.navListEl || !this.notebook) return;
+    this.navListEl.empty();
+    for (const descriptor of this.notebook.notes()) {
+      const item = this.navListEl.createDiv("notebook-nav-item");
+      item.setAttribute("data-id", descriptor.id);
+      const numb = item.createDiv("notebook-nav-numb");
+      if (descriptor.order > 0) numb.setText(String(descriptor.order));
+      const header = item.createDiv("notebook-nav-header");
+      const title = (descriptor.title ?? "").trim();
+      if (title) header.setText(title);
+      else {
+        header.addClass("is-empty");
+        header.setText("Untitled");
+      }
+      if (this.isNavActive(descriptor.id)) item.addClass("is-active");
+      item.addEventListener("click", () => this.jumpToPage(descriptor.id));
+    }
+  }
+
+  private isNavActive(id: string): boolean {
+    const focused = this.focusedEditorValue;
+    if (focused == null) return false;
+    for (const handle of this.sections.values()) {
+      if (handle.editor === focused) return handle.id === id;
+    }
+    return false;
+  }
+
+  private updateNavActive(): void {
+    const items = this.navListEl?.querySelectorAll(".notebook-nav-item");
+    if (!items) return;
+    for (const item of items) {
+      const id = item.getAttribute("data-id");
+      item.classList.toggle("is-active", id != null && this.isNavActive(id));
+    }
+  }
+
+  /** Open (if needed) a page and scroll its frame to the top of the view. */
+  private jumpToPage(id: string): void {
+    const handle = this.sections.get(id);
+    if (!handle || !this.notebook) return;
+    if (handle.editor == null) {
+      void this.expandSection(id, { focus: false });
+    } else {
+      handle.editor.view.focus();
+    }
+    window.setTimeout(() => {
+      const scroller = this.scrollerEl;
+      const root = handle.root;
+      if (!scroller || !root.isConnected) return;
+      const sRect = scroller.getBoundingClientRect();
+      const rRect = root.getBoundingClientRect();
+      scroller.scrollTop += rRect.top - sRect.top - 12;
+      this.updateNavActive();
+    }, 60);
+  }
+
+  private scrollContainerTo(container: Element, docTop: number): void {
+    const rect = container.getBoundingClientRect();
+    container.scrollTop += docTop - (rect.top + rect.height / 3);
+  }
+
+  // ── Drag & drop reorder (pointer drag on the section gutter) ──
+
+  private onGutterPointerDown(event: PointerEvent, id: string): void {
+    if (event.button !== 0) return;
+    this.drag = {
+      id,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      active: false,
+    };
+    window.addEventListener("pointermove", this.onDragPointerMove);
+    window.addEventListener("pointerup", this.onDragPointerUp);
+  }
+
+  private onDragPointerMove = (event: PointerEvent): void => {
+    if (!this.drag) return;
+    const handle = this.sections.get(this.drag.id);
+    if (!handle) return;
+
+    if (!this.drag.active) {
+      const moved = Math.hypot(
+        event.clientX - this.drag.startX,
+        event.clientY - this.drag.startY,
+      );
+      if (moved < 6) return;
+      this.drag.active = true;
+      handle.root.addClass("is-dragging");
+      this.dropLineEl = this.sectionsEl?.createDiv("notebook-drop-line");
+    }
+    this.updateDropLine(event.clientY);
+  };
+
+  private onDragPointerUp = (event: PointerEvent): void => {
+    window.removeEventListener("pointermove", this.onDragPointerMove);
+    window.removeEventListener("pointerup", this.onDragPointerUp);
+    const drag = this.drag;
+    this.drag = null;
+    this.dropLineEl?.remove();
+    this.dropLineEl = null;
+    if (!drag) return;
+
+    const handle = this.sections.get(drag.id);
+    handle?.root.removeClass("is-dragging");
+    if (!drag.active) return; // plain click — the gutter click toggles
+    // Swallow the click that follows a completed drag.
+    this.suppressGutterToggle = true;
+    window.setTimeout(() => {
+      this.suppressGutterToggle = false;
+    }, 0);
+
+    const dropIndex = this.computeDropIndex(event.clientY, drag.id);
+    if (dropIndex == null) return;
+    if (this.notebook?.moveNote(drag.id, dropIndex)) {
+      this.render();
+      void this.flushSave("drag-reorder");
+    }
+  };
+
+  private computeDropIndex(clientY: number, dragId: string): number | null {
+    const others = [...this.sections.values()]
+      .filter((h) => h.id !== dragId)
+      .map((h) => ({ id: h.id, rect: h.root.getBoundingClientRect() }))
+      .sort((a, b) => a.rect.top - b.rect.top);
+    if (others.length === 0) return null;
+    let index = 0;
+    for (const other of others) {
+      if (clientY > other.rect.top + other.rect.height / 2) index++;
+    }
+    return index;
+  }
+
+  private updateDropLine(clientY: number): void {
+    if (!this.dropLineEl || !this.drag || !this.sectionsEl) return;
+    const others = [...this.sections.values()]
+      .filter((h) => h.id !== this.drag.id)
+      .map((h) => ({ root: h.root }))
+      .sort((a, b) => a.root.offsetTop - b.root.offsetTop);
+    let top: number | null = null;
+    for (const other of others) {
+      const rect = other.root.getBoundingClientRect();
+      if (clientY < rect.top + rect.height / 2) {
+        top = other.root.offsetTop - 4;
+        break;
+      }
+    }
+    if (top == null) {
+      const last = others[others.length - 1];
+      top = last ? last.root.offsetTop + last.root.offsetHeight - 2 : 0;
+    }
+    this.dropLineEl.style.top = `${top}px`;
   }
 
   // ── Notebook-wide search ──
@@ -1048,11 +1259,6 @@ export class NotebookView extends FileView {
 
   /** Scroll a scrollable ancestor so the viewport coordinate `docTop` sits
    *  about a third from the container's top. */
-  private scrollContainerTo(container: Element, docTop: number): void {
-    const rect = container.getBoundingClientRect();
-    container.scrollTop += docTop - (rect.top + rect.height / 3);
-  }
-
   // ── Bubble menus (desktop, per expanded section) ──
 
   private createBubbleMenus(editor: Editor, handle: SectionHandle): void {
@@ -1175,6 +1381,16 @@ export class NotebookView extends FileView {
     notebook.setExpanded(added.id, true);
     this.render();
     void this.flushSave("add-note");
+  }
+
+  /** Deep-copy a page right after the original (image assets stay shared). */
+  private duplicateNote(id: string): void {
+    const notebook = this.notebook;
+    if (!notebook || !notebook.note(id)) return;
+    const copy = notebook.duplicateNote(id);
+    if (!copy) return;
+    this.render();
+    void this.flushSave("duplicate-note");
   }
 
   /** Remove a section's note after an explicit confirmation. Right after the

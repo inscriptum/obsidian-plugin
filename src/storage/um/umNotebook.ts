@@ -194,6 +194,57 @@ export class UmNotebook {
     this.structureChanged = true;
   }
 
+  /** Duplicate a note right after the original: deep copy of the document
+   *  (image nodes keep referencing the same asset ids — assets are shared,
+   *  not copied) and a fresh stable id/path. */
+  duplicateNote(id: string): UmNoteDescriptor | null {
+    const sourceDoc = this.data.notes.get(id);
+    const sourceDescriptor = this.note(id);
+    if (!sourceDoc || !sourceDescriptor) return null;
+
+    const newId = generateUmId();
+    const baseTitle = sourceDescriptor.title ?? "";
+    const descriptor: UmNoteDescriptor = {
+      id: newId,
+      path: notePathForId(newId),
+      order: 0,
+      title: baseTitle ? `${baseTitle} (copy)` : "",
+    };
+
+    const sorted = sortNoteDescriptors(this.data.manifest.notes);
+    const at = sorted.findIndex((n) => n.id === id) + 1;
+    sorted.splice(at, 0, descriptor);
+    reindexOrders(sorted);
+    this.data.manifest.notes = sorted;
+
+    // The "(copy)" suffix must also land in the copy's first line, or the
+    // title mirror (constructor sync) wipes it on the next load.
+    const copyDoc: JSONContent = JSON.parse(JSON.stringify(sourceDoc));
+    if (descriptor.title) {
+      const titleNode = copyDoc.content?.find((n) => n.type === "noteTitle");
+      if (titleNode) {
+        titleNode.content = [{ type: "text", text: descriptor.title }];
+      }
+    }
+    this.data.notes.set(newId, copyDoc);
+    this.structureChanged = true;
+    return descriptor;
+  }
+
+  /** Move a note to the given index of the resulting order (d&d reorder). */
+  moveNote(id: string, toIndex: number): boolean {
+    const sorted = sortNoteDescriptors(this.data.manifest.notes);
+    const from = sorted.findIndex((n) => n.id === id);
+    if (from === -1) return false;
+    const [descriptor] = sorted.splice(from, 1);
+    const at = Math.min(Math.max(toIndex, 0), sorted.length);
+    sorted.splice(at, 0, descriptor);
+    reindexOrders(sorted);
+    this.data.manifest.notes = sorted;
+    this.structureChanged = true;
+    return true;
+  }
+
   // ── Assets ──
 
   assetIds(): Set<string> {

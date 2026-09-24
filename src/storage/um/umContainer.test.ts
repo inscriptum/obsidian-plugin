@@ -408,6 +408,65 @@ describe("UmNotebook", () => {
     expect(nb.removeNote("missing")).toBeNull();
   });
 
+  it("duplicateNote copies the document after the original with a fresh id", () => {
+    const nb = notebookWithTwoNotes();
+    const first = nb.notes()[0];
+    const copy = nb.duplicateNote(first.id);
+
+    expect(copy).not.toBeNull();
+    expect(copy?.id).not.toBe(first.id);
+    expect(copy?.title).toBe("First (copy)");
+    expect(nb.notes().map((n) => n.title)).toEqual([
+      "First",
+      "First (copy)",
+      "Second",
+    ]);
+    expect(nb.notes().map((n) => n.order)).toEqual([0, 1, 2]);
+    // The copy's first line carries the "(copy)" title so the mirror sync
+    // does not wipe the suffix on reload.
+    const copyTitleNode = nb
+      .noteContent(copy.id)
+      ?.content?.find((n) => n.type === "noteTitle");
+    expect(copyTitleNode?.content).toEqual([
+      { type: "text", text: "First (copy)" },
+    ]);
+
+    const parsed = parseUmContainer(nb.serialize());
+    expect(parsed.notes.get(copy.id)).toEqual(nb.noteContent(copy.id));
+  });
+
+  it("duplicateNote of an untitled note stays untitled", () => {
+    const nb = notebookWithTwoNotes();
+    const copy = nb.duplicateNote(nb.notes()[1].id);
+    expect(copy?.title).toBe("Second (copy)");
+    const empty = UmNotebook.empty();
+    const added = empty.addNote();
+    const copy2 = empty.duplicateNote(added.id);
+    expect(copy2?.title ?? "").toBe("");
+  });
+
+  it("moveNote reorders without touching ids or content", () => {
+    const nb = notebookWithTwoNotes();
+    const first = nb.notes()[0];
+    expect(nb.moveNote(first.id, 1)).toBe(true);
+    expect(nb.notes().map((n) => n.title)).toEqual(["Second", "First"]);
+    expect(nb.notes().map((n) => n.order)).toEqual([0, 1]);
+    expect(nb.noteContent(first.id)).toEqual(helloDoc("First"));
+
+    // round-trip keeps the new order
+    const parsed = parseUmContainer(nb.serialize());
+    expect(
+      sortNoteDescriptors(parsed.manifest.notes).map((n) => n.title),
+    ).toEqual(["Second", "First"]);
+  });
+
+  it("moveNote clamps out-of-range indexes", () => {
+    const nb = notebookWithTwoNotes();
+    const first = nb.notes()[0];
+    nb.moveNote(first.id, 99);
+    expect(nb.notes().map((n) => n.title)).toEqual(["Second", "First"]);
+  });
+
   it("persists the expanded flag and defaults to collapsed", () => {
     const nb = notebookWithTwoNotes();
     expect(nb.isExpanded(nb.notes()[0].id)).toBe(false); // absent = collapsed

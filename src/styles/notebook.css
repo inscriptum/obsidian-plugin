@@ -10,6 +10,107 @@
   padding: 0;
 }
 
+/* ── Pages navigation drawer (blog-style, hidden by default) ── */
+
+.notebook-nav {
+  position: absolute;
+  top: 41px;
+  bottom: 0;
+  left: 0;
+  width: 300px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  background: var(--background-primary);
+  border-right: 1px solid var(--background-modifier-border);
+  box-shadow: var(--shadow-s);
+  transform: translateX(-100%);
+  visibility: hidden;
+  transition:
+    transform 0.35s,
+    visibility 0.35s;
+}
+
+.notebook-nav.is-open {
+  transform: translateX(0);
+  visibility: visible;
+}
+
+.notebook-nav-toggle {
+  position: absolute;
+  top: 6px;
+  right: -42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  visibility: visible;
+  transition:
+    color 0.2s,
+    right 0.35s;
+}
+
+.notebook-nav-toggle:hover {
+  color: var(--text-normal);
+}
+
+.notebook-nav.is-open .notebook-nav-toggle {
+  right: 8px;
+}
+
+.notebook-nav-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: var(--size-2-2) 0;
+}
+
+.notebook-nav-item {
+  display: flex;
+  align-items: baseline;
+  padding: 3px 12px 3px 8px;
+  cursor: pointer;
+  color: var(--text-muted);
+}
+
+.notebook-nav-item:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.notebook-nav-numb {
+  width: 26px;
+  padding-right: 8px;
+  text-align: right;
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+  flex-shrink: 0;
+}
+
+.notebook-nav-header {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+}
+
+.notebook-nav-header.is-empty {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.notebook-nav-item.is-active .notebook-nav-header {
+  color: var(--interactive-accent);
+}
+
 /* ── Notebook-wide search panel ── */
 
 .notebook-search {
@@ -128,11 +229,15 @@ button.notebook-section-gutter {
   appearance: none;
   -webkit-appearance: none;
   color: var(--text-faint);
-  cursor: pointer;
+  cursor: grab;
   transition: color 0.2s;
 }
 
-.notebook-section-gutter svg {
+button.notebook-section-gutter:active {
+  cursor: grabbing;
+}
+
+button.notebook-section-gutter svg {
   transition:
     stroke 0.2s,
     transform 0.2s;
@@ -255,6 +360,23 @@ button.notebook-section-gutter:hover svg {
 .notebook-view-container .texto-editor {
   padding-top: 0;
   padding-bottom: 0;
+}
+
+/* ── Drag & drop reorder ── */
+
+.notebook-section.is-dragging {
+  opacity: 0.35;
+}
+
+.notebook-drop-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--interactive-accent);
+  pointer-events: none;
+  z-index: 5;
 }
 
 /* ── Controls: add-after / delete ──
