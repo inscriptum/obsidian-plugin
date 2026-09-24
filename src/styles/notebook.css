@@ -36,19 +36,25 @@
   visibility: visible;
 }
 
-.notebook-nav-toggle {
+/* Blog look: bare ☰ button (menu-2 glyph, 38px, hairline stroke) hanging
+   outside the closed drawer and docking inside when it opens. The button.*
+   prefix out-ranks Obsidian's button:not(.clickable-icon) chrome. */
+button.notebook-nav-toggle {
   position: absolute;
-  top: 6px;
-  right: -42px;
+  top: 8px;
+  right: -48px;
   display: inline-flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
-  width: 36px;
-  height: 32px;
+  width: 38px;
+  height: 38px;
   padding: 0;
   border: none;
-  border-radius: var(--radius-s);
+  border-radius: 0;
+  box-shadow: none;
   background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
   color: var(--text-faint);
   cursor: pointer;
   visibility: visible;
@@ -57,36 +63,54 @@
     right 0.35s;
 }
 
-.notebook-nav-toggle:hover {
-  color: var(--text-normal);
+button.notebook-nav-toggle svg {
+  width: 38px;
+  height: 38px;
+  stroke-width: 1;
+  transition: stroke 0.2s;
 }
 
-.notebook-nav.is-open .notebook-nav-toggle {
+button.notebook-nav-toggle:hover,
+button.notebook-nav-toggle:focus {
+  color: var(--text-normal);
+  background: transparent;
+  box-shadow: none;
+}
+
+button.notebook-nav-toggle:hover svg {
+  stroke: var(--text-normal);
+}
+
+.notebook-nav.is-open button.notebook-nav-toggle {
   right: 8px;
 }
 
+/* Blog TOC look: inset line, uppercase notebook title row, page rows with
+   the number hanging left and the header truncated. */
 .notebook-nav-list {
   flex: 1 1 auto;
   overflow-y: auto;
-  padding: var(--size-2-2) 0;
+  margin-top: var(--size-4-2);
+  padding: 1.6rem 0 1.6rem 4rem;
+  box-shadow: inset 1px 0 0 var(--background-modifier-border);
 }
 
 .notebook-nav-item {
   display: flex;
-  align-items: baseline;
-  padding: 3px 12px 3px 8px;
+  margin-left: -4rem;
+  padding: 0.4rem 2rem;
   cursor: pointer;
   color: var(--text-muted);
 }
 
 .notebook-nav-item:hover {
   color: var(--text-normal);
-  background: var(--background-modifier-hover);
 }
 
 .notebook-nav-numb {
-  width: 26px;
-  padding-right: 8px;
+  width: 3.2rem;
+  padding-right: 0.8rem;
+  padding-top: 0.4rem;
   text-align: right;
   color: var(--text-faint);
   font-size: var(--font-ui-small);
@@ -99,7 +123,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  padding: 0.4rem 0;
   font-size: 15px;
+  line-height: 2.2rem;
 }
 
 .notebook-nav-header.is-empty {

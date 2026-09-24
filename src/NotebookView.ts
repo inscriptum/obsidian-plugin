@@ -110,6 +110,29 @@ const makeMediaBubbleMenuElement = () =>
     () => new MediaBubbleMenuElement() as unknown as HTMLElement,
   );
 
+/** The blog draft view's ☰ (tabler menu-2: 38×38, hairline stroke 1). */
+function menuSvg(): SVGSVGElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("width", "38");
+  svg.setAttribute("height", "38");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  for (const y of ["6", "12", "18"]) {
+    const line = document.createElementNS(ns, "line");
+    line.setAttribute("x1", "4");
+    line.setAttribute("y1", y);
+    line.setAttribute("x2", "20");
+    line.setAttribute("y2", y);
+    svg.appendChild(line);
+  }
+  return svg;
+}
+
 /** Chevron toggle icon for a section gutter — copied from the blog draft
  *  view: 44×44 tabler chevron, hairline 0.5 stroke (folded state; CSS
  *  rotates it when expanded). */
@@ -919,7 +942,7 @@ export class NotebookView extends FileView {
   private buildNavSidebar(): void {
     const nav = this.contentEl.createDiv("notebook-nav");
     const toggle = nav.createEl("button", { cls: "notebook-nav-toggle" });
-    setIcon(toggle, "menu");
+    toggle.appendChild(menuSvg());
     toggle.setAttribute("aria-label", "Pages");
     toggle.addEventListener("click", () => this.toggleNav());
     this.navListEl = nav.createDiv("notebook-nav-list");
