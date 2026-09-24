@@ -44,7 +44,10 @@
 button.notebook-nav-toggle {
   position: absolute;
   top: 8px;
-  right: 0;
+  /* Closed drawer: the toggle hangs OUTSIDE it (the drawer is translated
+     -100%, so -48px past its right edge lands at the view's left edge).
+     Open drawer: the toggle docks inside, flush with the right edge. */
+  right: -48px;
   width: 38px;
   height: 38px;
   padding: 0;
