@@ -8,7 +8,6 @@ import {
   WorkspaceLeaf,
 } from "obsidian";
 import { CellSelection, isInTable } from "prosemirror-tables";
-import { TextSelection } from "prosemirror-state";
 import { Editor, isTextSelection } from "./texto/core";
 import {
   createPhysicalShortcutPlugin,
@@ -570,7 +569,7 @@ export class NotebookView extends FileView {
 
   private async expandSection(
     id: string,
-    opts?: { focus?: boolean },
+    opts?: { focus?: boolean; autofocus?: boolean },
   ): Promise<void> {
     const notebook = this.notebook;
     const handle = this.sections.get(id);
@@ -597,7 +596,9 @@ export class NotebookView extends FileView {
       handle.content.appendChild(noteEl);
       handle.noteEl = noteEl;
 
-      const editor = await this.createEditorForSection(handle, content);
+      const editor = await this.createEditorForSection(handle, content, {
+        autofocus: opts?.autofocus,
+      });
       if (editor == null) {
         // The editor container never rendered — fold the section back
         // instead of showing a dead body.
@@ -678,6 +679,7 @@ export class NotebookView extends FileView {
   private async createEditorForSection(
     handle: SectionHandle,
     content: JSONContent,
+    opts?: { autofocus?: boolean },
   ): Promise<Editor | null> {
     const notebook = this.notebook;
     if (!notebook) return null;
@@ -706,7 +708,9 @@ export class NotebookView extends FileView {
         this.buildExtensionHooks(notebook, editorRef, ctx),
         { isMobileView: isMobile },
       ),
-      autofocus: "start",
+      // Search jumps mount pages in the background and must not steal
+      // focus from the search input.
+      autofocus: opts?.autofocus === false ? false : "start",
     });
 
     if (editor.view == null) {
@@ -999,44 +1003,54 @@ export class NotebookView extends FileView {
     const handle = this.sections.get(match.noteId);
     if (!handle) return;
     if (handle.editor != null) {
-      this.selectSearchMatch(match);
+      this.revealSearchMatch(match);
       return;
     }
-    void this.expandSection(match.noteId, { focus: false }).then(() =>
-      this.selectSearchMatch(match),
-    );
+    // Mount the page quietly (no autofocus): the search input keeps focus.
+    void this.expandSection(match.noteId, {
+      focus: false,
+      autofocus: false,
+    }).then(() => this.revealSearchMatch(match));
   }
 
-  private selectSearchMatch(match: NotebookSearchMatch): void {
+  /** Browser-search behavior: scroll to the match and mark it with the
+   *  active highlight. NO selection and NO focus change — the search input
+   *  keeps the focus so the user can keep typing / navigating. */
+  private revealSearchMatch(match: NotebookSearchMatch): void {
     const handle = this.sections.get(match.noteId);
     const editor = handle?.editor;
     if (!editor || editor.isDestroyed) return;
-    // Edits since the search ran may have shifted positions: re-locate the
-    // query in the live document and keep the offset nearest to the match.
-    const live = findDocumentMatches(
-      editor.state.doc,
-      this.searchInputEl?.value ?? "",
+
+    // The ordinal of this match among its page's matches drives the
+    // active-decoration of the page's search plugin.
+    let localIndex = 0;
+    for (let i = 0; i < this.searchIndex; i++) {
+      if (this.searchMatches[i].noteId === match.noteId) localIndex++;
+    }
+    const query = this.searchInputEl?.value ?? "";
+    editor.view.dispatch(
+      editor.state.tr.setMeta(documentSearchKey, {
+        query,
+        activeIndex: localIndex,
+      }),
     );
-    if (live.length === 0) return;
-    let target = live[0];
-    for (const candidate of live) {
-      if (candidate.from >= match.from) {
-        target = candidate;
-        break;
-      }
-    }
+
     try {
-      editor.view.dispatch(
-        editor.state.tr
-          .setSelection(
-            TextSelection.create(editor.state.doc, target.from, target.to),
-          )
-          .scrollIntoView(),
-      );
-      editor.view.focus();
+      const coords = editor.view.coordsAtPos(match.from);
+      const editorScroller = editor.view.dom.closest(".texto-editor");
+      if (editorScroller) this.scrollContainerTo(editorScroller, coords.top);
+      if (this.scrollerEl) this.scrollContainerTo(this.scrollerEl, coords.top);
     } catch (err) {
-      console.error("Failed to jump to search match:", err);
+      // Position drift after edits — the highlight set stays as-is.
+      console.error("Failed to scroll to search match:", err);
     }
+  }
+
+  /** Scroll a scrollable ancestor so the viewport coordinate `docTop` sits
+   *  about a third from the container's top. */
+  private scrollContainerTo(container: Element, docTop: number): void {
+    const rect = container.getBoundingClientRect();
+    container.scrollTop += docTop - (rect.top + rect.height / 3);
   }
 
   // ── Bubble menus (desktop, per expanded section) ──
