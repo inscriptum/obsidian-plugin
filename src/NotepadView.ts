@@ -22,12 +22,12 @@ import {
   findDocumentMatches,
 } from "./search/documentSearch";
 import {
-  searchNotebook,
-  type NotebookSearchMatch,
-} from "./notebook/notebookSearch";
+  searchNotepad,
+  type NotepadSearchMatch,
+} from "./notepad/notepadSearch";
 import { getExtensions, type ExtensionHooks } from "./texto/getExtensions";
 import { readUmFile, umFingerprint, writeUmFile } from "./storage/um/umVault";
-import { UmNotebook } from "./storage/um/umNotebook";
+import { UmNotepad } from "./storage/um/umNotepad";
 import { UmError } from "./storage/um/umTypes";
 import { FileChangedModal } from "./ui/FileChangedModal";
 import { ConfirmModal } from "./ui/ConfirmModal";
@@ -38,7 +38,7 @@ import {
 import {
   handleAddImgContainer,
   imageOnSetViewPropsContainer,
-} from "./notebook/imageTools";
+} from "./notepad/imageTools";
 import type { ImageToolContext } from "./tools/image";
 import { elTag } from "./tags";
 import { NoteElement } from "./components/note/note.element";
@@ -58,9 +58,9 @@ import "./components/toolbar/toolbar.element";
 import "./components/bubble-menu-bar/bubble-menu-bar.element";
 import "./components/bubble-menu-bar/table-bubble-menu-bar.element";
 import "./components/bubble-menu-bar/media-bubble-menu-bar.element";
-import "./styles/notebook.css";
+import "./styles/notepad.css";
 
-export const NOTEBOOK_VIEW_TYPE = "notebook-view";
+export const NOTEPAD_VIEW_TYPE = "notepad-view";
 
 const AUTOSAVE_DELAY = 500;
 /** Coalescing window for vault "modify" events (mirrors NoteView). */
@@ -199,17 +199,17 @@ interface SectionHandle {
  * View for `.um` containers (UM spec): a flat document of collapsed
  * sections, one section per note, in manifest order. Sections expand lazily
  * — a ProseMirror editor is created only for the expanded note, and its
- * content is written back into the in-memory notebook on collapse and on
- * save. Images inside notebook notes are packed into the container as
+ * content is written back into the in-memory notepad on collapse and on
+ * save. Images inside notepad notes are packed into the container as
  * assets; other attachments stay external vault files.
  */
-export class NotebookView extends FileView {
+export class NotepadView extends FileView {
   /** Called whenever a page editor is created; lets the plugin host sync
    *  the set of physically intercepted shortcut keys (see main.ts and
    *  src/tools/isPressedCommand.ts). */
   static onEditorCreated: ((editor: Editor) => void) | null = null;
 
-  private notebook: UmNotebook | null = null;
+  private notepad: UmNotepad | null = null;
   private sections = new Map<string, SectionHandle>();
   /** Expansion state lives on the note descriptors in the manifest
    *  (`expanded`, persisted with the container); a note without the flag is
@@ -227,11 +227,11 @@ export class NotebookView extends FileView {
    *  toolbar target it. */
   private focusedEditorValue: Editor | null = null;
 
-  // ── Notebook-wide search ──
+  // ── Notepad-wide search ──
   private searchPanelEl: HTMLElement | null = null;
   private searchInputEl: HTMLInputElement | null = null;
   private searchCountEl: HTMLElement | null = null;
-  private searchMatches: NotebookSearchMatch[] = [];
+  private searchMatches: NotepadSearchMatch[] = [];
   private searchIndex = 0;
 
   // ── Pages navigation sidebar (blog-style, hidden by default) ──
@@ -267,15 +267,15 @@ export class NotebookView extends FileView {
   }
 
   getViewType(): string {
-    return NOTEBOOK_VIEW_TYPE;
+    return NOTEPAD_VIEW_TYPE;
   }
 
   getDisplayText(): string {
-    return this.file?.basename ?? "Notebook";
+    return this.file?.basename ?? "Notepad";
   }
 
   getIcon(): string {
-    return "notebook";
+    return "notepad";
   }
 
   canAcceptExtension(extension: string): boolean {
@@ -286,9 +286,9 @@ export class NotebookView extends FileView {
     super.onPaneMenu(menu, source);
     menu.addItem((item) =>
       item
-        .setTitle("Find in notebook")
+        .setTitle("Find in notepad")
         .setIcon("search")
-        .onClick(() => this.openNotebookSearch()),
+        .onClick(() => this.openNotepadSearch()),
     );
     menu.addItem((item) =>
       item
@@ -301,13 +301,13 @@ export class NotebookView extends FileView {
   /** Hotkey routing into the focused page's editor (see main.ts and
    *  tools/isPressedCommand). Returns false when the event was consumed. */
   handleEditorShortcut(event: KeyboardEvent): false | undefined {
-    if (this.app.workspace.getActiveViewOfType(NotebookView) !== this) return;
+    if (this.app.workspace.getActiveViewOfType(NotepadView) !== this) return;
     if (isForwardedShortcut(event)) return;
     if (dispatchingEditorShortcut) return;
     const editor = this.focusedEditorValue;
     if (!editor) return;
 
-    // Find owns Mod+F (opens the notebook-wide search).
+    // Find owns Mod+F (opens the notepad-wide search).
     if (
       event.code === "KeyF" &&
       (event.metaKey || event.ctrlKey) &&
@@ -316,7 +316,7 @@ export class NotebookView extends FileView {
     ) {
       event.preventDefault();
       event.stopPropagation();
-      this.openNotebookSearch();
+      this.openNotepadSearch();
       return false;
     }
 
@@ -371,14 +371,14 @@ export class NotebookView extends FileView {
 
   async onOpen(): Promise<void> {
     this.contentEl.empty();
-    this.contentEl.addClass("notebook-view-container");
+    this.contentEl.addClass("notepad-view-container");
 
-    this.toolbarHost = this.contentEl.createDiv("notebook-toolbar-host");
+    this.toolbarHost = this.contentEl.createDiv("notepad-toolbar-host");
     // Blog-style pages navigation drawer (hidden by default, ☰ toggle).
     this.buildNavSidebar();
 
-    this.scrollerEl = this.contentEl.createDiv("notebook-scroller");
-    this.sectionsEl = this.scrollerEl.createDiv("notebook-sections");
+    this.scrollerEl = this.contentEl.createDiv("notepad-scroller");
+    this.sectionsEl = this.scrollerEl.createDiv("notepad-sections");
 
     // Watch for external modifications (git sync etc.) — same contract as
     // NoteView, with a fingerprint instead of a raw string diff.
@@ -397,13 +397,13 @@ export class NotebookView extends FileView {
 
   async onLoadFile(file: TFile): Promise<void> {
     this.destroyAllSections();
-    const notebook = await this.readNotebookWithRetries(file);
-    if (notebook == null) {
+    const notepad = await this.readNotepadWithRetries(file);
+    if (notepad == null) {
       this.renderUnreadableFileState(file);
       return;
     }
-    this.notebook = notebook;
-    notebook.savedFingerprint = await umFingerprint(this.app.vault, file);
+    this.notepad = notepad;
+    notepad.savedFingerprint = await umFingerprint(this.app.vault, file);
     // Expansion state comes from the manifest (`expanded` per note); notes
     // without the flag start collapsed (spec section 14).
     this.render();
@@ -418,17 +418,17 @@ export class NotebookView extends FileView {
     await this.flushSave("close");
     this.destroyAllSections();
     this.contentEl.empty();
-    this.notebook?.destroy();
-    this.notebook = null;
+    this.notepad?.destroy();
+    this.notepad = null;
   }
 
   // ── Loading ──
 
-  private async readNotebookWithRetries(
+  private async readNotepadWithRetries(
     file: TFile,
     attempts = 3,
     delayMs = 400,
-  ): Promise<UmNotebook | null> {
+  ): Promise<UmNotepad | null> {
     for (let i = 0; i < attempts; i++) {
       try {
         return await readUmFile(file, this.app.vault);
@@ -436,11 +436,11 @@ export class NotebookView extends FileView {
         if (err instanceof UmError) {
           // A container that fails manifest validation stays broken —
           // retrying cannot fix it.
-          console.error(`Failed to open notebook "${file.path}":`, err);
+          console.error(`Failed to open notepad "${file.path}":`, err);
           return null;
         }
         console.error(
-          `Failed to read notebook "${file.path}" (attempt ${i + 1}/${attempts}):`,
+          `Failed to read notepad "${file.path}" (attempt ${i + 1}/${attempts}):`,
           err,
         );
         if (i < attempts - 1) {
@@ -456,7 +456,7 @@ export class NotebookView extends FileView {
     const box = this.contentEl.createDiv({ cls: "inscriptum-unreadable-note" });
     box.createEl("p", {
       cls: "inscriptum-unreadable-note-title",
-      text: "This notebook could not be opened.",
+      text: "This notepad could not be opened.",
     });
     box.createEl("p", {
       text:
@@ -468,15 +468,15 @@ export class NotebookView extends FileView {
   // ── Rendering ──
 
   private render(): void {
-    if (!this.notebook || !this.sectionsEl) return;
+    if (!this.notepad || !this.sectionsEl) return;
     // Keep unsaved editor content before tearing the sections down.
     for (const handle of this.sections.values()) {
-      this.flushSectionToNotebook(handle);
+      this.flushSectionToNotepad(handle);
     }
     this.destroyAllSections();
     this.sectionsEl.empty();
 
-    for (const descriptor of this.notebook.notes()) {
+    for (const descriptor of this.notepad.notes()) {
       this.sectionsEl.appendChild(
         this.buildSection(
           descriptor.id,
@@ -486,15 +486,15 @@ export class NotebookView extends FileView {
       );
     }
     // Per-section controls cover add-after everywhere; a dedicated row is
-    // only needed so an empty notebook is not a dead end.
-    if (this.notebook.notes().length === 0) {
+    // only needed so an empty notepad is not a dead end.
+    if (this.notepad.notes().length === 0) {
       this.sectionsEl.appendChild(this.buildAddNoteRow());
     }
 
     // Re-expand notes marked expanded in the manifest (state survives
     // reloads and moves with the file).
-    for (const descriptor of this.notebook.notes()) {
-      if (this.notebook.isExpanded(descriptor.id)) {
+    for (const descriptor of this.notepad.notes()) {
+      if (this.notepad.isExpanded(descriptor.id)) {
         void this.expandSection(descriptor.id, { focus: false });
       }
     }
@@ -502,14 +502,14 @@ export class NotebookView extends FileView {
   }
 
   private buildSection(id: string, title: string, order: number): HTMLElement {
-    const root = createDiv("notebook-section");
+    const root = createDiv("notepad-section");
 
     // Left margin: page order (the first page is unlabeled, like the blog
     // draft view) + the fold chevron.
-    const margin = root.createDiv("notebook-section-margin");
-    const orderLabel = margin.createDiv("notebook-section-order");
+    const margin = root.createDiv("notepad-section-margin");
+    const orderLabel = margin.createDiv("notepad-section-order");
     if (order > 0) orderLabel.setText(String(order));
-    const gutter = createEl("button", { cls: "notebook-section-gutter" });
+    const gutter = createEl("button", { cls: "notepad-section-gutter" });
     gutter.setAttribute("aria-label", "Toggle note");
     gutter.appendChild(chevronSvg());
     // Click toggles the fold; a pointer drag reorders the page.
@@ -525,27 +525,27 @@ export class NotebookView extends FileView {
     );
     margin.appendChild(gutter);
 
-    const body = root.createDiv("notebook-section-body");
-    const content = body.createDiv("notebook-section-content");
+    const body = root.createDiv("notepad-section-body");
+    const content = body.createDiv("notepad-section-content");
 
     // Ghost controls under the section content but INSIDE the page frame
     // (above its bottom separator) — so they visibly belong to this page.
-    // The first page carries no delete control — it anchors the notebook
+    // The first page carries no delete control — it anchors the notepad
     // (the blog does the same for order 0).
-    const controls = body.createDiv("notebook-section-controls");
-    const addBtn = createEl("button", { cls: "notebook-section-control" });
+    const controls = body.createDiv("notepad-section-controls");
+    const addBtn = createEl("button", { cls: "notepad-section-control" });
     addBtn.setAttribute("aria-label", "Add note after");
     setIcon(addBtn, "plus");
     addBtn.addEventListener("click", () => this.addNoteAfter(id));
     controls.appendChild(addBtn);
-    const copyBtn = createEl("button", { cls: "notebook-section-control" });
+    const copyBtn = createEl("button", { cls: "notepad-section-control" });
     copyBtn.setAttribute("aria-label", "Duplicate note");
     setIcon(copyBtn, "copy");
     copyBtn.addEventListener("click", () => this.duplicateNote(id));
     controls.appendChild(copyBtn);
     if (order > 0) {
       const delBtn = createEl("button", {
-        cls: "notebook-section-control is-danger",
+        cls: "notepad-section-control is-danger",
       });
       delBtn.setAttribute("aria-label", "Delete note");
       setIcon(delBtn, "trash-2");
@@ -573,8 +573,8 @@ export class NotebookView extends FileView {
    *  placeholder when empty. */
   private renderCollapsedTitle(handle: SectionHandle, title: string): void {
     handle.content.empty();
-    const row = handle.content.createDiv("notebook-section-collapsed");
-    const label = row.createDiv("notebook-section-title");
+    const row = handle.content.createDiv("notepad-section-collapsed");
+    const label = row.createDiv("notepad-section-title");
     if (title.trim().length > 0) {
       label.setText(title);
     } else {
@@ -586,7 +586,7 @@ export class NotebookView extends FileView {
     );
     row.addEventListener("dblclick", () => this.editTitleInline(handle));
 
-    const edit = row.createDiv("notebook-section-edit");
+    const edit = row.createDiv("notepad-section-edit");
     edit.setAttribute("aria-label", "Rename note");
     edit.setText("✎");
     edit.addEventListener("click", (event) => {
@@ -596,13 +596,13 @@ export class NotebookView extends FileView {
   }
 
   private editTitleInline(handle: SectionHandle): void {
-    const descriptor = this.notebook?.note(handle.id);
+    const descriptor = this.notepad?.note(handle.id);
     if (!descriptor) return;
-    const row = handle.content.querySelector(".notebook-section-collapsed");
+    const row = handle.content.querySelector(".notepad-section-collapsed");
     if (row == null || row.querySelector("input") != null) return;
 
     const input = document.createElement("input");
-    input.addClass("notebook-title-input");
+    input.addClass("notepad-title-input");
     input.value = descriptor.title ?? "";
     input.addEventListener("click", (event) => event.stopPropagation());
     row.empty();
@@ -614,10 +614,10 @@ export class NotebookView extends FileView {
     const commit = (save: boolean) => {
       if (done) return;
       done = true;
-      if (save && this.notebook) {
+      if (save && this.notepad) {
         // Renaming updates the document's first line (source of truth);
         // the manifest title mirror follows.
-        this.notebook.setDisplayTitle(handle.id, input.value);
+        this.notepad.setDisplayTitle(handle.id, input.value);
         this.rebuildNavList();
         void this.flushSave("rename");
       }
@@ -632,13 +632,13 @@ export class NotebookView extends FileView {
 
   /** Re-render the collapsed title text after inline editing. */
   private renderSectionTitleOnly(handle: SectionHandle): void {
-    if (this.notebook?.isExpanded(handle.id)) return;
-    const descriptor = this.notebook?.note(handle.id);
+    if (this.notepad?.isExpanded(handle.id)) return;
+    const descriptor = this.notepad?.note(handle.id);
     this.renderCollapsedTitle(handle, descriptor?.title ?? "");
   }
 
   private buildAddNoteRow(): HTMLElement {
-    const row = createEl("button", { cls: "notebook-add-note" });
+    const row = createEl("button", { cls: "notepad-add-note" });
     row.setText("Add note");
     row.addEventListener("click", () => this.addNote());
     return row;
@@ -647,7 +647,7 @@ export class NotebookView extends FileView {
   // ── Expand / collapse ──
 
   private toggleSection(id: string, opts?: { expand?: boolean }): void {
-    const isFolded = !this.notebook?.isExpanded(id);
+    const isFolded = !this.notepad?.isExpanded(id);
     if (!isFolded && opts?.expand === true) return; // already expanded
     if (isFolded) void this.expandSection(id, { focus: true });
     else void this.collapseSection(id);
@@ -657,14 +657,14 @@ export class NotebookView extends FileView {
     id: string,
     opts?: { focus?: boolean; autofocus?: boolean },
   ): Promise<void> {
-    const notebook = this.notebook;
+    const notepad = this.notepad;
     const handle = this.sections.get(id);
-    if (!notebook || !handle) return;
-    const content = notebook.noteContent(id);
+    if (!notepad || !handle) return;
+    const content = notepad.noteContent(id);
     if (content == null) return;
     // Already expanded (or expansion in flight) — nothing to build.
     if (handle.editor != null || this.pendingExpansions.has(id)) {
-      notebook.setExpanded(id, true);
+      notepad.setExpanded(id, true);
       this.scheduleSave();
       if (opts?.focus) handle.editor?.view.focus();
       return;
@@ -672,13 +672,13 @@ export class NotebookView extends FileView {
 
     this.pendingExpansions.add(id);
     try {
-      notebook.setExpanded(id, true);
+      notepad.setExpanded(id, true);
       this.scheduleSave();
       handle.root.addClass("is-expanded");
       handle.content.empty();
 
       const noteEl = makeNoteElement();
-      noteEl.addClass("notebook-note-host");
+      noteEl.addClass("notepad-note-host");
       handle.content.appendChild(noteEl);
       handle.noteEl = noteEl;
 
@@ -691,7 +691,7 @@ export class NotebookView extends FileView {
         handle.noteEl = null;
         noteEl.remove();
         handle.root.removeClass("is-expanded");
-        notebook.setExpanded(id, false);
+        notepad.setExpanded(id, false);
         this.scheduleSave();
         this.renderSectionTitleOnly(handle);
         return;
@@ -705,17 +705,17 @@ export class NotebookView extends FileView {
 
   private async collapseSection(id: string): Promise<void> {
     const handle = this.sections.get(id);
-    if (!handle || this.notebook?.isExpanded(id) !== true) return;
+    if (!handle || this.notepad?.isExpanded(id) !== true) return;
 
-    // Flush the editor content into the in-memory notebook first.
-    this.flushSectionToNotebook(handle);
+    // Flush the editor content into the in-memory notepad first.
+    this.flushSectionToNotepad(handle);
 
     const ownedToolbar = this.toolbarEl?.props.editor === handle.editor;
     if (this.focusedEditorValue === handle.editor) {
       this.focusedEditorValue = null;
     }
 
-    this.notebook.setExpanded(id, false);
+    this.notepad.setExpanded(id, false);
     this.scheduleSave();
     handle.root.removeClass("is-expanded");
     for (const el of handle.bubbleEls) el.remove();
@@ -730,23 +730,23 @@ export class NotebookView extends FileView {
     handle.noteEl = null;
     handle.content.empty();
 
-    const descriptor = this.notebook?.note(id);
+    const descriptor = this.notepad?.note(id);
     this.renderCollapsedTitle(handle, descriptor?.title ?? "");
   }
 
-  /** Copy the live editor JSON into the notebook model (change-gated, so
-   *  idempotent flushes don't mark the notebook dirty). Notes that were
+  /** Copy the live editor JSON into the notepad model (change-gated, so
+   *  idempotent flushes don't mark the notepad dirty). Notes that were
    *  removed from the manifest are skipped — their editor flush must not
    *  resurrect them. */
-  private flushSectionToNotebook(handle: SectionHandle): void {
-    if (!this.notebook || !handle.editor || handle.editor.isDestroyed) return;
-    if (!this.notebook.note(handle.id)) return;
+  private flushSectionToNotepad(handle: SectionHandle): void {
+    if (!this.notepad || !handle.editor || handle.editor.isDestroyed) return;
+    if (!this.notepad.note(handle.id)) return;
     const json = handle.editor.getJSON();
-    const current = this.notebook.noteContent(handle.id);
+    const current = this.notepad.noteContent(handle.id);
     if (current != null && JSON.stringify(current) === JSON.stringify(json)) {
       return;
     }
-    this.notebook.setNoteContent(handle.id, json);
+    this.notepad.setNoteContent(handle.id, json);
   }
 
   private destroyAllSections(): void {
@@ -767,8 +767,8 @@ export class NotebookView extends FileView {
     content: JSONContent,
     opts?: { autofocus?: boolean },
   ): Promise<Editor | null> {
-    const notebook = this.notebook;
-    if (!notebook) return null;
+    const notepad = this.notepad;
+    if (!notepad) return null;
 
     // The gfc custom element renders its container asynchronously —
     // retry like NoteView does for the main editor host.
@@ -785,13 +785,13 @@ export class NotebookView extends FileView {
     const editor = new Editor({
       element: editorEl,
       content,
-      onError: (err) => console.error("Notebook editor creation failed:", err),
+      onError: (err) => console.error("Notepad editor creation failed:", err),
       onUpdate: () => {
         this.dirty = true;
         this.scheduleSave();
       },
       extensions: getExtensions(
-        this.buildExtensionHooks(notebook, editorRef, ctx),
+        this.buildExtensionHooks(notepad, editorRef, ctx),
         { isMobileView: isMobile },
       ),
       // Search jumps mount pages in the background and must not steal
@@ -800,7 +800,7 @@ export class NotebookView extends FileView {
     });
 
     if (editor.view == null) {
-      console.error("Notebook editor init failed for note", handle.id);
+      console.error("Notepad editor init failed for note", handle.id);
       return null;
     }
     editorRef.current = editor;
@@ -827,7 +827,7 @@ export class NotebookView extends FileView {
       this.ensureToolbar(editor);
       this.createBubbleMenus(editor, handle);
     }
-    NotebookView.onEditorCreated?.(editor);
+    NotepadView.onEditorCreated?.(editor);
     return editor;
   }
 
@@ -844,7 +844,7 @@ export class NotebookView extends FileView {
   }
 
   private buildExtensionHooks(
-    notebook: UmNotebook,
+    notepad: UmNotepad,
     editorRef: { current: Editor | null },
     ctx: ImageToolContext,
   ): ExtensionHooks {
@@ -854,7 +854,7 @@ export class NotebookView extends FileView {
         onAdd: (node, deco) => {
           if (node.type.name !== "image") return;
           const key = (deco.spec as { id: string }).id;
-          handleAddImgContainer({ ...node.attrs, key }, editorRef, notebook);
+          handleAddImgContainer({ ...node.attrs, key }, editorRef, notepad);
         },
         onRemove: () => {
           // Packed assets are garbage-collected at save time; external
@@ -865,7 +865,7 @@ export class NotebookView extends FileView {
       },
       image: {
         onSetViewProps: (props, update) =>
-          imageOnSetViewPropsContainer(props, update, ctx, notebook),
+          imageOnSetViewPropsContainer(props, update, ctx, notepad),
       },
       attachment: {
         onFileSelected: async (file, update) => {
@@ -931,7 +931,7 @@ export class NotebookView extends FileView {
     this.destroyToolbar();
     if (!this.toolbarHost) return;
     const toolbarEl = makeToolbarElement();
-    toolbarEl.addClass("notebook-toolbar");
+    toolbarEl.addClass("notepad-toolbar");
     toolbarEl.setAttribute("data-ignore-swipe", "true");
     toolbarEl.props.editor = editor;
     this.toolbarEl = toolbarEl;
@@ -968,14 +968,14 @@ export class NotebookView extends FileView {
   // ── Pages navigation sidebar (blog-style drawer) ──
 
   private buildNavSidebar(): void {
-    const nav = this.contentEl.createDiv("notebook-nav");
-    const toggle = nav.createEl("button", { cls: "notebook-nav-toggle" });
+    const nav = this.contentEl.createDiv("notepad-nav");
+    const toggle = nav.createEl("button", { cls: "notepad-nav-toggle" });
     // ☰ when closed, ✕ when open (CSS morphs between the two glyphs).
     toggle.appendChild(menuSvg());
     toggle.appendChild(closeSvg());
     toggle.setAttribute("aria-label", "Pages");
     toggle.addEventListener("click", () => this.toggleNav());
-    this.navListEl = nav.createDiv("notebook-nav-list");
+    this.navListEl = nav.createDiv("notepad-nav-list");
     this.navEl = nav;
     this.rebuildNavList();
   }
@@ -987,14 +987,14 @@ export class NotebookView extends FileView {
   }
 
   private rebuildNavList(): void {
-    if (!this.navListEl || !this.notebook) return;
+    if (!this.navListEl || !this.notepad) return;
     this.navListEl.empty();
-    for (const descriptor of this.notebook.notes()) {
-      const item = this.navListEl.createDiv("notebook-nav-item");
+    for (const descriptor of this.notepad.notes()) {
+      const item = this.navListEl.createDiv("notepad-nav-item");
       item.setAttribute("data-id", descriptor.id);
-      const numb = item.createDiv("notebook-nav-numb");
+      const numb = item.createDiv("notepad-nav-numb");
       if (descriptor.order > 0) numb.setText(String(descriptor.order));
-      const header = item.createDiv("notebook-nav-header");
+      const header = item.createDiv("notepad-nav-header");
       const title = (descriptor.title ?? "").trim();
       if (title) header.setText(title);
       else {
@@ -1016,7 +1016,7 @@ export class NotebookView extends FileView {
   }
 
   private updateNavActive(): void {
-    const items = this.navListEl?.querySelectorAll(".notebook-nav-item");
+    const items = this.navListEl?.querySelectorAll(".notepad-nav-item");
     if (!items) return;
     for (const item of items) {
       const id = item.getAttribute("data-id");
@@ -1027,7 +1027,7 @@ export class NotebookView extends FileView {
   /** Open (if needed) a page and scroll its frame to the top of the view. */
   private jumpToPage(id: string): void {
     const handle = this.sections.get(id);
-    if (!handle || !this.notebook) return;
+    if (!handle || !this.notepad) return;
     if (handle.editor == null) {
       void this.expandSection(id, { focus: false });
     } else {
@@ -1077,7 +1077,7 @@ export class NotebookView extends FileView {
       if (moved < 6) return;
       this.drag.active = true;
       handle.root.addClass("is-dragging");
-      this.dropLineEl = this.sectionsEl?.createDiv("notebook-drop-line");
+      this.dropLineEl = this.sectionsEl?.createDiv("notepad-drop-line");
     }
     this.updateDropLine(event.clientY);
   };
@@ -1102,7 +1102,7 @@ export class NotebookView extends FileView {
 
     const dropIndex = this.computeDropIndex(event.clientY, drag.id);
     if (dropIndex == null) return;
-    if (this.notebook?.moveNote(drag.id, dropIndex)) {
+    if (this.notepad?.moveNote(drag.id, dropIndex)) {
       this.render();
       void this.flushSave("drag-reorder");
     }
@@ -1142,9 +1142,9 @@ export class NotebookView extends FileView {
     this.dropLineEl.style.top = `${top}px`;
   }
 
-  // ── Notebook-wide search ──
+  // ── Notepad-wide search ──
 
-  openNotebookSearch(): void {
+  openNotepadSearch(): void {
     this.buildSearchPanel();
     const input = this.searchInputEl;
     if (!input) return;
@@ -1153,7 +1153,7 @@ export class NotebookView extends FileView {
     if (input.value) this.recomputeSearch();
   }
 
-  private closeNotebookSearch(): void {
+  private closeNotepadSearch(): void {
     this.searchPanelEl?.remove();
     this.searchPanelEl = null;
     this.searchInputEl = null;
@@ -1164,14 +1164,14 @@ export class NotebookView extends FileView {
 
   private buildSearchPanel(): void {
     if (this.searchPanelEl) return;
-    const panel = this.contentEl.createDiv("notebook-search");
+    const panel = this.contentEl.createDiv("notepad-search");
     this.searchPanelEl = panel;
 
     const input = panel.createEl("input", {
-      cls: "notebook-search-input",
+      cls: "notepad-search-input",
       attr: {
         type: "text",
-        placeholder: "Search notebook",
+        placeholder: "Search notepad",
         spellcheck: "false",
       },
     });
@@ -1184,41 +1184,41 @@ export class NotebookView extends FileView {
       } else if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        this.closeNotebookSearch();
+        this.closeNotepadSearch();
       }
     });
 
-    this.searchCountEl = panel.createDiv("notebook-search-count");
+    this.searchCountEl = panel.createDiv("notepad-search-count");
 
-    const prev = panel.createEl("button", { cls: "notebook-search-btn" });
+    const prev = panel.createEl("button", { cls: "notepad-search-btn" });
     setIcon(prev, "chevron-up");
     prev.setAttribute("aria-label", "Previous match");
     prev.addEventListener("click", () => this.moveSearchMatch(-1));
 
-    const next = panel.createEl("button", { cls: "notebook-search-btn" });
+    const next = panel.createEl("button", { cls: "notepad-search-btn" });
     setIcon(next, "chevron-down");
     next.setAttribute("aria-label", "Next match");
     next.addEventListener("click", () => this.moveSearchMatch(1));
 
-    const close = panel.createEl("button", { cls: "notebook-search-btn" });
+    const close = panel.createEl("button", { cls: "notepad-search-btn" });
     setIcon(close, "x");
     close.setAttribute("aria-label", "Close search");
-    close.addEventListener("click", () => this.closeNotebookSearch());
+    close.addEventListener("click", () => this.closeNotepadSearch());
   }
 
   private recomputeSearch(): void {
-    const notebook = this.notebook;
+    const notepad = this.notepad;
     const query = this.searchInputEl?.value ?? "";
-    if (!notebook) return;
+    if (!notepad) return;
     // Unsaved editor changes must be visible to the search.
     for (const handle of this.sections.values()) {
-      this.flushSectionToNotebook(handle);
+      this.flushSectionToNotepad(handle);
     }
-    this.searchMatches = searchNotebook(
-      notebook.notes().map((descriptor) => ({
+    this.searchMatches = searchNotepad(
+      notepad.notes().map((descriptor) => ({
         id: descriptor.id,
         title: descriptor.title ?? "",
-        doc: notebook.noteContent(descriptor.id) ?? {
+        doc: notepad.noteContent(descriptor.id) ?? {
           type: "noteDoc" as const,
         },
       })),
@@ -1280,7 +1280,7 @@ export class NotebookView extends FileView {
   /** Browser-search behavior: scroll to the match and mark it with the
    *  active highlight. NO selection and NO focus change — the search input
    *  keeps the focus so the user can keep typing / navigating. */
-  private revealSearchMatch(match: NotebookSearchMatch): void {
+  private revealSearchMatch(match: NotepadSearchMatch): void {
     const handle = this.sections.get(match.noteId);
     const editor = handle?.editor;
     if (!editor || editor.isDestroyed) return;
@@ -1415,32 +1415,32 @@ export class NotebookView extends FileView {
   // ── Notes ──
 
   addNote(): void {
-    const notebook = this.notebook;
-    if (!notebook) return;
-    const notes = notebook.notes();
+    const notepad = this.notepad;
+    if (!notepad) return;
+    const notes = notepad.notes();
     const lastId = notes[notes.length - 1]?.id;
-    const added = notebook.addNote(lastId, "");
+    const added = notepad.addNote(lastId, "");
     // Open the new page for editing right away and remember it expanded.
-    notebook.setExpanded(added.id, true);
+    notepad.setExpanded(added.id, true);
     this.render();
     void this.flushSave("add-note");
   }
 
   /** Insert a new note right after the given section (per-section + control). */
   private addNoteAfter(id: string): void {
-    const notebook = this.notebook;
-    if (!notebook || !notebook.note(id)) return;
-    const added = notebook.addNote(id, "");
-    notebook.setExpanded(added.id, true);
+    const notepad = this.notepad;
+    if (!notepad || !notepad.note(id)) return;
+    const added = notepad.addNote(id, "");
+    notepad.setExpanded(added.id, true);
     this.render();
     void this.flushSave("add-note");
   }
 
   /** Deep-copy a page right after the original (image assets stay shared). */
   private duplicateNote(id: string): void {
-    const notebook = this.notebook;
-    if (!notebook || !notebook.note(id)) return;
-    const copy = notebook.duplicateNote(id);
+    const notepad = this.notepad;
+    if (!notepad || !notepad.note(id)) return;
+    const copy = notepad.duplicateNote(id);
     if (!copy) return;
     this.render();
     void this.flushSave("duplicate-note");
@@ -1450,8 +1450,8 @@ export class NotebookView extends FileView {
    *  deletion an Undo notice offers to put it back (the save chain keeps the
    *  delete and undo writes in order). */
   private deleteNote(id: string): void {
-    const notebook = this.notebook;
-    if (!notebook || !notebook.note(id)) return;
+    const notepad = this.notepad;
+    if (!notepad || !notepad.note(id)) return;
 
     new ConfirmModal(this.app, {
       title: "Delete note",
@@ -1459,8 +1459,8 @@ export class NotebookView extends FileView {
       confirmText: "Delete",
       cancelText: "Cancel",
       onConfirm: () => {
-        if (this.notebook == null || this.notebook.note(id) == null) return;
-        const removed = this.notebook.removeNote(id);
+        if (this.notepad == null || this.notepad.note(id) == null) return;
+        const removed = this.notepad.removeNote(id);
         if (removed == null) return;
         this.pendingExpansions.delete(id);
         this.render();
@@ -1472,9 +1472,9 @@ export class NotebookView extends FileView {
           7000,
         );
         this.addNoticeAction(notice, "Undo", () => {
-          if (this.notebook == null) return;
+          if (this.notepad == null) return;
           // The restored descriptor carries its persisted expanded flag.
-          this.notebook.restoreNote(removed);
+          this.notepad.restoreNote(removed);
           this.render();
           void this.flushSave("undo-delete");
         });
@@ -1498,7 +1498,7 @@ export class NotebookView extends FileView {
     }
     const btn = notice.noticeEl.createEl("button", {
       text: title,
-      cls: "notebook-notice-action",
+      cls: "notepad-notice-action",
     });
     btn.addEventListener("click", () => {
       cb();
@@ -1528,29 +1528,29 @@ export class NotebookView extends FileView {
   }
 
   private async writePendingChanges(trigger: string): Promise<void> {
-    const notebook = this.notebook;
+    const notepad = this.notepad;
     const file = this.file;
-    if (!notebook || !file) return;
+    if (!notepad || !file) return;
     if (this.saveTimer != null) {
       window.clearTimeout(this.saveTimer);
       this.saveTimer = null;
     }
 
     for (const handle of this.sections.values()) {
-      this.flushSectionToNotebook(handle);
+      this.flushSectionToNotepad(handle);
     }
-    if (notebook.dirtyNotes.size === 0 && !notebook.structureChanged) {
+    if (notepad.dirtyNotes.size === 0 && !notepad.structureChanged) {
       this.dirty = false;
       return;
     }
 
     try {
-      await writeUmFile(file, this.app.vault, notebook, trigger);
-      notebook.dirtyNotes.clear();
-      notebook.structureChanged = false;
+      await writeUmFile(file, this.app.vault, notepad, trigger);
+      notepad.dirtyNotes.clear();
+      notepad.structureChanged = false;
       this.dirty = false;
     } catch (err) {
-      new Notice(`Failed to save notebook: ${String(err)}`);
+      new Notice(`Failed to save notepad: ${String(err)}`);
     }
   }
 
@@ -1571,16 +1571,16 @@ export class NotebookView extends FileView {
    *  - no unsaved local edits → silently reload from disk;
    *  - unsaved local edits (conflict) → ask the user which version wins. */
   private async processExternalChange(): Promise<void> {
-    const notebook = this.notebook;
+    const notepad = this.notepad;
     const file = this.file;
-    if (!notebook || !file || this.conflictModalOpen) return;
+    if (!notepad || !file || this.conflictModalOpen) return;
 
     const fingerprint = await umFingerprint(this.app.vault, file);
-    if (fingerprint === notebook.savedFingerprint) return; // our own save
+    if (fingerprint === notepad.savedFingerprint) return; // our own save
 
     if (
-      notebook.dirtyNotes.size > 0 ||
-      notebook.structureChanged ||
+      notepad.dirtyNotes.size > 0 ||
+      notepad.structureChanged ||
       this.dirty
     ) {
       this.conflictModalOpen = true;
@@ -1603,23 +1603,23 @@ export class NotebookView extends FileView {
 
   /** Unconditional write (conflict resolution: local version wins). */
   private async writeNow(trigger: string): Promise<void> {
-    const notebook = this.notebook;
+    const notepad = this.notepad;
     const file = this.file;
-    if (!notebook || !file) return;
+    if (!notepad || !file) return;
     for (const handle of this.sections.values()) {
-      this.flushSectionToNotebook(handle);
+      this.flushSectionToNotepad(handle);
     }
     try {
-      await writeUmFile(file, this.app.vault, notebook, trigger);
-      notebook.dirtyNotes.clear();
-      notebook.structureChanged = false;
+      await writeUmFile(file, this.app.vault, notepad, trigger);
+      notepad.dirtyNotes.clear();
+      notepad.structureChanged = false;
       this.dirty = false;
     } catch (err) {
-      new Notice(`Failed to save notebook: ${String(err)}`);
+      new Notice(`Failed to save notepad: ${String(err)}`);
     }
   }
 
-  /** Replace the in-memory notebook and the UI with the on-disk state. */
+  /** Replace the in-memory notepad and the UI with the on-disk state. */
   private async reloadFromDisk(): Promise<void> {
     const file = this.file;
     if (!file) return;
@@ -1627,13 +1627,13 @@ export class NotebookView extends FileView {
       const fresh = await readUmFile(file, this.app.vault);
       fresh.savedFingerprint = await umFingerprint(this.app.vault, file);
       this.destroyAllSections();
-      this.notebook?.destroy();
-      this.notebook = fresh;
+      this.notepad?.destroy();
+      this.notepad = fresh;
       this.dirty = false;
       // Keep the user's expansion state across the reload.
       this.render();
     } catch (err) {
-      console.error("Failed to reload notebook from disk:", err);
+      console.error("Failed to reload notepad from disk:", err);
     }
   }
 }

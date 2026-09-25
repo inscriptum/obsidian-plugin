@@ -5,7 +5,7 @@ export const UM_FORMAT = "um";
 /** The only UM container version this implementation reads/writes (6.2). */
 export const UM_VERSION = 1;
 /** The only container type defined by UM 1.0 (6.3). */
-export const UM_TYPE = "notebook";
+export const UM_TYPE = "notepad";
 /** Manifest entry point inside the archive (section 5). */
 export const MANIFEST_PATH = "manifest.json";
 /** Recommended location of note documents (section 8.2). */
@@ -22,11 +22,11 @@ export interface UmNoteDescriptor {
   id: string;
   /** Archive path of the serialized note document (8.2). */
   path: string;
-  /** Position within the notebook (8.3). */
+  /** Position within the notepad (8.3). */
   order: number;
   /** Display title. Optional per spec; our implementation always writes it. */
   title?: string;
-  /** Notebook UI expanded state. Absent or false = collapsed (the spec's
+  /** Notepad UI expanded state. Absent or false = collapsed (the spec's
    *  initial default); we write it only for expanded notes. */
   expanded?: boolean;
 }

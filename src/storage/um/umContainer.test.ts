@@ -12,7 +12,7 @@ import {
   sortNoteDescriptors,
 } from "./umContainer";
 import { generateUmId, isUmId } from "./umIds";
-import { noteDocTitle, UmNotebook } from "./umNotebook";
+import { noteDocTitle, UmNotepad } from "./umNotepad";
 import { FROZEN_MTIME, UmError } from "./umTypes";
 
 const ENC = new TextEncoder();
@@ -28,8 +28,8 @@ function helloDoc(text: string): JSONContent {
   };
 }
 
-function notebookWithTwoNotes(): UmNotebook {
-  const nb = UmNotebook.empty();
+function notepadWithTwoNotes(): UmNotepad {
+  const nb = UmNotepad.empty();
   const a = nb.addNote(undefined, "First");
   nb.setNoteContent(a.id, helloDoc("First"));
   const b = nb.addNote(a.id, "Second");
@@ -68,12 +68,12 @@ describe("umIds", () => {
 
 describe("parseUmContainer / serializeUmContainer", () => {
   it("round-trips notes, titles and order", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const parsed = parseUmContainer(nb.serialize());
 
     expect(parsed.manifest.format).toBe("um");
     expect(parsed.manifest.version).toBe(1);
-    expect(parsed.manifest.type).toBe("notebook");
+    expect(parsed.manifest.type).toBe("notepad");
     const notes = sortNoteDescriptors(parsed.manifest.notes);
     expect(notes.map((n) => n.title)).toEqual(["First", "Second"]);
     expect(notes.map((n) => n.order)).toEqual([0, 1]);
@@ -84,7 +84,7 @@ describe("parseUmContainer / serializeUmContainer", () => {
   });
 
   it("round-trips assets byte-for-byte", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const png = new Uint8Array([137, 80, 78, 71, 1, 2, 3]);
     const asset = nb.addAsset(png, "shot.png", "image/png");
     const doc = helloDoc("with image");
@@ -105,7 +105,7 @@ describe("parseUmContainer / serializeUmContainer", () => {
   });
 
   it("preserves unknown manifest fields (spec 12.1)", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const parsedOnce = parseUmContainer(nb.serialize());
     (parsedOnce.manifest as Record<string, unknown>)["customFeature"] = {
       whatever: [1, 2, 3],
@@ -118,7 +118,7 @@ describe("parseUmContainer / serializeUmContainer", () => {
   });
 
   it("preserves unknown archive entries (spec 3, 12)", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const bytes = nb.serialize();
     // Hand-craft a container with a foreign directory by rebuilding the zip
     // via the parsed data: inject into unknownEntries.
@@ -134,7 +134,7 @@ describe("parseUmContainer / serializeUmContainer", () => {
   });
 
   it("treats unlisted files under notes/ and assets/ as unknown, not fatal", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const parsed = parseUmContainer(nb.serialize());
     parsed.unknownEntries.set("notes/orphan.json", ENC.encode("{}"));
     parsed.unknownEntries.set("assets/orphan.png", new Uint8Array([1]));
@@ -143,7 +143,7 @@ describe("parseUmContainer / serializeUmContainer", () => {
   });
 
   it("serializes deterministically", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const png = new Uint8Array([9, 8, 7, 6]);
     const asset = nb.addAsset(png, "a.jpg", "image/jpeg");
     const doc = helloDoc("x");
@@ -160,7 +160,7 @@ describe("parseUmContainer / serializeUmContainer", () => {
   });
 
   it("reindexes non-contiguous orders while preserving relative order (spec 8.3)", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const parsed = parseUmContainer(nb.serialize());
     const notes = parsed.manifest.notes;
     notes[0].order = 5;
@@ -173,7 +173,7 @@ describe("parseUmContainer / serializeUmContainer", () => {
   });
 
   it("writes note documents at the recommended path", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const files = unzipSync(nb.serialize());
     for (const descriptor of parseUmContainer(nb.serialize()).manifest.notes) {
       expect(descriptor.path).toBe(notePathForId(descriptor.id));
@@ -202,7 +202,7 @@ describe("parseUmContainer / serializeUmContainer", () => {
     // Zip a broken manifest directly: serializeUmContainer must stay a
     // total function over parsed data, validation lives in parse.
     const makeBytes = (override: Record<string, unknown>): Uint8Array => {
-      const base = UmNotebook.empty();
+      const base = UmNotepad.empty();
       const manifest = {
         ...parseUmContainer(base.serialize()).manifest,
         ...override,
@@ -231,7 +231,7 @@ describe("parseUmContainer / serializeUmContainer", () => {
   });
 
   it("rejects duplicate note ids and missing note documents", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const data = parseUmContainer(nb.serialize());
     const [a, b] = data.manifest.notes;
     b.id = a.id;
@@ -253,17 +253,17 @@ describe("parseUmContainer / serializeUmContainer", () => {
     }
   });
 
-  it("accepts an empty notebook (spec 21)", () => {
-    const nb = UmNotebook.empty();
+  it("accepts an empty notepad (spec 21)", () => {
+    const nb = UmNotepad.empty();
     const parsed = parseUmContainer(nb.serialize());
     expect(parsed.manifest.notes).toEqual([]);
     expect(sortNoteDescriptors(parsed.manifest.notes)).toEqual([]);
   });
 });
 
-describe("UmNotebook", () => {
+describe("UmNotepad", () => {
   it("adds a note after a given note with contiguous orders", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const first = nb.notes()[0];
     const added = nb.addNote(first.id, "Inserted");
     expect(nb.notes().map((n) => n.title)).toEqual([
@@ -276,7 +276,7 @@ describe("UmNotebook", () => {
   });
 
   it("gc keeps referenced assets across notes and drops the rest", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const kept = nb.addAsset(new Uint8Array([1]), "kept.png", "image/png");
     const dropped = nb.addAsset(
       new Uint8Array([2]),
@@ -295,7 +295,7 @@ describe("UmNotebook", () => {
   });
 
   it("collects only asset references, not external vault links", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const asset = nb.addAsset(new Uint8Array([1]), "in.png", "image/png");
 
     const doc = helloDoc("mixed");
@@ -316,7 +316,7 @@ describe("UmNotebook", () => {
   });
 
   it("tracks dirty notes", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     expect(nb.dirtyNotes.size).toBe(0);
     const id = nb.notes()[0].id;
     nb.setNoteContent(id, helloDoc("changed"));
@@ -324,7 +324,7 @@ describe("UmNotebook", () => {
   });
 
   it("adopts the document's first line as the title on load (spec 8.4)", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const data = parseUmContainer(nb.serialize());
     const first = data.manifest.notes[0];
     first.title = "stale manifest title";
@@ -335,19 +335,19 @@ describe("UmNotebook", () => {
       content: [{ type: "text", text: "hhhhh" }],
     };
 
-    const reopened = UmNotebook.fromBytes(serializeUmContainer(data));
+    const reopened = UmNotepad.fromBytes(serializeUmContainer(data));
     expect(reopened.note(first.id)?.title).toBe("hhhhh");
   });
 
   it("mirrors title changes from setNoteContent", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const id = nb.notes()[0].id;
     nb.setNoteContent(id, helloDoc("New first line"));
     expect(nb.note(id)?.title).toBe("New first line");
   });
 
   it("setDisplayTitle rewrites the document's first line, not just the manifest", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const id = nb.notes()[0].id;
     nb.setDisplayTitle(id, "Renamed");
     expect(nb.note(id)?.title).toBe("Renamed");
@@ -359,7 +359,7 @@ describe("UmNotebook", () => {
   });
 
   it("addNote with a title writes it into the document's first line", () => {
-    const nb = UmNotebook.empty();
+    const nb = UmNotepad.empty();
     const added = nb.addNote(undefined, "Starter");
     const titleNode = nb
       .noteContent(added.id)
@@ -369,7 +369,7 @@ describe("UmNotebook", () => {
   });
 
   it("derives an empty title from a note without title text", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const id = nb.notes()[0].id;
     const doc = helloDoc("");
     doc.content = doc.content?.map((n) =>
@@ -381,7 +381,7 @@ describe("UmNotebook", () => {
   });
 
   it("removeNote drops the note and reindexes; restoreNote puts it back", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const second = nb.notes()[1];
     const removed = nb.removeNote(second.id);
     expect(removed).not.toBeNull();
@@ -396,7 +396,7 @@ describe("UmNotebook", () => {
   });
 
   it("removeNote of the first note restores at the original index", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const first = nb.notes()[0];
     const removed = nb.removeNote(first.id);
     nb.restoreNote(removed);
@@ -404,12 +404,12 @@ describe("UmNotebook", () => {
   });
 
   it("removeNote returns null for an unknown id", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     expect(nb.removeNote("missing")).toBeNull();
   });
 
   it("duplicateNote copies the document after the original with a fresh id", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const first = nb.notes()[0];
     const copy = nb.duplicateNote(first.id);
 
@@ -436,17 +436,17 @@ describe("UmNotebook", () => {
   });
 
   it("duplicateNote of an untitled note stays untitled", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const copy = nb.duplicateNote(nb.notes()[1].id);
     expect(copy?.title).toBe("Second (copy)");
-    const empty = UmNotebook.empty();
+    const empty = UmNotepad.empty();
     const added = empty.addNote();
     const copy2 = empty.duplicateNote(added.id);
     expect(copy2?.title ?? "").toBe("");
   });
 
   it("moveNote reorders without touching ids or content", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const first = nb.notes()[0];
     expect(nb.moveNote(first.id, 1)).toBe(true);
     expect(nb.notes().map((n) => n.title)).toEqual(["Second", "First"]);
@@ -461,30 +461,30 @@ describe("UmNotebook", () => {
   });
 
   it("moveNote clamps out-of-range indexes", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const first = nb.notes()[0];
     nb.moveNote(first.id, 99);
     expect(nb.notes().map((n) => n.title)).toEqual(["Second", "First"]);
   });
 
   it("persists the expanded flag and defaults to collapsed", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     expect(nb.isExpanded(nb.notes()[0].id)).toBe(false); // absent = collapsed
     nb.setExpanded(nb.notes()[0].id, true);
 
-    const reopened = UmNotebook.fromBytes(nb.serialize());
+    const reopened = UmNotepad.fromBytes(nb.serialize());
     expect(reopened.isExpanded(nb.notes()[0].id)).toBe(true);
     expect(reopened.isExpanded(nb.notes()[1].id)).toBe(false);
 
     // Collapsing removes the flag from the manifest.
     reopened.setExpanded(reopened.notes()[0].id, false);
-    const final = UmNotebook.fromBytes(reopened.serialize());
+    const final = UmNotepad.fromBytes(reopened.serialize());
     expect(final.notes()[0].expanded).toBeUndefined();
     expect(final.notes()[0].expanded === undefined).toBe(true);
   });
 
   it("restores the expanded flag together with a removed note", () => {
-    const nb = notebookWithTwoNotes();
+    const nb = notepadWithTwoNotes();
     const first = nb.notes()[0];
     nb.setExpanded(first.id, true);
     const removed = nb.removeNote(first.id);
@@ -506,7 +506,7 @@ describe("path helpers", () => {
 
 describe("createEmptyNote compatibility", () => {
   it("a plain .note document is a valid note payload (spec 9)", () => {
-    const nb = UmNotebook.empty();
+    const nb = UmNotepad.empty();
     const added = nb.addNote();
     expect(nb.noteContent(added.id)).toEqual(createEmptyNote());
     const parsed = parseUmContainer(nb.serialize());

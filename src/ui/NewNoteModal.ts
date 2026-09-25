@@ -2,8 +2,8 @@ import { App, Modal, Setting, TextComponent, type TFolder } from "obsidian";
 
 const INVALID_FILENAME_CHARS = /[\\/:*?"<>|]/g;
 
-/** What the modal should create: a plain `.note` or a `.um` notebook. */
-export type NewNoteKind = "note" | "notebook";
+/** What the modal should create: a plain `.note` or a `.um` notepad. */
+export type NewNoteKind = "note" | "notepad";
 
 export interface NewNoteResult {
   name: string;
@@ -16,7 +16,7 @@ export interface NewNoteModalOptions {
   namePlaceholder?: string;
   /** Preset the type selector. */
   kind?: NewNoteKind;
-  /** Show the Note/Notebook selector (default true). */
+  /** Show the Note/Notepad selector (default true). */
   chooseKind?: boolean;
 }
 
@@ -58,10 +58,10 @@ export class NewNoteModal extends Modal {
         .setClass("inscriptum-new-note-setting");
       kindSetting.addDropdown((dropdown) => {
         dropdown.addOption("note", "Note (.note)");
-        dropdown.addOption("notebook", "Notebook (.um)");
+        dropdown.addOption("notepad", "Notepad (.um)");
         dropdown.setValue(this.kind);
         dropdown.onChange((value) => {
-          this.kind = value === "notebook" ? "notebook" : "note";
+          this.kind = value === "notepad" ? "notepad" : "note";
         });
       });
     }

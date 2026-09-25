@@ -25,7 +25,7 @@
 /* Visually-hidden utility: hide elements for sighted users while keeping
    them available to the DOM (SVG sprite containers, native checkboxes).
    Global on purpose — any host that renders a sprite container (note
-   editor, notebook sections, …) must not re-declare this. */
+   editor, notepad sections, …) must not re-declare this. */
 .visually-hidden {
   position: absolute;
   width: 1px;

@@ -1,7 +1,7 @@
 import type { JSONContent } from "../texto/core/@types";
 
 /**
- * Notebook-wide search plumbing: build a plain-text index of a note document
+ * Notepad-wide search plumbing: build a plain-text index of a note document
  * (JSON shape) where every searchable segment keeps its ProseMirror position,
  * and find matches whose from/to are valid PM positions in the mounted editor.
  * Works on the JSON representation so collapsed (unmounted) notes are
@@ -148,23 +148,23 @@ export function findMatchesInIndex(
   return matches;
 }
 
-export interface NotebookSearchEntry {
+export interface NotepadSearchEntry {
   id: string;
   title: string;
   doc: JSONContent;
 }
 
-export interface NotebookSearchMatch extends IndexMatch {
+export interface NotepadSearchMatch extends IndexMatch {
   noteId: string;
   noteTitle: string;
 }
 
-/** Search every note of the notebook (document order). */
-export function searchNotebook(
-  entries: NotebookSearchEntry[],
+/** Search every note of the notepad (document order). */
+export function searchNotepad(
+  entries: NotepadSearchEntry[],
   query: string,
-): NotebookSearchMatch[] {
-  const matches: NotebookSearchMatch[] = [];
+): NotepadSearchMatch[] {
+  const matches: NotepadSearchMatch[] = [];
   if (!query.trim()) return matches;
   for (const entry of entries) {
     const index = buildNoteTextIndex(entry.doc);

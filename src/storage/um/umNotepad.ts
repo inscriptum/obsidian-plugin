@@ -19,16 +19,16 @@ import {
 } from "./umTypes";
 
 /**
- * In-memory notebook: the parsed container plus the mutations the editor
+ * In-memory notepad: the parsed container plus the mutations the editor
  * UI performs on it (note content, titles, assets). Persistence lives in
  * umVault; this class is Obsidian-free and directly testable.
  *
- * Asset references: an image node inside a notebook note stores the asset id
+ * Asset references: an image node inside a notepad note stores the asset id
  * in `data.id` (spec section 17). Membership in the asset registry decides
  * whether an id is a packed asset or an external vault link, so the note
  * document itself needs no new attribute shapes.
  */
-export class UmNotebook {
+export class UmNotepad {
   readonly data: UmContainerData;
 
   /** Notes whose editor content changed since the last save. */
@@ -36,7 +36,7 @@ export class UmNotebook {
   /** True when notes or assets were added/removed/renamed (manifest changed). */
   structureChanged = false;
 
-  /** Fingerprint of the on-disk state this notebook last reflected (its own
+  /** Fingerprint of the on-disk state this notepad last reflected (its own
    *  write or the last external load). Set by umVault; used to tell our own
    *  saves apart from foreign vault "modify" events. */
   savedFingerprint: string | null = null;
@@ -53,17 +53,17 @@ export class UmNotebook {
     }
   }
 
-  static fromBytes(bytes: Uint8Array): UmNotebook {
-    return new UmNotebook(parseUmContainer(bytes));
+  static fromBytes(bytes: Uint8Array): UmNotepad {
+    return new UmNotepad(parseUmContainer(bytes));
   }
 
-  /** A brand-new notebook with no notes (spec section 21). */
-  static empty(): UmNotebook {
-    return new UmNotebook({
+  /** A brand-new notepad with no notes (spec section 21). */
+  static empty(): UmNotepad {
+    return new UmNotepad({
       manifest: {
         format: "um",
         version: 1,
-        type: "notebook",
+        type: "notepad",
         notes: [],
       },
       notes: new Map(),
@@ -85,7 +85,7 @@ export class UmNotebook {
     return this.data.notes.get(id);
   }
 
-  /** Notebook UI expanded state — persisted on the descriptor (absent =
+  /** Notepad UI expanded state — persisted on the descriptor (absent =
    *  collapsed, the spec's initial default). */
   isExpanded(id: string): boolean {
     return this.note(id)?.expanded === true;
@@ -282,7 +282,7 @@ export class UmNotebook {
     return descriptor;
   }
 
-  /** Object URL for the asset's bytes, cached for the notebook's lifetime
+  /** Object URL for the asset's bytes, cached for the notepad's lifetime
    *  (revoked in destroy). Null when the asset is missing from the archive. */
   assetUrl(id: string): string | null {
     if (this.objectUrls.has(id)) {

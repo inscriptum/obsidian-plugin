@@ -1,9 +1,9 @@
-/* NotebookView (.um) — flat document of collapsible note sections.
+/* NotepadView (.um) — flat document of collapsible note sections.
    Layout follows the blog draft view: page order + fold chevron in the left
    margin, content column with a thin rule, light separators between pages,
    ghost add/delete controls under each section. */
 
-.notebook-view-container {
+.notepad-view-container {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -12,7 +12,7 @@
 
 /* ── Pages navigation drawer (blog-style, hidden by default) ── */
 
-.notebook-nav {
+.notepad-nav {
   position: absolute;
   top: 52px;
   bottom: 0;
@@ -31,7 +31,7 @@
     visibility 0.35s;
 }
 
-.notebook-nav.is-open {
+.notepad-nav.is-open {
   transform: translateX(0);
   visibility: visible;
 }
@@ -41,7 +41,7 @@
    prefix out-ranks Obsidian's button:not(.clickable-icon) chrome.
    When the drawer opens, ☰ morphs into ✕ (crossfade + rotation) — the
    button then closes the drawer. */
-button.notebook-nav-toggle {
+button.notepad-nav-toggle {
   position: absolute;
   top: 8px;
   /* Closed drawer: the toggle hangs OUTSIDE it (the drawer is translated
@@ -65,7 +65,7 @@ button.notebook-nav-toggle {
     right 0.35s;
 }
 
-button.notebook-nav-toggle svg {
+button.notepad-nav-toggle svg {
   position: absolute;
   top: 0;
   left: 0;
@@ -78,42 +78,42 @@ button.notebook-nav-toggle svg {
     transform 0.35s;
 }
 
-button.notebook-nav-toggle .icon-close {
+button.notepad-nav-toggle .icon-close {
   opacity: 0;
   transform: rotate(-90deg) scale(0.6);
 }
 
-.notebook-nav.is-open button.notebook-nav-toggle .icon-menu {
+.notepad-nav.is-open button.notepad-nav-toggle .icon-menu {
   opacity: 0;
   transform: rotate(90deg) scale(0.6);
 }
 
-.notebook-nav.is-open button.notebook-nav-toggle .icon-close {
+.notepad-nav.is-open button.notepad-nav-toggle .icon-close {
   opacity: 1;
   transform: rotate(0deg);
 }
 
-button.notebook-nav-toggle:hover,
-button.notebook-nav-toggle:focus {
+button.notepad-nav-toggle:hover,
+button.notepad-nav-toggle:focus {
   color: var(--text-normal);
   background: transparent;
   box-shadow: none;
 }
 
-button.notebook-nav-toggle:hover svg {
+button.notepad-nav-toggle:hover svg {
   stroke: var(--text-normal);
 }
 
 /* Blog TOC look: inset line, page rows with the number right before the
    header — one aligned line, compact left indent. */
-.notebook-nav-list {
+.notepad-nav-list {
   flex: 1 1 auto;
   overflow-y: auto;
   margin-top: var(--size-4-2);
   box-shadow: inset 1px 0 0 var(--background-modifier-border);
 }
 
-.notebook-nav-item {
+.notepad-nav-item {
   display: flex;
   align-items: baseline;
   cursor: pointer;
@@ -124,11 +124,11 @@ button.notebook-nav-toggle:hover svg {
   }
 }
 
-.notebook-nav-item:hover {
+.notepad-nav-item:hover {
   color: var(--text-normal);
 }
 
-.notebook-nav-numb {
+.notepad-nav-numb {
   width: 2.4rem;
   padding-right: 0.8rem;
   text-align: right;
@@ -137,7 +137,7 @@ button.notebook-nav-toggle:hover svg {
   flex-shrink: 0;
 }
 
-.notebook-nav-header {
+.notepad-nav-header {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
@@ -148,18 +148,18 @@ button.notebook-nav-toggle:hover svg {
   line-height: 2.2rem;
 }
 
-.notebook-nav-header.is-empty {
+.notepad-nav-header.is-empty {
   color: var(--text-faint);
   font-style: italic;
 }
 
-.notebook-nav-item.is-active .notebook-nav-header {
+.notepad-nav-item.is-active .notepad-nav-header {
   color: var(--interactive-accent);
 }
 
-/* ── Notebook-wide search panel ── */
+/* ── Notepad-wide search panel ── */
 
-.notebook-search {
+.notepad-search {
   position: absolute;
   top: var(--size-2-2);
   right: var(--size-4-4);
@@ -174,7 +174,7 @@ button.notebook-nav-toggle:hover svg {
   box-shadow: var(--shadow-s);
 }
 
-.notebook-search-input {
+.notepad-search-input {
   width: 200px;
   padding: 2px 6px;
   border: 1px solid var(--background-modifier-border);
@@ -184,12 +184,12 @@ button.notebook-nav-toggle:hover svg {
   font-size: var(--font-ui-small);
 }
 
-.notebook-search-input:focus {
+.notepad-search-input:focus {
   outline: none;
   border-color: var(--interactive-accent);
 }
 
-.notebook-search-count {
+.notepad-search-count {
   min-width: 44px;
   text-align: center;
   color: var(--text-muted);
@@ -197,7 +197,7 @@ button.notebook-nav-toggle:hover svg {
   white-space: nowrap;
 }
 
-.notebook-search-btn {
+.notepad-search-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -211,27 +211,27 @@ button.notebook-nav-toggle:hover svg {
   cursor: pointer;
 }
 
-.notebook-search-btn:hover {
+.notepad-search-btn:hover {
   color: var(--text-normal);
   background: var(--background-modifier-hover);
 }
 
-.notebook-toolbar-host {
+.notepad-toolbar-host {
   flex: 0 0 auto;
 }
 
-.notebook-scroller {
+.notepad-scroller {
   flex: 1 1 auto;
   overflow-y: auto;
   padding: var(--size-4-4) var(--size-4-5) var(--size-4-10);
 }
 
-.notebook-sections {
+.notepad-sections {
   max-width: 880px;
   margin: 0 auto;
 }
 
-.notebook-section {
+.notepad-section {
   position: relative;
   padding-left: 74px;
 }
@@ -241,7 +241,7 @@ button.notebook-nav-toggle:hover svg {
    background/border/box-shadow all off), hairline strokes, muted color
    darkening on hover with a 0.2s transition. */
 
-.notebook-section-margin {
+.notepad-section-margin {
   position: absolute;
   left: 0;
   top: -5px;
@@ -251,7 +251,7 @@ button.notebook-nav-toggle:hover svg {
   width: 70px;
 }
 
-.notebook-section-order {
+.notepad-section-order {
   min-width: 24px;
   text-align: right;
   color: var(--text-faint);
@@ -261,7 +261,7 @@ button.notebook-nav-toggle:hover svg {
   transition: color 0.2s;
 }
 
-button.notebook-section-gutter {
+button.notepad-section-gutter {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -279,28 +279,28 @@ button.notebook-section-gutter {
   transition: color 0.2s;
 }
 
-button.notebook-section-gutter:active {
+button.notepad-section-gutter:active {
   cursor: grabbing;
 }
 
-button.notebook-section-gutter svg {
+button.notepad-section-gutter svg {
   transition:
     stroke 0.2s,
     transform 0.2s;
 }
 
-button.notebook-section-gutter:hover,
-.notebook-section-margin:hover .notebook-section-order {
+button.notepad-section-gutter:hover,
+.notepad-section-margin:hover .notepad-section-order {
   color: var(--text-normal);
 }
 
-button.notebook-section-gutter:hover svg {
+button.notepad-section-gutter:hover svg {
   stroke: var(--text-normal);
 }
 
 /* Folded pages point right; expanded rotate the chevron down. The gutter
    stays in ONE fixed spot for both states (aligned with the first line). */
-.notebook-section.is-expanded button.notebook-section-gutter svg {
+.notepad-section.is-expanded button.notepad-section-gutter svg {
   transform: rotate(90deg);
 }
 
@@ -309,32 +309,32 @@ button.notebook-section-gutter:hover svg {
    separator on every page — the controls row lives INSIDE the frame, so
    the line closes each page including the last one. */
 
-.notebook-section-body {
+.notepad-section-body {
   min-width: 0;
   padding: 2px 0 0 16px;
 }
 
-.notebook-section.is-expanded .notebook-section-body {
+.notepad-section.is-expanded .notepad-section-body {
   border-left: 1px solid var(--background-modifier-border);
 }
 
-.notebook-section .notebook-section-body {
+.notepad-section .notepad-section-body {
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
 /* Visual gap between the page frames themselves (frames must not touch). */
-.notebook-section + .notebook-section {
+.notepad-section + .notepad-section {
   margin-top: 32px;
 }
 
-.notebook-section-content {
+.notepad-section-content {
   min-height: 20px;
   padding-bottom: var(--size-2-1);
 }
 
 /* ── Collapsed row ── */
 
-.notebook-section-collapsed {
+.notepad-section-collapsed {
   display: flex;
   align-items: center;
   gap: var(--size-2-2);
@@ -347,23 +347,23 @@ button.notebook-section-gutter:hover svg {
   color: var(--text-muted);
 }
 
-.notebook-section-collapsed:hover {
+.notepad-section-collapsed:hover {
   color: var(--text-normal);
 }
 
-.notebook-section-title {
+.notepad-section-title {
   flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.notebook-section-title.is-empty {
+.notepad-section-title.is-empty {
   color: var(--text-faint);
   font-style: italic;
 }
 
-.notebook-section-edit {
+.notepad-section-edit {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
@@ -375,11 +375,11 @@ button.notebook-section-gutter:hover svg {
   transition: opacity 0.2s;
 }
 
-.notebook-section-collapsed:hover .notebook-section-edit {
+.notepad-section-collapsed:hover .notepad-section-edit {
   opacity: 1;
 }
 
-.notebook-title-input {
+.notepad-title-input {
   flex: 1 1 auto;
   width: 100%;
   padding: 2px 6px;
@@ -390,23 +390,23 @@ button.notebook-section-gutter:hover svg {
   font-size: 15px;
 }
 
-.notebook-title-input:focus {
+.notepad-title-input:focus {
   outline: none;
   border-color: var(--interactive-accent);
 }
 
 /* ── Expanded section ── */
 
-.notebook-note-host {
+.notepad-note-host {
   min-height: 120px;
 }
 
-/* Notebook pages frame themselves, so the editor's own top/bottom padding
+/* Notepad pages frame themselves, so the editor's own top/bottom padding
    (32px/120px for plain .note files) is dropped — only for the um view.
-   The inner editor never scrolls on its own: the notebook scroller scrolls
+   The inner editor never scrolls on its own: the notepad scroller scrolls
    the whole document, and a nested auto-scroller produces phantom
    scrollbars on sub-pixel rounding. */
-.notebook-view-container .texto-editor {
+.notepad-view-container .texto-editor {
   padding-top: 0;
   padding-bottom: 0;
   overflow-y: visible;
@@ -414,11 +414,11 @@ button.notebook-section-gutter:hover svg {
 
 /* ── Drag & drop reorder ── */
 
-.notebook-section.is-dragging {
+.notepad-section.is-dragging {
   opacity: 0.35;
 }
 
-.notebook-drop-line {
+.notepad-drop-line {
   position: absolute;
   left: 0;
   right: 0;
@@ -435,7 +435,7 @@ button.notebook-section-gutter:hover svg {
    to full strength, a hovered icon darkens. Small icons pinned to the
    right edge of the section column. */
 
-.notebook-section-controls {
+.notepad-section-controls {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -445,12 +445,12 @@ button.notebook-section-gutter:hover svg {
   transition: opacity 0.2s;
 }
 
-.notebook-section-controls:hover,
-.notebook-section-controls:focus-within {
+.notepad-section-controls:hover,
+.notepad-section-controls:focus-within {
   opacity: 1;
 }
 
-button.notebook-section-control {
+button.notepad-section-control {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -465,7 +465,7 @@ button.notebook-section-control {
   cursor: pointer;
 }
 
-button.notebook-section-control svg {
+button.notepad-section-control svg {
   width: 20px;
   height: 20px;
   stroke-width: 1.25;
@@ -474,20 +474,20 @@ button.notebook-section-control svg {
     opacity 0.2s;
 }
 
-button.notebook-section-control:hover svg {
+button.notepad-section-control:hover svg {
   stroke: var(--text-normal);
 }
 
 /* Delete icon keeps the plus's three-level emphasis, in red — with a soft
    red tint on its own hover so the highlight is unmistakable. */
-button.notebook-section-control.is-danger svg {
+button.notepad-section-control.is-danger svg {
   stroke: var(--text-error);
   opacity: 0.35;
 }
 
-.notebook-section-controls:hover button.notebook-section-control.is-danger svg,
-.notebook-section-controls:focus-within
-  button.notebook-section-control.is-danger
+.notepad-section-controls:hover button.notepad-section-control.is-danger svg,
+.notepad-section-controls:focus-within
+  button.notepad-section-control.is-danger
   svg {
   opacity: 0.75;
 }
@@ -495,7 +495,7 @@ button.notebook-section-control.is-danger svg {
 /* Own hover outranks the group-hover rule above (same properties): the
    icon-only emphasis — full-strength red, slightly thicker stroke, no
    button chrome of any kind. */
-.notebook-section-controls button.notebook-section-control.is-danger:hover svg {
+.notepad-section-controls button.notepad-section-control.is-danger:hover svg {
   opacity: 1;
   stroke-width: 1.6;
 }
@@ -504,7 +504,7 @@ button.notebook-section-control.is-danger svg {
    Compact text action that fits the notice in both themes (the raw button
    otherwise inherits wide modal styling). */
 
-.notebook-notice-action {
+.notepad-notice-action {
   flex: 0 0 auto;
   align-self: center;
   width: auto;
@@ -520,13 +520,13 @@ button.notebook-section-control.is-danger svg {
   opacity: 0.85;
 }
 
-.notebook-notice-action:hover {
+.notepad-notice-action:hover {
   opacity: 1;
 }
 
-/* ── Empty notebook ── */
+/* ── Empty notepad ── */
 
-.notebook-add-note {
+.notepad-add-note {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -541,17 +541,17 @@ button.notebook-section-control.is-danger svg {
   cursor: pointer;
 }
 
-.notebook-add-note:hover {
+.notepad-add-note:hover {
   color: var(--text-normal);
   background: var(--background-modifier-hover);
 }
 
 /* Obsidian's `button:not(.clickable-icon)` base outranks a bare class —
    restate the bare-button reset for every state. */
-button.notebook-section-gutter:hover,
-button.notebook-section-control:hover,
-button.notebook-section-gutter:focus,
-button.notebook-section-control:focus {
+button.notepad-section-gutter:hover,
+button.notepad-section-control:hover,
+button.notepad-section-gutter:focus,
+button.notepad-section-control:focus {
   background-color: transparent;
   box-shadow: none;
 }

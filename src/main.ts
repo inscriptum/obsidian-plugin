@@ -11,11 +11,11 @@ import {
   WorkspaceLeaf,
 } from "obsidian";
 import { NoteView, NOTE_VIEW_TYPE } from "./NoteView";
-import { NotebookView, NOTEBOOK_VIEW_TYPE } from "./NotebookView";
+import { NotepadView, NOTEPAD_VIEW_TYPE } from "./NotepadView";
 import { installIconSprite } from "./components/icons/iconSprite";
 import { createEmptyNote, setWriteLogEnabled } from "./storage/noteStorage";
 import { createUmFile } from "./storage/um/umVault";
-import { UmNotebook } from "./storage/um/umNotebook";
+import { UmNotepad } from "./storage/um/umNotepad";
 import { NewNoteModal } from "./ui/NewNoteModal";
 import {
   findCommandsCollidingWith,
@@ -65,11 +65,11 @@ export default class NotesPlugin extends Plugin {
       (leaf: WorkspaceLeaf) => new NoteView(leaf),
     );
 
-    this.registerExtensions(["um"], NOTEBOOK_VIEW_TYPE);
+    this.registerExtensions(["um"], NOTEPAD_VIEW_TYPE);
 
     this.registerView(
-      NOTEBOOK_VIEW_TYPE,
-      (leaf: WorkspaceLeaf) => new NotebookView(leaf),
+      NOTEPAD_VIEW_TYPE,
+      (leaf: WorkspaceLeaf) => new NotepadView(leaf),
     );
 
     // Obsidian's own command hotkeys (e.g. "Toggle bold" on Mod+b) match by
@@ -86,12 +86,12 @@ export default class NotesPlugin extends Plugin {
       this.restorePatchedCommands();
     });
 
-    // Notebook page editors participate in the same hotkey routing.
-    NotebookView.onEditorCreated = (editor) => {
+    // Notepad page editors participate in the same hotkey routing.
+    NotepadView.onEditorCreated = (editor) => {
       this.patchCollidingCommands(editor.registeredShortcuts);
     };
     this.register(() => {
-      NotebookView.onEditorCreated = null;
+      NotepadView.onEditorCreated = null;
     });
 
     NoteView.onExportRequested = (view) => void this.exportNoteAsWebsite(view);
@@ -99,7 +99,7 @@ export default class NotesPlugin extends Plugin {
       NoteView.onExportRequested = null;
     });
 
-    this.addRibbonIcon("notebook-pen", "New inscriptum", () => {
+    this.addRibbonIcon("notepad-pen", "New inscriptum", () => {
       this.createNewNote();
     });
 
@@ -112,10 +112,10 @@ export default class NotesPlugin extends Plugin {
     });
 
     this.addCommand({
-      id: "create-new-notebook",
-      name: "New notebook (.um)",
+      id: "create-new-notepad",
+      name: "New notepad (.um)",
       callback: () => {
-        this.createNewNotebook();
+        this.createNewNotepad();
       },
     });
 
@@ -150,7 +150,7 @@ export default class NotesPlugin extends Plugin {
         menu.addItem((item) =>
           item
             .setTitle("New inscriptum")
-            .setIcon("notebook-pen")
+            .setIcon("notepad-pen")
             .onClick(() => this.createNewNote(file.path)),
         );
       }),
@@ -240,12 +240,12 @@ export default class NotesPlugin extends Plugin {
       }
       return true;
     }
-    const notebook = this.app.workspace.getActiveViewOfType(NotebookView);
-    if (notebook?.focusedEditor) {
+    const notepad = this.app.workspace.getActiveViewOfType(NotepadView);
+    if (notepad?.focusedEditor) {
       if (checking) return true;
       for (const name of ownedNames) {
         const event = nameToKeyboardEvent(name);
-        if (event) notebook.handleEditorShortcut(event);
+        if (event) notepad.handleEditorShortcut(event);
       }
       return true;
     }
@@ -277,7 +277,7 @@ export default class NotesPlugin extends Plugin {
       cls: "clickable-icon nav-action-button inscriptum-nav-new-note",
       attr: { "aria-label": "New inscriptum", type: "button" },
     });
-    setIcon(button, "notebook-pen");
+    setIcon(button, "notepad-pen");
     button.addEventListener("click", (event) => {
       event.preventDefault();
       this.createNewNote();
@@ -371,8 +371,8 @@ export default class NotesPlugin extends Plugin {
 
         const { name, folderPath, kind } = result;
         try {
-          if (kind === "notebook") {
-            await this.createNotebookFile(name, folderPath);
+          if (kind === "notepad") {
+            await this.createNotepadFile(name, folderPath);
           } else {
             await this.createNoteFile(name, folderPath);
           }
@@ -380,14 +380,14 @@ export default class NotesPlugin extends Plugin {
           new Notice(
             `Failed to create: ${error instanceof Error ? error.message : String(error)}`,
           );
-          console.error("Failed to create note/notebook:", error);
+          console.error("Failed to create note/notepad:", error);
         }
       },
     ).open();
   }
 
-  /** "New notebook (.um)": the creation modal with Notebook preselected. */
-  private createNewNotebook() {
+  /** "New notepad (.um)": the creation modal with Notepad preselected. */
+  private createNewNotepad() {
     const activeFile = this.app.workspace.getActiveFile();
     const defaultFolder =
       activeFile?.parent ??
@@ -400,8 +400,8 @@ export default class NotesPlugin extends Plugin {
       async (result) => {
         if (!result) return;
         try {
-          if (result.kind === "notebook") {
-            await this.createNotebookFile(result.name, result.folderPath);
+          if (result.kind === "notepad") {
+            await this.createNotepadFile(result.name, result.folderPath);
           } else {
             await this.createNoteFile(result.name, result.folderPath);
           }
@@ -409,10 +409,10 @@ export default class NotesPlugin extends Plugin {
           new Notice(
             `Failed to create: ${error instanceof Error ? error.message : String(error)}`,
           );
-          console.error("Failed to create note/notebook:", error);
+          console.error("Failed to create note/notepad:", error);
         }
       },
-      { kind: "notebook", namePlaceholder: "Notebook name" },
+      { kind: "notepad", namePlaceholder: "Notepad name" },
     ).open();
   }
 
@@ -432,19 +432,19 @@ export default class NotesPlugin extends Plugin {
   }
 
   /** Create a `.um` container with one starter note whose manifest title
-   *  matches the notebook name, then open it. */
-  private async createNotebookFile(
+   *  matches the notepad name, then open it. */
+  private async createNotepadFile(
     name: string,
     folderPath: string,
   ): Promise<void> {
-    const notebook = UmNotebook.empty();
-    notebook.addNote(undefined, name);
+    const notepad = UmNotepad.empty();
+    notepad.addNote(undefined, name);
     // The starter page lands expanded (persisted in the manifest).
-    notebook.setExpanded(notebook.notes()[0]?.id, true);
+    notepad.setExpanded(notepad.notes()[0]?.id, true);
     const path = normalizePath(
       folderPath ? `${folderPath}/${name}.um` : `${name}.um`,
     );
-    const file = await createUmFile(this.app.vault, path, notebook);
+    const file = await createUmFile(this.app.vault, path, notepad);
     await this.app.workspace.getLeaf("tab").openFile(file);
   }
 }

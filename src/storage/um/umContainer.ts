@@ -163,7 +163,7 @@ export function parseUmContainer(bytes: Uint8Array): UmContainerData {
   for (const asset of assetDescriptors) {
     claimedPaths.add(asset.path);
     const bytes = files[asset.path];
-    // A missing asset is a broken image, not a broken notebook (spec 22:
+    // A missing asset is a broken image, not a broken notepad (spec 22:
     // invalid optional extensions must not make the container unreadable).
     if (bytes != null) assets.set(asset.id, bytes);
   }

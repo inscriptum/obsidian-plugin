@@ -1,6 +1,6 @@
 import type { TFile, Vault } from "obsidian";
 import { logDiagEvent, logNoteWrite } from "../noteStorage";
-import { UmNotebook } from "./umNotebook";
+import { UmNotepad } from "./umNotepad";
 
 /**
  * Obsidian-facing IO for `.um` containers. The write path mirrors
@@ -13,31 +13,31 @@ import { UmNotebook } from "./umNotebook";
 export async function readUmFile(
   file: TFile,
   vault: Vault,
-): Promise<UmNotebook> {
+): Promise<UmNotepad> {
   const buffer = await vault.readBinary(file);
-  return UmNotebook.fromBytes(new Uint8Array(buffer));
+  return UmNotepad.fromBytes(new Uint8Array(buffer));
 }
 
-/** Create a new `.um` file from an in-memory notebook. */
+/** Create a new `.um` file from an in-memory notepad. */
 export async function createUmFile(
   vault: Vault,
   path: string,
-  notebook: UmNotebook,
+  notepad: UmNotepad,
 ): Promise<TFile> {
-  const bytes = notebook.serialize();
+  const bytes = notepad.serialize();
   const tfile = await vault.createBinary(path, bufferFrom(bytes));
   return tfile as TFile;
 }
 
-/** Atomically persist the notebook and update its saved-state fingerprint. */
+/** Atomically persist the notepad and update its saved-state fingerprint. */
 export async function writeUmFile(
   file: TFile,
   vault: Vault,
-  notebook: UmNotebook,
+  notepad: UmNotepad,
   trigger = "unknown",
 ): Promise<void> {
   const started = Date.now();
-  const bytes = notebook.serialize();
+  const bytes = notepad.serialize();
   const data = bufferFrom(bytes);
   const slash = file.path.lastIndexOf("/");
   const dir = slash === -1 ? "" : file.path.slice(0, slash);
@@ -57,7 +57,7 @@ export async function writeUmFile(
   try {
     await vault.adapter.writeBinary(tmpPath, data);
     await replaceFile(vault, tmpPath, file.path);
-    notebook.savedFingerprint = await fingerprintStat(vault, file.path);
+    notepad.savedFingerprint = await fingerprintStat(vault, file.path);
   } catch (err) {
     result = "error";
     error = err instanceof Error ? err.message : String(err);
@@ -83,7 +83,7 @@ export async function writeUmFile(
   }
 }
 
-/** Fingerprint of the file's last known on-disk state: the notebook's own
+/** Fingerprint of the file's last known on-disk state: the notepad's own
  *  writes update it, so vault "modify" events for foreign changes are the
  *  only ones that observe a different value. Null while unknown. */
 export async function umFingerprint(
@@ -127,7 +127,7 @@ async function replaceFile(
     // adapter.rename refuses to overwrite an existing destination —
     // fall through to the in-place write.
   }
-  // In-place replace of the OPEN notebook file is intentional here:
+  // In-place replace of the OPEN notepad file is intentional here:
   // adapter.remove would fire a vault "delete" and close the view
   // (issues/mobile-edit-exits-note, rule-open-file-safety).
   const data = await vault.adapter.readBinary(tmpPath);

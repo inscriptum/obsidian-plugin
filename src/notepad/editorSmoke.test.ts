@@ -23,8 +23,8 @@ function build(content: JSONContent): { ok: boolean; error?: string } {
   return { ok, error };
 }
 
-describe("editor smoke: content shapes used by NotebookView", () => {
-  it("builds an editor for createEmptyNote() (new notebook note)", () => {
+describe("editor smoke: content shapes used by NotepadView", () => {
+  it("builds an editor for createEmptyNote() (new notepad note)", () => {
     const r = build(createEmptyNote());
     expect({ ok: r.ok, error: r.error?.slice(0, 300) }).toMatchObject({
       ok: true,

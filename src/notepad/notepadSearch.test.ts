@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { Editor } from "../texto/core";
 import { getExtensions } from "../texto/getExtensions";
-import { buildNoteTextIndex, findMatchesInIndex } from "./notebookSearch";
+import { buildNoteTextIndex, findMatchesInIndex } from "./notepadSearch";
 import { findDocumentMatches } from "../search/documentSearch";
 import type { JSONContent } from "../texto/core/@types";
 
@@ -39,7 +39,7 @@ const docWithMarks: JSONContent = {
   ],
 };
 
-describe("notebookSearch index", () => {
+describe("notepadSearch index", () => {
   it("matches the PM document's own search ranges", () => {
     const editor = editorFor(docWithMarks);
     const index = buildNoteTextIndex(editor.getJSON());

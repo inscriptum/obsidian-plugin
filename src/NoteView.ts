@@ -164,7 +164,7 @@ export class NoteView extends FileView {
   }
 
   getIcon(): string {
-    return "notebook-pen";
+    return "notepad-pen";
   }
 
   canAcceptExtension(extension: string): boolean {
