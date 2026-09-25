@@ -83,10 +83,6 @@ button.notebook-nav-toggle .icon-close {
   transform: rotate(-90deg) scale(0.6);
 }
 
-.notebook-nav.is-open button.notebook-nav-toggle {
-  right: 0;
-}
-
 .notebook-nav.is-open button.notebook-nav-toggle .icon-menu {
   opacity: 0;
   transform: rotate(90deg) scale(0.6);
@@ -114,16 +110,18 @@ button.notebook-nav-toggle:hover svg {
   flex: 1 1 auto;
   overflow-y: auto;
   margin-top: var(--size-4-2);
-  padding: 1.6rem 0 1.6rem 1.6rem;
   box-shadow: inset 1px 0 0 var(--background-modifier-border);
 }
 
 .notebook-nav-item {
   display: flex;
   align-items: baseline;
-  padding: 0.4rem 0.8rem 0.4rem 0;
   cursor: pointer;
   color: var(--text-muted);
+
+  &:first-child {
+    text-transform: uppercase;
+  }
 }
 
 .notebook-nav-item:hover {
