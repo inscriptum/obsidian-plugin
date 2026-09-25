@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `.um` notepad container: a single file holding an ordered list of pages — ZIP archive with a manifest (`type: notepad`), deterministic writes (fixed timestamps, pretty-printed JSON), unknown manifest fields/archive entries preserved across saves, stable per-page IDs, atomic writes, fingerprint-based external-change detection with a conflict dialog.
+- Notepad UI: a flat document of collapsible pages (blog draft view) — lazy per-page editors, one toolbar that follows the focused page, add/duplicate/delete pages (delete with confirmation + undo), inline rename, drag & drop reordering by the page gutter, always-visible toolbar, pages navigation drawer (☰, hidden by default).
+- Images added inside a notepad are packed into the container (`assets/<id>.<ext>`, referenced by stable asset id, object-URL display, garbage-collected on save); other attachments stay external vault files.
+- Persistent per-page expanded state stored in the manifest; the first page anchors the notepad (unnumbered, no delete, cannot be moved).
+- Notebook-wide search (Mod+F): case-insensitive search across all pages including collapsed ones, jump-to-match with lazy page expansion, in-page highlight decorations.
+- "New notepad (.um)" command and a Type selector (Note/Notepad) in the "New inscriptum" modal.
+
+### Fixed
+
+- Custom element tags now get a per-build identifier in production builds too: toggling the plugin off/on without an app restart no longer breaks images/attachments (previously the stale element registry made image views fail to construct).
+
 ## [0.9.0] - 2026-09-18
 
 ### Added
