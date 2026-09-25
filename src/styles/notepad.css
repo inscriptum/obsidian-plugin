@@ -473,16 +473,23 @@ button.notepad-section-gutter:hover svg {
   pointer-events: none;
 }
 
-/* The summary line under the title — the blog's role=definition. */
+/* The summary line under the title — the blog draft's role=definition:
+   15px/18px regular, muted gray, 12px vertical rhythm (theme variables
+   keep it correct in both light and dark schemes; the blog's hard-coded
+   #79828b is the light-scheme face of --text-muted). */
 .notepad-view-container p[role="definition"] {
+  margin: 12px 0;
   color: var(--text-muted);
   font-size: 15px;
+  font-weight: 400;
   line-height: 18px;
+  font-style: normal;
 }
 
 .notepad-view-container p[role="definition"] a[href] {
+  color: var(--text-muted);
   border-bottom: none;
-  border-bottom: 0.1em solid rgba(0, 0, 0, 0.4);
+  border-bottom: 0.1em solid rgba(127, 127, 127, 0.4);
 }
 
 /* Static title row: the title page fallback when its editor failed. */

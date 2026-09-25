@@ -86,8 +86,12 @@ export const dragHandleKey = new PluginKey<DragHandleState>(
   "inscriptumDragHandle",
 );
 
-/** Top-level node kinds that cannot be dragged (the document title). */
-export const DRAG_HANDLE_EXCLUDED_TYPES: readonly string[] = ["noteTitle"];
+/** Top-level node kinds that cannot be dragged (the document title and the
+ *  title page's summary — the cover header is fixed, spec 9.1). */
+export const DRAG_HANDLE_EXCLUDED_TYPES: readonly string[] = [
+  "noteTitle",
+  "noteSummary",
+];
 
 /** Node kinds that drag as individual items (a whole list drags item-wise). */
 export const DRAG_HANDLE_ITEM_TYPES: readonly string[] = [
