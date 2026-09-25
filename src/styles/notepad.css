@@ -110,7 +110,6 @@ button.notepad-nav-toggle:hover svg {
   flex: 1 1 auto;
   overflow-y: auto;
   margin-top: var(--size-4-2);
-  box-shadow: inset 1px 0 0 var(--background-modifier-border);
 }
 
 .notepad-nav-item {
