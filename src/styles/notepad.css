@@ -318,6 +318,17 @@ button.notepad-section-gutter:hover svg {
   border-left: 1px solid var(--background-modifier-border);
 }
 
+/* Pages that cannot be opened keep the page-frame look of expanded pages. */
+.notepad-section.is-unsupported .notepad-section-body {
+  border-left: 1px solid var(--background-modifier-border);
+}
+
+/* The title page is the cover: no left frame rule, ever (spec 9.1).
+   Restated after the rules above so it wins the equal-specificity race. */
+.notepad-section.is-title.is-expanded .notepad-section-body {
+  border-left: none;
+}
+
 .notepad-section .notepad-section-body {
   border-bottom: 1px solid var(--background-modifier-border);
 }
@@ -399,6 +410,103 @@ button.notepad-section-gutter:hover svg {
 
 .notepad-note-host {
   min-height: 120px;
+}
+
+/* ── Title page header (spec 9.1) ──
+   The blog draft's cover: a large title with a summary line under it.
+   While a field is empty it shows its placeholder (the `empty` decoration
+   class + data-placeholder); while the caret is inside the header and the
+   field has text, the `focused` class shows the field label with the
+   vertical rule to the left of the field (inside the 74px margin, where
+   the title page has no gutter). Real focus is CSS-live via :focus-within,
+   so the labels disappear with the caret without decoration churn. */
+
+/* The cover title is larger than an in-content h1 (the blog draft look). */
+.notepad-section.is-title .ProseMirror > h1:first-child {
+  font-size: 40px;
+  line-height: 1.15;
+}
+
+/* The header nodes come from the editor's own rendering (h1/p); the label
+   pseudo-element hangs into the left margin. */
+.notepad-view-container [data-label] {
+  position: relative;
+}
+
+.notepad-view-container [data-label]:after {
+  position: absolute;
+  content: attr(data-label);
+  color: var(--text-faint);
+  border-right: 1px solid var(--background-modifier-border);
+  right: 100%;
+  top: -6px;
+  bottom: -6px;
+  padding: 6px 12px;
+  font-weight: normal;
+  margin: 0 21px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease;
+}
+
+/* Label shows only while the page holds real focus (the caret is inside
+   the header via the decoration class, the focus gate is CSS-live). */
+.notepad-section-body:focus-within [data-label].focused:after {
+  opacity: 1;
+  visibility: visible;
+}
+
+.notepad-view-container [data-placeholder] {
+  position: relative;
+}
+
+.notepad-view-container [data-placeholder].empty:before {
+  position: absolute;
+  left: 0;
+  right: 0;
+  content: attr(data-placeholder);
+  color: var(--text-faint);
+  font-weight: normal;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* The summary line under the title — the blog's role=definition. */
+.notepad-view-container p[role="definition"] {
+  color: var(--text-muted);
+  font-size: 15px;
+  line-height: 18px;
+}
+
+.notepad-view-container p[role="definition"] a[href] {
+  border-bottom: none;
+  border-bottom: 0.1em solid rgba(0, 0, 0, 0.4);
+}
+
+/* Static title row: the title page fallback when its editor failed. */
+.notepad-section-collapsed.is-static {
+  cursor: default;
+}
+
+/* ── Unopenable page notice (spec 8.6.2) ── */
+
+.notepad-section-unsupported {
+  min-height: 20px;
+  padding: var(--size-2-2) 0 var(--size-2-1);
+}
+
+.notepad-section-unsupported-title {
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.notepad-section-unsupported-text {
+  margin-top: 2px;
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
 }
 
 /* Notepad pages frame themselves, so the editor's own top/bottom padding

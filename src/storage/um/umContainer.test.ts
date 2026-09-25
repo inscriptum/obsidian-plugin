@@ -12,7 +12,7 @@ import {
   sortNoteDescriptors,
 } from "./umContainer";
 import { generateUmId, isUmId } from "./umIds";
-import { noteDocTitle, UmNotepad } from "./umNotepad";
+import { noteDocTitle, createTitleNoteDoc, UmNotepad } from "./umNotepad";
 import { FROZEN_MTIME, UmError } from "./umTypes";
 
 const ENC = new TextEncoder();
@@ -507,9 +507,16 @@ describe("path helpers", () => {
 describe("createEmptyNote compatibility", () => {
   it("a plain .note document is a valid note payload (spec 9)", () => {
     const nb = UmNotepad.empty();
+    // A page added into an empty notepad becomes the title page (order 0):
+    // its starter document carries the title/summary header (spec 9.1).
     const added = nb.addNote();
-    expect(nb.noteContent(added.id)).toEqual(createEmptyNote());
+    expect(nb.noteContent(added.id)).toEqual(createTitleNoteDoc());
     const parsed = parseUmContainer(nb.serialize());
-    expect(parsed.notes.get(added.id)).toEqual(createEmptyNote());
+    expect(parsed.notes.get(added.id)).toEqual(createTitleNoteDoc());
+
+    // The plain .note starter (noteTitle + paragraph) stays a valid payload
+    // for any page: setNoteContent accepts it, the plain profile parses it.
+    nb.setNoteContent(added.id, createEmptyNote());
+    expect(nb.noteContent(added.id)).toEqual(createEmptyNote());
   });
 });

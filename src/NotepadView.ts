@@ -28,7 +28,7 @@ import {
 import { getExtensions, type ExtensionHooks } from "./texto/getExtensions";
 import { readUmFile, umFingerprint, writeUmFile } from "./storage/um/umVault";
 import { UmNotepad } from "./storage/um/umNotepad";
-import { UmError } from "./storage/um/umTypes";
+import { UmError, UM_SCHEMA_TITLE } from "./storage/um/umTypes";
 import { FileChangedModal } from "./ui/FileChangedModal";
 import { ConfirmModal } from "./ui/ConfirmModal";
 import {
@@ -492,9 +492,12 @@ export class NotepadView extends FileView {
     }
 
     // Re-expand notes marked expanded in the manifest (state survives
-    // reloads and moves with the file).
+    // reloads and moves with the file). The title page is the exception
+    // (spec 9.1): it is always expanded, whatever the manifest says — and
+    // pages this editor cannot open never mount an editor at all.
     for (const descriptor of this.notepad.notes()) {
-      if (this.notepad.isExpanded(descriptor.id)) {
+      if (!this.notepad.isNoteOpenable(descriptor.id)) continue;
+      if (descriptor.order === 0 || this.notepad.isExpanded(descriptor.id)) {
         void this.expandSection(descriptor.id, { focus: false });
       }
     }
@@ -503,47 +506,58 @@ export class NotepadView extends FileView {
 
   private buildSection(id: string, title: string, order: number): HTMLElement {
     const root = createDiv("notepad-section");
+    // The title page (order 0) is the fixed cover: no fold chevron, no
+    // duplicate/delete, no left frame rule. Pages this editor cannot
+    // interpret (newer schema version, unknown family, failed migration)
+    // show a notice instead of content and are preserved verbatim.
+    const isTitlePage = order === 0;
+    const schemaState = this.notepad?.noteSchemaState(id);
+    const isUnsupported = schemaState != null && schemaState.kind !== "openable";
+    if (isTitlePage) root.addClass("is-title");
+    if (isUnsupported) root.addClass("is-unsupported");
 
     // Left margin: page order (the first page is unlabeled, like the blog
-    // draft view) + the fold chevron.
+    // draft view) + the fold chevron for foldable pages.
     const margin = root.createDiv("notepad-section-margin");
     const orderLabel = margin.createDiv("notepad-section-order");
     if (order > 0) orderLabel.setText(String(order));
-    const gutter = createEl("button", { cls: "notepad-section-gutter" });
-    gutter.setAttribute("aria-label", "Toggle note");
-    gutter.appendChild(chevronSvg());
-    // Click toggles the fold; a pointer drag reorders the page.
-    gutter.addEventListener("click", () => {
-      if (this.suppressGutterToggle) {
-        this.suppressGutterToggle = false;
-        return;
-      }
-      this.toggleSection(id);
-    });
-    gutter.addEventListener("pointerdown", (event) =>
-      this.onGutterPointerDown(event, id),
-    );
-    margin.appendChild(gutter);
+    if (!isTitlePage && !isUnsupported) {
+      const gutter = createEl("button", { cls: "notepad-section-gutter" });
+      gutter.setAttribute("aria-label", "Toggle note");
+      gutter.appendChild(chevronSvg());
+      // Click toggles the fold; a pointer drag reorders the page.
+      gutter.addEventListener("click", () => {
+        if (this.suppressGutterToggle) {
+          this.suppressGutterToggle = false;
+          return;
+        }
+        this.toggleSection(id);
+      });
+      gutter.addEventListener("pointerdown", (event) =>
+        this.onGutterPointerDown(event, id),
+      );
+      margin.appendChild(gutter);
+    }
 
     const body = root.createDiv("notepad-section-body");
     const content = body.createDiv("notepad-section-content");
 
     // Ghost controls under the section content but INSIDE the page frame
     // (above its bottom separator) — so they visibly belong to this page.
-    // The first page carries no delete control — it anchors the notepad
-    // (the blog does the same for order 0).
+    // The title page carries no duplicate/delete control — it anchors the
+    // notepad (spec 9.1); unopenable pages are preserved as-is.
     const controls = body.createDiv("notepad-section-controls");
     const addBtn = createEl("button", { cls: "notepad-section-control" });
     addBtn.setAttribute("aria-label", "Add note after");
     setIcon(addBtn, "plus");
     addBtn.addEventListener("click", () => this.addNoteAfter(id));
     controls.appendChild(addBtn);
-    const copyBtn = createEl("button", { cls: "notepad-section-control" });
-    copyBtn.setAttribute("aria-label", "Duplicate note");
-    setIcon(copyBtn, "copy");
-    copyBtn.addEventListener("click", () => this.duplicateNote(id));
-    controls.appendChild(copyBtn);
-    if (order > 0) {
+    if (!isTitlePage && !isUnsupported) {
+      const copyBtn = createEl("button", { cls: "notepad-section-control" });
+      copyBtn.setAttribute("aria-label", "Duplicate note");
+      setIcon(copyBtn, "copy");
+      copyBtn.addEventListener("click", () => this.duplicateNote(id));
+      controls.appendChild(copyBtn);
       const delBtn = createEl("button", {
         cls: "notepad-section-control is-danger",
       });
@@ -565,8 +579,34 @@ export class NotepadView extends FileView {
     };
     this.sections.set(id, handle);
 
-    this.renderCollapsedTitle(handle, title);
+    if (isUnsupported) {
+      this.renderUnsupportedNotice(handle, schemaState);
+    } else if (!isTitlePage) {
+      // The title page is always expanded — its content is built by
+      // expandSection right away; no collapsed row exists for it.
+      this.renderCollapsedTitle(handle, title);
+    }
     return root;
+  }
+
+  /** The notice replacing a page this editor cannot open (spec 8.6.2). */
+  private renderUnsupportedNotice(
+    handle: SectionHandle,
+    state: NonNullable<ReturnType<UmNotepad["noteSchemaState"]>>,
+  ): void {
+    handle.content.empty();
+    const box = handle.content.createDiv("notepad-section-unsupported");
+    const title = box.createDiv("notepad-section-unsupported-title");
+    const text = box.createDiv("notepad-section-unsupported-text");
+    if (state.kind === "invalid") {
+      title.setText("This page could not be converted for editing");
+      text.setText("Its content is kept unchanged in the file.");
+    } else {
+      title.setText("This page was created in a newer version");
+      text.setText(
+        "Update Inscriptum to open and edit it. The content is kept unchanged in the file.",
+      );
+    }
   }
 
   /** The one-line collapsed representation: the note title, or a muted
@@ -597,7 +637,9 @@ export class NotepadView extends FileView {
 
   private editTitleInline(handle: SectionHandle): void {
     const descriptor = this.notepad?.note(handle.id);
-    if (!descriptor) return;
+    // The title page has no collapsed row and no rename entry point — its
+    // title is edited directly in the always-open header (spec 9.1).
+    if (!descriptor || descriptor.order === 0) return;
     const row = handle.content.querySelector(".notepad-section-collapsed");
     if (row == null || row.querySelector("input") != null) return;
 
@@ -637,6 +679,22 @@ export class NotepadView extends FileView {
     this.renderCollapsedTitle(handle, descriptor?.title ?? "");
   }
 
+  /** Non-interactive header row for the title page when its editor could
+   *  not be created: no fold toggle, no rename — just the title text. */
+  private renderStaticTitleRow(handle: SectionHandle): void {
+    handle.content.empty();
+    const descriptor = this.notepad?.note(handle.id);
+    const title = descriptor?.title ?? "";
+    const row = handle.content.createDiv("notepad-section-collapsed is-static");
+    const label = row.createDiv("notepad-section-title");
+    if (title.trim().length > 0) {
+      label.setText(title);
+    } else {
+      label.addClass("is-empty");
+      label.setText("Untitled");
+    }
+  }
+
   private buildAddNoteRow(): HTMLElement {
     const row = createEl("button", { cls: "notepad-add-note" });
     row.setText("Add note");
@@ -647,6 +705,10 @@ export class NotepadView extends FileView {
   // ── Expand / collapse ──
 
   private toggleSection(id: string, opts?: { expand?: boolean }): void {
+    // The title page is the fixed cover: never folded, never expanded by
+    // the fold toggle (spec 9.1).
+    const descriptor = this.notepad?.note(id);
+    if (!descriptor || descriptor.order === 0) return;
     const isFolded = !this.notepad?.isExpanded(id);
     if (!isFolded && opts?.expand === true) return; // already expanded
     if (isFolded) void this.expandSection(id, { focus: true });
@@ -660,6 +722,9 @@ export class NotepadView extends FileView {
     const notepad = this.notepad;
     const handle = this.sections.get(id);
     if (!notepad || !handle) return;
+    // Pages this editor cannot interpret (newer version, unknown family,
+    // failed migration) show a notice instead of an editor (spec 8.6.2).
+    if (!notepad.isNoteOpenable(id)) return;
     const content = notepad.noteContent(id);
     if (content == null) return;
     // Already expanded (or expansion in flight) — nothing to build.
@@ -686,10 +751,16 @@ export class NotepadView extends FileView {
         autofocus: opts?.autofocus,
       });
       if (editor == null) {
-        // The editor container never rendered — fold the section back
-        // instead of showing a dead body.
         handle.noteEl = null;
         noteEl.remove();
+        if (notepad.note(handle.id)?.order === 0) {
+          // The title page never folds (spec 9.1): keep the section open
+          // and show a static header row instead of the collapsed title.
+          this.renderStaticTitleRow(handle);
+          return;
+        }
+        // The editor container never rendered — fold the section back
+        // instead of showing a dead body.
         handle.root.removeClass("is-expanded");
         notepad.setExpanded(id, false);
         this.scheduleSave();
@@ -781,6 +852,11 @@ export class NotepadView extends FileView {
       noteFile: this.file as TFile,
     };
     const isMobile = Platform.isMobile;
+    // The schema family picks the editor profile (spec 8.6): title pages
+    // get the title/summary header, regular pages a title-less top node.
+    const schemaState = notepad.noteSchemaState(handle.id);
+    if (schemaState.kind !== "openable") return null;
+    const profile = schemaState.family === UM_SCHEMA_TITLE ? "title" : "plain";
 
     const editor = new Editor({
       element: editorEl,
@@ -792,7 +868,7 @@ export class NotepadView extends FileView {
       },
       extensions: getExtensions(
         this.buildExtensionHooks(notepad, editorRef, ctx),
-        { isMobileView: isMobile },
+        { isMobileView: isMobile, profile },
       ),
       // Search jumps mount pages in the background and must not steal
       // focus from the search input.
@@ -1001,6 +1077,9 @@ export class NotepadView extends FileView {
         header.addClass("is-empty");
         header.setText("Untitled");
       }
+      if (!this.notepad.isNoteOpenable(descriptor.id)) {
+        item.addClass("is-unsupported");
+      }
       if (this.isNavActive(descriptor.id)) item.addClass("is-active");
       item.addEventListener("click", () => this.jumpToPage(descriptor.id));
     }
@@ -1108,9 +1187,15 @@ export class NotepadView extends FileView {
     }
   };
 
+  /** The title page's note id (order 0) — excluded from drag geometry. */
+  private titleSectionId(): string | null {
+    return this.notepad?.notes().find((d) => d.order === 0)?.id ?? null;
+  }
+
   private computeDropIndex(clientY: number, dragId: string): number | null {
+    const titleId = this.titleSectionId();
     const others = [...this.sections.values()]
-      .filter((h) => h.id !== dragId)
+      .filter((h) => h.id !== dragId && h.id !== titleId)
       .map((h) => ({ id: h.id, rect: h.root.getBoundingClientRect() }))
       .sort((a, b) => a.rect.top - b.rect.top);
     if (others.length === 0) return null;
@@ -1118,13 +1203,16 @@ export class NotepadView extends FileView {
     for (const other of others) {
       if (clientY > other.rect.top + other.rect.height / 2) index++;
     }
-    return index;
+    // The title page is fixed at index 0 — a drop never lands above page 1
+    // (spec 9.1: the cover cannot be reordered).
+    return Math.max(index, 1);
   }
 
   private updateDropLine(clientY: number): void {
     if (!this.dropLineEl || !this.drag || !this.sectionsEl) return;
+    const titleId = this.titleSectionId();
     const others = [...this.sections.values()]
-      .filter((h) => h.id !== this.drag.id)
+      .filter((h) => h.id !== this.drag.id && h.id !== titleId)
       .map((h) => ({ root: h.root }))
       .sort((a, b) => a.root.offsetTop - b.root.offsetTop);
     let top: number | null = null;
@@ -1215,13 +1303,18 @@ export class NotepadView extends FileView {
       this.flushSectionToNotepad(handle);
     }
     this.searchMatches = searchNotepad(
-      notepad.notes().map((descriptor) => ({
-        id: descriptor.id,
-        title: descriptor.title ?? "",
-        doc: notepad.noteContent(descriptor.id) ?? {
-          type: "noteDoc" as const,
-        },
-      })),
+      notepad
+        .notes()
+        // Pages this editor cannot interpret keep their content verbatim —
+        // searching raw unknown-schema JSON would only produce junk jumps.
+        .filter((descriptor) => notepad.isNoteOpenable(descriptor.id))
+        .map((descriptor) => ({
+          id: descriptor.id,
+          title: descriptor.title ?? "",
+          doc: notepad.noteContent(descriptor.id) ?? {
+            type: "noteDoc" as const,
+          },
+        })),
       query,
     );
     this.searchIndex = 0;
@@ -1436,10 +1529,14 @@ export class NotepadView extends FileView {
     void this.flushSave("add-note");
   }
 
-  /** Deep-copy a page right after the original (image assets stay shared). */
+  /** Deep-copy a page right after the original (image assets stay shared).
+   *  The title page cannot be duplicated (spec 9.1); neither can a page
+   *  this editor cannot interpret — its content is preserved as-is. */
   private duplicateNote(id: string): void {
     const notepad = this.notepad;
-    if (!notepad || !notepad.note(id)) return;
+    const descriptor = notepad?.note(id);
+    if (!notepad || !descriptor) return;
+    if (descriptor.order === 0 || !notepad.isNoteOpenable(id)) return;
     const copy = notepad.duplicateNote(id);
     if (!copy) return;
     this.render();
@@ -1448,10 +1545,13 @@ export class NotepadView extends FileView {
 
   /** Remove a section's note after an explicit confirmation. Right after the
    *  deletion an Undo notice offers to put it back (the save chain keeps the
-   *  delete and undo writes in order). */
+   *  delete and undo writes in order). The title page cannot be deleted
+   *  (spec 9.1); neither can a page this editor cannot interpret. */
   private deleteNote(id: string): void {
     const notepad = this.notepad;
-    if (!notepad || !notepad.note(id)) return;
+    const descriptor = notepad?.note(id);
+    if (!notepad || !descriptor) return;
+    if (descriptor.order === 0 || !notepad.isNoteOpenable(id)) return;
 
     new ConfirmModal(this.app, {
       title: "Delete note",

@@ -6,6 +6,16 @@ export const UM_FORMAT = "um";
 export const UM_VERSION = 1;
 /** The only container type defined by UM 1.0 (6.3). */
 export const UM_TYPE = "notepad";
+
+/** Note schema family of the title page (spec 8.6): mandatory title and
+ *  summary header, followed by content blocks (9.1). */
+export const UM_SCHEMA_TITLE = "title";
+/** Note schema family of a regular note (spec 8.6): content blocks only,
+ *  a title node is not required (9.2). */
+export const UM_SCHEMA_PLAIN = "plain";
+/** Current version of every schema family this editor reads/writes (8.6.1).
+ *  Raised only for breaking changes; additive changes keep the value. */
+export const UM_SCHEMA_VERSION = 1;
 /** Manifest entry point inside the archive (section 5). */
 export const MANIFEST_PATH = "manifest.json";
 /** Recommended location of note documents (section 8.2). */
@@ -29,6 +39,12 @@ export interface UmNoteDescriptor {
   /** Notepad UI expanded state. Absent or false = collapsed (the spec's
    *  initial default); we write it only for expanded notes. */
   expanded?: boolean;
+  /** Document schema family (8.6). Absent = legacy container: inferred on
+   *  load (order 0 → title, otherwise plain) and written back on save. */
+  schema?: string;
+  /** Version of the schema family (8.6). Absent = legacy: inferred on load
+   *  as the current version. Never lowered on rewrite (8.6.2). */
+  schemaVersion?: number;
 }
 
 export interface UmAssetDescriptor {

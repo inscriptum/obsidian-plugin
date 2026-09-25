@@ -117,6 +117,18 @@ export function parseUmContainer(bytes: Uint8Array): UmContainerData {
         `Note "${id}" has an invalid expanded flag`,
       );
     }
+    if (raw.schema !== undefined && typeof raw.schema !== "string") {
+      throw new UmError("bad-descriptor", `Note "${id}" has an invalid schema`);
+    }
+    if (
+      raw.schemaVersion !== undefined &&
+      (!Number.isInteger(raw.schemaVersion) || raw.schemaVersion < 1)
+    ) {
+      throw new UmError(
+        "bad-descriptor",
+        `Note "${id}" has an invalid schemaVersion`,
+      );
+    }
     if (seenIds.has(id)) {
       throw new UmError("duplicate-id", `Duplicate note id: ${id}`);
     }
