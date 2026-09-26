@@ -62,6 +62,11 @@ import "./styles/notepad.css";
 
 export const NOTEPAD_VIEW_TYPE = "notepad-view";
 
+/** The strip the open nav drawer occupies: 300px wide including its 1px
+ *  right border (box-sizing: border-box in the app theme). Must stay in
+ *  sync with the scroller margin-left in notepad.css. */
+const NAV_WIDTH = 300;
+
 const AUTOSAVE_DELAY = 500;
 /** Coalescing window for vault "modify" events (mirrors NoteView). */
 const EXTERNAL_CHANGE_DEBOUNCE = 300;
@@ -238,6 +243,10 @@ export class NotepadView extends FileView {
   private navEl: HTMLElement | null = null;
   private navListEl: HTMLElement | null = null;
   private navOpen = false;
+  /** Guards the one-time default-open decision (open when the drawer
+   *  fits); later resizes never override the user's own choice. */
+  private navBooted = false;
+  private navResize: ResizeObserver | null = null;
 
   // ── Drag & drop reorder ──
   private drag: {
@@ -380,6 +389,27 @@ export class NotepadView extends FileView {
     this.scrollerEl = this.contentEl.createDiv("notepad-scroller");
     this.sectionsEl = this.scrollerEl.createDiv("notepad-sections");
 
+    // Overlay fallback (mobile) and squeezed-content case: a click on the
+    // content dismisses the open drawer; when the drawer fits without
+    // costing the column its width, content clicks leave it alone. Capture
+    // phase, so an editor-internal stopPropagation cannot suppress the
+    // dismissal.
+    this.scrollerEl.addEventListener(
+      "click",
+      () => {
+        if (this.navOpen && !this.navFits())
+          this.setNavOpen(false, { animate: true });
+      },
+      true,
+    );
+
+    // The boot decision must see the real view width; the observer's
+    // initial callback re-runs it after the view is laid out (a 0-width
+    // container at onOpen would measure wrong).
+    this.navResize = new ResizeObserver(() => this.updateNavMode());
+    this.navResize.observe(this.contentEl);
+    this.updateNavMode();
+
     // Watch for external modifications (git sync etc.) — same contract as
     // NoteView, with a fingerprint instead of a raw string diff.
     this.registerEvent(
@@ -416,6 +446,8 @@ export class NotepadView extends FileView {
 
   async onClose(): Promise<void> {
     await this.flushSave("close");
+    this.navResize?.disconnect();
+    this.navResize = null;
     this.destroyAllSections();
     this.contentEl.empty();
     this.notepad?.destroy();
@@ -1056,10 +1088,95 @@ export class NotepadView extends FileView {
     this.rebuildNavList();
   }
 
+  private setNavOpen(open: boolean, opts?: { animate?: boolean }): void {
+    this.navOpen = open;
+    this.applyNavOpen(open, opts?.animate === true);
+    if (open) this.rebuildNavList();
+  }
+
+  /** Flip the content column's layout spot behind `mutate` with a FLIP:
+   *  measure before/after, paint the column at its old spot via a
+   *  transient transform, then release it into the CSS transform
+   *  transition. Used for the centered ↔ hugging re-anchor, which is an
+   *  auto-margin change CSS cannot interpolate. Rapid re-flips retarget
+   *  from the current visual spot (the stale transform cancels out of
+   *  both measurements). */
+  private flipContentLayout(mutate: () => void): void {
+    const sections = this.sectionsEl;
+    const view = this.contentEl;
+    if (!sections || !view || view.clientWidth === 0) {
+      mutate();
+      return;
+    }
+    const before = sections.getBoundingClientRect().left;
+    mutate();
+    const after = sections.getBoundingClientRect().left;
+    const delta = before - after;
+    if (Math.abs(delta) < 0.5) return;
+    // Paint the column at its pre-layout spot (the helper class suspends
+    // the transition), then release it into the base transform transition.
+    sections.addClass("nav-flip");
+    sections.style.setProperty("--nav-flip-x", `${delta}px`);
+    void sections.offsetWidth;
+    sections.removeClass("nav-flip");
+  }
+
+  private applyNavOpen(open: boolean, animate: boolean): void {
+    const mutate = () => {
+      this.navEl?.toggleClass("is-open", open);
+      // Container-level mirror of the open state: the push-mode CSS
+      // (scroller margin, column re-anchor) applies only while open.
+      this.contentEl?.toggleClass("notepad-nav-open", open);
+    };
+    if (animate) this.flipContentLayout(mutate);
+    else mutate();
+    if (open) this.rebuildNavList();
+  }
+
   private toggleNav(): void {
-    this.navOpen = !this.navOpen;
-    this.navEl?.toggleClass("is-open", this.navOpen);
-    if (this.navOpen) this.rebuildNavList();
+    this.setNavOpen(!this.navOpen, { animate: true });
+  }
+
+  /** True when the whole content column fits right of the drawer at its
+   *  natural (max) width — the column never shrinks for the drawer's
+   *  sake. Mobile never fits: the drawer overlays there. Drives the
+   *  push-vs-overlay mode, the default-open decision and the
+   *  click-on-content dismissal. */
+  private navFits(): boolean {
+    if (Platform.isMobile) return false;
+    const scroller = this.scrollerEl;
+    const sections = this.sectionsEl;
+    if (!scroller || !sections) return false;
+    const max = parseFloat(getComputedStyle(sections).maxWidth);
+    if (!Number.isFinite(max)) return false;
+    const pad = getComputedStyle(scroller);
+    const padX =
+      (parseFloat(pad.paddingLeft) || 0) + (parseFloat(pad.paddingRight) || 0);
+    return this.contentEl.clientWidth - NAV_WIDTH - padX >= max;
+  }
+
+  /** Keep push vs overlay in step with the live view width (window
+   *  resizes, leaf splits); the observer's initial callback re-runs this
+   *  after layout, so the boot decision never sees a 0-width container.
+   *  The first call also applies the default state: open when the column
+   *  fits, closed otherwise. Later resizes never override the user's
+   *  choice — but an open drawer switching modes glides its column. */
+  private updateNavMode(): void {
+    const fits = this.navFits();
+    if (
+      this.navOpen &&
+      this.contentEl?.hasClass("notepad-nav-push") !== fits
+    ) {
+      this.flipContentLayout(() =>
+        this.contentEl?.toggleClass("notepad-nav-push", fits),
+      );
+    } else {
+      this.contentEl?.toggleClass("notepad-nav-push", fits);
+    }
+    if (!this.navBooted) {
+      this.navBooted = true;
+      if (fits) this.setNavOpen(true);
+    }
   }
 
   private rebuildNavList(): void {
@@ -1103,14 +1220,22 @@ export class NotepadView extends FileView {
     }
   }
 
+  /** Programmatic jumps (toc clicks, search matches) glide like the blog's
+   *  toc; users who prefer reduced motion get instant jumps. */
+  private scrollBehavior(): ScrollBehavior {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "auto"
+      : "smooth";
+  }
+
   /** Open (if needed) a page and scroll its frame to the top of the view. */
   private jumpToPage(id: string): void {
     const handle = this.sections.get(id);
     if (!handle || !this.notepad) return;
     if (handle.editor == null) {
-      void this.expandSection(id, { focus: false });
-    } else {
-      handle.editor.view.focus();
+      // No mount autofocus: the smooth scroll below must own the movement —
+      // an editor scrolling itself into view would snap the jump.
+      void this.expandSection(id, { focus: false, autofocus: false });
     }
     window.setTimeout(() => {
       const scroller = this.scrollerEl;
@@ -1118,14 +1243,27 @@ export class NotepadView extends FileView {
       if (!scroller || !root.isConnected) return;
       const sRect = scroller.getBoundingClientRect();
       const rRect = root.getBoundingClientRect();
-      scroller.scrollTop += rRect.top - sRect.top - 12;
+      scroller.scrollTo({
+        top: scroller.scrollTop + rRect.top - sRect.top - 12,
+        behavior: this.scrollBehavior(),
+      });
       this.updateNavActive();
     }, 60);
+    // Focus the page once the glide has settled: an immediate focus()
+    // scrolls instantly and kills the animation. The glide ends with the
+    // page frame at the top of the view, so this focus scrolls nothing.
+    window.setTimeout(() => {
+      const editor = handle.editor;
+      if (editor && !editor.isDestroyed) editor.view.focus();
+    }, 680);
   }
 
   private scrollContainerTo(container: Element, docTop: number): void {
     const rect = container.getBoundingClientRect();
-    container.scrollTop += docTop - (rect.top + rect.height / 3);
+    container.scrollTo({
+      top: container.scrollTop + docTop - (rect.top + rect.height / 3),
+      behavior: this.scrollBehavior(),
+    });
   }
 
   // ── Drag & drop reorder (pointer drag on the section gutter) ──
