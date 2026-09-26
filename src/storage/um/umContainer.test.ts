@@ -13,7 +13,12 @@ import {
 } from "./umContainer";
 import { generateUmId, isUmId } from "./umIds";
 import { noteDocTitle, createTitleNoteDoc, UmNotepad } from "./umNotepad";
-import { FROZEN_MTIME, UmError } from "./umTypes";
+import {
+  FROZEN_MTIME,
+  MANIFEST_PATH,
+  UM_SCHEMA_VERSION,
+  UmError,
+} from "./umTypes";
 
 const ENC = new TextEncoder();
 const DEC = new TextDecoder();
@@ -518,5 +523,111 @@ describe("createEmptyNote compatibility", () => {
     // for any page: setNoteContent accepts it, the plain profile parses it.
     nb.setNoteContent(added.id, createEmptyNote());
     expect(nb.noteContent(added.id)).toEqual(createEmptyNote());
+  });
+});
+
+describe("size limits (zip-bomb guard)", () => {
+  it("rejects an archive that inflates past the limit", () => {
+    // ~1MB of zeros deflates to ~1KB — a real bomb shape at test scale.
+    const bomb = zipSync(
+      { "notes/x.json": new Uint8Array(1024 * 1024) },
+      { mtime: FROZEN_MTIME },
+    );
+    try {
+      parseUmContainer(bomb, { maxInflatedBytes: 1024 });
+      throw new Error("expected UmError");
+    } catch (err) {
+      expect(err).toBeInstanceOf(UmError);
+      expect((err as UmError).code).toBe("too-large");
+    }
+  });
+
+  it("rejects an archive over the compressed input limit", () => {
+    const bytes = serializeUmContainer(notepadWithTwoNotes().data);
+    expect(bytes.byteLength).toBeGreaterThan(10);
+    try {
+      parseUmContainer(bytes, { maxFileBytes: 10 });
+      throw new Error("expected UmError");
+    } catch (err) {
+      expect(err).toBeInstanceOf(UmError);
+      expect((err as UmError).code).toBe("too-large");
+    }
+  });
+
+  it("skips past-limit entries instead of decompressing them", () => {
+    // One honest entry plus one oversized one: the oversized entry must not
+    // be inflated at all (the cap is enforced from declared sizes), and the
+    // whole parse fails — never a partially loaded container.
+    const bomb = zipSync(
+      {
+        "manifest.json": ENC.encode(
+          JSON.stringify({ format: "um", version: 1, type: "notepad" }),
+        ),
+        "notes/big.json": new Uint8Array(2 * 1024 * 1024),
+      },
+      { mtime: FROZEN_MTIME },
+    );
+    expect(() =>
+      parseUmContainer(bomb, { maxInflatedBytes: 1024 * 1024 }),
+    ).toThrowError(UmError);
+  });
+
+  it("parses a normal container under the default limits", () => {
+    const bytes = serializeUmContainer(notepadWithTwoNotes().data);
+    const parsed = parseUmContainer(bytes);
+    expect(parsed.notes.size).toBe(2);
+  });
+});
+
+describe("hostile asset descriptors (write guard)", () => {
+  it("asset paths cannot overwrite the manifest or a note document", () => {
+    const parsed = parseUmContainer(notepadWithTwoNotes().serialize());
+    const notePath = parsed.manifest.notes[0].path;
+    parsed.manifest.assets = [
+      { id: "01JHACK1", path: MANIFEST_PATH, type: "image/png" },
+      { id: "01JHACK2", path: notePath, type: "image/png" },
+    ];
+    parsed.assets.set("01JHACK1", new Uint8Array([1, 2, 3]));
+    parsed.assets.set("01JHACK2", new Uint8Array([4, 5, 6]));
+
+    const bytes = serializeUmContainer(parsed);
+
+    // The required entries survive intact and the container still parses.
+    const reparsed = parseUmContainer(bytes);
+    expect(reparsed.manifest.format).toBe("um");
+    expect(reparsed.manifest.notes).toHaveLength(2);
+    expect(reparsed.notes.size).toBe(2);
+    expect(DEC.decode(unzipSync(bytes)[MANIFEST_PATH])).toContain('"um"');
+  });
+});
+
+describe("asset GC vs uninterpretable pages", () => {
+  const withPackedAsset = (bytes: Uint8Array): UmNotepad => {
+    const parsed = parseUmContainer(bytes);
+    parsed.manifest.assets = [
+      { id: "01JASSET", path: "assets/01JASSET.png", type: "image/png" },
+    ];
+    parsed.assets.set("01JASSET", new Uint8Array([1, 2, 3]));
+    return new UmNotepad(parsed);
+  };
+
+  it("collects an unreferenced asset when every page is openable", () => {
+    const nb = withPackedAsset(notepadWithTwoNotes().serialize());
+    expect(nb.gcAssets()).toBe(1);
+  });
+
+  it("never collects while an uninterpretable page exists (spec 8.6.2)", () => {
+    const parsed = parseUmContainer(notepadWithTwoNotes().serialize());
+    // A page from a newer editor version: its asset references are shapes
+    // this editor cannot read, so it must pin the registry.
+    parsed.manifest.notes[1].schemaVersion = UM_SCHEMA_VERSION + 1;
+    const nb = withPackedAsset(serializeUmContainer(parsed));
+
+    expect(nb.gcAssets()).toBe(0);
+    expect(nb.data.assets.has("01JASSET")).toBe(true);
+
+    // A save keeps the asset bytes in the archive.
+    const reparsed = parseUmContainer(nb.serialize());
+    expect(reparsed.assets.has("01JASSET")).toBe(true);
   });
 });

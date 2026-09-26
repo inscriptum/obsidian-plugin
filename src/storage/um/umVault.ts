@@ -1,6 +1,7 @@
 import type { TFile, Vault } from "obsidian";
 import { logDiagEvent, logNoteWrite } from "../noteStorage";
 import { UmNotepad } from "./umNotepad";
+import { UM_MAX_FILE_BYTES, UmError } from "./umTypes";
 
 /**
  * Obsidian-facing IO for `.um` containers. The write path mirrors
@@ -14,6 +15,14 @@ export async function readUmFile(
   file: TFile,
   vault: Vault,
 ): Promise<UmNotepad> {
+  // Size guard before readBinary: a hostile oversized file is rejected
+  // without loading it into memory at all (parseUmContainer re-checks).
+  if (file.stat.size > UM_MAX_FILE_BYTES) {
+    throw new UmError(
+      "too-large",
+      `Notepad file exceeds the size limit: ${file.stat.size} bytes (max ${UM_MAX_FILE_BYTES})`,
+    );
+  }
   const buffer = await vault.readBinary(file);
   return UmNotepad.fromBytes(new Uint8Array(buffer));
 }

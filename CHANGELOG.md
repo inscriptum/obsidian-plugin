@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Saving a `.um` container can no longer clobber its own manifest or note documents: asset descriptors naming a protected archive path (e.g. a hand-edited registry) are skipped at write time instead of overwriting the required entries.
+- Assets are no longer garbage-collected while a notepad has a page this editor cannot interpret (newer version, unknown family, failed migration): the page is preserved verbatim, so its media stays in the archive even if its references use a shape this editor does not know.
+- Opening a `.um` file is size-guarded against zip bombs: archives over a compressed-size cap are rejected before being read into memory, and decompression is bounded by a cap on the total inflated size — a hostile `.um` fails cleanly with a "too large" error instead of exhausting memory.
 - Notepad saves no longer lose edits made while a save is in flight.
 - Image layouts in notepads are scoped to their page: "full width" no longer spans the whole window, and wrap-layout images no longer float into the following pages.
 - Toggling the plugin off/on without an app restart no longer breaks images/attachments.

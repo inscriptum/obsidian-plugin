@@ -5,6 +5,8 @@ import {
   FROZEN_MTIME,
   MANIFEST_PATH,
   UM_FORMAT,
+  UM_MAX_FILE_BYTES,
+  UM_MAX_INFLATED_BYTES,
   UM_TYPE,
   UM_VERSION,
   UmError,
@@ -39,15 +41,57 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-/** Parse and validate a `.um` archive (spec section 22). Throws UmError. */
-export function parseUmContainer(bytes: Uint8Array): UmContainerData {
+/** Overridable size caps (see UM_MAX_* in umTypes) — tests pass tiny
+ *  values; production callers use the defaults. */
+export interface UmParseLimits {
+  maxFileBytes?: number;
+  maxInflatedBytes?: number;
+}
+
+/** Parse and validate a `.um` archive (spec section 22). Throws UmError.
+ *  Size-guarded: a hostile archive (zip bomb) fails with "too-large"
+ *  instead of exhausting memory. */
+export function parseUmContainer(
+  bytes: Uint8Array,
+  limits?: UmParseLimits,
+): UmContainerData {
+  const maxFileBytes = limits?.maxFileBytes ?? UM_MAX_FILE_BYTES;
+  const maxInflatedBytes = limits?.maxInflatedBytes ?? UM_MAX_INFLATED_BYTES;
+  if (bytes.byteLength > maxFileBytes) {
+    throw new UmError(
+      "too-large",
+      `Archive exceeds the size limit: ${bytes.byteLength} bytes (max ${maxFileBytes})`,
+    );
+  }
+
+  // unzipSync preallocates each entry's output buffer at its declared
+  // central-directory size and never grows it, so summing the declared
+  // sizes bounds the actual allocation. Entries are skipped (not
+  // decompressed) once the running total crosses the cap.
+  let inflated = 0;
+  let overLimit = false;
   let files: Record<string, Uint8Array>;
   try {
-    files = unzipSync(bytes);
+    files = unzipSync(bytes, {
+      filter: ({ originalSize }) => {
+        inflated += originalSize;
+        if (inflated > maxInflatedBytes) {
+          overLimit = true;
+          return false;
+        }
+        return true;
+      },
+    });
   } catch (err) {
     throw new UmError(
       "no-manifest",
       `Not a readable UM archive: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  if (overLimit) {
+    throw new UmError(
+      "too-large",
+      `Archive inflates past the size limit (max ${maxInflatedBytes} bytes)`,
     );
   }
 
@@ -239,7 +283,10 @@ export function serializeUmContainer(data: UmContainerData): Uint8Array {
   const entries: Zippable = {};
   entries[MANIFEST_PATH] = encodeJson(data.manifest);
 
-  const writtenPaths = new Set<string>();
+  // The manifest and note documents are required entries (spec 22): no
+  // asset or unknown entry — e.g. a hostile descriptor naming a protected
+  // path — may overwrite one.
+  const writtenPaths = new Set<string>([MANIFEST_PATH]);
   for (const descriptor of sorted) {
     if (writtenPaths.has(descriptor.path)) continue;
     writtenPaths.add(descriptor.path);
@@ -250,11 +297,14 @@ export function serializeUmContainer(data: UmContainerData): Uint8Array {
 
   for (const asset of readAssetDescriptors(data.manifest)) {
     const bytes = data.assets.get(asset.id);
-    if (bytes == null) continue;
+    if (bytes == null || writtenPaths.has(asset.path)) continue;
+    writtenPaths.add(asset.path);
     entries[asset.path] = [bytes, { level: 0, mtime: FROZEN_MTIME }];
   }
 
   for (const [path, bytes] of data.unknownEntries) {
+    if (writtenPaths.has(path)) continue;
+    writtenPaths.add(path);
     entries[path] = [bytes, { level: 0, mtime: FROZEN_MTIME }];
   }
 

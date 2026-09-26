@@ -27,6 +27,17 @@ export const ASSETS_DIR = "assets";
  *  two saves of identical content produce identical bytes. */
 export const FROZEN_MTIME = new Date(Date.UTC(1980, 0, 1));
 
+/** Size guards against hostile `.um` files (zip bombs). A vault-synced
+ *  archive must never be read or decompressed past these bounds. The
+ *  compressed cap bounds what `readBinary` loads; the inflated cap bounds
+ *  what `unzipSync` allocates — enforced per entry from the ZIP central
+ *  directory's declared sizes, before that entry is decompressed. Both are
+ *  far above any container this plugin can produce (images are stored
+ *  uncompressed, so file size ≈ media size; JSON notes deflate by factors,
+ *  not orders of magnitude). */
+export const UM_MAX_FILE_BYTES = 256 * 1024 * 1024;
+export const UM_MAX_INFLATED_BYTES = 512 * 1024 * 1024;
+
 export interface UmNoteDescriptor {
   /** Stable unique identifier (spec 8.1) — never derived from position. */
   id: string;
@@ -90,7 +101,8 @@ export type UmErrorCode =
   | "bad-descriptor"
   | "duplicate-id"
   | "missing-note"
-  | "bad-note-json";
+  | "bad-note-json"
+  | "too-large";
 
 /** Parse/serialize failure with a stable machine-readable code, so callers
  *  can show a precise message without string matching. */

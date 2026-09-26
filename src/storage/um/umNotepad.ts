@@ -22,6 +22,7 @@ import {
   UM_SCHEMA_VERSION,
   UmError,
   type UmAssetDescriptor,
+  type UmContainerData,
   type UmManifest,
   type UmNoteDescriptor,
 } from "./umTypes";
@@ -387,6 +388,14 @@ export class UmNotepad {
    *  Called before every save, so deletion of the last image node cleans
    *  the archive without a separate deletion protocol. */
   gcAssets(): number {
+    // Pages this editor cannot interpret (newer version, unknown family,
+    // failed migration) are preserved verbatim — including media whose
+    // references we cannot read. While any such page exists, it pins the
+    // whole asset registry: collecting by the reference shapes we know
+    // could delete an asset a newer page still uses (spec 8.6.2).
+    for (const descriptor of this.data.manifest.notes) {
+      if (this.noteSchemaState(descriptor.id).kind !== "openable") return 0;
+    }
     const referenced = this.referencedAssetIds();
     const all = this.data.manifest.assets;
     if (!Array.isArray(all) || all.length === 0) return 0;
