@@ -18,6 +18,7 @@ import {
   logDiagEvent,
 } from "./storage/noteStorage";
 import { FileChangedModal } from "./ui/FileChangedModal";
+import { NOTE_ICON_NAME } from "./components/icons/iconSprite";
 import { BUILD_TAG, TAG_VERSION } from "./tags";
 import { getDesiredFileName } from "./storage/fileNaming";
 import {
@@ -164,7 +165,7 @@ export class NoteView extends FileView {
   }
 
   getIcon(): string {
-    return "notepad-pen";
+    return NOTE_ICON_NAME;
   }
 
   canAcceptExtension(extension: string): boolean {

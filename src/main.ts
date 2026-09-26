@@ -12,7 +12,7 @@ import {
 } from "obsidian";
 import { NoteView, NOTE_VIEW_TYPE } from "./NoteView";
 import { NotepadView, NOTEPAD_VIEW_TYPE } from "./NotepadView";
-import { installIconSprite } from "./components/icons/iconSprite";
+import { installIconSprite, NOTE_ICON_NAME } from "./components/icons/iconSprite";
 import { createEmptyNote, setWriteLogEnabled } from "./storage/noteStorage";
 import { createUmFile } from "./storage/um/umVault";
 import { UmNotepad } from "./storage/um/umNotepad";
@@ -99,7 +99,7 @@ export default class NotesPlugin extends Plugin {
       NoteView.onExportRequested = null;
     });
 
-    this.addRibbonIcon("notepad-pen", "New inscriptum", () => {
+    this.addRibbonIcon(NOTE_ICON_NAME, "New inscriptum", () => {
       this.createNewNote();
     });
 
@@ -150,7 +150,7 @@ export default class NotesPlugin extends Plugin {
         menu.addItem((item) =>
           item
             .setTitle("New inscriptum")
-            .setIcon("notepad-pen")
+            .setIcon(NOTE_ICON_NAME)
             .onClick(() => this.createNewNote(file.path)),
         );
       }),
@@ -277,7 +277,7 @@ export default class NotesPlugin extends Plugin {
       cls: "clickable-icon nav-action-button inscriptum-nav-new-note",
       attr: { "aria-label": "New inscriptum", type: "button" },
     });
-    setIcon(button, "notepad-pen");
+    setIcon(button, NOTE_ICON_NAME);
     button.addEventListener("click", (event) => {
       event.preventDefault();
       this.createNewNote();
