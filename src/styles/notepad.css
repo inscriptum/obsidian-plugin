@@ -3,7 +3,10 @@
    margin, content column with a thin rule, light separators between pages,
    ghost add/delete controls under each section. */
 
-.notepad-view-container {
+/* The selector must outrank Obsidian's `.workspace-leaf-content .view-content`
+   (0,2,0) — its 12px side padding would steal width from the content column
+   and skew the nav drawer's push/overlay fit (see navFits in NotepadView). */
+.view-content.notepad-view-container {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -14,7 +17,7 @@
 
 .notepad-nav {
   position: absolute;
-  top: 52px;
+  top: 40px;
   bottom: 0;
   left: 0;
   width: 300px;
@@ -37,22 +40,38 @@
 }
 
 /* ── Push vs overlay ──
-   The content column keeps its fixed max width on desktop. When the whole
-   column fits right of the drawer (.notepad-nav-push on the container,
-   kept live by NotepadView), an open drawer takes the left strip and the
-   column re-anchors right after it: a fixed padding gap, the column at
-   its natural width. Otherwise (narrow view, mobile) the drawer overlays
-   the centered content — that overlay is the only case carrying the
-   shadow. The closed state centers the column in both modes, so the
-   re-anchor cannot be interpolated in CSS (auto margin → 0) —
-   NotepadView flips it with a transform (FLIP) while the scroller's
-   margin snaps underneath. */
+   When the whole column fits right of the drawer (.notepad-nav-push on the
+   container, kept live by NotepadView), an open drawer takes the left strip
+   and the column re-anchors right after it: a fixed padding gap, the column
+   at its FULL width — the scroller's right padding is dropped while pushed
+   (an empty padding must not shrink the column; the fit check in navFits()
+   does not reserve it either). When the column does not fit even pushed,
+   the drawer overlays the centered content instead — that overlay is the
+   only case carrying the shadow — and the column anchors to the RIGHT edge
+   (rule below) so the drawer covers as little of it as the width allows.
+   The column never shrinks for the drawer's sake. The closed state centers
+   the column in both modes, so the re-anchor cannot be interpolated in CSS
+   (auto margin → 0) — NotepadView flips it with a transform (FLIP) while
+   the scroller's margin snaps underneath. */
 .notepad-view-container.notepad-nav-push.notepad-nav-open .notepad-scroller {
   margin-left: 300px; /* NAV_WIDTH in NotepadView.ts */
+  padding-right: 0;
+}
+
+/* Overlay on desktop (the column does not fit beside the drawer): anchor the
+   column to the RIGHT edge of the content area instead of centering it — the
+   open drawer then covers only the sliver it must, while centering would
+   hide the column's whole left strip behind the drawer (the width the
+   centering margins free up is exactly the overlap saved). Mobile columns
+   are full-width, where this is a no-op. */
+.notepad-view-container.notepad-nav-open:not(.notepad-nav-push)
+.notepad-sections {
+  margin-left: auto;
+  margin-right: 0;
 }
 
 .notepad-view-container.notepad-nav-push.notepad-nav-open .notepad-sections {
-  margin-left: 0; /* hug the drawer instead of centering */
+  margin-left: 25px; /* hug the drawer instead of centering */
 }
 
 /* Overlay only: the drawer floats above the content, so it needs the
@@ -252,7 +271,7 @@ button.notepad-nav-toggle:hover svg {
      mid-animation, which must not flash a horizontal scrollbar — pin it
      to hidden. */
   overflow-x: hidden;
-  padding: var(--size-4-4) var(--size-4-5) var(--size-4-10);
+  /* padding: var(--size-4-4) var(--size-4-5) var(--size-4-10); */
 }
 
 .notepad-sections {
@@ -350,26 +369,29 @@ button.notepad-section-gutter:hover svg {
 
 .notepad-section-body {
   min-width: 0;
-  padding: 2px 0 0 16px;
-}
-
-.notepad-section.is-expanded .notepad-section-body {
-  border-left: 1px solid var(--background-modifier-border);
-}
-
-/* Pages that cannot be opened keep the page-frame look of expanded pages. */
-.notepad-section.is-unsupported .notepad-section-body {
-  border-left: 1px solid var(--background-modifier-border);
+  /* padding: 2px 0 0 16px; */
 }
 
 /* The title page is the cover: no left frame rule, ever (spec 9.1).
    Restated after the rules above so it wins the equal-specificity race. */
 .notepad-section.is-title.is-expanded .notepad-section-body {
-  border-left: none;
+  border: none;
+  box-shadow: none;
 }
 
 .notepad-section .notepad-section-body {
-  border-bottom: 1px solid var(--background-modifier-border);
+  /* border-bottom: 1px solid var(--background-modifier-border); */
+  box-shadow:
+    rgb(0 0 0 / 34%) 1px 1px 3px 0px,
+    rgba(0, 0, 0, 0.06) 1px 1px 2px 0px;
+  border-radius: 4px;
+}
+
+.theme-dark {
+  .notepad-section .notepad-section-body {
+    border-bottom: 1px solid var(--background-modifier-border);
+    border-right: 1px solid var(--background-modifier-border);
+  }
 }
 
 /* Visual gap between the page frames themselves (frames must not touch). */
@@ -564,6 +586,21 @@ button.notepad-section-gutter:hover svg {
   padding-top: 0;
   padding-bottom: 0;
   overflow-y: visible;
+}
+
+/* ── Page-scoped image layouts ──
+   The image extension expresses "full width" in cqw units and floats
+   wrap-layout images (see texto/extensions/image/style.css). Both must be
+   scoped to the PAGE they are on: without a size container anywhere in the
+   notepad, cqw falls back to the viewport (a full-width image spanned the
+   whole window), and with the editor's overflow visible a float reached
+   into the following pages' text. Making each page's .note a size container
+   mirrors the note view (styles/editor.css .note-view-container .note) and
+   fixes both: cqw resolves against the page width, and the containment's
+   layout part establishes the formatting context that traps floats inside
+   their page (the page then grows to contain the float). */
+.notepad-view-container .note {
+  container-type: inline-size;
 }
 
 /* ── Drag & drop reorder ── */

@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The notepad navigation drawer's push-vs-overlay boundary no longer lets empty paddings steal the fit: the view container's inherited 12px side padding is zeroed (the plugin's own `padding: 0` was losing the specificity race with Obsidian's `.workspace-leaf-content .view-content`), the pushed scroller drops its right padding, and the fit check reserves the vertical scrollbar width (measured via a probe — pushing can make the content overflow and the scrollbar would otherwise shrink the column). The column keeps its full width whenever the drawer pushes it; when it still does not fit, the drawer overlays the content with its shadow and the column anchors to the right edge of the content area instead of centering — the drawer then covers only the sliver that genuinely does not fit. The column never shrinks for the drawer's sake.
+- Image layouts in `.um` notepads are now scoped to their page: "full width" spans the page's content area instead of stretching across the whole window (the notepad had no size container, so the `cqw`-based full-bleed fell back to the viewport), and wrap-layout images no longer float out of their page into the following pages' text (each page is now a formatting context, so it grows to contain its own float).
 - Custom element tags now get a per-build identifier in production builds too: toggling the plugin off/on without an app restart no longer breaks images/attachments (previously the stale element registry made image views fail to construct).
 
 ## [0.9.0] - 2026-09-18

@@ -389,11 +389,10 @@ export class NotepadView extends FileView {
     this.scrollerEl = this.contentEl.createDiv("notepad-scroller");
     this.sectionsEl = this.scrollerEl.createDiv("notepad-sections");
 
-    // Overlay fallback (mobile) and squeezed-content case: a click on the
-    // content dismisses the open drawer; when the drawer fits without
-    // costing the column its width, content clicks leave it alone. Capture
-    // phase, so an editor-internal stopPropagation cannot suppress the
-    // dismissal.
+    // Overlay case (the column does not fit beside the drawer, and mobile):
+    // a click on the content dismisses the open drawer — there the drawer
+    // covers the column. Capture phase, so an editor-internal stopPropagation
+    // cannot suppress the dismissal.
     this.scrollerEl.addEventListener(
       "click",
       () => {
@@ -1137,11 +1136,16 @@ export class NotepadView extends FileView {
     this.setNavOpen(!this.navOpen, { animate: true });
   }
 
-  /** True when the whole content column fits right of the drawer at its
-   *  natural (max) width — the column never shrinks for the drawer's
-   *  sake. Mobile never fits: the drawer overlays there. Drives the
-   *  push-vs-overlay mode, the default-open decision and the
-   *  click-on-content dismissal. */
+  /** True when the whole content column fits right of the OPEN drawer —
+   *  drives push-vs-overlay, the boot default-open decision and the
+   *  click-on-content dismissal. Mobile never fits. The check counts only
+   *  the LEFT scroller padding (the visual gap to the drawer): the right
+   *  padding is empty while pushed (styles/notepad.css drops it) and must
+   *  not steal the fit. The vertical scrollbar is measured and subtracted —
+   *  it eats the pushed scroller's content box, and a fit that ignores it
+   *  shrinks the column. The column itself never shrinks for the drawer's
+   *  sake: when it would not fit, the drawer overlays it instead (shadow),
+   *  per the owner's call (2026-09-26). */
   private navFits(): boolean {
     if (Platform.isMobile) return false;
     const scroller = this.scrollerEl;
@@ -1150,9 +1154,38 @@ export class NotepadView extends FileView {
     const max = parseFloat(getComputedStyle(sections).maxWidth);
     if (!Number.isFinite(max)) return false;
     const pad = getComputedStyle(scroller);
-    const padX =
-      (parseFloat(pad.paddingLeft) || 0) + (parseFloat(pad.paddingRight) || 0);
-    return this.contentEl.clientWidth - NAV_WIDTH - padX >= max;
+    const padLeft = parseFloat(pad.paddingLeft) || 0;
+    // The container itself must not hold side padding either — it is zeroed
+    // in styles/notepad.css, but the check reads the live value so a future
+    // theme change cannot silently skew the fit.
+    const container = getComputedStyle(this.contentEl);
+    const containerPadX =
+      (parseFloat(container.paddingLeft) || 0) +
+      (parseFloat(container.paddingRight) || 0);
+    return (
+      this.contentEl.clientWidth -
+      containerPadX -
+      NAV_WIDTH -
+      padLeft -
+      this.scrollbarWidth() >=
+      max
+    );
+  }
+
+  /** Layout width of a vertical scrollbar in this renderer (0 for overlay
+   *  scrollbars). The live scroller only shows it once its content
+   *  overflows — which is exactly what the fit check must predict: pushing
+   *  narrows the column, the reflow grows taller, the scrollbar appears and
+   *  eats the width it was not reserved. Measured on a hidden probe inside
+   *  the scroller, so any scoped scrollbar styling is inherited. */
+  private scrollbarWidth(): number {
+    const probe = document.createElement("div");
+    probe.style.cssText =
+      "position:absolute;top:0;left:0;height:100px;width:100px;overflow-y:scroll;visibility:hidden;pointer-events:none;";
+    this.scrollerEl.appendChild(probe);
+    const width = probe.offsetWidth - probe.clientWidth;
+    probe.remove();
+    return width;
   }
 
   /** Keep push vs overlay in step with the live view width (window
