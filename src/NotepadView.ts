@@ -655,7 +655,9 @@ export class NotepadView extends FileView {
     row.addEventListener("click", () =>
       this.toggleSection(handle.id, { expand: true }),
     );
-    row.addEventListener("dblclick", () => this.editTitleInline(handle));
+    // No dblclick handler here: the first click expands the section and
+    // removes this row synchronously, so a dblclick can never land —
+    // renaming goes through the edit glyph only.
 
     const edit = row.createDiv("notepad-section-edit");
     edit.setAttribute("aria-label", "Rename note");
@@ -858,6 +860,8 @@ export class NotepadView extends FileView {
     }
     this.sections.clear();
     this.pendingExpansions.clear();
+    // Removing the hosts destroys their editors (NoteElement cleanup).
+    this.focusedEditorValue = null;
     if (this.sectionsEl) this.sectionsEl.empty();
     this.showIdleToolbar();
   }
@@ -876,6 +880,12 @@ export class NotepadView extends FileView {
     // retry like NoteView does for the main editor host.
     const editorEl = await this.waitForEditorElement(handle.noteEl);
     if (editorEl == null) return null;
+    // The section was collapsed or the view torn down while waiting for
+    // the container: building now would bind a detached editor to the
+    // shared toolbar and resurrect a dead handle.
+    if (handle.noteEl == null || this.sections.get(handle.id) !== handle) {
+      return null;
+    }
 
     const editorRef = handle.editorRef;
     const ctx: ImageToolContext = {
@@ -911,6 +921,12 @@ export class NotepadView extends FileView {
       return null;
     }
     editorRef.current = editor;
+    // NoteElement's cleanup destroys props.editor when the host element is
+    // removed (collapse, page removal, view close) — without this the
+    // editor instance and its plugins outlive the page.
+    if (handle.noteEl != null) {
+      handle.noteEl.props.editor = editor;
+    }
 
     editor.on("focus", () => {
       this.focusedEditorValue = editor;
@@ -1792,13 +1808,18 @@ export class NotepadView extends FileView {
     }, AUTOSAVE_DELAY);
   }
 
-  private async flushSave(trigger = "autosave"): Promise<void> {
-    const run = this.saveChain.then(() => this.writePendingChanges(trigger));
+  private async flushSave(trigger = "autosave", force = false): Promise<void> {
+    const run = this.saveChain.then(() =>
+      this.writePendingChanges(trigger, force),
+    );
     this.saveChain = run.catch(() => {});
     return run;
   }
 
-  private async writePendingChanges(trigger: string): Promise<void> {
+  private async writePendingChanges(
+    trigger: string,
+    force = false,
+  ): Promise<void> {
     const notepad = this.notepad;
     const file = this.file;
     if (!notepad || !file) return;
@@ -1810,17 +1831,29 @@ export class NotepadView extends FileView {
     for (const handle of this.sections.values()) {
       this.flushSectionToNotepad(handle);
     }
-    if (notepad.dirtyNotes.size === 0 && !notepad.structureChanged) {
+    if (!force && notepad.dirtyNotes.size === 0 && !notepad.structureChanged) {
       this.dirty = false;
       return;
     }
 
+    // Clear the flags before the write, not after: writeUmFile serializes
+    // synchronously, so the snapshot covers exactly this dirty state, while
+    // an edit landing during the disk wait (e.g. flushed by a collapse)
+    // keeps its flag and is written by the next save.
+    const dirtySnapshot = new Set(notepad.dirtyNotes);
+    const structureSnapshot = notepad.structureChanged;
+    notepad.dirtyNotes.clear();
+    notepad.structureChanged = false;
+    this.dirty = false;
+
     try {
       await writeUmFile(file, this.app.vault, notepad, trigger);
-      notepad.dirtyNotes.clear();
-      notepad.structureChanged = false;
-      this.dirty = false;
     } catch (err) {
+      // Nothing reached the disk — restore the flags so the next flush
+      // retries the same content.
+      for (const id of dirtySnapshot) notepad.dirtyNotes.add(id);
+      notepad.structureChanged = structureSnapshot || notepad.structureChanged;
+      this.dirty = true;
       new Notice(`Failed to save notepad: ${String(err)}`);
     }
   }
@@ -1872,22 +1905,11 @@ export class NotepadView extends FileView {
     await this.reloadFromDisk();
   }
 
-  /** Unconditional write (conflict resolution: local version wins). */
-  private async writeNow(trigger: string): Promise<void> {
-    const notepad = this.notepad;
-    const file = this.file;
-    if (!notepad || !file) return;
-    for (const handle of this.sections.values()) {
-      this.flushSectionToNotepad(handle);
-    }
-    try {
-      await writeUmFile(file, this.app.vault, notepad, trigger);
-      notepad.dirtyNotes.clear();
-      notepad.structureChanged = false;
-      this.dirty = false;
-    } catch (err) {
-      new Notice(`Failed to save notepad: ${String(err)}`);
-    }
+  /** Unconditional write (conflict resolution: local version wins). Chained
+   *  like every other save: an in-flight autosave must not land after it
+   *  and overwrite the chosen version. */
+  private writeNow(trigger: string): Promise<void> {
+    return this.flushSave(trigger, true);
   }
 
   /** Replace the in-memory notepad and the UI with the on-disk state. */
