@@ -294,38 +294,6 @@ describe("UmNotepad schema handling", () => {
     expect(noteDisplayTitle(titleDoc(), "title")).toBe("");
   });
 
-  it("rename of a plain page lands in the first line", () => {
-    const nb = UmNotepad.empty();
-    const cover = nb.addNote(undefined, "Cover");
-    nb.setNoteContent(cover.id, titleDoc("Cover"));
-    const page = nb.addNote(cover.id);
-    nb.setNoteContent(page.id, headingDoc("Old heading"));
-
-    nb.setDisplayTitle(page.id, "New heading");
-    const doc = nb.noteContent(page.id)!;
-    expect(doc.content?.[0].type).toBe("heading");
-    expect(doc.content?.[0].content).toEqual([
-      { type: "text", text: "New heading" },
-    ]);
-    expect(nb.note(page.id)?.title).toBe("New heading");
-  });
-
-  it("rename of a page without a writable first line prepends a title node", () => {
-    const nb = UmNotepad.empty();
-    const cover = nb.addNote(undefined, "Cover");
-    nb.setNoteContent(cover.id, titleDoc("Cover"));
-    const page = nb.addNote(cover.id);
-    nb.setNoteContent(page.id, {
-      type: "noteDoc",
-      content: [{ type: "image", attrs: { data: { id: "x" } } }],
-    });
-
-    nb.setDisplayTitle(page.id, "Named");
-    const doc = nb.noteContent(page.id)!;
-    expect(doc.content?.[0].type).toBe("noteTitle");
-    expect(nb.note(page.id)?.title).toBe("Named");
-  });
-
   it("duplicate carries the schema and the (copy) suffix in the first line", () => {
     const nb = UmNotepad.empty();
     const cover = nb.addNote(undefined, "Cover");

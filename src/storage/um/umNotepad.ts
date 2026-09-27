@@ -180,20 +180,6 @@ export class UmNotepad {
     descriptor.title = noteDisplayTitle(doc, descriptor.schema);
   }
 
-  /** Rename a note from the UI. For a title page this updates the header
-   *  title node; for a regular note the document's first line is the source
-   *  of truth, so the rename lands there (8.4). */
-  setDisplayTitle(id: string, title: string): void {
-    const doc = this.data.notes.get(id);
-    const descriptor = this.note(id);
-    if (!doc || !descriptor) return;
-    const next =
-      descriptor.schema === UM_SCHEMA_TITLE
-        ? withNoteTitleText(doc, title)
-        : withFirstLineTitle(doc, title);
-    this.setNoteContent(id, next);
-  }
-
   /** Insert a new empty note after `afterId` (or at the end) and return its
    *  descriptor. The first page of an empty notepad is the title page and
    *  starts with the title/summary header (spec 9.1); every other page is

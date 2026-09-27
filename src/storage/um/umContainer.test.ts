@@ -351,18 +351,6 @@ describe("UmNotepad", () => {
     expect(nb.note(id)?.title).toBe("New first line");
   });
 
-  it("setDisplayTitle rewrites the document's first line, not just the manifest", () => {
-    const nb = notepadWithTwoNotes();
-    const id = nb.notes()[0].id;
-    nb.setDisplayTitle(id, "Renamed");
-    expect(nb.note(id)?.title).toBe("Renamed");
-    const titleNode = nb
-      .noteContent(id)
-      ?.content?.find((n) => n.type === "noteTitle");
-    expect(titleNode?.content).toEqual([{ type: "text", text: "Renamed" }]);
-    expect(nb.dirtyNotes.has(id)).toBe(true);
-  });
-
   it("addNote with a title writes it into the document's first line", () => {
     const nb = UmNotepad.empty();
     const added = nb.addNote(undefined, "Starter");

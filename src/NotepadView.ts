@@ -257,6 +257,9 @@ export class NotepadView extends FileView {
   /** Settler of the in-flight nav-flip scrollbar guard (see
    *  flipContentLayout); null when no flip is animating. */
   private flipSettle: (() => void) | null = null;
+  /** Title signature the nav list currently renders (see
+   *  navTitleSignature); the early exit for save-time refreshes. */
+  private navTitles: string | null = null;
 
   // ── Drag & drop reorder ──
   private drag: {
@@ -658,7 +661,10 @@ export class NotepadView extends FileView {
   }
 
   /** The one-line collapsed representation: the note title, or a muted
-   *  placeholder when empty. */
+   *  placeholder when empty. The only click action is expanding — renaming
+   *  happens by editing the page's first line (the title source of truth,
+   *  um-title-sync); a dedicated rename control was removed (owner's call,
+   *  2026-09-27). */
   private renderCollapsedTitle(handle: SectionHandle, title: string): void {
     handle.content.empty();
     const row = handle.content.createDiv("notepad-section-collapsed");
@@ -672,54 +678,6 @@ export class NotepadView extends FileView {
     row.addEventListener("click", () =>
       this.toggleSection(handle.id, { expand: true }),
     );
-    // No dblclick handler here: the first click expands the section and
-    // removes this row synchronously, so a dblclick can never land —
-    // renaming goes through the edit glyph only.
-
-    const edit = row.createDiv("notepad-section-edit");
-    edit.setAttribute("aria-label", "Rename note");
-    edit.setText("✎");
-    edit.addEventListener("click", (event) => {
-      event.stopPropagation();
-      this.editTitleInline(handle);
-    });
-  }
-
-  private editTitleInline(handle: SectionHandle): void {
-    const descriptor = this.notepad?.note(handle.id);
-    // The title page has no collapsed row and no rename entry point — its
-    // title is edited directly in the always-open header (spec 9.1).
-    if (!descriptor || descriptor.order === 0) return;
-    const row = handle.content.querySelector(".notepad-section-collapsed");
-    if (row == null || row.querySelector("input") != null) return;
-
-    const input = document.createElement("input");
-    input.addClass("notepad-title-input");
-    input.value = descriptor.title ?? "";
-    input.addEventListener("click", (event) => event.stopPropagation());
-    row.empty();
-    row.appendChild(input);
-    input.focus();
-    input.select();
-
-    let done = false;
-    const commit = (save: boolean) => {
-      if (done) return;
-      done = true;
-      if (save && this.notepad) {
-        // Renaming updates the document's first line (source of truth);
-        // the manifest title mirror follows.
-        this.notepad.setDisplayTitle(handle.id, input.value);
-        this.rebuildNavList();
-        void this.flushSave("rename");
-      }
-      this.renderSectionTitleOnly(handle);
-    };
-    input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") commit(true);
-      else if (event.key === "Escape") commit(false);
-    });
-    input.addEventListener("blur", () => commit(true));
   }
 
   /** Re-render the collapsed title text after inline editing. */
@@ -853,6 +811,10 @@ export class NotepadView extends FileView {
 
     const descriptor = this.notepad?.note(id);
     this.renderCollapsedTitle(handle, descriptor?.title ?? "");
+    // The flush above may have synced a title edited in the page's first
+    // line — the nav list must show it right away, not after the next
+    // rebuild (nav open / add / delete).
+    this.rebuildNavList();
   }
 
   /** Copy the live editor JSON into the notepad model (change-gated, so
@@ -1327,6 +1289,25 @@ export class NotepadView extends FileView {
       if (this.isNavActive(descriptor.id)) item.addClass("is-active");
       item.addEventListener("click", () => this.jumpToPage(descriptor.id));
     }
+    this.navTitles = this.navTitleSignature();
+  }
+
+  /** Signature of the note titles as the nav list should render them.
+   *  Comparing this against the rendered snapshot (navTitles) lets a
+   *  save-time refresh exit early — the rebuild is O(pages) and replaces
+   *  nodes (hover state), the compare is microseconds. */
+  private navTitleSignature(): string {
+    return JSON.stringify(
+      this.notepad?.notes().map((n) => [n.id, (n.title ?? "").trim()]),
+    );
+  }
+
+  /** Refresh the nav list when flushed titles drifted from what it
+   *  renders — a page renamed in its first line must reach the nav while
+   *  it stays expanded (the drawer is open by default on wide screens). */
+  private syncNavTitles(): void {
+    if (this.navTitleSignature() === this.navTitles) return;
+    this.rebuildNavList();
   }
 
   private isNavActive(id: string): boolean {
@@ -1909,6 +1890,10 @@ export class NotepadView extends FileView {
     for (const handle of this.sections.values()) {
       this.flushSectionToNotepad(handle);
     }
+    // The flush above synced titles edited in expanded pages — the nav
+    // must follow on save, without waiting for a collapse. The signature
+    // compare skips the rebuild when nothing actually changed.
+    this.syncNavTitles();
     if (!force && notepad.dirtyNotes.size === 0 && !notepad.structureChanged) {
       this.dirty = false;
       return;
