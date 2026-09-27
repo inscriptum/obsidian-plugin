@@ -411,3 +411,7 @@ export const ToolbarElement = litView.element({
     }
   }
 })(elTag("note-toolbar"));
+
+/** The factory above is only a value (a custom element constructor); this
+ *  alias gives consumers the instance type, with its typed `props`. */
+export type ToolbarElement = InstanceType<typeof ToolbarElement>;

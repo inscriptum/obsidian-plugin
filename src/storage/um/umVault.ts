@@ -1,5 +1,6 @@
 import type { TFile, Vault } from "obsidian";
 import { logDiagEvent, logNoteWrite } from "../noteStorage";
+import type { AdapterWithFullPath } from "../noteStorage";
 import { UmNotepad } from "./umNotepad";
 import { UM_MAX_FILE_BYTES, UmError } from "./umTypes";
 
@@ -121,7 +122,7 @@ async function replaceFile(
   targetPath: string,
 ): Promise<void> {
   const nodeFs = getNodeFs();
-  const adapter = vault.adapter;
+  const adapter: AdapterWithFullPath = vault.adapter;
   if (nodeFs != null && typeof adapter.getFullPath === "function") {
     nodeFs.renameSync(
       adapter.getFullPath(tmpPath),

@@ -23,10 +23,13 @@ export class Extension<Options extends AnyRecord = any, Storage = any> {
   };
 
   constructor(config: Partial<ExtensionConfig<Options, Storage>> = {}) {
+    // The user config's `this`-typed handlers narrow Options/Storage beyond
+    // the base ExtensionConfig; the dynamic dispatch via getExtensionField
+    // erases that at runtime, so the merged config is intentionally widened.
     this.config = {
       ...this.config,
       ...config,
-    };
+    } as ExtensionConfig;
 
     this.name = this.config.name;
 

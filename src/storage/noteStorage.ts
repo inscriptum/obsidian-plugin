@@ -1,4 +1,4 @@
-import type { TFile, Vault } from "obsidian";
+import type { DataAdapter, TFile, Vault } from "obsidian";
 import type { JSONContent } from "../texto/core/@types";
 import { ensureTrailingParagraphJSON } from "../texto/extensions/note-doc/trailingParagraph";
 
@@ -138,6 +138,13 @@ export async function writeNote(
  *    the note view (mobile regression). The temp file with the full new
  *    content is cleaned up after a successful write.
  */
+/** getFullPath is declared in the typings only on the concrete adapter
+ *  classes, but both desktop and mobile adapters expose it — callers
+ *  feature-detect it before use. */
+export type AdapterWithFullPath = DataAdapter & {
+  getFullPath?: (normalizedPath: string) => string;
+};
+
 async function replaceFile(
   vault: Vault,
   tmpPath: string,
@@ -145,7 +152,7 @@ async function replaceFile(
   data: string,
 ): Promise<void> {
   const nodeFs = getNodeFs();
-  const adapter = vault.adapter;
+  const adapter: AdapterWithFullPath = vault.adapter;
   if (nodeFs != null && typeof adapter.getFullPath === "function") {
     nodeFs.renameSync(
       adapter.getFullPath(tmpPath),
@@ -198,7 +205,7 @@ export async function writeNoteRaw(
   const started = Date.now();
   let priorBytes: number | null = null;
   try {
-    priorBytes = (await adapter.stat(file.path)).size;
+    priorBytes = (await adapter.stat(file.path))?.size ?? null;
   } catch {
     // no prior file (or stat unavailable) — logged as null
   }
@@ -212,7 +219,7 @@ export async function writeNoteRaw(
     // means the storage layer lied about the write succeeding.
     try {
       const after = await adapter.stat(file.path);
-      if (data.length > 0 && after.size === 0) {
+      if (after != null && data.length > 0 && after.size === 0) {
         result = "verify-failed";
         console.error(
           `[inscriptum] Write verification failed for "${file.path}": file is 0 bytes after a ${data.length}-byte write.`,

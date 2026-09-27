@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "vite build --watch --mode development",
     "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "typecheck:watch": "tsc --noEmit --watch --preserveWatchOutput",
     "android:debug": "node scripts/android-debug.mjs",
     "ios:debug": "node scripts/ios-debug.mjs",
     "deploy": "cp dist/main.js manifest.json dist/styles.css .obsidian/plugins/inscriptum/",

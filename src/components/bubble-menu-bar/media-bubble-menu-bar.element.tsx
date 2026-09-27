@@ -64,7 +64,12 @@ export const MediaBubbleMenuElement = litView.element({
     const tippy = getTippy();
     if (tippy && !wiredTippies.has(tippy)) {
       wiredTippies.add(tippy);
-      tippy.setProps({ onShow: () => window.requestAnimationFrame(syncCaret) });
+      // onShow must return void — a bare arrow would leak the rAF id
+      tippy.setProps({
+        onShow: () => {
+          window.requestAnimationFrame(syncCaret);
+        },
+      });
     }
   };
 

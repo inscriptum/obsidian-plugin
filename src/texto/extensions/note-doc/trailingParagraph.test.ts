@@ -45,7 +45,7 @@ function createEditor(content?: JSONContent) {
  *  a real document change (a harmless character in the title) to trigger
  *  appendTransaction — the same path a real user's edit takes. */
 function pump(editor: Editor): void {
-  const pos = editor.state.doc.firstChild.nodeSize - 1;
+  const pos = editor.state.doc.firstChild!.nodeSize - 1;
   editor.view.dispatch(editor.state.tr.insertText("x", pos, pos));
 }
 
@@ -299,7 +299,7 @@ describe("trailingParagraphPlugin", () => {
     const editor = createEditor();
     expect(
       editor.state.plugins.some(
-        (p) => p.key === trailingParagraphPluginKey.key,
+        (p) => p.spec.key === trailingParagraphPluginKey,
       ),
     ).toBe(true);
     editor.destroy();

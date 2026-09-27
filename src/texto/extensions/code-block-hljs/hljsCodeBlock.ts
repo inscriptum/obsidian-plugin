@@ -497,7 +497,12 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
           const currentPos = isFunction(getPos) ? getPos() : null;
           const current =
             currentPos == null ? null : editor.state.doc.nodeAt(currentPos);
-          if (current == null || current.type !== this.type) return;
+          if (
+            currentPos == null ||
+            current == null ||
+            current.type !== this.type
+          )
+            return;
           editor.view.dispatch(
             editor.view.state.tr.setNodeMarkup(currentPos, undefined, {
               ...(current.attrs as HljsCodeBlockAttrs),

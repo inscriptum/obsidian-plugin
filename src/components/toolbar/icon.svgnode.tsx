@@ -29,9 +29,8 @@ function makeToolbarIconNode(name: ToolbarIconName) {
   })();
 }
 
-export const toolbarIconNodes: Record<
-  ToolbarIconName,
-  ReturnType<typeof makeToolbarIconNode>
-> = Object.fromEntries(
+// Object.fromEntries widens to an index signature; the keys are exactly
+// TOOLBAR_ICON_NAMES by construction, so the Record cast is safe.
+export const toolbarIconNodes = Object.fromEntries(
   TOOLBAR_ICON_NAMES.map((name) => [name, makeToolbarIconNode(name)]),
-);
+) as Record<ToolbarIconName, ReturnType<typeof makeToolbarIconNode>>;

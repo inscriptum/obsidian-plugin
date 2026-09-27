@@ -104,19 +104,16 @@ const makeToolbarElement = () =>
     () => new ToolbarElement(),
   );
 const makeBubbleMenuBarElement = () =>
-  createCustomElement<HTMLElement>(
-    "bubble-menu-bar",
-    () => new BubbleMenuBarElement() as unknown as HTMLElement,
-  );
+  createCustomElement("bubble-menu-bar", () => new BubbleMenuBarElement());
 const makeTableBubbleMenuElement = () =>
-  createCustomElement<HTMLElement>(
+  createCustomElement(
     "table-bubble-menu-bar",
-    () => new TableBubbleMenuElement() as unknown as HTMLElement,
+    () => new TableBubbleMenuElement(),
   );
 const makeMediaBubbleMenuElement = () =>
-  createCustomElement<HTMLElement>(
+  createCustomElement(
     "media-bubble-menu-bar",
-    () => new MediaBubbleMenuElement() as unknown as HTMLElement,
+    () => new MediaBubbleMenuElement(),
   );
 
 /** The blog draft view's ☰ (tabler menu-2: 38×38, hairline stroke 1). */
@@ -562,7 +559,8 @@ export class NotepadView extends FileView {
     // show a notice instead of content and are preserved verbatim.
     const isTitlePage = order === 0;
     const schemaState = this.notepad?.noteSchemaState(id);
-    const isUnsupported = schemaState != null && schemaState.kind !== "openable";
+    const isUnsupported =
+      schemaState != null && schemaState.kind !== "openable";
     if (isTitlePage) root.addClass("is-title");
     if (isUnsupported) root.addClass("is-unsupported");
 
@@ -1220,10 +1218,10 @@ export class NotepadView extends FileView {
       (parseFloat(container.paddingRight) || 0);
     return (
       this.contentEl.clientWidth -
-      containerPadX -
-      NAV_WIDTH -
-      padLeft -
-      this.scrollbarWidth() >=
+        containerPadX -
+        NAV_WIDTH -
+        padLeft -
+        this.scrollbarWidth() >=
       max
     );
   }
@@ -1235,10 +1233,11 @@ export class NotepadView extends FileView {
    *  eats the width it was not reserved. Measured on a hidden probe inside
    *  the scroller, so any scoped scrollbar styling is inherited. */
   private scrollbarWidth(): number {
-    const probe = document.createElement("div");
-    probe.style.cssText =
-      "position:absolute;top:0;left:0;height:100px;width:100px;overflow-y:scroll;visibility:hidden;pointer-events:none;";
-    this.scrollerEl.appendChild(probe);
+    const scroller = this.scrollerEl;
+    if (!scroller) return 0;
+    // Measured on a hidden probe inside the live scroller, so any scoped
+    // scrollbar styling is inherited by the measurement.
+    const probe = scroller.createDiv("notepad-scrollbar-probe");
     const width = probe.offsetWidth - probe.clientWidth;
     probe.remove();
     return width;
@@ -1252,10 +1251,7 @@ export class NotepadView extends FileView {
    *  choice — but an open drawer switching modes glides its column. */
   private updateNavMode(): void {
     const fits = this.navFits();
-    if (
-      this.navOpen &&
-      this.contentEl?.hasClass("notepad-nav-push") !== fits
-    ) {
+    if (this.navOpen && this.contentEl?.hasClass("notepad-nav-push") !== fits) {
       this.flipContentLayout(() =>
         this.contentEl?.toggleClass("notepad-nav-push", fits),
       );
@@ -1402,7 +1398,7 @@ export class NotepadView extends FileView {
       if (moved < 6) return;
       this.drag.active = true;
       handle.root.addClass("is-dragging");
-      this.dropLineEl = this.sectionsEl?.createDiv("notepad-drop-line");
+      this.dropLineEl = this.sectionsEl?.createDiv("notepad-drop-line") ?? null;
     }
     this.updateDropLine(event.clientY);
   };
@@ -1455,10 +1451,13 @@ export class NotepadView extends FileView {
   }
 
   private updateDropLine(clientY: number): void {
-    if (!this.dropLineEl || !this.drag || !this.sectionsEl) return;
+    // Capture locally: the filter closure below runs after the null checks
+    // and TS cannot see that `this.drag` hasn't changed in between.
+    const drag = this.drag;
+    if (!this.dropLineEl || !drag || !this.sectionsEl) return;
     const titleId = this.titleSectionId();
     const others = [...this.sections.values()]
-      .filter((h) => h.id !== this.drag.id && h.id !== titleId)
+      .filter((h) => h.id !== drag.id && h.id !== titleId)
       .map((h) => ({ root: h.root }))
       .sort((a, b) => a.root.offsetTop - b.root.offsetTop);
     let top: number | null = null;
@@ -1945,11 +1944,7 @@ export class NotepadView extends FileView {
     const fingerprint = await umFingerprint(this.app.vault, file);
     if (fingerprint === notepad.savedFingerprint) return; // our own save
 
-    if (
-      notepad.dirtyNotes.size > 0 ||
-      notepad.structureChanged ||
-      this.dirty
-    ) {
+    if (notepad.dirtyNotes.size > 0 || notepad.structureChanged || this.dirty) {
       this.conflictModalOpen = true;
       new FileChangedModal(this.app, {
         onKeepLocal: () => {

@@ -333,9 +333,9 @@ describe("UmNotepad", () => {
     const data = parseUmContainer(nb.serialize());
     const first = data.manifest.notes[0];
     first.title = "stale manifest title";
-    const doc = data.notes.get(first.id);
+    const doc = data.notes.get(first.id)!;
     // Document's first line says "hhhhh" — it must win over the manifest.
-    doc.content[0] = {
+    doc.content![0] = {
       type: "noteTitle",
       content: [{ type: "text", text: "hhhhh" }],
     };
@@ -382,7 +382,7 @@ describe("UmNotepad", () => {
     expect(nb.notes()[0].order).toBe(0);
     expect(nb.noteContent(second.id)).toBeUndefined();
 
-    nb.restoreNote(removed);
+    nb.restoreNote(removed!);
     expect(nb.notes().map((n) => n.title)).toEqual(["First", "Second"]);
     expect(nb.noteContent(second.id)).toEqual(helloDoc("Second"));
     expect(nb.notes()[1].order).toBe(1);
@@ -392,7 +392,7 @@ describe("UmNotepad", () => {
     const nb = notepadWithTwoNotes();
     const first = nb.notes()[0];
     const removed = nb.removeNote(first.id);
-    nb.restoreNote(removed);
+    nb.restoreNote(removed!);
     expect(nb.notes().map((n) => n.title)).toEqual(["First", "Second"]);
   });
 
@@ -418,14 +418,14 @@ describe("UmNotepad", () => {
     // The copy's first line carries the "(copy)" title so the mirror sync
     // does not wipe the suffix on reload.
     const copyTitleNode = nb
-      .noteContent(copy.id)
+      .noteContent(copy!.id)
       ?.content?.find((n) => n.type === "noteTitle");
     expect(copyTitleNode?.content).toEqual([
       { type: "text", text: "First (copy)" },
     ]);
 
     const parsed = parseUmContainer(nb.serialize());
-    expect(parsed.notes.get(copy.id)).toEqual(nb.noteContent(copy.id));
+    expect(parsed.notes.get(copy!.id)).toEqual(nb.noteContent(copy!.id));
   });
 
   it("duplicateNote of an untitled note stays untitled", () => {
@@ -482,7 +482,7 @@ describe("UmNotepad", () => {
     nb.setExpanded(first.id, true);
     const removed = nb.removeNote(first.id);
     expect(nb.isExpanded(first.id)).toBe(false);
-    nb.restoreNote(removed);
+    nb.restoreNote(removed!);
     expect(nb.isExpanded(first.id)).toBe(true);
   });
 });

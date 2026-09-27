@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { Plugin } from "prosemirror-state";
 import { Platform } from "obsidian";
 import {
   createPhysicalShortcutPlugin,
@@ -273,6 +274,13 @@ describe("findCommandsCollidingWith", () => {
 });
 
 describe("createPhysicalShortcutPlugin", () => {
+  /** The handleKeyDown prop is typed with `this: Plugin`, but prosemirror
+   *  invokes it unbound and the handler only reads the event — bind `this`
+   *  to the plugin to satisfy the signature. */
+  function callHandleKeyDown(plugin: Plugin, event: KeyboardEvent) {
+    return plugin.props.handleKeyDown?.call(plugin, {} as never, event);
+  }
+
   function makePlugin(handler: (event: KeyboardEvent) => boolean) {
     return createPhysicalShortcutPlugin({
       getCommands: () => ["Mod-b"],
@@ -284,9 +292,9 @@ describe("createPhysicalShortcutPlugin", () => {
     Platform.isMacOS = true;
     const handle = vi.fn(() => true);
     const plugin = makePlugin(handle);
-    const result = plugin.props.handleKeyDown?.(
-      {} as never,
-      evt({ key: "и", code: "KeyB", metaKey: true }) as KeyboardEvent,
+    const result = callHandleKeyDown(
+      plugin,
+      evt({ key: "и", code: "KeyB", metaKey: true }),
     );
     expect(result).toBe(true);
     expect(handle).toHaveBeenCalled();
@@ -296,15 +304,12 @@ describe("createPhysicalShortcutPlugin", () => {
     Platform.isMacOS = true;
     const handle = vi.fn(() => true);
     const plugin = makePlugin(handle);
-    expect(
-      plugin.props.handleKeyDown?.(
-        {} as never,
-        evt({ key: "b", code: "KeyB" }),
-      ),
-    ).toBe(false);
+    expect(callHandleKeyDown(plugin, evt({ key: "b", code: "KeyB" }))).toBe(
+      false,
+    );
     const forwarded = evt({ key: "k", code: "KeyK", metaKey: true });
     markForwardedShortcut(forwarded);
-    expect(plugin.props.handleKeyDown?.({} as never, forwarded)).toBe(false);
+    expect(callHandleKeyDown(plugin, forwarded)).toBe(false);
     expect(handle).not.toHaveBeenCalled();
   });
 
@@ -313,10 +318,7 @@ describe("createPhysicalShortcutPlugin", () => {
     const handle = vi.fn(() => true);
     const plugin = makePlugin(handle);
     expect(
-      plugin.props.handleKeyDown?.(
-        {} as never,
-        evt({ key: "c", code: "KeyC", metaKey: true }),
-      ),
+      callHandleKeyDown(plugin, evt({ key: "c", code: "KeyC", metaKey: true })),
     ).toBe(false);
     expect(handle).not.toHaveBeenCalled();
   });

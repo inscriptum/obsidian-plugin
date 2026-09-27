@@ -104,6 +104,19 @@ Run tests:
 npm test
 ```
 
+Type-check the codebase (`vite build` does not check types; CI runs this on
+every push, so keep it clean):
+
+```bash
+npm run typecheck
+```
+
+For a continuous check while refactoring:
+
+```bash
+npm run typecheck:watch
+```
+
 ## Release
 
 Releases are built automatically by GitHub Actions.

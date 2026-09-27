@@ -4,8 +4,23 @@ import { getToolbarState } from "./toolbarState";
 
 function makeEditor(active: Record<string, boolean>): Pick<Editor, "isActive"> {
   return {
-    isActive(name: string, attrs?: { level?: number }) {
-      if (name === "heading") return active[`heading${attrs?.level}`] ?? false;
+    // Editor.isActive has two overloads: (name, attributes?) and (attributes).
+    // The mock accepts both; only the (name, attributes) form is exercised.
+    isActive(
+      nameOrAttributes: string | object,
+      attributesOrUndefined?: object,
+    ) {
+      const name = typeof nameOrAttributes === "string" ? nameOrAttributes : "";
+      const attrs =
+        typeof nameOrAttributes === "string"
+          ? attributesOrUndefined
+          : nameOrAttributes;
+      if (name === "heading")
+        return (
+          active[
+            `heading${(attrs as { level?: number } | undefined)?.level}`
+          ] ?? false
+        );
       return active[name] ?? false;
     },
   };
