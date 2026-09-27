@@ -266,19 +266,42 @@ button.notepad-nav-toggle:hover svg {
 .notepad-scroller {
   flex: 1 1 auto;
   overflow-y: auto;
-  /* Today this axis already computes to auto (the auto on y forces it);
-     the push shift transiently pokes the column past the padding edge
-     mid-animation, which must not flash a horizontal scrollbar — pin it
-     to hidden. */
-  overflow-x: hidden;
+  /* The page column is fixed-width on desktop (see .notepad-sections
+     min-width), so a narrow window overflows: scroll to it instead of
+     squeezing the editor. While the nav flip animates the column
+     transiently pokes past the scroller edge — that must not flash a
+     horizontal scrollbar, so the flip guard pins it back to hidden
+     (see .notepad-scroller.is-flipping below). */
+  overflow-x: auto;
   /* padding: var(--size-4-4) var(--size-4-5) var(--size-4-10); */
 }
 
+/* Flip guard: present for as long as the FLIP transform animates the
+   column (NotepadView.flipContentLayout adds/removes it around the
+   transition) — the translated column pokes past the scroller edge
+   mid-animation and must not scroll horizontally while doing so. */
+.notepad-scroller.is-flipping {
+  overflow-x: hidden;
+}
+
 .notepad-sections {
-  max-width: 880px;
+  /* 74px section left margin + 96px inner .texto-editor side padding
+     (48×2) + the 748px ProseMirror text column — the same column width a
+     .note gets, so a page's editor area is not narrower than a note's. */
+  max-width: 918px;
   margin: 0 auto;
   /* Matches the drawer's slide so the shift and the drawer move together. */
   transition: transform 0.35s;
+  padding: 28px 0;
+}
+
+/* Fixed page column (desktop, the owner's call 2026-09-27): the page keeps
+   its designed width and a narrow window scrolls horizontally instead of
+   squeezing the editor area (.note compresses; a .um page must not).
+   Mobile keeps the compressing fit — a fixed column there would need
+   horizontal scrolling on every phone. */
+.view-content.notepad-view-container:not(.is-mobile) .notepad-sections {
+  min-width: 918px;
 }
 
 /* FLIP helper (NotepadView.flipContentLayout): present only for one forced
@@ -715,18 +738,25 @@ button.notepad-section-control.is-danger svg {
   opacity: 1;
 }
 
-/* ── Empty notepad ── */
+/* ── Add-note row (always the last element of the page list) ── */
 
-.notepad-add-note {
+/* The element+class selector must outrank Obsidian's
+   `button:not(.clickable-icon)` base — a bare class loses that race, and
+   button chrome (background, shadow) would bleed into the normal state.
+   Background is hover-only (the owner's call, 2026-09-27). */
+button.notepad-add-note {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 100%;
-  margin-top: var(--size-2-3);
+  /* One inter-section gap above (mirrors .notepad-section + .notepad-section)
+     so the row reads as the list terminator, not part of the last page. */
+  margin-top: 32px;
   padding: var(--size-2-2) 0;
   border: 1px dashed var(--background-modifier-border);
   border-radius: var(--radius-s);
-  background: transparent;
+  background-color: transparent;
+  box-shadow: none;
   color: var(--text-muted);
   font-size: var(--font-ui-small);
   cursor: pointer;

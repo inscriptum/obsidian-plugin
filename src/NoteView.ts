@@ -27,13 +27,9 @@ import {
 } from "./storage/attachments";
 import { getExtensions, type ExtensionHooks } from "./texto/getExtensions";
 import {
-  getFoldedHeadingPositions,
-  restoreFoldedHeadings,
-} from "./texto/extensions/heading/folding";
-import {
-  getFoldedTaskPositions,
-  restoreFoldedTasks,
-} from "./texto/extensions/task-item-folding";
+  createFoldPersistence,
+  type FoldPersistence,
+} from "./storage/foldPersistence";
 import {
   handleAddImg,
   imageOnSetViewProps,
@@ -129,13 +125,9 @@ export class NoteView extends FileView {
   private keyboardViewportCleanup: (() => void) | null = null;
   private leafContentWithNoteClass: HTMLElement | null = null;
   private searchEl: HTMLElement | null = null;
-  /** Last fold positions saved to localStorage, per fold kind; guards
-   *  redundant writes. */
-  private lastSavedFolds: { heading: number[] | null; task: number[] | null } =
-    {
-      heading: null,
-      task: null,
-    };
+  /** Device-local fold persistence (headings + task items), created lazily
+   *  with a live scope — see src/storage/foldPersistence.ts. */
+  private foldStore: FoldPersistence | null = null;
 
   // ── External file change watching ──
   /** Whether the editor holds changes not yet written to disk. */
@@ -463,8 +455,8 @@ export class NoteView extends FileView {
               this.dirty = true;
               this.scheduleSave();
             },
-            onTransaction: ({ transaction }) => {
-              this.syncFoldState(transaction);
+            onTransaction: () => {
+              this.syncFoldState();
             },
             extensions: getExtensions(
               this.buildExtensionHooks(file, editorRef, ctx),
@@ -994,144 +986,30 @@ export class NoteView extends FileView {
     }, AUTOSAVE_DELAY);
   }
 
-  /** localStorage key for a note's fold state of the given kind. Mirrors the
-   *  storage approach of Obsidian's own foldManager (`note-fold-<path>`): the
-   *  fold state is vault-local metadata, never part of the note document.
-   *  Kind prefixes: `inscriptum-note-fold-` (headings, existing key),
-   *  `inscriptum-task-fold-` (task subtasks). */
-  private foldStorageKey(kind: "heading" | "task"): string | null {
-    const path = this.file?.path;
-    if (!path) return null;
-    const prefix =
-      kind === "heading" ? "inscriptum-note-fold-" : "inscriptum-task-fold-";
-    return `${prefix}${path}`;
-  }
-
-  private loadFoldStorage(key: string): unknown {
-    // app.loadLocalStorage exists since v1.8.7 (typed API), but minAppVersion
-    // is older — access it structurally so both paths are used and the
-    // version rule stays satisfied. It namespaces the value per vault like
-    // Obsidian's own foldManager does.
-    const app = this.app as unknown as {
-      loadLocalStorage?: (k: string) => unknown;
-    };
-    if (typeof app.loadLocalStorage === "function") {
-      return app.loadLocalStorage(key);
+  /** Device-local fold persistence for this note, created lazily. The scope
+   *  (file path) is resolved live, so a rename-to-title keeps landing on the
+   *  current key. */
+  private folds(): FoldPersistence {
+    if (this.foldStore == null) {
+      this.foldStore = createFoldPersistence(
+        this.app,
+        () => this.file?.path ?? null,
+      );
     }
-    try {
-      const raw = window.localStorage.getItem(key);
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  }
-
-  private saveFoldStorage(key: string, data: unknown): void {
-    const app = this.app as unknown as {
-      saveLocalStorage?: (k: string, value: unknown) => void;
-    };
-    if (typeof app.saveLocalStorage === "function") {
-      app.saveLocalStorage(key, data);
-      return;
-    }
-    try {
-      if (data == null) {
-        window.localStorage.removeItem(key);
-      } else {
-        window.localStorage.setItem(key, JSON.stringify(data));
-      }
-    } catch {
-      // localStorage unavailable (private mode etc.) — folds just won't
-      // persist, the editor itself is unaffected.
-    }
+    return this.foldStore;
   }
 
   /** Persist folded positions for both foldable node kinds (headings and
    *  task items). Called from the editor's onTransaction; the folding
    *  extensions keep the current positions in their storages. */
-  private syncFoldState(_transaction: unknown): void {
+  private syncFoldState(): void {
     if (this.isMobileView() || !this.editor) return;
-
-    this.syncFoldTarget("heading", "headingFolding");
-    this.syncFoldTarget("task", "taskItemFolding");
-  }
-
-  private syncFoldTarget(kind: "heading" | "task", storageName: string): void {
-    if (!this.editor) return;
-
-    const positions = (
-      this.editor.storage[storageName] as { positions?: number[] } | undefined
-    )?.positions;
-    if (positions == null || positions === this.lastSavedFolds[kind]) return;
-
-    const key = this.foldStorageKey(kind);
-    if (!key) return;
-
-    // Same guard as Obsidian's foldManager: an empty fold list clears the
-    // stored value instead of persisting `[]`.
-    this.lastSavedFolds[kind] = positions;
-    this.saveFoldStorage(
-      key,
-      positions.length > 0 ? { folds: positions } : null,
-    );
+    this.folds().sync(this.editor);
   }
 
   /** Restore folds saved for this note into a freshly created editor. */
   private restoreFoldState(editor: Editor): void {
-    this.restoreFoldTarget(
-      editor,
-      "heading",
-      "headingFolding",
-      "heading",
-      (view, positions) => restoreFoldedHeadings(view, positions),
-    );
-    this.restoreFoldTarget(
-      editor,
-      "task",
-      "taskItemFolding",
-      "taskItem",
-      (view, positions) => restoreFoldedTasks(view, positions),
-    );
-  }
-
-  private restoreFoldTarget(
-    editor: Editor,
-    kind: "heading" | "task",
-    storageName: string,
-    nodeTypeName: string,
-    restore: (view: Editor["view"], positions: number[]) => void,
-  ): void {
-    const key = this.foldStorageKey(kind);
-    if (!key) return;
-
-    const saved = this.loadFoldStorage(key) as
-      | { folds?: number[] }
-      | null
-      | undefined;
-    const folds = saved?.folds;
-    if (!Array.isArray(folds) || folds.length === 0) return;
-
-    // Positions saved from a previous session may not match this doc if the
-    // note was edited elsewhere; keep only positions that still point at the
-    // expected node kind. (The plugin also drops them on later edits via
-    // mapping.)
-    const valid = folds.filter((pos) => {
-      if (typeof pos !== "number" || !Number.isFinite(pos)) return false;
-      const node = editor.state.doc.nodeAt(pos);
-      return node?.type.name === nodeTypeName;
-    });
-    if (valid.length === 0) return;
-
-    restore(editor.view, valid);
-    const positions =
-      kind === "heading"
-        ? getFoldedHeadingPositions(editor.state)
-        : getFoldedTaskPositions(editor.state);
-    const storage = editor.storage[storageName] as
-      | { positions?: number[] }
-      | undefined;
-    if (storage) storage.positions = positions;
-    this.lastSavedFolds[kind] = positions;
+    this.folds().restore(editor);
   }
 
   private async flushSave(trigger = "autosave"): Promise<void> {

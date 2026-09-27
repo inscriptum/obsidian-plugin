@@ -26,6 +26,10 @@ import {
   type NotepadSearchMatch,
 } from "./notepad/notepadSearch";
 import { getExtensions, type ExtensionHooks } from "./texto/getExtensions";
+import {
+  createFoldPersistence,
+  type FoldPersistence,
+} from "./storage/foldPersistence";
 import { readUmFile, umFingerprint, writeUmFile } from "./storage/um/umVault";
 import { UmNotepad } from "./storage/um/umNotepad";
 import { UmError, UM_SCHEMA_TITLE } from "./storage/um/umTypes";
@@ -198,6 +202,9 @@ interface SectionHandle {
   editor: Editor | null;
   editorRef: { current: Editor | null };
   bubbleEls: HTMLElement[];
+  /** Device-local persistence of this page's in-document fold state
+   *  (headings + task items), created lazily — see foldPersistence.ts. */
+  folds: FoldPersistence | null;
 }
 
 /**
@@ -247,6 +254,9 @@ export class NotepadView extends FileView {
    *  fits); later resizes never override the user's own choice. */
   private navBooted = false;
   private navResize: ResizeObserver | null = null;
+  /** Settler of the in-flight nav-flip scrollbar guard (see
+   *  flipContentLayout); null when no flip is animating. */
+  private flipSettle: (() => void) | null = null;
 
   // ── Drag & drop reorder ──
   private drag: {
@@ -381,6 +391,12 @@ export class NotepadView extends FileView {
   async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("notepad-view-container");
+    // Mirrors NoteView: the CSS uses the class to scope desktop-only rules
+    // (e.g. the fixed page column) away from phones/tablets.
+    if (Platform.isMobile) {
+      this.contentEl.addClass("is-mobile");
+      if (Platform.isPhone) this.contentEl.addClass("is-phone");
+    }
 
     this.toolbarHost = this.contentEl.createDiv("notepad-toolbar-host");
     // Blog-style pages navigation drawer (hidden by default, ☰ toggle).
@@ -516,11 +532,11 @@ export class NotepadView extends FileView {
         ),
       );
     }
-    // Per-section controls cover add-after everywhere; a dedicated row is
-    // only needed so an empty notepad is not a dead end.
-    if (this.notepad.notes().length === 0) {
-      this.sectionsEl.appendChild(this.buildAddNoteRow());
-    }
+    // Per-section controls cover add-after everywhere; this row closes the
+    // list so the end of the notepad is always a one-click add. Shown even
+    // when pages exist — the owner's call (2026-09-27); the empty-notepad
+    // dead-end guard is just its first use.
+    this.sectionsEl.appendChild(this.buildAddNoteRow());
 
     // Re-expand notes marked expanded in the manifest (state survives
     // reloads and moves with the file). The title page is the exception
@@ -607,6 +623,7 @@ export class NotepadView extends FileView {
       editor: null,
       editorRef: { current: null },
       bubbleEls: [],
+      folds: null,
     };
     this.sections.set(id, handle);
 
@@ -907,6 +924,11 @@ export class NotepadView extends FileView {
         this.dirty = true;
         this.scheduleSave();
       },
+      onTransaction: () => {
+        // In-document fold persistence (headings + task items). Fold toggles
+        // carry no doc change, so this never dirties the container.
+        if (!isMobile) this.syncSectionFolds(handle);
+      },
       extensions: getExtensions(
         this.buildExtensionHooks(notepad, editorRef, ctx),
         { isMobileView: isMobile, profile },
@@ -949,9 +971,34 @@ export class NotepadView extends FileView {
       // expanded page right away (focus re-binds it later).
       this.ensureToolbar(editor);
       this.createBubbleMenus(editor, handle);
+      // Restore heading/task folds saved for this page (desktop only —
+      // folding is disabled on mobile; mirrors NoteView's device-local
+      // fold persistence).
+      this.sectionFolds(handle).restore(editor);
     }
     NotepadView.onEditorCreated?.(editor);
     return editor;
+  }
+
+  /** Device-local fold persistence for a page, created lazily. The scope is
+   *  `<containerPath>/<pageId>` — a page has no file of its own, and a file
+   *  path can never have a segment below it, so the join is unambiguous;
+   *  the container path is resolved live (rename-safe). */
+  private sectionFolds(handle: SectionHandle): FoldPersistence {
+    if (handle.folds == null) {
+      handle.folds = createFoldPersistence(this.app, () =>
+        this.file ? `${this.file.path}/${handle.id}` : null,
+      );
+    }
+    return handle.folds;
+  }
+
+  /** Persist the page editor's fold positions (no-op before the editor is
+   *  fully built — onTransaction can fire during editor construction). */
+  private syncSectionFolds(handle: SectionHandle): void {
+    const editor = handle.editorRef.current;
+    if (!editor || editor.isDestroyed) return;
+    this.sectionFolds(handle).sync(editor);
   }
 
   private async waitForEditorElement(
@@ -1134,6 +1181,37 @@ export class NotepadView extends FileView {
     sections.style.setProperty("--nav-flip-x", `${delta}px`);
     void sections.offsetWidth;
     sections.removeClass("nav-flip");
+    // While the released transform animates, the fixed-width column pokes
+    // past the scroller edge — the is-flipping class pins the horizontal
+    // scrollbar away until it settles (see notepad.css).
+    const scroller = this.scrollerEl;
+    if (scroller) {
+      // A fast re-flip supersedes the previous guard: settle it at once
+      // (same task — no paint in between, no scrollbar can flash).
+      this.flipSettle?.();
+      scroller.addClass("is-flipping");
+      const sectionsLocal = sections;
+      let settled = false;
+      const settle = (): void => {
+        if (settled) return;
+        settled = true;
+        this.flipSettle = null;
+        scroller.removeClass("is-flipping");
+        sectionsLocal.removeEventListener("transitionend", onEnd);
+      };
+      const onEnd = (event: TransitionEvent): void => {
+        // transitionend bubbles — only our own transform transition counts.
+        if (event.target !== sections || event.propertyName !== "transform") {
+          return;
+        }
+        settle();
+      };
+      this.flipSettle = settle;
+      sections.addEventListener("transitionend", onEnd);
+      // transitionend never fires when the tab is hidden or a re-flip
+      // cancelled the transform — time out just past the 0.35s CSS.
+      window.setTimeout(settle, 400);
+    }
   }
 
   private applyNavOpen(open: boolean, animate: boolean): void {
