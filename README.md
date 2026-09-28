@@ -104,6 +104,21 @@ Run tests:
 npm test
 ```
 
+### E2E tests
+
+Browser tests run the real editor (ProseMirror + extensions) in Chromium via
+Playwright, against a harness page with a shimmed `obsidian` module
+(`src/browser-harness/`). Install the browser once, then run:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
+
+Useful variants: `npm run test:e2e:headed` (visible browser) and
+`npm run test:e2e:ui` (Playwright UI mode). CI runs the same suite on every
+push (see `.github/workflows/ci.yml`).
+
 Type-check the codebase (`vite build` does not check types; CI runs this on
 every push, so keep it clean):
 
