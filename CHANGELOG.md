@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- New document type: notepad (`.um`) — a single file that holds an ordered list of pages, edited one under another like one document. Pages can be added, duplicated, deleted (with confirmation and undo), renamed inline and reordered by drag & drop; each page can be collapsed, and its expanded/collapsed state is remembered.
+- The first page is the notepad's title page — a fixed cover (title + summary) that can't be deleted, moved or renamed. Other pages don't need a title: their display title comes from the first line.
+- Notepad navigation drawer (☰): lists all pages and jumps to the clicked one (smooth scrolling).
+- Notebook-wide search (`Cmd/Ctrl+F`): finds across all pages, including collapsed ones, and jumps to the match.
+- Images added inside a notepad are packed into the `.um` file itself, so the notepad is self-contained; other attachments stay as regular vault files.
+- Pages created in a newer version of the plugin open with a "created in a newer version" notice instead of an editor and are preserved untouched on save.
+- "New notepad" command and a Type selector (Note/Notepad) in the "New inscriptum" modal.
+
+### Fixed
+
+- Saving a `.um` container can no longer clobber its own manifest or note documents: asset descriptors naming a protected archive path (e.g. a hand-edited registry) are skipped at write time instead of overwriting the required entries.
+- Assets are no longer garbage-collected while a notepad has a page this editor cannot interpret (newer version, unknown family, failed migration): the page is preserved verbatim, so its media stays in the archive even if its references use a shape this editor does not know.
+- Opening a `.um` file is size-guarded against zip bombs: archives over a compressed-size cap are rejected before being read into memory, and decompression is bounded by a cap on the total inflated size — a hostile `.um` fails cleanly with a "too large" error instead of exhausting memory.
+- Notepad saves no longer lose edits made while a save is in flight.
+- Image layouts in notepads are scoped to their page: "full width" no longer spans the whole window, and wrap-layout images no longer float into the following pages.
+- Toggling the plugin off/on without an app restart no longer breaks images/attachments.
+
 ## [0.9.0] - 2026-09-18
 
 ### Added

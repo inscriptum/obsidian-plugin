@@ -36,7 +36,7 @@ export default defineConfig(
       },
       parserOptions: {
         projectService: {
-          allowDefaultProject: ["eslint.config.mts"],
+          allowDefaultProject: ["eslint.config.mts", "playwright.config.ts"],
         },
         tsconfigRootDir: import.meta.dirname,
       },
@@ -113,6 +113,15 @@ export default defineConfig(
     files: ["eslint.config.mts", "src/__mocks__/**"],
     rules: {
       "obsidianmd/hardcoded-config-path": "off",
+    },
+  },
+  {
+    // The Playwright config is a Node script (process.env.CI), not plugin code.
+    files: ["playwright.config.ts"],
+    languageOptions: {
+      globals: {
+        ...globals.node,
+      },
     },
   },
   {

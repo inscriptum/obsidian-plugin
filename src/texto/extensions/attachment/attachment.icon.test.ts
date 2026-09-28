@@ -1,21 +1,28 @@
 import { describe, it, expect, afterEach, beforeAll } from "vitest";
 import { Editor } from "../../core/Editor";
 import { getExtensions } from "../../getExtensions";
-import { performBlockMove, findDraggableBlock } from "../drag-handle/dragHandlePlugin";
+import {
+  performBlockMove,
+  findDraggableBlock,
+} from "../drag-handle/dragHandlePlugin";
 import { VIEW_TAG } from "./attachment";
 import type { AttachmentElementType } from "./attachment";
 
 /** Obsidian patches these helpers onto HTMLElement; jsdom has none. */
 beforeAll(() => {
   const proto = HTMLElement.prototype as unknown as Record<string, unknown>;
-  proto["addClass"] ??= function (cls: string) {
-    (this as HTMLElement).classList.add(cls);
+  proto["addClass"] ??= function (this: HTMLElement, cls: string) {
+    this.classList.add(cls);
   };
-  proto["removeClass"] ??= function (cls: string) {
-    (this as HTMLElement).classList.remove(cls);
+  proto["removeClass"] ??= function (this: HTMLElement, cls: string) {
+    this.classList.remove(cls);
   };
-  proto["toggleClass"] ??= function (cls: string, value?: boolean) {
-    (this as HTMLElement).classList.toggle(cls, value);
+  proto["toggleClass"] ??= function (
+    this: HTMLElement,
+    cls: string,
+    value?: boolean,
+  ) {
+    this.classList.toggle(cls, value);
   };
 });
 

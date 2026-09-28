@@ -1,7 +1,9 @@
 // Browser harness entry for the drag & drop tests (built with vite,
 // see scripts/build-harness.mjs). Provides the Obsidian globals and the
 // `obsidian` module shim (Platform only) that src/texto needs at runtime.
+import type { JSONContent } from "../texto/core/@types";
 import { Editor } from "../texto/core/Editor";
+import { getExtensions } from "../texto/getExtensions";
 import { headingFoldingKey } from "../texto/extensions/heading/folding";
 import { taskFoldingKey } from "../texto/extensions/task-item-folding/taskFoldingPlugin";
 
@@ -124,3 +126,98 @@ defineHelper("empty", (el) => {
 
 export * from "../texto/getExtensions";
 export { Editor, headingFoldingKey, taskFoldingKey };
+
+// ── Programmatic E2E API (window.__e2e) ─────────────────────────────────
+// Installed at import time and driven by the Playwright suite through the
+// committed page tests/e2e/harness/index.html. The manual MCP page
+// (.harness/index.html) keeps its own window.__harness — a different
+// global, so the two never interfere.
+
+interface E2EApi {
+  /** Mount a fresh editor with the given doc JSON (replaces the previous one). */
+  mount: (doc: unknown) => string;
+  /** The editor mounted last (null before the first mount). */
+  readonly editor: Editor | null;
+  /** Doc JSON of the current editor. */
+  docJson: () => JSONContent | null;
+  /** Start positions of the top-level blocks. */
+  positions: () => number[];
+  /** Folded heading positions (plugin state). */
+  headingFolds: () => number[];
+  /** Folded task-item positions (plugin state). */
+  taskFolds: () => number[];
+  /** The last error reported through the editor's onError hook. */
+  lastError: () => unknown;
+}
+
+let currentEditor: Editor | null = null;
+let lastError: unknown = null;
+
+function appContainer(): HTMLElement {
+  const existing = document.getElementById("app");
+  if (existing != null) {
+    return existing;
+  }
+  const app = document.createElement("div");
+  app.id = "app";
+  document.body.appendChild(app);
+  return app;
+}
+
+function mountEditor(doc: unknown): string {
+  if (currentEditor != null) {
+    currentEditor.destroy();
+    currentEditor = null;
+  }
+  lastError = null;
+
+  const app = appContainer();
+  app.replaceChildren();
+  const note = document.createElement("div");
+  note.className = "note";
+  const article = document.createElement("article");
+  article.className = "texto-editor";
+  note.appendChild(article);
+  app.appendChild(note);
+
+  currentEditor = new Editor({
+    element: article,
+    content: doc as JSONContent,
+    extensions: getExtensions({}, {}),
+    editable: true,
+    onError: (err) => {
+      lastError = err;
+      window.dispatchEvent(new ErrorEvent("error", { error: err }));
+    },
+  });
+  return "editor";
+}
+
+const e2eApi: E2EApi = {
+  mount: mountEditor,
+  get editor() {
+    return currentEditor;
+  },
+  docJson: () =>
+    (currentEditor?.state.doc.toJSON() ?? null) as JSONContent | null,
+  positions: () => {
+    const out: number[] = [];
+    currentEditor?.state.doc.forEach((_, pos) => out.push(pos));
+    return out;
+  },
+  headingFolds: () =>
+    currentEditor == null
+      ? []
+      : Array.from(
+          headingFoldingKey.getState(currentEditor.view.state)?.folded ?? [],
+        ),
+  taskFolds: () =>
+    currentEditor == null
+      ? []
+      : Array.from(
+          taskFoldingKey.getState(currentEditor.view.state)?.folded ?? [],
+        ),
+  lastError: () => lastError,
+};
+
+g.__e2e = e2eApi;

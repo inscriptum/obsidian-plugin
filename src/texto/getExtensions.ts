@@ -2,7 +2,7 @@ import type { Extensions } from "./core/@types";
 import type { ImageOptionsHooks } from "./extensions/image";
 import type { AttachmentOptionsHooks } from "./extensions/attachment";
 import type { StateOptionsHooks } from "./extensions/state";
-import { NoteDoc } from "./extensions/note-doc";
+import { NoteDoc, PlainDoc, TitleDoc } from "./extensions/note-doc";
 import { Link } from "./extensions/link";
 import { Cleanup } from "./extensions/cleanup";
 import { ListKeymap } from "./extensions/list-keymap";
@@ -52,15 +52,28 @@ export interface ExtensionHooks {
 export interface GetExtensionsOptions {
   /** Mobile version of Obsidian (touch gestures, table resize handles). */
   isMobileView?: boolean;
+  /** Editor profile (spec 8.6): which top node the schema gets. "note" is
+   *  the historical composition — the plain .note document with a
+   *  mandatory title; "title"/"plain" are the notepad page families. The
+   *  profiles share everything except the top node. */
+  profile?: "note" | "title" | "plain";
 }
 
 export function getExtensions(
   hooks: ExtensionHooks = {},
   options: GetExtensionsOptions = {},
 ): Extensions {
+  const profile = options.profile ?? "note";
+  // The profile's top node takes NoteDoc's position in the list; the
+  // plugin order therefore stays identical across profiles.
+  const topNode =
+    profile === "title" ? TitleDoc : profile === "plain" ? PlainDoc : NoteDoc;
   return [
-    State.configure({ nodeTypes: ["image", "attachment"], hooks: hooks.state }),
-    NoteDoc,
+    State.configure({
+      nodeTypes: ["image", "attachment"],
+      hooks: hooks.state,
+    }),
+    topNode,
     Link,
     Cleanup,
     ListKeymap,

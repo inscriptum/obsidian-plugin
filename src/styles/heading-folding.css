@@ -81,7 +81,8 @@
    grab point) via this class. The hold-grab/drag states hide the chevron
    (dots handle takes its place) — they must win over is-hover regardless
    of stylesheet order. */
-.note .texto-heading-fold-chevron-host.is-hover:not(.is-grabbed):not(.is-dragging) {
+.note
+.texto-heading-fold-chevron-host.is-hover:not(.is-grabbed):not(.is-dragging) {
   opacity: 1;
 }
 

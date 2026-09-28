@@ -15,15 +15,26 @@ export function openImageLightbox(
   if (app.vault.getAbstractFileByPath(imageId) == null) {
     return;
   }
+  openImageLightboxFromUrl(
+    app.vault.adapter.getResourcePath(imageId),
+    filename ?? imageId,
+  );
+}
 
+/** Lightbox for an image that already has a usable URL (e.g. a container
+ *  asset's object URL — no vault file involved). */
+export function openImageLightboxFromUrl(
+  src: string,
+  filename?: string | null,
+): void {
   closeImageLightbox();
 
   const overlay = createDiv();
   overlay.className = LIGHTBOX_CLASS;
 
   const img = createEl("img");
-  img.src = app.vault.adapter.getResourcePath(imageId);
-  img.alt = filename || imageId;
+  img.src = src;
+  img.alt = filename || src;
   overlay.appendChild(img);
 
   if (filename) {

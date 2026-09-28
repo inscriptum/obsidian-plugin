@@ -18,5 +18,8 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: ["vitest.setup.ts"],
+    // Playwright specs in tests/e2e run through `npm run test:e2e`
+    // (real Chromium), not under vitest.
+    exclude: ["**/node_modules/**", "**/dist/**", "tests/e2e/**"],
   },
 });

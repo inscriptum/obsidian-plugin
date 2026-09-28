@@ -86,8 +86,12 @@ export const dragHandleKey = new PluginKey<DragHandleState>(
   "inscriptumDragHandle",
 );
 
-/** Top-level node kinds that cannot be dragged (the document title). */
-export const DRAG_HANDLE_EXCLUDED_TYPES: readonly string[] = ["noteTitle"];
+/** Top-level node kinds that cannot be dragged (the document title and the
+ *  title page's summary — the cover header is fixed, spec 9.1). */
+export const DRAG_HANDLE_EXCLUDED_TYPES: readonly string[] = [
+  "noteTitle",
+  "noteSummary",
+];
 
 /** Node kinds that drag as individual items (a whole list drags item-wise). */
 export const DRAG_HANDLE_ITEM_TYPES: readonly string[] = [
@@ -1026,10 +1030,7 @@ function createDragHandleView(
         // landed on the list node beside its items' lines (sub-pixel
         // boundary resolution): the candidates are the container's OWN
         // units, and the deepest one whose line owns X wins.
-        if (
-          unit.block.from < than.from ||
-          unit.block.to > than.to
-        ) {
+        if (unit.block.from < than.from || unit.block.to > than.to) {
           continue;
         }
       }
@@ -1124,13 +1125,18 @@ function createDragHandleView(
     // The Y-strip model stays as the GUTTER fallback: posAtCoords is null
     // left of the content — exactly where the handles live — and the
     // strip-owns-the-line rule must keep working there.
-    const coords = view.posAtCoords({ left: event.clientX, top: event.clientY });
+    const coords = view.posAtCoords({
+      left: event.clientX,
+      top: event.clientY,
+    });
     if (coords != null) {
       // inside = the inner position of the deepest node under the point
       // (the image itself, the paragraph…); -1 when the point is between
       // nodes — then pos (the nearest boundary) is the best guess.
       const pos =
-        coords.inside != null && coords.inside >= 0 ? coords.inside : coords.pos;
+        coords.inside != null && coords.inside >= 0
+          ? coords.inside
+          : coords.pos;
       if (pos != null) {
         const block = findDraggableBlock(
           view.state.doc,

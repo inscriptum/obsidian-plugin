@@ -58,9 +58,7 @@ function figureWidthStyle(width: string | null): string {
 function languageLabel(codeClass: string | null): string {
   for (const cls of (codeClass ?? "").split(/\s+/)) {
     if (!cls.startsWith(LANGUAGE_CLASS_PREFIX)) continue;
-    const name = aliasToLanguage.get(
-      cls.slice(LANGUAGE_CLASS_PREFIX.length),
-    );
+    const name = aliasToLanguage.get(cls.slice(LANGUAGE_CLASS_PREFIX.length));
     if (name != null) return name;
   }
   return "auto";
@@ -93,10 +91,15 @@ function svgIcon(doc: Document, shapes: IconShape[]): SVGElement {
 }
 
 const COPY_ICON: IconShape[] = [
-  { tag: "rect", attrs: { x: "9", y: "9", width: "12", height: "12", rx: "2" } },
+  {
+    tag: "rect",
+    attrs: { x: "9", y: "9", width: "12", height: "12", rx: "2" },
+  },
   {
     tag: "path",
-    attrs: { d: "M5 15h-1a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v1" },
+    attrs: {
+      d: "M5 15h-1a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v1",
+    },
   },
 ];
 const CHECK_ICON: IconShape[] = [

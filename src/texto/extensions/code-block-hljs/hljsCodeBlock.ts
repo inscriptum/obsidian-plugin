@@ -496,10 +496,13 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
         container.props.onToggleWrap = () => {
           const currentPos = isFunction(getPos) ? getPos() : null;
           const current =
-            currentPos == null
-              ? null
-              : editor.state.doc.nodeAt(currentPos);
-          if (current == null || current.type !== this.type) return;
+            currentPos == null ? null : editor.state.doc.nodeAt(currentPos);
+          if (
+            currentPos == null ||
+            current == null ||
+            current.type !== this.type
+          )
+            return;
           editor.view.dispatch(
             editor.view.state.tr.setNodeMarkup(currentPos, undefined, {
               ...(current.attrs as HljsCodeBlockAttrs),
@@ -511,9 +514,7 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
         container.props.onCopy = () => {
           const currentPos = isFunction(getPos) ? getPos() : null;
           const current =
-            currentPos == null
-              ? null
-              : editor.state.doc.nodeAt(currentPos);
+            currentPos == null ? null : editor.state.doc.nodeAt(currentPos);
           if (current == null || current.type !== this.type) return;
           const text = getHljsBlockContentAsText(current);
           void navigator.clipboard.writeText(text).catch((err: unknown) => {
@@ -583,7 +584,8 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
           // does not re-render the generator (external props changes don't
           // trigger it), so the button class is set directly; a later
           // generator re-render recomputes the same class from props.
-          const wrapped = (updatedNode.attrs as HljsCodeBlockAttrs).wrap === true;
+          const wrapped =
+            (updatedNode.attrs as HljsCodeBlockAttrs).wrap === true;
           container.classList.toggle("is-wrapped", wrapped);
           container.props.wrapped = wrapped;
           container

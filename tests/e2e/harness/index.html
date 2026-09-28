@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>inscriptum e2e harness</title>
+<link rel="stylesheet" href="../../../dist-harness/styles.css">
+<style>
+  /* Minimal stand-ins for the Obsidian theme variables the styles use. */
+  :root {
+    --text-faint: #8a8a98;
+    --text-normal: #dadada;
+    --accent-2: #b3a3f7;
+    --font-semibold: 600;
+    --size-2-2: 8px;
+    --size-4-2: 16px;
+    --size-4-4: 16px;
+  }
+  body { background: #1e1e1e; color: #dadada; margin: 0; font-family: sans-serif; }
+  #app { max-width: 720px; margin: 40px auto; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script type="module">
+  // Installs window.__e2e (mount / docJson / fold state — see
+  // src/browser-harness/harness.ts). Specs mount their own documents via
+  // __e2e.mount(), so the page itself stays content-free.
+  await import('../../../dist-harness/harness.js');
+  document.body.dataset.e2eReady = 'true';
+</script>
+</body>
+</html>

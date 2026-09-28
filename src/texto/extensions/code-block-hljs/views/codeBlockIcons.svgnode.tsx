@@ -13,7 +13,10 @@ function makeCodeBlockIconNode(name: "copy" | "wrap" | "check") {
     while (true) {
       yield (
         <svg viewBox="0 0 24 24">
-          <use href={`#inscriptum-tlb-${name}`} xlinkHref={`#inscriptum-tlb-${name}`} />
+          <use
+            href={`#inscriptum-tlb-${name}`}
+            xlinkHref={`#inscriptum-tlb-${name}`}
+          />
         </svg>
       );
     }

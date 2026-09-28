@@ -34,6 +34,9 @@ await build({
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
     "process.env.EDITOR_VERSION": JSON.stringify("harness"),
+    // src/tags.ts reads this too — without the define the bundle keeps a
+    // bare `process.env.EDITOR_BUILD_TAG` and throws in the browser.
+    "process.env.EDITOR_BUILD_TAG": JSON.stringify(""),
   },
   resolve: {
     alias: [{ find: /^obsidian$/, replacement: obsidianShim }],
@@ -66,6 +69,7 @@ await build({
   define: {
     "process.env.NODE_ENV": JSON.stringify("production"),
     "process.env.EDITOR_VERSION": JSON.stringify("harness"),
+    "process.env.EDITOR_BUILD_TAG": JSON.stringify(""),
   },
   resolve: {
     alias: [{ find: /^obsidian$/, replacement: obsidianShim }],

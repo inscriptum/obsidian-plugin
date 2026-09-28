@@ -92,7 +92,7 @@ interface Fixture {
 
 function createFixture(
   content: JSONContent = testContent(),
-  options: { isMobileView?: boolean } = {},
+  options: { isMobileView?: boolean; profile?: "note" | "title" | "plain" } = {},
 ): Fixture {
   const el = createDiv();
   document.body.appendChild(el);
@@ -116,7 +116,7 @@ const fixtures: Fixture[] = [];
 
 function useFixture(
   content?: JSONContent,
-  options?: { isMobileView?: boolean },
+  options?: { isMobileView?: boolean; profile?: "note" | "title" | "plain" },
 ): Fixture {
   const fixture = createFixture(content, options);
   fixtures.push(fixture);
@@ -398,5 +398,34 @@ describe("DragHandle extension", () => {
     expect(
       editor.extensionManager.extensions.some((e) => e.name === "dropCursor"),
     ).toBe(true);
+  });
+});
+
+describe("cover header is not draggable (spec 9.1)", () => {
+  function titleDocContent(): JSONContent {
+    return {
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
+        {
+          type: "noteSummary",
+          content: [{ type: "text", text: "Summary text" }],
+        },
+        { type: "paragraph", content: [{ type: "text", text: "Body" }] },
+      ],
+    };
+  }
+
+  it("resolves neither the title nor the summary, only the content blocks", () => {
+    const { editor, positions } = useFixture(titleDocContent(), {
+      profile: "title",
+    });
+    const doc = editor.state.doc;
+    // positions[0]=title, [1]=summary, [2]=paragraph — inside each block.
+    expect(findDraggableBlock(doc, positions[0] + 1)).toBeNull();
+    expect(findDraggableBlock(doc, positions[1] + 1)).toBeNull();
+    const body = findDraggableBlock(doc, positions[2] + 1);
+    expect(body?.node.type.name).toBe("paragraph");
+    expect(body?.node.textContent).toBe("Body");
   });
 });

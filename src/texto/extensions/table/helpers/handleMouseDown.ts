@@ -220,7 +220,7 @@ export function handleMouseDown(
   let topLeftAnchor = Number(target.dataset.cellPos) || null;
   let isFirstMove = true;
 
-  function setCellSelection($anchor: ResolvedPos, event: MouseEvent) {
+  function setCellSelection($anchor: ResolvedPos | null, event: MouseEvent) {
     if (!$anchor) return;
 
     const $head =
@@ -230,7 +230,16 @@ export function handleMouseDown(
         event.clientY,
         isFirstMove ? CIRCLE_CLEARANCE : 0,
       ) ??
-      cellInTableAtPoint(view, topLeftAnchor, event.clientX, event.clientY);
+      // Without a recorded anchor the fallback cannot resolve a table —
+      // doc.resolve(null) would throw, so skip it instead.
+      (topLeftAnchor == null
+        ? null
+        : cellInTableAtPoint(
+            view,
+            topLeftAnchor,
+            event.clientX,
+            event.clientY,
+          ));
     isFirstMove = false;
     if (!$head) return;
 

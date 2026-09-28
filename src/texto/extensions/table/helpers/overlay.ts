@@ -133,7 +133,7 @@ function getOneCellSelectingDecoration(state: EditorState) {
   const cell = cellAround(state.selection.$anchor);
 
   if (!cell) {
-    return;
+    return null;
   }
 
   const start = findTableAnchor(state);

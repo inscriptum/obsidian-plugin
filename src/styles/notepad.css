@@ -1,0 +1,760 @@
+/* NotepadView (.um) — flat document of collapsible note sections.
+   Layout follows the blog draft view: page order + fold chevron in the left
+   margin, content column with a thin rule, light separators between pages,
+   ghost add/delete controls under each section. */
+
+/* The selector must outrank Obsidian's `.workspace-leaf-content .view-content`
+   (0,2,0) — its 12px side padding would steal width from the content column
+   and skew the nav drawer's push/overlay fit (see navFits in NotepadView). */
+.view-content.notepad-view-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+/* ── Pages navigation drawer (blog-style, hidden by default) ── */
+
+.notepad-nav {
+  position: absolute;
+  top: 40px;
+  bottom: 0;
+  left: 0;
+  width: 300px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  background: var(--background-primary);
+  border-right: 1px solid var(--background-modifier-border);
+  box-shadow: var(--shadow-s);
+  transform: translateX(-100%);
+  visibility: hidden;
+  transition:
+    transform 0.35s,
+    visibility 0.35s;
+}
+
+.notepad-nav.is-open {
+  transform: translateX(0);
+  visibility: visible;
+}
+
+/* ── Push vs overlay ──
+   When the whole column fits right of the drawer (.notepad-nav-push on the
+   container, kept live by NotepadView), an open drawer takes the left strip
+   and the column re-anchors right after it: a fixed padding gap, the column
+   at its FULL width — the scroller's right padding is dropped while pushed
+   (an empty padding must not shrink the column; the fit check in navFits()
+   does not reserve it either). When the column does not fit even pushed,
+   the drawer overlays the centered content instead — that overlay is the
+   only case carrying the shadow — and the column anchors to the RIGHT edge
+   (rule below) so the drawer covers as little of it as the width allows.
+   The column never shrinks for the drawer's sake. The closed state centers
+   the column in both modes, so the re-anchor cannot be interpolated in CSS
+   (auto margin → 0) — NotepadView flips it with a transform (FLIP) while
+   the scroller's margin snaps underneath. */
+.notepad-view-container.notepad-nav-push.notepad-nav-open .notepad-scroller {
+  margin-left: 300px; /* NAV_WIDTH in NotepadView.ts */
+  padding-right: 0;
+}
+
+/* Overlay on desktop (the column does not fit beside the drawer): anchor the
+   column to the RIGHT edge of the content area instead of centering it — the
+   open drawer then covers only the sliver it must, while centering would
+   hide the column's whole left strip behind the drawer (the width the
+   centering margins free up is exactly the overlap saved). Mobile columns
+   are full-width, where this is a no-op. */
+.notepad-view-container.notepad-nav-open:not(.notepad-nav-push)
+.notepad-sections {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.notepad-view-container.notepad-nav-push.notepad-nav-open .notepad-sections {
+  margin-left: 25px; /* hug the drawer instead of centering */
+}
+
+/* Overlay only: the drawer floats above the content, so it needs the
+   shadow; in push mode it sits beside the content like a pane. */
+.notepad-view-container.notepad-nav-push .notepad-nav {
+  box-shadow: none;
+}
+
+/* Blog look: bare ☰ button (menu-2 glyph, 38px, hairline stroke) hanging
+   outside the closed drawer and docking inside when it opens. The button.*
+   prefix out-ranks Obsidian's button:not(.clickable-icon) chrome.
+   When the drawer opens, ☰ morphs into ✕ (crossfade + rotation) — the
+   button then closes the drawer. */
+button.notepad-nav-toggle {
+  position: absolute;
+  top: 8px;
+  /* Closed drawer: the toggle hangs OUTSIDE it (the drawer is translated
+     -100%, so -48px past its right edge lands at the view's left edge).
+     Open drawer: the toggle docks inside, flush with the right edge. */
+  right: -48px;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  visibility: visible;
+  transition:
+    color 0.2s,
+    right 0.35s;
+}
+
+button.notepad-nav-toggle svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 38px;
+  height: 38px;
+  stroke-width: 0.5px;
+  transition:
+    stroke 0.2s,
+    opacity 0.35s,
+    transform 0.35s;
+}
+
+button.notepad-nav-toggle .icon-close {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.6);
+}
+
+.notepad-nav.is-open button.notepad-nav-toggle .icon-menu {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.6);
+}
+
+.notepad-nav.is-open button.notepad-nav-toggle .icon-close {
+  opacity: 1;
+  transform: rotate(0deg);
+}
+
+button.notepad-nav-toggle:hover,
+button.notepad-nav-toggle:focus {
+  color: var(--text-normal);
+  background: transparent;
+  box-shadow: none;
+}
+
+button.notepad-nav-toggle:hover svg {
+  stroke: var(--text-normal);
+}
+
+/* Blog TOC look: inset line, page rows with the number right before the
+   header — one aligned line, compact left indent. */
+.notepad-nav-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  margin-top: var(--size-4-2);
+}
+
+.notepad-nav-item {
+  display: flex;
+  align-items: baseline;
+  cursor: pointer;
+  color: var(--text-muted);
+
+  &:first-child {
+    text-transform: uppercase;
+  }
+}
+
+.notepad-nav-item:hover {
+  color: var(--text-normal);
+}
+
+.notepad-nav-numb {
+  width: 2.4rem;
+  padding-right: 0.8rem;
+  text-align: right;
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+  flex-shrink: 0;
+}
+
+.notepad-nav-header {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.4rem 0;
+  font-size: 15px;
+  line-height: 2.2rem;
+}
+
+.notepad-nav-header.is-empty {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.notepad-nav-item.is-active .notepad-nav-header {
+  color: var(--interactive-accent);
+}
+
+/* ── Notepad-wide search panel ── */
+
+.notepad-search {
+  position: absolute;
+  top: var(--size-2-2);
+  right: var(--size-4-4);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-1);
+  padding: var(--size-2-1) var(--size-2-2);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  background: var(--background-primary);
+  box-shadow: var(--shadow-s);
+}
+
+.notepad-search-input {
+  width: 200px;
+  padding: 2px 6px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+}
+
+.notepad-search-input:focus {
+  outline: none;
+  border-color: var(--interactive-accent);
+}
+
+.notepad-search-count {
+  min-width: 44px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  white-space: nowrap;
+}
+
+.notepad-search-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.notepad-search-btn:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+.notepad-toolbar-host {
+  flex: 0 0 auto;
+}
+
+.notepad-scroller {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  /* The page column is fixed-width on desktop (see .notepad-sections
+     min-width), so a narrow window overflows: scroll to it instead of
+     squeezing the editor. While the nav flip animates the column
+     transiently pokes past the scroller edge — that must not flash a
+     horizontal scrollbar, so the flip guard pins it back to hidden
+     (see .notepad-scroller.is-flipping below). */
+  overflow-x: auto;
+  /* padding: var(--size-4-4) var(--size-4-5) var(--size-4-10); */
+}
+
+/* Flip guard: present for as long as the FLIP transform animates the
+   column (NotepadView.flipContentLayout adds/removes it around the
+   transition) — the translated column pokes past the scroller edge
+   mid-animation and must not scroll horizontally while doing so. */
+.notepad-scroller.is-flipping {
+  overflow-x: hidden;
+}
+
+/* Hidden measuring probe (NotepadView.scrollbarWidth): sized content with
+   forced scrollbar, mounted briefly inside the live scroller so any scoped
+   scrollbar styling is inherited by the measurement. */
+.notepad-scrollbar-probe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100px;
+  width: 100px;
+  overflow-y: scroll;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.notepad-sections {
+  /* 74px section left margin + 96px inner .texto-editor side padding
+     (48×2) + the 748px ProseMirror text column — the same column width a
+     .note gets, so a page's editor area is not narrower than a note's. */
+  max-width: 918px;
+  margin: 0 auto;
+  /* Matches the drawer's slide so the shift and the drawer move together. */
+  transition: transform 0.35s;
+  padding: 28px 0;
+}
+
+/* Fixed page column (desktop, the owner's call 2026-09-27): the page keeps
+   its designed width and a narrow window scrolls horizontally instead of
+   squeezing the editor area (.note compresses; a .um page must not).
+   Mobile keeps the compressing fit — a fixed column there would need
+   horizontal scrolling on every phone. */
+.view-content.notepad-view-container:not(.is-mobile) .notepad-sections {
+  min-width: 918px;
+}
+
+/* FLIP helper (NotepadView.flipContentLayout): present only for one forced
+   reflow, painting the column at its pre-layout spot with the transition
+   suspended; removing the class releases it into the transition above. */
+.notepad-sections.nav-flip {
+  transition: none;
+  transform: translateX(var(--nav-flip-x, 0px));
+}
+
+.notepad-section {
+  position: relative;
+  padding-left: 74px;
+}
+
+/* ── Left margin: page order + chevron ──
+   Copied from the blog draft view: bare glyphs (no button chrome —
+   background/border/box-shadow all off), hairline strokes, muted color
+   darkening on hover with a 0.2s transition. */
+
+.notepad-section-margin {
+  position: absolute;
+  left: 0;
+  top: -5px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 70px;
+}
+
+.notepad-section-order {
+  min-width: 24px;
+  text-align: right;
+  color: var(--text-faint);
+  font-size: 15px;
+  line-height: 1;
+  user-select: none;
+  transition: color 0.2s;
+}
+
+button.notepad-section-gutter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--text-faint);
+  cursor: grab;
+  transition: color 0.2s;
+}
+
+button.notepad-section-gutter:active {
+  cursor: grabbing;
+}
+
+button.notepad-section-gutter svg {
+  transition:
+    stroke 0.2s,
+    transform 0.2s;
+}
+
+button.notepad-section-gutter:hover,
+.notepad-section-margin:hover .notepad-section-order {
+  color: var(--text-normal);
+}
+
+button.notepad-section-gutter:hover svg {
+  stroke: var(--text-normal);
+}
+
+/* Folded pages point right; expanded rotate the chevron down. The gutter
+   stays in ONE fixed spot for both states (aligned with the first line). */
+.notepad-section.is-expanded button.notepad-section-gutter svg {
+  transform: rotate(90deg);
+}
+
+/* ── Content column ──
+   The body is the page frame: a left rule for expanded pages and a bottom
+   separator on every page — the controls row lives INSIDE the frame, so
+   the line closes each page including the last one. */
+
+.notepad-section-body {
+  min-width: 0;
+  /* padding: 2px 0 0 16px; */
+}
+
+/* The title page is the cover: no left frame rule, ever (spec 9.1).
+   Restated after the rules above so it wins the equal-specificity race. */
+.notepad-section.is-title.is-expanded .notepad-section-body {
+  border: none;
+  box-shadow: none;
+}
+
+.notepad-section .notepad-section-body {
+  /* border-bottom: 1px solid var(--background-modifier-border); */
+  box-shadow:
+    rgb(0 0 0 / 34%) 1px 1px 3px 0px,
+    rgba(0, 0, 0, 0.06) 1px 1px 2px 0px;
+  border-radius: 4px;
+}
+
+.theme-dark {
+  .notepad-section .notepad-section-body {
+    border-bottom: 1px solid var(--background-modifier-border);
+    border-right: 1px solid var(--background-modifier-border);
+  }
+}
+
+/* Visual gap between the page frames themselves (frames must not touch). */
+.notepad-section + .notepad-section {
+  margin-top: 32px;
+}
+
+.notepad-section-content {
+  min-height: 20px;
+  padding-bottom: var(--size-2-1);
+}
+
+/* ── Collapsed row ── */
+
+.notepad-section-collapsed {
+  display: flex;
+  align-items: center;
+  gap: var(--size-2-2);
+  min-height: 30px;
+  margin-left: var(--size-2-3);
+  padding: var(--size-2-2) 0;
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 18px;
+  color: var(--text-muted);
+}
+
+.notepad-section-collapsed:hover {
+  color: var(--text-normal);
+}
+
+.notepad-section-title {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notepad-section-title.is-empty {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* ── Expanded section ── */
+
+.notepad-note-host {
+  min-height: 120px;
+}
+
+/* ── Title page header (spec 9.1) ──
+   The blog draft's cover: a large title with a summary line under it.
+   While a field is empty it shows its placeholder (the `empty` decoration
+   class + data-placeholder); while the caret is inside the header and the
+   field has text, the `focused` class shows the field label with the
+   vertical rule to the left of the field (inside the 74px margin, where
+   the title page has no gutter). Real focus is CSS-live via :focus-within,
+   so the labels disappear with the caret without decoration churn. */
+
+/* The cover title is larger than an in-content h1 (the blog draft look). */
+.notepad-section.is-title .ProseMirror > h1:first-child {
+  font-size: 40px;
+  line-height: 1.15;
+}
+
+/* The header nodes come from the editor's own rendering (h1/p); the label
+   pseudo-element hangs into the left margin. */
+.notepad-view-container [data-label] {
+  position: relative;
+}
+
+.notepad-view-container [data-label]:after {
+  position: absolute;
+  content: attr(data-label);
+  color: var(--text-faint);
+  border-right: 1px solid var(--background-modifier-border);
+  right: 100%;
+  top: -6px;
+  bottom: -6px;
+  padding: 6px 12px;
+  font-weight: normal;
+  margin: 0 21px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease;
+}
+
+/* Label shows only while the page holds real focus (the caret is inside
+   the header via the decoration class, the focus gate is CSS-live). */
+.notepad-section-body:focus-within [data-label].focused:after {
+  opacity: 1;
+  visibility: visible;
+}
+
+.notepad-view-container [data-placeholder] {
+  position: relative;
+}
+
+.notepad-view-container [data-placeholder].empty:before {
+  position: absolute;
+  left: 0;
+  right: 0;
+  content: attr(data-placeholder);
+  color: var(--text-faint);
+  font-weight: normal;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* The summary line under the title — the blog draft's role=definition:
+   15px/18px regular, muted gray, 12px vertical rhythm (theme variables
+   keep it correct in both light and dark schemes; the blog's hard-coded
+   #79828b is the light-scheme face of --text-muted). */
+.notepad-view-container p[role="definition"] {
+  margin: 12px 0;
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 18px;
+  font-style: normal;
+}
+
+.notepad-view-container p[role="definition"] a[href] {
+  color: var(--text-muted);
+  border-bottom: none;
+  border-bottom: 0.1em solid rgba(127, 127, 127, 0.4);
+}
+
+/* Static title row: the title page fallback when its editor failed. */
+.notepad-section-collapsed.is-static {
+  cursor: default;
+}
+
+/* ── Unopenable page notice (spec 8.6.2) ── */
+
+.notepad-section-unsupported {
+  min-height: 20px;
+  padding: var(--size-2-2) 0 var(--size-2-1);
+}
+
+.notepad-section-unsupported-title {
+  color: var(--text-muted);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.notepad-section-unsupported-text {
+  margin-top: 2px;
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+}
+
+/* Notepad pages frame themselves, so the editor's own top/bottom padding
+   (32px/120px for plain .note files) is dropped — only for the um view.
+   The inner editor never scrolls on its own: the notepad scroller scrolls
+   the whole document, and a nested auto-scroller produces phantom
+   scrollbars on sub-pixel rounding. */
+.notepad-view-container .texto-editor {
+  padding-top: 0;
+  padding-bottom: 0;
+  overflow-y: visible;
+}
+
+/* ── Page-scoped image layouts ──
+   The image extension expresses "full width" in cqw units and floats
+   wrap-layout images (see texto/extensions/image/style.css). Both must be
+   scoped to the PAGE they are on: without a size container anywhere in the
+   notepad, cqw falls back to the viewport (a full-width image spanned the
+   whole window), and with the editor's overflow visible a float reached
+   into the following pages' text. Making each page's .note a size container
+   mirrors the note view (styles/editor.css .note-view-container .note) and
+   fixes both: cqw resolves against the page width, and the containment's
+   layout part establishes the formatting context that traps floats inside
+   their page (the page then grows to contain the float). */
+.notepad-view-container .note {
+  container-type: inline-size;
+}
+
+/* ── Drag & drop reorder ── */
+
+.notepad-section.is-dragging {
+  opacity: 0.35;
+}
+
+.notepad-drop-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--interactive-accent);
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ── Controls: add-after / delete ──
+   Copied from the blog: bare buttons (transparent, no border/box-shadow),
+   group always visible but very muted (0.3), the group's hover brings it
+   to full strength, a hovered icon darkens. Small icons pinned to the
+   right edge of the section column. */
+
+.notepad-section-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0;
+  padding: 0 var(--size-2-1) var(--size-2-1) 0;
+  opacity: 0.3;
+  transition: opacity 0.2s;
+}
+
+.notepad-section-controls:hover,
+.notepad-section-controls:focus-within {
+  opacity: 1;
+}
+
+button.notepad-section-control {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1px 4px;
+  border: none;
+  border-radius: var(--radius-s);
+  box-shadow: none;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+button.notepad-section-control svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.25;
+  transition:
+    stroke 0.2s,
+    opacity 0.2s;
+}
+
+button.notepad-section-control:hover svg {
+  stroke: var(--text-normal);
+}
+
+/* Delete icon keeps the plus's three-level emphasis, in red — with a soft
+   red tint on its own hover so the highlight is unmistakable. */
+button.notepad-section-control.is-danger svg {
+  stroke: var(--text-error);
+  opacity: 0.35;
+}
+
+.notepad-section-controls:hover button.notepad-section-control.is-danger svg,
+.notepad-section-controls:focus-within
+  button.notepad-section-control.is-danger
+  svg {
+  opacity: 0.75;
+}
+
+/* Own hover outranks the group-hover rule above (same properties): the
+   icon-only emphasis — full-strength red, slightly thicker stroke, no
+   button chrome of any kind. */
+.notepad-section-controls button.notepad-section-control.is-danger:hover svg {
+  opacity: 1;
+  stroke-width: 1.6;
+}
+
+/* ── Undo action inside a delete notice ──
+   Compact text action that fits the notice in both themes (the raw button
+   otherwise inherits wide modal styling). */
+
+.notepad-notice-action {
+  flex: 0 0 auto;
+  align-self: center;
+  width: auto;
+  margin-left: var(--size-4-2);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-on-accent);
+  font-size: var(--font-ui-small);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  opacity: 0.85;
+}
+
+.notepad-notice-action:hover {
+  opacity: 1;
+}
+
+/* ── Add-note row (always the last element of the page list) ── */
+
+/* The element+class selector must outrank Obsidian's
+   `button:not(.clickable-icon)` base — a bare class loses that race, and
+   button chrome (background, shadow) would bleed into the normal state.
+   Background is hover-only (the owner's call, 2026-09-27). */
+button.notepad-add-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  /* One inter-section gap above (mirrors .notepad-section + .notepad-section)
+     so the row reads as the list terminator, not part of the last page. */
+  margin-top: 32px;
+  padding: var(--size-2-2) 0;
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background-color: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  cursor: pointer;
+}
+
+.notepad-add-note:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+/* Obsidian's `button:not(.clickable-icon)` base outranks a bare class —
+   restate the bare-button reset for every state. */
+button.notepad-section-gutter:hover,
+button.notepad-section-control:hover,
+button.notepad-section-gutter:focus,
+button.notepad-section-control:focus {
+  background-color: transparent;
+  box-shadow: none;
+}

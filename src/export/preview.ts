@@ -30,10 +30,7 @@ function plainText(node: JSONContent | undefined): string {
 }
 
 /** Recursively finds the first node of the given type. */
-function findFirstNode(
-  node: JSONContent,
-  type: string,
-): JSONContent | null {
+function findFirstNode(node: JSONContent, type: string): JSONContent | null {
   if (node.type === type) return node;
   for (const child of node.content ?? []) {
     const found = findFirstNode(child, type);

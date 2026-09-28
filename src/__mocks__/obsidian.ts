@@ -1,4 +1,4 @@
-import type { TFolder } from "obsidian";
+import type { FileStats, TFolder, Vault as ObsidianVault } from "obsidian";
 import { vi } from "vitest";
 
 export class Vault {
@@ -14,16 +14,21 @@ export class Vault {
     rename: vi.fn(),
     remove: vi.fn(),
     append: vi.fn(),
+    getFullPath: vi.fn(),
   };
 }
 
+/** Structural twin of the real Obsidian TFile (declared via the type-only
+ *  import below, erased at runtime — the mock never loads the real module),
+ *  so mock instances pass as arguments into production functions typed
+ *  against the real class. */
 export class TFile {
+  vault: ObsidianVault;
   path: string;
   name: string;
   basename: string;
   extension: string;
-  stat: { ctime: number; mtime: number; size: number };
-  vault: Vault | null;
+  stat: FileStats;
   parent: TFolder | null;
 
   constructor(path: string) {
@@ -35,7 +40,9 @@ export class TFile {
     this.basename = dotIndex > 0 ? filename.slice(0, dotIndex) : filename;
     this.extension = dotIndex > 0 ? filename.slice(dotIndex + 1) : "";
     this.stat = { ctime: 0, mtime: 0, size: 0 };
-    this.vault = null;
+    // Mock files are never attached to a vault — but the field must be
+    // declared with the real Vault type for structural compatibility.
+    this.vault = null as unknown as ObsidianVault;
     this.parent = null;
   }
 }

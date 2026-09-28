@@ -28,10 +28,13 @@ export class Mark<
   };
 
   constructor(config: Partial<MarkConfig<Options, Storage>> = {}) {
+    // The user config's `this`-typed handlers narrow Options/Storage beyond
+    // the base MarkConfig; the dynamic dispatch via getExtensionField erases
+    // that at runtime, so the merged config is intentionally widened.
     this.config = {
       ...this.config,
       ...config,
-    };
+    } as MarkConfig;
 
     this.name = this.config.name;
 
@@ -106,7 +109,7 @@ export class Mark<
         name: extension.name,
         options: extension.options,
       }),
-    );
+    ) as ExtendedStorage;
 
     return extension;
   }

@@ -7,8 +7,22 @@ function makeEditor(
   attrs: Record<string, Record<string, unknown>> = {},
 ): Pick<Editor, "isActive" | "getAttributes"> {
   return {
-    isActive(name: string, a?: { level?: number }) {
-      if (name === "heading") return active[`heading${a?.level}`] ?? false;
+    // Editor.isActive has two overloads: (name, attributes?) and (attributes).
+    // The mock accepts both; only the (name, attributes) form is exercised.
+    isActive(
+      nameOrAttributes: string | object,
+      attributesOrUndefined?: object,
+    ) {
+      const name = typeof nameOrAttributes === "string" ? nameOrAttributes : "";
+      const a =
+        typeof nameOrAttributes === "string"
+          ? attributesOrUndefined
+          : nameOrAttributes;
+      if (name === "heading")
+        return (
+          active[`heading${(a as { level?: number } | undefined)?.level}`] ??
+          false
+        );
       return active[name] ?? false;
     },
     getAttributes(name: string) {

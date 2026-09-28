@@ -84,3 +84,7 @@ export const NoteElement = litView.element({
     }
   }
 })(elTag("texto-editor"));
+
+/** The factory below is only a value (a custom element constructor); this
+ *  alias gives consumers the instance type, with its typed `props`. */
+export type NoteElement = InstanceType<typeof NoteElement>;

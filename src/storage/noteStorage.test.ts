@@ -181,7 +181,7 @@ describe("noteStorage", () => {
       const file = new TFile("test.note");
       const vault = new Vault();
       vault.adapter.stat.mockResolvedValue({ size: 123 });
-      vault.adapter.getFullPath = (p: string) => `/vault/${p}`;
+      vault.adapter.getFullPath = vi.fn((p: string) => `/vault/${p}`);
       const renameSync = vi.fn();
       (window as { require?: unknown }).require = (id: string) =>
         id === "fs" ? { renameSync } : undefined;
@@ -375,7 +375,10 @@ describe("sanitizeNoteDoc / parseNoteDoc", () => {
           type: "hljsCodeBlock",
           content: [
             { type: "hljsCodeBlockRow", content: [{ type: "text", text: "" }] },
-            { type: "hljsCodeBlockRow", content: [{ type: "text", text: "code" }] },
+            {
+              type: "hljsCodeBlockRow",
+              content: [{ type: "text", text: "code" }],
+            },
           ],
         },
       ],
@@ -411,9 +414,7 @@ describe("sanitizeNoteDoc / parseNoteDoc", () => {
   it("parseNoteDoc sanitizes on read", () => {
     const raw = JSON.stringify({
       type: "noteDoc",
-      content: [
-        { type: "paragraph", content: [{ type: "text", text: "" }] },
-      ],
+      content: [{ type: "paragraph", content: [{ type: "text", text: "" }] }],
     });
     const doc = parseNoteDoc(raw);
     expect(doc.content![0].content).toEqual([]);

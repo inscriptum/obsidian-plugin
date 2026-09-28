@@ -16,3 +16,6 @@ local/
 # Browser-test harness build output (see scripts/build-harness.mjs)
 dist-harness/
 /.harness
+# Playwright E2E output (see playwright.config.ts)
+/test-results/
+/playwright-report/
