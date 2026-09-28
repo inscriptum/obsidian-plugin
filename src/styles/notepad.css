@@ -299,6 +299,11 @@ button.notepad-nav-toggle:hover svg {
 }
 
 .notepad-sections {
+  /* Containing block for the drag reorder drop line (NotepadView.
+     updateDropLine positions it in this box's coordinates) — without it
+     the line resolves against the positioned view container above the
+     scroller and ignores the scroller's scroll offset. */
+  position: relative;
   /* 74px section left margin + 96px inner .texto-editor side padding
      (48×2) + the 748px ProseMirror text column — the same column width a
      .note gets, so a page's editor area is not narrower than a note's. */

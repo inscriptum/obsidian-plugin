@@ -1383,6 +1383,10 @@ export class NotepadView extends FileView {
     };
     window.addEventListener("pointermove", this.onDragPointerMove);
     window.addEventListener("pointerup", this.onDragPointerUp);
+    // Capture phase: while the drag holds the pointer it owns the
+    // interaction, so Escape must not reach the focused page's editor
+    // (ProseMirror reactions, bubble menu) first.
+    window.addEventListener("keydown", this.onDragKeyDown, true);
   }
 
   private onDragPointerMove = (event: PointerEvent): void => {
@@ -1406,6 +1410,7 @@ export class NotepadView extends FileView {
   private onDragPointerUp = (event: PointerEvent): void => {
     window.removeEventListener("pointermove", this.onDragPointerMove);
     window.removeEventListener("pointerup", this.onDragPointerUp);
+    window.removeEventListener("keydown", this.onDragKeyDown, true);
     const drag = this.drag;
     this.drag = null;
     this.dropLineEl?.remove();
@@ -1429,6 +1434,43 @@ export class NotepadView extends FileView {
     }
   };
 
+  private onDragKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== "Escape" || !this.drag) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.cancelDrag();
+  };
+
+  /** Esc during a drag (even before the 6px activation): discard the move
+   *  entirely. The pointer is still down — the eventual release must not
+   *  reorder, nor toggle the fold the release click would otherwise fire. */
+  private cancelDrag(): void {
+    const drag = this.drag;
+    if (!drag) return;
+    this.drag = null;
+    window.removeEventListener("pointermove", this.onDragPointerMove);
+    window.removeEventListener("pointerup", this.onDragPointerUp);
+    window.removeEventListener("keydown", this.onDragKeyDown, true);
+    const handle = this.sections.get(drag.id);
+    handle?.root.removeClass("is-dragging");
+    this.dropLineEl?.remove();
+    this.dropLineEl = null;
+    // The click follows the release pointerup synchronously (same premise
+    // as onDragPointerUp's swallow), so arming the swallow exactly then
+    // covers a release long after Esc — and cannot outlive it: the
+    // one-shot listener is consumed by that same pointerup.
+    window.addEventListener(
+      "pointerup",
+      () => {
+        this.suppressGutterToggle = true;
+        window.setTimeout(() => {
+          this.suppressGutterToggle = false;
+        }, 0);
+      },
+      { once: true, capture: true },
+    );
+  }
+
   /** The title page's note id (order 0) — excluded from drag geometry. */
   private titleSectionId(): string | null {
     return this.notepad?.notes().find((d) => d.order === 0)?.id ?? null;
@@ -1445,9 +1487,11 @@ export class NotepadView extends FileView {
     for (const other of others) {
       if (clientY > other.rect.top + other.rect.height / 2) index++;
     }
-    // The title page is fixed at index 0 — a drop never lands above page 1
-    // (spec 9.1: the cover cannot be reordered).
-    return Math.max(index, 1);
+    // moveNote's index spans the full descriptor list, where the title page
+    // is fixed at slot 0 (spec 9.1: the cover cannot be reordered) — the
+    // midpoint count above skips it, so offset by one. The minimum result
+    // is the slot right after the title: a drop never lands above page 1.
+    return index + 1;
   }
 
   private updateDropLine(clientY: number): void {
@@ -1455,22 +1499,32 @@ export class NotepadView extends FileView {
     // and TS cannot see that `this.drag` hasn't changed in between.
     const drag = this.drag;
     if (!this.dropLineEl || !drag || !this.sectionsEl) return;
+    // The line is absolutely positioned inside .notepad-sections (its
+    // position: relative containing block), so its top must be expressed
+    // relative to that box. offsetTop of a section is measured from the
+    // nearest positioned ancestor ABOVE the scroller — a scroll-immune
+    // layout value — which ignored the scroller's scrollTop and pushed the
+    // line down by exactly the scrolled amount on long documents. Measure
+    // both sides in viewport coords and map into the sections box instead.
+    const sectionsTop = this.sectionsEl.getBoundingClientRect().top;
     const titleId = this.titleSectionId();
     const others = [...this.sections.values()]
       .filter((h) => h.id !== drag.id && h.id !== titleId)
-      .map((h) => ({ root: h.root }))
-      .sort((a, b) => a.root.offsetTop - b.root.offsetTop);
+      .map((h) => h.root)
+      .sort(
+        (a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top,
+      );
     let top: number | null = null;
     for (const other of others) {
-      const rect = other.root.getBoundingClientRect();
+      const rect = other.getBoundingClientRect();
       if (clientY < rect.top + rect.height / 2) {
-        top = other.root.offsetTop - 4;
+        top = rect.top - sectionsTop - 4;
         break;
       }
     }
     if (top == null) {
       const last = others[others.length - 1];
-      top = last ? last.root.offsetTop + last.root.offsetHeight - 2 : 0;
+      top = last ? last.getBoundingClientRect().bottom - sectionsTop - 2 : 0;
     }
     this.dropLineEl.style.top = `${top}px`;
   }

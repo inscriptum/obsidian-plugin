@@ -14,6 +14,13 @@ declare global {
       taskFolds(): number[];
       lastError(): unknown;
     };
+    __e2eNotepad: {
+      mount(pages: {
+        id: string;
+        paragraphs: number;
+        title?: string;
+      }[]): string;
+    };
   }
 }
 

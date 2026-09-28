@@ -460,6 +460,26 @@ describe("UmNotepad", () => {
     expect(nb.notes().map((n) => n.title)).toEqual(["Second", "First"]);
   });
 
+  it("moveNote toIndex spans the full list including the title slot", () => {
+    const nb = UmNotepad.empty();
+    const title = nb.addNote(undefined, "Title");
+    const p1 = nb.addNote(title.id, "Page 1");
+    const p2 = nb.addNote(p1.id, "Page 2");
+    const p3 = nb.addNote(p2.id, "Page 3");
+
+    // The drag view computes "drop before Page 2" as toIndex 2: the title
+    // occupies slot 0 and page 1 slot 1. Not offsetting for the title slot
+    // landed the page one boundary too high (NotepadView.computeDropIndex).
+    expect(nb.moveNote(p3.id, 2)).toBe(true);
+    expect(nb.notes().map((n) => n.title)).toEqual([
+      "Title",
+      "Page 1",
+      "Page 3",
+      "Page 2",
+    ]);
+    expect(nb.notes().map((n) => n.order)).toEqual([0, 1, 2, 3]);
+  });
+
   it("persists the expanded flag and defaults to collapsed", () => {
     const nb = notepadWithTwoNotes();
     expect(nb.isExpanded(nb.notes()[0].id)).toBe(false); // absent = collapsed

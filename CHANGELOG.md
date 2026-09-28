@@ -16,8 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Images added inside a notepad are packed into the `.um` file itself, so the notepad is self-contained; other attachments stay as regular vault files.
 - Pages created in a newer version of the plugin open with a "created in a newer version" notice instead of an editor and are preserved untouched on save.
 - "New notepad" command and a Type selector (Note/Notepad) in the "New inscriptum" modal.
+- Esc cancels a notepad page drag: the drop line and the page highlight disappear, and releasing the mouse afterwards performs nothing — no reorder and no fold toggle from the release click.
 
 ### Fixed
+
+- Notepad: the page drag & drop drop line marked the wrong spot in scrolled documents — it sat below the real insertion point by the whole scrolled amount, because it was positioned from a scroll-immune layout offset. The line now tracks the scroll position, and the dropped page lands exactly on the boundary the line marks: the insertion index also skipped the title page slot, which put the page one boundary higher than the line showed.
 
 - Saving a `.um` container can no longer clobber its own manifest or note documents: asset descriptors naming a protected archive path (e.g. a hand-edited registry) are skipped at write time instead of overwriting the required entries.
 - Assets are no longer garbage-collected while a notepad has a page this editor cannot interpret (newer version, unknown family, failed migration): the page is preserved verbatim, so its media stays in the archive even if its references use a shape this editor does not know.

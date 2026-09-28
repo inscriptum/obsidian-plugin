@@ -6,6 +6,18 @@ import { Editor } from "../texto/core/Editor";
 import { getExtensions } from "../texto/getExtensions";
 import { headingFoldingKey } from "../texto/extensions/heading/folding";
 import { taskFoldingKey } from "../texto/extensions/task-item-folding/taskFoldingPlugin";
+import { NotepadView } from "../NotepadView";
+import { UmNotepad } from "../storage/um/umNotepad";
+import type { UmContainerData, UmNoteDescriptor } from "../storage/um/umTypes";
+import type { WorkspaceLeaf } from "obsidian";
+import {
+  UM_FORMAT,
+  UM_SCHEMA_PLAIN,
+  UM_SCHEMA_TITLE,
+  UM_SCHEMA_VERSION,
+  UM_TYPE,
+  UM_VERSION,
+} from "../storage/um/umTypes";
 
 // ── Obsidian globals (see src/__mocks__ and vitest.setup.ts) ──
 type DomAttrs = {
@@ -31,12 +43,23 @@ function applyAttrs(el: HTMLElement, attrs?: DomAttrs | string): HTMLElement {
 // top-level code in NodeView etc. reads them), so this is deliberately a
 // pre-import side effect of the harness entry — that is its whole purpose.
 const g = window as unknown as Record<string, unknown>;
+// Obsidian semantics: createDiv/createSpan take the CLASS as a bare string
+// (or a DomElementInfo object) — a string is never the text content.
+// createEl(tag, string) is the text form; createEl(tag, {...}) the info one.
+g.createDiv = (attrs?: DomAttrs | string) => {
+  const div = document.createElement("div");
+  if (typeof attrs === "string") div.className = attrs;
+  else applyAttrs(div, attrs);
+  return div;
+};
+g.createSpan = (attrs?: DomAttrs | string) => {
+  const span = document.createElement("span");
+  if (typeof attrs === "string") span.className = attrs;
+  else applyAttrs(span, attrs);
+  return span;
+};
 g.createEl = (tag: string, attrs?: DomAttrs | string) =>
   applyAttrs(document.createElement(tag), attrs);
-g.createDiv = (attrs?: DomAttrs | string) =>
-  applyAttrs(document.createElement("div"), attrs);
-g.createSpan = (attrs?: DomAttrs | string) =>
-  applyAttrs(document.createElement("span"), attrs);
 g.createFragment = () => document.createDocumentFragment();
 // NOTE: do NOT assign window.requestAnimationFrame — `g` IS window, and
 // overwriting the native function would recurse forever (bundle code calls
@@ -98,6 +121,32 @@ defineHelper("setAttrs", (el, [obj]) => {
 defineHelper("getAttr", (el, [name]) => el.getAttribute(name as string));
 defineHelper("empty", (el) => {
   while (el.firstChild) el.removeChild(el.firstChild);
+});
+defineHelper("createDiv", (el, [cls]) => {
+  const div = document.createElement("div");
+  // Obsidian semantics: createDiv("name") sets the CLASS, createDiv({...})
+  // applies the info object (a bare string is never the text here).
+  if (typeof cls === "string") div.className = cls;
+  else applyAttrs(div, cls as DomAttrs | undefined);
+  el.appendChild(div);
+  return div;
+});
+defineHelper("createSpan", (el, [cls]) => {
+  const span = document.createElement("span");
+  if (typeof cls === "string") span.className = cls;
+  else applyAttrs(span, cls as DomAttrs | undefined);
+  el.appendChild(span);
+  return span;
+});
+defineHelper("createEl", (el, [tag, attrs]) => {
+  const out = document.createElement(String(tag));
+  applyAttrs(out, attrs as DomAttrs | string | undefined);
+  el.appendChild(out);
+  return out;
+});
+defineHelper("setText", (el, [text]) => {
+  el.textContent = toStr(text);
+  return el;
 });
 {
   const proto = Element.prototype as unknown as Record<
@@ -221,3 +270,169 @@ const e2eApi: E2EApi = {
 };
 
 g.__e2e = e2eApi;
+
+// ── Notepad E2E API (window.__e2eNotepad) ───────────────────────────────
+// Mounts the real NotepadView (.um notepad) against a fake leaf/app so the
+// page-drag geometry (drop line vs. section boxes) runs on real layout.
+// Only construct+render is exercised: onOpen's vault wiring (file watchers,
+// nav drawer) is deliberately not set up, and the autosave timers land in
+// the fake adapter of the obsidian shim (scripts/build-harness.mjs).
+
+export interface NotepadPageSpec {
+  /** Stable note id (visible in the DOM order only). */
+  id: string;
+  /** Plain paragraphs appended to the page body. */
+  paragraphs: number;
+  /** Page title; defaults to the id. */
+  title?: string;
+}
+
+/** The private fields mountNotepad needs to populate in place of onOpen. */
+interface NotepadViewInternals {
+  app: unknown;
+  file: unknown;
+  notepad: UmNotepad | null;
+  toolbarHost: HTMLElement | null;
+  scrollerEl: HTMLElement | null;
+  sectionsEl: HTMLElement | null;
+  render(): void;
+}
+
+function noteParagraphs(prefix: string, count: number): JSONContent[] {
+  const out: JSONContent[] = [];
+  for (let i = 0; i < count; i++) {
+    out.push({
+      type: "paragraph",
+      content: [{ type: "text", text: `${prefix} paragraph ${i + 1}` }],
+    });
+  }
+  return out;
+}
+
+function mountNotepad(pages: NotepadPageSpec[]): string {
+  const notes = new Map<string, JSONContent>();
+  const descriptors: UmNoteDescriptor[] = [
+    {
+      id: "title-page",
+      path: "notes/title-page.json",
+      order: 0,
+      title: "Notepad title",
+      schema: UM_SCHEMA_TITLE,
+      schemaVersion: UM_SCHEMA_VERSION,
+      expanded: true,
+    },
+  ];
+  notes.set("title-page", {
+    type: "noteDoc",
+    content: [
+      {
+        type: "noteTitle",
+        content: [{ type: "text", text: "Notepad title" }],
+      },
+      { type: "noteSummary" },
+      { type: "paragraph" },
+    ],
+  });
+  pages.forEach((page, i) => {
+    descriptors.push({
+      id: page.id,
+      path: `notes/${page.id}.json`,
+      order: i + 1,
+      title: page.title ?? page.id,
+      schema: UM_SCHEMA_PLAIN,
+      schemaVersion: UM_SCHEMA_VERSION,
+      // Open every page so the drag geometry runs against real editors.
+      expanded: true,
+    });
+    notes.set(page.id, {
+      type: "noteDoc",
+      content: noteParagraphs(page.title ?? page.id, page.paragraphs),
+    });
+  });
+
+  const data: UmContainerData = {
+    manifest: {
+      format: UM_FORMAT,
+      version: UM_VERSION,
+      type: UM_TYPE,
+      notes: descriptors,
+    },
+    notes,
+    assets: new Map(),
+    unknownEntries: new Map(),
+  };
+
+  const app = {
+    vault: {
+      on: () => () => {},
+      adapter: {
+        async read() {
+          return "";
+        },
+        async readBinary() {
+          return new Uint8Array();
+        },
+        async write() {},
+        async writeBinary() {},
+        async exists() {
+          return false;
+        },
+        async stat() {
+          return null;
+        },
+        async mkdir() {},
+        async rename() {},
+        async remove() {},
+        getFullPath(p: string) {
+          return p;
+        },
+      },
+    },
+    workspace: {
+      on: () => () => {},
+      getActiveViewOfType: () => null,
+    },
+    loadLocalStorage(key: string) {
+      try {
+        return window.localStorage.getItem(key);
+      } catch {
+        return null;
+      }
+    },
+    saveLocalStorage(key: string, value: unknown) {
+      try {
+        if (value == null) window.localStorage.removeItem(key);
+        else window.localStorage.setItem(key, JSON.stringify(value));
+      } catch {
+        // storage unavailable — folds just do not persist
+      }
+    },
+  };
+
+  const view = new NotepadView({} as unknown as WorkspaceLeaf);
+  const v = view as unknown as NotepadViewInternals;
+  // Obsidian gives a view's contentEl the .view-content class; the harness
+  // must mirror it for the .view-content.notepad-view-container rules. The
+  // bounding height comes from the harness page's CSS — without it the
+  // scroller would grow with the document and never scroll.
+  view.contentEl.addClass("view-content");
+  view.contentEl.addClass("notepad-view-container");
+  v.app = app;
+  v.file = {
+    path: "e2e/harness.um",
+    name: "harness.um",
+    basename: "harness",
+    parent: null,
+  };
+  // Mirror onOpen's DOM skeleton; the nav drawer (buildNavSidebar) stays
+  // unbuilt — rebuildNavList null-guards on the missing navListEl.
+  v.toolbarHost = view.contentEl.createDiv("notepad-toolbar-host");
+  v.scrollerEl = view.contentEl.createDiv("notepad-scroller");
+  v.sectionsEl = v.scrollerEl.createDiv("notepad-sections");
+  v.notepad = new UmNotepad(data);
+  v.render();
+  appContainer().replaceChildren(view.contentEl);
+  return "notepad";
+}
+
+g.__e2eNotepad = { mount: mountNotepad };
