@@ -202,6 +202,11 @@ interface SectionHandle {
   /** Device-local persistence of this page's in-document fold state
    *  (headings + task items), created lazily — see foldPersistence.ts. */
   folds: FoldPersistence | null;
+  /** In-flight fold morph (row ↔ page height animation), if any. */
+  morphAnim: Animation | null;
+  /** The morph's dissolve phase (old content fading out, fill forwards).
+   *  Kept so the reveal phase can release it in the same frame. */
+  morphFade: Animation | null;
 }
 
 /**
@@ -226,6 +231,9 @@ export class NotepadView extends FileView {
   /** Expansion builds in flight, to prevent double editor creation for the
    *  same note. */
   private pendingExpansions = new Set<string>();
+  /** Teardowns in flight (the fold morph's dissolve phase delays them), so
+   *  a second click can't tear down a page that is already folding. */
+  private pendingCollapses = new Set<string>();
 
   private scrollerEl: HTMLElement | null = null;
   private sectionsEl: HTMLElement | null = null;
@@ -545,7 +553,10 @@ export class NotepadView extends FileView {
     for (const descriptor of this.notepad.notes()) {
       if (!this.notepad.isNoteOpenable(descriptor.id)) continue;
       if (descriptor.order === 0 || this.notepad.isExpanded(descriptor.id)) {
-        void this.expandSection(descriptor.id, { focus: false });
+        // Restoring persisted state on load: no morph — the sections are
+        // not painted yet, and the view's scroll restore must see the
+        // final layout, not a morph in flight.
+        void this.expandSection(descriptor.id, { focus: false, morph: false });
       }
     }
     this.rebuildNavList();
@@ -625,6 +636,8 @@ export class NotepadView extends FileView {
       editorRef: { current: null },
       bubbleEls: [],
       folds: null,
+      morphAnim: null,
+      morphFade: null,
     };
     this.sections.set(id, handle);
 
@@ -667,15 +680,44 @@ export class NotepadView extends FileView {
     handle.content.empty();
     const row = handle.content.createDiv("notepad-section-collapsed");
     const label = row.createDiv("notepad-section-title");
+    const text = label.createSpan("notepad-section-title-text");
     if (title.trim().length > 0) {
-      label.setText(title);
+      text.setText(title);
     } else {
       label.addClass("is-empty");
-      label.setText("Untitled");
+      text.setText("Untitled");
     }
+    // A printed-contents line: dotted leader, then a quiet word count.
+    row.createDiv("notepad-section-tocleader");
+    const words = this.countNoteWords(handle.id);
+    row.createSpan({
+      cls: "notepad-section-meta",
+      text: words === 0 ? "Empty" : words === 1 ? "1 word" : `${words} words`,
+    });
     row.addEventListener("click", () =>
       this.toggleSection(handle.id, { expand: true }),
     );
+  }
+
+  /** Rough word count of the page's stored JSON (text nodes only) — the
+   *  folded row shows it as its TOC meta. Whitespace-split tokens: close
+   *  enough for a quiet row label, cheap enough to run on every fold. */
+  private countNoteWords(id: string): number {
+    const visit = (node: unknown): number => {
+      if (node == null || typeof node !== "object") return 0;
+      const rec = node as { text?: unknown; content?: unknown };
+      let words = 0;
+      if (typeof rec.text === "string") {
+        for (const token of rec.text.split(/\s+/)) {
+          if (token.length > 0) words++;
+        }
+      }
+      if (Array.isArray(rec.content)) {
+        for (const child of rec.content) words += visit(child);
+      }
+      return words;
+    };
+    return visit(this.notepad?.noteContent(id) ?? null);
   }
 
   /** Re-render the collapsed title text after inline editing. */
@@ -693,11 +735,12 @@ export class NotepadView extends FileView {
     const title = descriptor?.title ?? "";
     const row = handle.content.createDiv("notepad-section-collapsed is-static");
     const label = row.createDiv("notepad-section-title");
+    const text = label.createSpan("notepad-section-title-text");
     if (title.trim().length > 0) {
-      label.setText(title);
+      text.setText(title);
     } else {
       label.addClass("is-empty");
-      label.setText("Untitled");
+      text.setText("Untitled");
     }
   }
 
@@ -710,6 +753,127 @@ export class NotepadView extends FileView {
 
   // ── Expand / collapse ──
 
+  // ── Fold morph (row ↔ page) ──
+  // The morph is Notion's: the row keeps its height while the page builds,
+  // then the frame grows to the page's natural height and the new content
+  // fades in. Height is driven by WAAPI because the page mounts lazily —
+  // the editor builds after an await, and a CSS-only transition would
+  // animate an empty body. Chrome (frame, margins, gutter) rides along via
+  // CSS transitions timed by --ins-morph.
+  private static readonly FOLD_MORPH_MS = 280;
+
+  private prefersReducedMotion(): boolean {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  /** Cancel an in-flight morph and release any inline pin on the body. */
+  private clearFoldMorph(handle: SectionHandle): void {
+    handle.morphAnim?.cancel();
+    handle.morphAnim = null;
+    this.releaseHiddenContent(handle);
+    handle.body.style.height = "";
+    handle.body.style.overflow = "";
+  }
+
+  /** End the dissolve phase and give the content its natural opacity back.
+   *  All in the same frame as the reveal animation starts, so nothing
+   *  flashes in between. */
+  private releaseHiddenContent(handle: SectionHandle): void {
+    const fade = handle.morphFade;
+    handle.morphFade = null;
+    if (fade) {
+      // Jump a still-running dissolve to its end before cancelling: the
+      // reveal must start from fully hidden, never from a half-faded row.
+      try {
+        if (fade.playState === "running") fade.finish();
+      } catch {
+        /* already finished or cancelled */
+      }
+      fade.cancel();
+    }
+    handle.content.style.opacity = "";
+    handle.content.style.transform = "";
+  }
+
+  /** Phase one of the morph: dissolve whatever the body shows (the folded
+   *  row when expanding, the page when folding) while the other state is
+   *  being built. The DOM swap then happens invisibly — the eye never sees
+   *  the row's 15px title restyle into the page's h1, which is the "step"
+   *  a plain swap produces. */
+  private hideFoldContent(handle: SectionHandle): Animation {
+    handle.morphFade?.cancel();
+    const fade = handle.content.animate(
+      [{ opacity: 1 }, { opacity: 0 }],
+      { duration: 110, easing: "ease-out", fill: "forwards" },
+    );
+    handle.morphFade = fade;
+    return fade;
+  }
+
+  /** Pin the body at its current height so the DOM swap (row → editor)
+   *  doesn't jump while the editor builds. Returns the pinned height, or
+   *  0 when motion is reduced (no pin, no morph). */
+  private pinFoldMorph(handle: SectionHandle): number {
+    this.clearFoldMorph(handle);
+    const fromH = handle.body.offsetHeight;
+    if (this.prefersReducedMotion()) return 0;
+    handle.body.style.height = `${fromH}px`;
+    handle.body.style.overflow = "hidden";
+    return fromH;
+  }
+
+  /** Phase two of the morph: animate the pinned body to its natural height
+   *  while the swapped-in content fades in, rising slightly into the growing
+   *  frame. `fromH === 0` (reduced motion) skips straight to natural. */
+  private playFoldMorph(handle: SectionHandle, fromH: number): void {
+    const body = handle.body;
+    this.releaseHiddenContent(handle);
+    if (fromH === 0) return;
+    body.style.height = "auto";
+    const toH = body.offsetHeight;
+    if (toH === fromH) {
+      this.clearFoldMorph(handle);
+      return;
+    }
+    body.style.height = `${fromH}px`;
+    const anim = body.animate(
+      [{ height: `${fromH}px` }, { height: `${toH}px` }],
+      {
+        duration: NotepadView.FOLD_MORPH_MS,
+        easing: "cubic-bezier(0.25, 0.8, 0.25, 1)",
+      },
+    );
+    // The swapped-in content rises into the growing frame as it fades —
+    // starting from fully hidden, so no intermediate state of the two
+    // text styles is ever visible at full opacity.
+    handle.content.animate(
+      [
+        { opacity: 0, transform: "translateY(6px)" },
+        { opacity: 1, transform: "none" },
+      ],
+      { duration: NotepadView.FOLD_MORPH_MS, easing: "ease-out" },
+    );
+    handle.morphAnim = anim;
+    anim.finished
+      .then(() => {
+        if (handle.morphAnim === anim) this.clearFoldMorph(handle);
+      })
+      .catch(() => {
+        /* cancelled — a newer morph owns the body */
+      });
+  }
+
+  /** Fold layout transitions (margins) must not run while a caller measures
+   *  scroll targets — a mid-transition margin skews the math by up to the
+   *  rhythm delta. Kill them for one morph duration, then restore. */
+  private settleFoldLayout(): void {
+    this.contentEl.addClass("is-jumping");
+    window.setTimeout(
+      () => this.contentEl.removeClass("is-jumping"),
+      NotepadView.FOLD_MORPH_MS + 70,
+    );
+  }
+
   private toggleSection(id: string, opts?: { expand?: boolean }): void {
     // The title page is the fixed cover: never folded, never expanded by
     // the fold toggle (spec 9.1).
@@ -717,13 +881,16 @@ export class NotepadView extends FileView {
     if (!descriptor || descriptor.order === 0) return;
     const isFolded = !this.notepad?.isExpanded(id);
     if (!isFolded && opts?.expand === true) return; // already expanded
+    // Mid-morph pages ignore the toggle: the collapse's dissolve phase and
+    // the expand's build phase each own the section exclusively.
+    if (this.pendingCollapses.has(id)) return;
     if (isFolded) void this.expandSection(id, { focus: true });
     else void this.collapseSection(id);
   }
 
   private async expandSection(
     id: string,
-    opts?: { focus?: boolean; autofocus?: boolean },
+    opts?: { focus?: boolean; autofocus?: boolean; morph?: boolean },
   ): Promise<void> {
     const notepad = this.notepad;
     const handle = this.sections.get(id);
@@ -734,7 +901,12 @@ export class NotepadView extends FileView {
     const content = notepad.noteContent(id);
     if (content == null) return;
     // Already expanded (or expansion in flight) — nothing to build.
-    if (handle.editor != null || this.pendingExpansions.has(id)) {
+    // Also stand down while a collapse is dissolving this page.
+    if (
+      handle.editor != null ||
+      this.pendingExpansions.has(id) ||
+      this.pendingCollapses.has(id)
+    ) {
       notepad.setExpanded(id, true);
       this.scheduleSave();
       if (opts?.focus) handle.editor?.view.focus();
@@ -745,13 +917,26 @@ export class NotepadView extends FileView {
     try {
       notepad.setExpanded(id, true);
       this.scheduleSave();
+      // Pin the row height BEFORE the class flip so the swap below doesn't
+      // jump; the editor builds behind the pin, then the frame unfolds.
+      const morphH = opts?.morph === false ? 0 : this.pinFoldMorph(handle);
       handle.root.addClass("is-expanded");
-      handle.content.empty();
 
       const noteEl = makeNoteElement();
       noteEl.addClass("notepad-note-host");
-      handle.content.appendChild(noteEl);
       handle.noteEl = noteEl;
+      if (morphH === 0) {
+        // Reduced motion, or a measured jump (nav): swap immediately.
+        handle.content.empty();
+        handle.content.appendChild(noteEl);
+      } else {
+        // The folded row stays on screen while the page builds (the click
+        // feels instant) and dissolves underneath it; the page then fades
+        // in rising into the unfolding frame. Swapping the DOM while the
+        // body is visually empty is what removes the restyle "step".
+        this.hideFoldContent(handle);
+        handle.content.appendChild(noteEl);
+      }
 
       const editor = await this.createEditorForSection(handle, content, {
         autofocus: opts?.autofocus,
@@ -759,6 +944,7 @@ export class NotepadView extends FileView {
       if (editor == null) {
         handle.noteEl = null;
         noteEl.remove();
+        this.clearFoldMorph(handle);
         if (notepad.note(handle.id)?.order === 0) {
           // The title page never folds (spec 9.1): keep the section open
           // and show a static header row instead of the collapsed title.
@@ -774,7 +960,21 @@ export class NotepadView extends FileView {
         return;
       }
       handle.editor = editor;
-      if (opts?.focus) editor.view.focus();
+      // The row has dissolved — swap it out unseen, then unfold the page.
+      handle.content
+        .querySelector<HTMLElement>(":scope > .notepad-section-collapsed")
+        ?.remove();
+      this.playFoldMorph(handle, morphH);
+      if (opts?.focus) {
+        // Focus only after the morph settles: an immediate focus() can
+        // scroll the still-animating body (overflow clip) and kill the
+        // motion — same reasoning as jumpToPage's delayed focus.
+        if (morphH === 0) editor.view.focus();
+        else
+          window.setTimeout(() => {
+            if (!editor.isDestroyed) editor.view.focus();
+          }, NotepadView.FOLD_MORPH_MS + 20);
+      }
     } finally {
       this.pendingExpansions.delete(id);
     }
@@ -783,36 +983,61 @@ export class NotepadView extends FileView {
   private async collapseSection(id: string): Promise<void> {
     const handle = this.sections.get(id);
     if (!handle || this.notepad?.isExpanded(id) !== true) return;
+    // A collapse is two phases now (dissolve, then fold) — a second toggle
+    // while the page is dissolving must not tear it down twice.
+    if (this.pendingCollapses.has(id) || this.pendingExpansions.has(id)) return;
+    this.pendingCollapses.add(id);
+    try {
+      // Pin the page height before tearing it down so the swap to the row
+      // animates instead of snapping (0 = reduced motion, no morph).
+      const morphH = this.pinFoldMorph(handle);
+      if (morphH !== 0) {
+        // Phase one: dissolve the page BEFORE teardown — the eye sees the
+        // text fade away, then the frame folds shut around the row fading
+        // back in. The editor stays alive during the 110ms fade. The race
+        // guards frozen animations (hidden pane: WAAPI never advances) —
+        // the fold then completes without the dissolve, not never.
+        const fade = this.hideFoldContent(handle);
+        await Promise.race([
+          fade.finished.catch(() => {}),
+          new Promise<void>((resolve) =>
+            window.setTimeout(resolve, NotepadView.FOLD_MORPH_MS),
+          ),
+        ]);
+      }
+      // Flush the editor content into the in-memory notepad first.
+      this.flushSectionToNotepad(handle);
 
-    // Flush the editor content into the in-memory notepad first.
-    this.flushSectionToNotepad(handle);
+      const ownedToolbar = this.toolbarEl?.props.editor === handle.editor;
+      if (this.focusedEditorValue === handle.editor) {
+        this.focusedEditorValue = null;
+      }
 
-    const ownedToolbar = this.toolbarEl?.props.editor === handle.editor;
-    if (this.focusedEditorValue === handle.editor) {
-      this.focusedEditorValue = null;
+      this.notepad.setExpanded(id, false);
+      this.scheduleSave();
+      handle.root.removeClass("is-expanded");
+      for (const el of handle.bubbleEls) el.remove();
+      handle.bubbleEls = [];
+      // Detach the dying editor before rebinding: the toolbar must not be
+      // handed to an editor that is about to be destroyed.
+      handle.editor = null;
+      handle.editorRef.current = null;
+      if (ownedToolbar) this.rebindOrIdleToolbar();
+      // Removing the element destroys the editor (NoteElement cleanup).
+      handle.noteEl?.remove();
+      handle.noteEl = null;
+      handle.content.empty();
+
+      const descriptor = this.notepad?.note(id);
+      this.renderCollapsedTitle(handle, descriptor?.title ?? "");
+      // The flush above may have synced a title edited in the page's first
+      // line — the nav list must show it right away, not after the next
+      // rebuild (nav open / add / delete).
+      this.rebuildNavList();
+      this.playFoldMorph(handle, morphH);
+    } finally {
+      this.pendingCollapses.delete(id);
     }
-
-    this.notepad.setExpanded(id, false);
-    this.scheduleSave();
-    handle.root.removeClass("is-expanded");
-    for (const el of handle.bubbleEls) el.remove();
-    handle.bubbleEls = [];
-    // Detach the dying editor before rebinding: the toolbar must not be
-    // handed to an editor that is about to be destroyed.
-    handle.editor = null;
-    handle.editorRef.current = null;
-    if (ownedToolbar) this.rebindOrIdleToolbar();
-    // Removing the element destroys the editor (NoteElement cleanup).
-    handle.noteEl?.remove();
-    handle.noteEl = null;
-    handle.content.empty();
-
-    const descriptor = this.notepad?.note(id);
-    this.renderCollapsedTitle(handle, descriptor?.title ?? "");
-    // The flush above may have synced a title edited in the page's first
-    // line — the nav list must show it right away, not after the next
-    // rebuild (nav open / add / delete).
-    this.rebuildNavList();
   }
 
   /** Copy the live editor JSON into the notepad model (change-gated, so
@@ -1338,8 +1563,11 @@ export class NotepadView extends FileView {
     if (!handle || !this.notepad) return;
     if (handle.editor == null) {
       // No mount autofocus: the smooth scroll below must own the movement —
-      // an editor scrolling itself into view would snap the jump.
-      void this.expandSection(id, { focus: false, autofocus: false });
+      // an editor scrolling itself into view would snap the jump. No morph
+      // either: the scroll target is measured 60ms from now, and a body
+      // growing under the measurement would land the jump short.
+      this.settleFoldLayout();
+      void this.expandSection(id, { focus: false, autofocus: false, morph: false });
     }
     window.setTimeout(() => {
       const scroller = this.scrollerEl;
@@ -1663,9 +1891,12 @@ export class NotepadView extends FileView {
       return;
     }
     // Mount the page quietly (no autofocus): the search input keeps focus.
+    // No morph: revealSearchMatch measures the match's position right after
+    // the mount, and a growing body would skew it.
     void this.expandSection(match.noteId, {
       focus: false,
       autofocus: false,
+      morph: false,
     }).then(() => this.revealSearchMatch(match));
   }
 
