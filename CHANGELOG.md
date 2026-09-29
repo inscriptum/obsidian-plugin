@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Links whose text carries any formatting (underline, bold, italic, strike, code, highlight, color) ignored clicks: the click handler only accepted clicks landing on the `<a>` element itself, while marks render as nested elements inside it. The anchor is now resolved up the DOM tree, so a click anywhere on the link text opens it.
+
 - Notepad: the page drag & drop drop line marked the wrong spot in scrolled documents — it sat below the real insertion point by the whole scrolled amount, because it was positioned from a scroll-immune layout offset. The line now tracks the scroll position, and the dropped page lands exactly on the boundary the line marks: the insertion index also skipped the title page slot, which put the page one boundary higher than the line showed.
 
 - Saving a `.um` container can no longer clobber its own manifest or note documents: asset descriptors naming a protected archive path (e.g. a hand-edited registry) are skipped at write time instead of overwriting the required entries.
