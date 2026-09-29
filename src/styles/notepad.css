@@ -11,6 +11,21 @@
   display: flex;
   flex-direction: column;
   padding: 0;
+
+  /* ── Visual tokens (theme-adaptive) ──
+     The page chrome is built from Obsidian tokens only, so a .um document
+     reads natively in any theme (stock dark, stock light, cream community
+     themes). Accent is Obsidian's accent; borders derive from text/border
+     tokens instead of hard-coded shadows. */
+  --ins-accent: var(--interactive-accent, #7c6af7);
+  --ins-accent-soft: color-mix(
+    in srgb,
+    var(--interactive-accent, #7c6af7) 10%,
+    transparent
+  );
+  --ins-border: var(--background-modifier-border);
+  --ins-border-strong: color-mix(in srgb, var(--text-normal) 22%, transparent);
+  --ins-radius: 10px;
 }
 
 /* ── Pages navigation drawer (blog-style, hidden by default) ── */
@@ -24,7 +39,7 @@
   z-index: 15;
   display: flex;
   flex-direction: column;
-  background: var(--background-primary);
+  background: var(--background-secondary);
   border-right: 1px solid var(--background-modifier-border);
   box-shadow: var(--shadow-s);
   transform: translateX(-100%);
@@ -149,18 +164,26 @@ button.notepad-nav-toggle:hover svg {
 }
 
 /* Blog TOC look: inset line, page rows with the number right before the
-   header — one aligned line, compact left indent. */
+   header — one aligned line, compact left indent. Rows carry their own
+   hover pill; the active page is a soft accent fill + accent text. */
 .notepad-nav-list {
   flex: 1 1 auto;
   overflow-y: auto;
   margin-top: var(--size-4-2);
+  padding: 0 10px 10px;
 }
 
 .notepad-nav-item {
   display: flex;
   align-items: baseline;
+  margin: 1px 0;
+  padding: 0 8px;
+  border-radius: 6px;
   cursor: pointer;
   color: var(--text-muted);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 
   &:first-child {
     text-transform: uppercase;
@@ -169,14 +192,16 @@ button.notepad-nav-toggle:hover svg {
 
 .notepad-nav-item:hover {
   color: var(--text-normal);
+  background: var(--background-modifier-hover);
 }
 
 .notepad-nav-numb {
-  width: 2.4rem;
+  width: 2rem;
   padding-right: 0.8rem;
   text-align: right;
   color: var(--text-faint);
-  font-size: var(--font-ui-small);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
 
@@ -186,9 +211,9 @@ button.notepad-nav-toggle:hover svg {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  padding: 0.4rem 0;
-  font-size: 15px;
-  line-height: 2.2rem;
+  padding: 0.35rem 0;
+  font-size: 14px;
+  line-height: 1.7;
 }
 
 .notepad-nav-header.is-empty {
@@ -196,8 +221,12 @@ button.notepad-nav-toggle:hover svg {
   font-style: italic;
 }
 
+.notepad-nav-item.is-active {
+  background: var(--ins-accent-soft);
+}
+
 .notepad-nav-item.is-active .notepad-nav-header {
-  color: var(--interactive-accent);
+  color: var(--text-accent, var(--ins-accent));
 }
 
 /* ── Notepad-wide search panel ── */
@@ -344,7 +373,9 @@ button.notepad-nav-toggle:hover svg {
 .notepad-section-margin {
   position: absolute;
   left: 0;
-  top: -5px;
+  /* Centers the 44px chevron on the card's first text line:
+     1px frame + ~12px editor top padding + half a line. */
+  top: 7px;
   display: flex;
   align-items: center;
   gap: 0;
@@ -355,7 +386,9 @@ button.notepad-nav-toggle:hover svg {
   min-width: 24px;
   text-align: right;
   color: var(--text-faint);
-  font-size: 15px;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
   line-height: 1;
   user-select: none;
   transition: color 0.2s;
@@ -394,10 +427,6 @@ button.notepad-section-gutter:hover,
   color: var(--text-normal);
 }
 
-button.notepad-section-gutter:hover svg {
-  stroke: var(--text-normal);
-}
-
 /* Folded pages point right; expanded rotate the chevron down. The gutter
    stays in ONE fixed spot for both states (aligned with the first line). */
 .notepad-section.is-expanded button.notepad-section-gutter svg {
@@ -414,51 +443,55 @@ button.notepad-section-gutter:hover svg {
   /* padding: 2px 0 0 16px; */
 }
 
-/* The title page is the cover: no left frame rule, ever (spec 9.1).
-   Restated after the rules above so it wins the equal-specificity race. */
+/* The title page is the cover: no frame, ever (spec 9.1). Higher
+   specificity (0,4,0) beats the frame rule below regardless of order. */
 .notepad-section.is-title.is-expanded .notepad-section-body {
+  background: transparent;
   border: none;
   box-shadow: none;
 }
 
+/* Every page is a quiet sheet: flat surface + one hairline frame. No drop
+   shadows — hierarchy comes from the frame and spacing, which keeps the
+   language identical in light, dark and custom (e.g. cream) themes. The
+   frame sharpens slightly on hover so the fold target reads as one unit. */
 .notepad-section .notepad-section-body {
-  /* border-bottom: 1px solid var(--background-modifier-border); */
-  box-shadow:
-    rgb(0 0 0 / 34%) 1px 1px 3px 0px,
-    rgba(0, 0, 0, 0.06) 1px 1px 2px 0px;
-  border-radius: 4px;
+  position: relative;
+  background: var(--background-primary);
+  border: 1px solid var(--ins-border);
+  border-radius: var(--ins-radius);
+  transition: border-color 0.18s ease;
 }
 
-.theme-dark {
-  .notepad-section .notepad-section-body {
-    border-bottom: 1px solid var(--background-modifier-border);
-    border-right: 1px solid var(--background-modifier-border);
-  }
+.notepad-section .notepad-section-body:hover {
+  border-color: var(--ins-border-strong);
 }
 
 /* Visual gap between the page frames themselves (frames must not touch). */
 .notepad-section + .notepad-section {
-  margin-top: 32px;
+  margin-top: 24px;
 }
 
 .notepad-section-content {
   min-height: 20px;
-  padding-bottom: var(--size-2-1);
+  padding-bottom: 2px;
 }
 
 /* ── Collapsed row ── */
 
+/* Collapsed row: a comfortable single line pinned to the card's padding
+   rhythm — the row reads as the folded page itself, not as a caption
+   floating in an empty frame. */
 .notepad-section-collapsed {
   display: flex;
   align-items: center;
   gap: var(--size-2-2);
-  min-height: 30px;
-  margin-left: var(--size-2-3);
-  padding: var(--size-2-2) 0;
+  padding: 14px 20px;
   cursor: pointer;
   font-size: 15px;
-  line-height: 18px;
-  color: var(--text-muted);
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--text-normal);
 }
 
 .notepad-section-collapsed:hover {
@@ -499,7 +532,9 @@ button.notepad-section-gutter:hover svg {
 }
 
 /* The header nodes come from the editor's own rendering (h1/p); the label
-   pseudo-element hangs into the left margin. */
+   pseudo-element hangs into the left margin: thin (inherited-weight) text,
+   field-size letters, and a hairline vertical rule between the label and
+   the field text. */
 .notepad-view-container [data-label] {
   position: relative;
 }
@@ -515,6 +550,7 @@ button.notepad-section-gutter:hover svg {
   padding: 6px 12px;
   font-weight: normal;
   margin: 0 21px;
+  white-space: nowrap;
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.15s ease;
@@ -545,15 +581,14 @@ button.notepad-section-gutter:hover svg {
 }
 
 /* The summary line under the title — the blog draft's role=definition:
-   15px/18px regular, muted gray, 12px vertical rhythm (theme variables
-   keep it correct in both light and dark schemes; the blog's hard-coded
-   #79828b is the light-scheme face of --text-muted). */
+   regular, muted, quiet; the theme's own muted token keeps it correct in
+   both light and dark schemes. */
 .notepad-view-container p[role="definition"] {
-  margin: 12px 0;
+  margin: 10px 0 2px;
   color: var(--text-muted);
   font-size: 15px;
   font-weight: 400;
-  line-height: 18px;
+  line-height: 1.6;
   font-style: normal;
 }
 
@@ -593,8 +628,8 @@ button.notepad-section-gutter:hover svg {
    the whole document, and a nested auto-scroller produces phantom
    scrollbars on sub-pixel rounding. */
 .notepad-view-container .texto-editor {
-  padding-top: 0;
-  padding-bottom: 0;
+  padding-top: 12px;
+  padding-bottom: 10px;
   overflow-y: visible;
 }
 
@@ -630,22 +665,37 @@ button.notepad-section-gutter:hover svg {
   z-index: 5;
 }
 
-/* ── Controls: add-after / delete ──
-   Copied from the blog: bare buttons (transparent, no border/box-shadow),
-   group always visible but very muted (0.3), the group's hover brings it
-   to full strength, a hovered icon darkens. Small icons pinned to the
-   right edge of the section column. */
+/* ── Controls: add-after / duplicate / delete ──
+   A compact floating chip pinned inside the page frame: bottom-right on an
+   expanded page, vertically centered on the single row of a folded page.
+   Hidden until the page (or the chip itself) is hovered or focused — the
+   resting document stays quiet. */
 
 .notepad-section-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 0;
-  padding: 0 var(--size-2-1) var(--size-2-1) 0;
-  opacity: 0.3;
-  transition: opacity 0.2s;
+  gap: 1px;
+  padding: 3px;
+  border: 1px solid var(--ins-border);
+  border-radius: 8px;
+  background: var(--background-primary);
+  box-shadow: var(--shadow-s);
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
 
+/* Folded pages: center the chip on the row (the row is the body's only
+   in-flow child, so 50% of the body is the row's center). */
+.notepad-section:not(.is-expanded) .notepad-section-controls {
+  bottom: auto;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.notepad-section:hover .notepad-section-controls,
 .notepad-section-controls:hover,
 .notepad-section-controls:focus-within {
   opacity: 1;
@@ -655,9 +705,11 @@ button.notepad-section-control {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 1px 4px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   border: none;
-  border-radius: var(--radius-s);
+  border-radius: 6px;
   box-shadow: none;
   background: transparent;
   appearance: none;
@@ -667,9 +719,9 @@ button.notepad-section-control {
 }
 
 button.notepad-section-control svg {
-  width: 20px;
-  height: 20px;
-  stroke-width: 1.25;
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.5;
   transition:
     stroke 0.2s,
     opacity 0.2s;
@@ -725,12 +777,14 @@ button.notepad-section-control.is-danger svg {
   opacity: 1;
 }
 
-/* ── Add-note row (always the last element of the page list) ── */
+/* ── Add-note row (always the last element of the page list) ──
+   A quiet ghost row that terminates the list. Rest: bare muted text.
+   Hover: an accent-tinted dashed target appears — the affordance shows
+   up exactly when the pointer is already there. */
 
 /* The element+class selector must outrank Obsidian's
    `button:not(.clickable-icon)` base — a bare class loses that race, and
-   button chrome (background, shadow) would bleed into the normal state.
-   Background is hover-only (the owner's call, 2026-09-27). */
+   button chrome (background, shadow) would bleed into the normal state. */
 button.notepad-add-note {
   display: flex;
   align-items: center;
@@ -738,28 +792,45 @@ button.notepad-add-note {
   width: 100%;
   /* One inter-section gap above (mirrors .notepad-section + .notepad-section)
      so the row reads as the list terminator, not part of the last page. */
-  margin-top: 32px;
-  padding: var(--size-2-2) 0;
-  border: 1px dashed var(--background-modifier-border);
-  border-radius: var(--radius-s);
+  margin-top: 24px;
+  padding: 11px 0;
+  border: 1px dashed transparent;
+  border-radius: var(--ins-radius);
   background-color: transparent;
   box-shadow: none;
-  color: var(--text-muted);
-  font-size: var(--font-ui-small);
+  color: var(--text-faint);
+  font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background-color 0.15s ease;
 }
 
-.notepad-add-note:hover {
-  color: var(--text-normal);
-  background: var(--background-modifier-hover);
+button.notepad-add-note::before {
+  content: "+";
+  margin-right: 8px;
+  font-weight: 400;
+}
+
+button.notepad-add-note:hover {
+  color: var(--ins-accent);
+  border-color: color-mix(in srgb, var(--ins-accent) 40%, transparent);
+  background: color-mix(in srgb, var(--ins-accent) 6%, transparent);
 }
 
 /* Obsidian's `button:not(.clickable-icon)` base outranks a bare class —
-   restate the bare-button reset for every state. */
+   restate the bare-button reset for every state. The gutter stays a bare
+   glyph in every state; only the control chip gets a hover tint. */
 button.notepad-section-gutter:hover,
-button.notepad-section-control:hover,
-button.notepad-section-gutter:focus,
-button.notepad-section-control:focus {
+button.notepad-section-gutter:focus {
   background-color: transparent;
+  box-shadow: none;
+}
+
+button.notepad-section-control:hover,
+button.notepad-section-control:focus {
+  background-color: var(--background-modifier-hover);
   box-shadow: none;
 }

@@ -204,16 +204,20 @@
 /* ─── Subtle dividers inside ProseMirror ─── */
 .texto-editor .ProseMirror hr {
   border: none;
-  border-top: 1px solid #26262d;
+  border-top: 1px solid var(--background-modifier-border);
   margin: 44px 0;
 }
 
-/* ─── Links in content: v2 style ─── */
+/* ─── Links in content: v2 style (theme tokens) ─── */
 .texto-editor .ProseMirror a {
-  color: var(--accent-2, #b3a3f7);
+  color: var(--text-accent, var(--interactive-accent, #7c6af7));
   text-decoration: underline;
   text-decoration-thickness: 1px;
-  text-decoration-color: rgba(179, 163, 247, 0.35);
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--text-accent, var(--interactive-accent, #7c6af7)) 40%,
+    transparent
+  );
   text-underline-offset: 3px;
   transition:
     color 150ms,
@@ -222,31 +226,17 @@
 }
 
 .texto-editor .ProseMirror a:hover {
-  color: #cdbffb;
-  text-decoration-thickness: 2px;
+  color: var(--text-accent-hover, var(--text-accent, #7c6af7));
+  text-decoration-thickness: 1.5px;
 }
 
 .texto-editor .ProseMirror a:focus-visible {
-  outline: 2px solid var(--accent, #7c6af7);
+  outline: 2px solid var(--interactive-accent, #7c6af7);
   outline-offset: 2px;
   border-radius: 2px;
 }
 
-/* ── Light theme: ProseMirror-specific styles ── */
+/* ── Light theme: only the highlight tint differs ── */
 .theme-light .texto-editor .ProseMirror mark {
   background: rgba(245, 158, 11, 0.22);
-}
-
-.theme-light .texto-editor .ProseMirror hr {
-  border-top-color: #e6e6ec;
-}
-
-.theme-light .texto-editor .ProseMirror a {
-  color: #6b5bd2;
-  text-decoration-color: rgba(91, 69, 216, 0.35);
-}
-
-.theme-light .texto-editor .ProseMirror a:hover {
-  color: #5a4bbf;
-  text-decoration-color: rgba(91, 69, 216, 0.5);
 }

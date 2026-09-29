@@ -1,5 +1,5 @@
 .ProseMirror {
-  --texto-gapcursor__color: #2c2d2e;
+  --texto-gapcursor__color: var(--text-normal);
 
   position: relative;
   word-wrap: break-word;
