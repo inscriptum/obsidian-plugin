@@ -818,7 +818,14 @@ export class NotepadView extends FileView {
     const fromH = handle.body.offsetHeight;
     if (this.prefersReducedMotion()) return 0;
     handle.body.style.height = `${fromH}px`;
-    handle.body.style.overflow = "hidden";
+    // `clip`, not `hidden`: hidden still makes the body a scroll container,
+    // so a scroll-into-view during the build (editor autofocus, focus) lands
+    // on the body itself — the morph then reveals a pre-scrolled page and
+    // the unpin resets the scroll, snapping the content down. Clip just
+    // clips: nothing can scroll the pin.
+    handle.body.style.overflow = CSS.supports("overflow", "clip")
+      ? "clip"
+      : "hidden";
     return fromH;
   }
 
@@ -854,13 +861,65 @@ export class NotepadView extends FileView {
       { duration: NotepadView.FOLD_MORPH_MS, easing: "ease-out" },
     );
     handle.morphAnim = anim;
-    anim.finished
-      .then(() => {
-        if (handle.morphAnim === anim) this.clearFoldMorph(handle);
-      })
-      .catch(() => {
-        /* cancelled — a newer morph owns the body */
-      });
+    const finishMorph = () => {
+      if (handle.morphAnim !== anim) return;
+      // Release the pin; if the natural height has drifted from the
+      // measured target (an asset landed late anyway), glide the
+      // difference instead of letting the unpin snap.
+      body.style.height = "";
+      const natural = body.getBoundingClientRect().height;
+      if (Math.abs(natural - toH) <= 0.5) {
+        this.clearFoldMorph(handle);
+        return;
+      }
+      body.style.height = `${toH}px`;
+      const corr = body.animate(
+        [{ height: `${toH}px` }, { height: `${natural}px` }],
+        { duration: 120, easing: "ease-out" },
+      );
+      handle.morphAnim = corr;
+      corr.finished
+        .then(() => {
+          if (handle.morphAnim === corr) this.clearFoldMorph(handle);
+        })
+        .catch(() => this.clearFoldMorph(handle));
+      window.setTimeout(() => {
+        if (handle.morphAnim === corr) this.clearFoldMorph(handle);
+      }, 500);
+    };
+    anim.finished.then(finishMorph).catch(() => {
+      /* cancelled — a newer morph owns the body */
+    });
+    // Hidden panes freeze WAAPI: never let the pin outlive the morph by
+    // more than a grace period — the fold then completes without the
+    // animation instead of never (same reasoning as the collapse race).
+    window.setTimeout(finishMorph, NotepadView.FOLD_MORPH_MS + 400);
+  }
+
+  /** Resolve once the section's height-affecting assets are laid out:
+   *  image decode and font swap. Capped — a slow asset delays the unfold
+   *  by at most the cap (the row stays dissolved on the pinned frame),
+   *  and the corrective settle absorbs whatever still lands late. */
+  private async settleSectionAssets(handle: SectionHandle): Promise<void> {
+    const body = handle.body;
+    const waits: Promise<void>[] = [];
+    if (document.fonts?.status !== "loaded") {
+      waits.push(document.fonts.ready.then(() => undefined));
+    }
+    for (const img of Array.from(body.querySelectorAll("img"))) {
+      if (img.complete) continue;
+      waits.push(
+        new Promise<void>((resolve) => {
+          img.addEventListener("load", () => resolve(), { once: true });
+          img.addEventListener("error", () => resolve(), { once: true });
+        }),
+      );
+    }
+    if (!waits.length) return;
+    await Promise.race([
+      Promise.all(waits),
+      new Promise<void>((resolve) => window.setTimeout(resolve, 1200)),
+    ]);
   }
 
   /** Fold layout transitions (margins) must not run while a caller measures
@@ -920,7 +979,11 @@ export class NotepadView extends FileView {
       // Pin the row height BEFORE the class flip so the swap below doesn't
       // jump; the editor builds behind the pin, then the frame unfolds.
       const morphH = opts?.morph === false ? 0 : this.pinFoldMorph(handle);
-      handle.root.addClass("is-expanded");
+      // On a morph the flip is deferred to the morph start: the chrome and
+      // rhythm transitions must begin in the same frame as the height
+      // animation, or a slow-building page shows the neighbors' margin
+      // slide finishing visibly before the fold starts (a two-phase move).
+      if (morphH === 0) handle.root.addClass("is-expanded");
 
       const noteEl = makeNoteElement();
       noteEl.addClass("notepad-note-host");
@@ -939,7 +1002,11 @@ export class NotepadView extends FileView {
       }
 
       const editor = await this.createEditorForSection(handle, content, {
-        autofocus: opts?.autofocus,
+        // No editor autofocus while morphing: PM's scroll-to-selection at
+        // creation must not scroll anything while the body is pinned (the
+        // real focus is applied after the morph via opts.focus). Unpinned
+        // mounts keep the caller's autofocus (background mounts pass false).
+        autofocus: morphH !== 0 ? false : opts?.autofocus,
       });
       if (editor == null) {
         handle.noteEl = null;
@@ -964,6 +1031,15 @@ export class NotepadView extends FileView {
       handle.content
         .querySelector<HTMLElement>(":scope > .notepad-section-collapsed")
         ?.remove();
+      if (morphH !== 0) {
+        // A page whose images decode (or fonts swap) after the height
+        // target is measured lands the morph on a stale frame — the pin
+        // release then snaps. Wait, capped, for the height-affecting
+        // assets; the corrective settle in playFoldMorph absorbs what
+        // still lands late.
+        await this.settleSectionAssets(handle);
+      }
+      handle.root.addClass("is-expanded");
       this.playFoldMorph(handle, morphH);
       if (opts?.focus) {
         // Focus only after the morph settles: an immediate focus() can

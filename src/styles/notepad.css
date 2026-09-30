@@ -300,6 +300,13 @@ button.notepad-nav-toggle:hover svg {
 .notepad-scroller {
   flex: 1 1 auto;
   overflow-y: auto;
+  /* Native scroll anchoring fights the fold morph: while a page's body is
+     WAAPI-animated it is excluded from anchor candidates, so Chrome anchors
+     on the rows BELOW and compensates the page's growth by scrolling —
+     the opened page slides away and a 5-20px re-adjustment lands when the
+     animation ends. The view manages scroll stability itself (jumpToPage
+     measures with transitions suppressed), so anchoring only does harm. */
+  overflow-anchor: none;
   /* The page column is fixed-width on desktop (see .notepad-sections
      min-width), so a narrow window overflows: scroll to it instead of
      squeezing the editor. While the nav flip animates the column
