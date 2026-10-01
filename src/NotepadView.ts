@@ -575,10 +575,12 @@ export class NotepadView extends FileView {
     if (isTitlePage) root.addClass("is-title");
     if (isUnsupported) root.addClass("is-unsupported");
 
-    // Left margin: page order (the first page is unlabeled, like the blog
-    // draft view) + the fold chevron for foldable pages.
+    // Left margin: the fold chevron for foldable pages. The page order
+    // number lives on the right edge instead (folded: the title line's end;
+    // expanded: the page's bottom-right corner) — CSS positions it against
+    // the section root.
     const margin = root.createDiv("notepad-section-margin");
-    const orderLabel = margin.createDiv("notepad-section-order");
+    const orderLabel = root.createDiv("notepad-section-order");
     if (order > 0) orderLabel.setText(String(order));
     if (!isTitlePage && !isUnsupported) {
       const gutter = createEl("button", { cls: "notepad-section-gutter" });
@@ -601,29 +603,34 @@ export class NotepadView extends FileView {
     const body = root.createDiv("notepad-section-body");
     const content = body.createDiv("notepad-section-content");
 
-    // Ghost controls under the section content but INSIDE the page frame
-    // (above its bottom separator) — so they visibly belong to this page.
-    // The title page carries no duplicate/delete control — it anchors the
-    // notepad (spec 9.1); unopenable pages are preserved as-is.
-    const controls = body.createDiv("notepad-section-controls");
-    const addBtn = createEl("button", { cls: "notepad-section-control" });
-    addBtn.setAttribute("aria-label", "Add note after");
-    setIcon(addBtn, "plus");
-    addBtn.addEventListener("click", () => this.addNoteAfter(id));
-    controls.appendChild(addBtn);
-    if (!isTitlePage && !isUnsupported) {
-      const copyBtn = createEl("button", { cls: "notepad-section-control" });
-      copyBtn.setAttribute("aria-label", "Duplicate note");
-      setIcon(copyBtn, "copy");
-      copyBtn.addEventListener("click", () => this.duplicateNote(id));
-      controls.appendChild(copyBtn);
-      const delBtn = createEl("button", {
-        cls: "notepad-section-control is-danger",
-      });
-      delBtn.setAttribute("aria-label", "Delete note");
-      setIcon(delBtn, "trash-2");
-      delBtn.addEventListener("click", () => this.deleteNote(id));
-      controls.appendChild(delBtn);
+    // Ghost controls inside the page frame, top-right — so they visibly
+    // belong to this page. The title page carries no controls at all
+    // (spec 9.1): it anchors the notepad, and the dashed "Add note" row at
+    // the document's end covers page creation; unopenable pages keep the
+    // add-only chip and are preserved as-is.
+    const controls = isTitlePage
+      ? null
+      : body.createDiv("notepad-section-controls");
+    if (controls != null) {
+      const addBtn = createEl("button", { cls: "notepad-section-control" });
+      addBtn.setAttribute("aria-label", "Add note after");
+      setIcon(addBtn, "plus");
+      addBtn.addEventListener("click", () => this.addNoteAfter(id));
+      controls.appendChild(addBtn);
+      if (!isUnsupported) {
+        const copyBtn = createEl("button", { cls: "notepad-section-control" });
+        copyBtn.setAttribute("aria-label", "Duplicate note");
+        setIcon(copyBtn, "copy");
+        copyBtn.addEventListener("click", () => this.duplicateNote(id));
+        controls.appendChild(copyBtn);
+        const delBtn = createEl("button", {
+          cls: "notepad-section-control is-danger",
+        });
+        delBtn.setAttribute("aria-label", "Delete note");
+        setIcon(delBtn, "trash-2");
+        delBtn.addEventListener("click", () => this.deleteNote(id));
+        controls.appendChild(delBtn);
+      }
     }
 
     const handle: SectionHandle = {

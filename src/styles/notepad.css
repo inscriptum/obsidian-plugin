@@ -386,10 +386,12 @@ button.notepad-nav-toggle:hover svg {
   position: absolute;
   left: 0;
   /* Centers the 44px chevron on the card's first text line:
-     1px frame + ~12px editor top padding + half a line. */
+     1px frame + ~12px editor top padding + half a line. The chevron is the
+     margin's only resident now — the order number moved to the right edge. */
   top: 7px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0;
   width: 70px;
   /* The gutter glides with the fold morph: row-center → first-line-center. */
@@ -408,6 +410,15 @@ button.notepad-nav-toggle:hover svg {
 }
 
 .notepad-section-order {
+  position: absolute;
+  /* Above the page card: the order precedes the body in DOM order, and the
+     body's opaque background would paint over it (folded rows have a
+     transparent body, so only the expanded page hides the number). */
+  z-index: 1;
+  /* Expanded page: the page number stamps the frame's bottom-right corner —
+     the spot the controls chip vacated when it moved to the top-right. */
+  right: 10px;
+  bottom: 10px;
   min-width: 24px;
   text-align: right;
   color: var(--text-faint);
@@ -416,7 +427,21 @@ button.notepad-nav-toggle:hover svg {
   font-variant-numeric: tabular-nums;
   line-height: 1;
   user-select: none;
-  transition: color 0.2s;
+  /* The number rides the right edge with the fold morph: the page's
+     bottom-right corner ↔ the word-count line's end. Both stops are px, so
+     the glide survives the pinned-height morph frames. */
+  transition:
+    bottom var(--ins-morph) var(--ins-ease),
+    right var(--ins-morph) var(--ins-ease),
+    color 0.2s;
+}
+
+/* A folded row mirrors the expanded page's right edge: the chip sits above
+   the row's midline, the number below it — on the word-count line's end
+   (line center 57.5 in the 85px row → number spans 51..64 → bottom 21). */
+.notepad-section:not(.is-expanded) .notepad-section-order {
+  bottom: 21px;
+  right: 20px;
 }
 
 button.notepad-section-gutter {
@@ -447,8 +472,7 @@ button.notepad-section-gutter svg {
     transform var(--ins-morph) var(--ins-ease);
 }
 
-button.notepad-section-gutter:hover,
-.notepad-section-margin:hover .notepad-section-order {
+button.notepad-section-gutter:hover {
   color: var(--text-normal);
 }
 
@@ -797,7 +821,7 @@ button.notepad-section-gutter:hover,
 .notepad-section-controls {
   position: absolute;
   right: 10px;
-  bottom: 10px;
+  top: 10px;
   display: flex;
   align-items: center;
   gap: 1px;
@@ -809,14 +833,9 @@ button.notepad-section-gutter:hover,
   opacity: 0;
   transition: opacity 0.15s ease;
 }
-
-/* Folded pages: center the chip on the row (the row is the body's only
-   in-flow child, so 50% of the body is the row's center). */
-.notepad-section:not(.is-expanded) .notepad-section-controls {
-  bottom: auto;
-  top: 50%;
-  transform: translateY(-50%);
-}
+/* The chip is top-right in BOTH states — on a folded row (85px) it spans
+   10..42, fully above the row's midline (42.5), mirroring the expanded
+   page where the number holds the bottom-right corner. */
 
 .notepad-section:hover .notepad-section-controls,
 .notepad-section-controls:hover,
