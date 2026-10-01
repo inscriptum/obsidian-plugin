@@ -396,10 +396,15 @@ button.notepad-nav-toggle:hover svg {
   transition: top var(--ins-morph) var(--ins-ease);
 }
 
-/* On a folded row the first line is the row itself (13px row padding +
-   half a line) — recenter the gutter on it. */
+/* A folded row is a two-line entry (title + dotted rule + word count,
+   85px with the current type) — center the 44px gutter on the whole row:
+   (85 − 44) / 2 ≈ 20.5px. A fixed value, not 50%: during the collapse
+   morph the body is pinned at the PAGE height, and a %-top would resolve
+   against it, dragging the chevron toward the page middle until the unpin
+   snapped it back. The row is height-deterministic (nowrap title, one
+   meta line) — revisit this number only if the row type changes. */
 .notepad-section:not(.is-expanded) .notepad-section-margin {
-  top: 2px;
+  top: 20.5px;
 }
 
 .notepad-section-order {
@@ -492,22 +497,20 @@ button.notepad-section-gutter:hover,
   border-color: var(--ins-border-strong);
 }
 
-/* A FOLDED page is not a sheet at all: the card dissolves into a flat row
-   closed by a hairline divider — the folded list reads as the document's
-   table of contents, and the frame itself becomes the open/closed signal
-   (the Notion / Things / Ulysses morphism: rows when folded, a page when
-   open). The row's text column matches the open page's (48px editor side
-   padding), so folding does not shift the text. */
+/* A FOLDED page is not a sheet at all: the card dissolves into a bare
+   table-of-contents row — title, dotted leader, quiet word count — and the
+   frame itself becomes the open/closed signal (the Notion / Things /
+   Ulysses morphism: rows when folded, a page when open). No divider under
+   the row: the dotted leader is the row's one horizontal line, and a solid
+   hairline under it read as two rules per entry. The row's text column
+   matches the open page's (48px editor side padding), so folding does not
+   shift the text. */
 .notepad-section:not(.is-expanded) .notepad-section-body {
   background: transparent;
-  /* Sides keep their 1px width but go transparent, so during the fold
+  /* All sides keep their 1px width but go transparent, so during the fold
      morph the frame FADES in rather than popping when widths change. */
-  border-color: transparent transparent var(--ins-border);
+  border-color: transparent;
   border-radius: 0;
-}
-
-.notepad-section:not(.is-expanded) .notepad-section-body:hover {
-  border-bottom-color: var(--ins-border-strong);
 }
 
 /* Vertical rhythm (the sections container is a flex column — margins do
@@ -553,24 +556,26 @@ button.notepad-section-gutter:hover,
    The title column starts where the OPEN page's text column starts (the
    48px editor side padding), so unfolding never shifts the text. */
 .notepad-section-collapsed {
-  display: flex;
   align-items: baseline;
-  gap: 10px;
-  padding: 13px 20px 13px 48px;
+  padding: 13px 20px 13px 8px;
   cursor: pointer;
-  font-size: 15px;
+  font-size: 18px;
   line-height: 1.5;
-  color: var(--text-normal);
+  /* TOC entries rest one step down in ink and come up to full contrast
+     under the pointer — the row the cursor is on is the one that focuses.
+     The leader and word count follow with their own hover steps. */
+  color: var(--text-muted);
+  transition: color 0.15s ease;
 }
 
-.notepad-section-collapsed:hover {
+.notepad-section-collapsed:not(.is-static):hover {
   color: var(--text-normal);
 }
 
 .notepad-section-title {
   flex: 0 1 auto;
   min-width: 0;
-  font-weight: 600;
+  font-weight: 200;
   letter-spacing: -0.01em;
 }
 
@@ -587,7 +592,7 @@ button.notepad-section-gutter:hover,
 .notepad-section-title.is-empty {
   color: var(--text-faint);
   font-style: italic;
-  font-weight: 400;
+  font-weight: 100;
 }
 
 /* The dotted leader — the row's one flourish, borrowed from printed
