@@ -280,6 +280,42 @@ describe("UmNotepad", () => {
     expect(nb.noteContent(added.id)?.type).toBe("noteDoc");
   });
 
+  it("stamps modifiedAt at creation, duplication and content change", async () => {
+    const nb = notepadWithTwoNotes();
+    const before = nb.note(nb.notes()[0].id)?.modifiedAt;
+    expect(typeof before).toBe("number");
+
+    // Duplication stamps the copy (a fresh moment — monotonic wall clock).
+    const dup = nb.duplicateNote(nb.notes()[0].id);
+    expect(dup).not.toBeNull();
+    expect(typeof dup?.modifiedAt).toBe("number");
+
+    // A real content change moves the stamp forward.
+    await new Promise((r) => setTimeout(r, 5));
+    nb.setNoteContent(nb.notes()[0].id, helloDoc("Rewritten"));
+    const after = nb.note(nb.notes()[0].id)?.modifiedAt;
+    expect(after).not.toBe(before);
+    expect(after ?? 0).toBeGreaterThan(before ?? 0);
+  });
+
+  it("preserves modifiedAt across a serialize/load round trip", () => {
+    const nb = notepadWithTwoNotes();
+    const expected = nb.notes().map((n) => n.modifiedAt);
+    const parsed = parseUmContainer(nb.serialize());
+    expect(parsed.manifest.notes.map((n) => n.modifiedAt)).toEqual(expected);
+  });
+
+  it("loads a legacy manifest without modifiedAt (absent, not fatal)", () => {
+    const nb = notepadWithTwoNotes();
+    const parsed = parseUmContainer(nb.serialize());
+    for (const note of parsed.manifest.notes) delete note.modifiedAt;
+    const reparsed = parseUmContainer(serializeUmContainer(parsed));
+    expect(reparsed.manifest.notes.map((n) => n.modifiedAt)).toEqual([
+      undefined,
+      undefined,
+    ]);
+  });
+
   it("gc keeps referenced assets across notes and drops the rest", () => {
     const nb = notepadWithTwoNotes();
     const kept = nb.addAsset(new Uint8Array([1]), "kept.png", "image/png");

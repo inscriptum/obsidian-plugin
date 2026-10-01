@@ -1,6 +1,7 @@
 import {
   FileView,
   Menu,
+  moment,
   Notice,
   Platform,
   setIcon,
@@ -98,6 +99,17 @@ function createCustomElement<T>(baseTag: string, make: () => T): T {
 
 const makeNoteElement = () =>
   createCustomElement<NoteElement>("texto-editor", () => new NoteElement());
+
+// obsidian re-exports moment for runtime use, but its type is the moment
+// module namespace and without @types/moment TS cannot call it — a
+// one-method local view is all the folded-row meta needs.
+const momentFormat = (
+  epochMs: number,
+  fmt: string,
+): string =>
+  (moment as unknown as {
+    (t: number): { format(f: string): string };
+  })(epochMs).format(fmt);
 const makeToolbarElement = () =>
   createCustomElement<ToolbarElement>(
     "note-toolbar",
@@ -694,13 +706,31 @@ export class NotepadView extends FileView {
       label.addClass("is-empty");
       text.setText("Untitled");
     }
-    // A printed-contents line: dotted leader, then a quiet word count.
+    // A printed-contents line: dotted leader, then a quiet meta — the page's
+    // last-update time first, word count second. The invariant date anchors
+    // the line's start (and aligns into a column across rows, tabular
+    // figures); the variable-width count hangs at the tail. The time rides
+    // the app's locale (moment L LT); pages never edited by a tracking
+    // build fall back to the container file's mtime, and the exact
+    // timestamp rides the tooltip.
     row.createDiv("notepad-section-tocleader");
     const words = this.countNoteWords(handle.id);
-    row.createSpan({
+    const meta: string[] = [];
+    const modifiedAt =
+      this.notepad?.note(handle.id)?.modifiedAt ?? this.file?.stat.mtime;
+    if (modifiedAt != null) {
+      meta.push(momentFormat(modifiedAt, "L LT"));
+    }
+    meta.push(words === 0 ? "Empty" : words === 1 ? "1 word" : `${words} words`);
+    const metaEl = row.createSpan({
       cls: "notepad-section-meta",
-      text: words === 0 ? "Empty" : words === 1 ? "1 word" : `${words} words`,
+      text: meta.join(" · "),
     });
+    if (modifiedAt != null) {
+      // The tooltip carries the exact stamp with seconds — some locales'
+      // LLLL already embeds the time, so a composed format would double it.
+      metaEl.setAttr("title", momentFormat(modifiedAt, "YYYY-MM-DD HH:mm:ss"));
+    }
     row.addEventListener("click", () =>
       this.toggleSection(handle.id, { expand: true }),
     );

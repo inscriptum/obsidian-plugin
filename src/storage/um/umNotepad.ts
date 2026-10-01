@@ -191,6 +191,7 @@ export class UmNotepad {
       path: notePathForId(id),
       order: 0,
       title,
+      modifiedAt: Date.now(),
     };
 
     const sorted = sortNoteDescriptors(this.data.manifest.notes);
@@ -267,6 +268,7 @@ export class UmNotepad {
       // refused by the view, and the copy lands at order ≥ 1.
       schema: sourceDescriptor.schema ?? UM_SCHEMA_PLAIN,
       schemaVersion: sourceDescriptor.schemaVersion ?? UM_SCHEMA_VERSION,
+      modifiedAt: Date.now(),
     };
 
     const sorted = sortNoteDescriptors(this.data.manifest.notes);
@@ -407,6 +409,11 @@ export class UmNotepad {
     this.data.notes.set(id, content);
     // Manifest `title` mirrors the document's first line (spec 8.4).
     this.syncTitleFromDoc(id, content);
+    // Content changed — stamp the page's last-update time (the folded row
+    // shows it next to the word count). The view's flush path guards
+    // no-op writes, so this fires on real changes only.
+    const descriptor = this.note(id);
+    if (descriptor) descriptor.modifiedAt = Date.now();
     this.dirtyNotes.add(id);
   }
 

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Notepad: folded page rows show when the page was last updated — "date · word count" under the title, in the app's locale format, with the exact timestamp (down to seconds) on hover. Pages carry their last-update stamp inside the .um manifest as an additive field; pages not edited since the feature's introduction show the notepad file's last-save time instead.
 - New document type: notepad (`.um`) — a single file that holds an ordered list of pages, edited one under another like one document. Pages can be added, duplicated, deleted (with confirmation and undo), renamed inline and reordered by drag & drop; each page can be collapsed, and its expanded/collapsed state is remembered.
 - The first page is the notepad's title page — a fixed cover (title + summary) that can't be deleted, moved or renamed. Other pages don't need a title: their display title comes from the first line.
 - Notepad navigation drawer (☰): lists all pages and jumps to the clicked one (smooth scrolling).

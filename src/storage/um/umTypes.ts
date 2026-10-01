@@ -56,6 +56,12 @@ export interface UmNoteDescriptor {
   /** Version of the schema family (8.6). Absent = legacy: inferred on load
    *  as the current version. Never lowered on rewrite (8.6.2). */
   schemaVersion?: number;
+  /** Epoch ms of the page content's last change. Stamped by setNoteContent
+   *  (real changes only) and at page creation/duplication. Absent = legacy
+   *  page never edited by a build that tracks it — the view then falls
+   *  back to the container file's mtime for display. Additive field:
+   *  older builds preserve it verbatim. */
+  modifiedAt?: number;
 }
 
 export interface UmAssetDescriptor {
