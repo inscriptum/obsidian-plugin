@@ -19,7 +19,10 @@ declare global {
         id: string;
         paragraphs: number;
         title?: string;
+        doc?: unknown[];
       }[]): string;
+      /** Live editors of all mounted sections. */
+      editors(): Editor[];
     };
   }
 }

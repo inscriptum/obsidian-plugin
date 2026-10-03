@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Tables on desktop now follow the mobile model: the table controls dock into the note toolbar whenever the focus is inside a table (caret in a cell or a cell selection), replacing the typography buttons — the save/word-count meta stays visible. The floating table bubble menu while typing in a cell is gone. Selecting several cells opens a floating bubble with the full text-formatting row — bold, italic, underline, strikethrough, inline code, highlight, fill & cell text color, link (URL layer, ⌘K), clear formatting — applied to every selected cell.
 - Notepad: folded page rows show when the page was last updated — "date · word count" under the title, in the app's locale format, with the exact timestamp (down to seconds) on hover. Pages carry their last-update stamp inside the .um manifest as an additive field; pages not edited since the feature's introduction show the notepad file's last-save time instead.
 - New document type: notepad (`.um`) — a single file that holds an ordered list of pages, edited one under another like one document. Pages can be added, duplicated, deleted (with confirmation and undo), renamed inline and reordered by drag & drop; each page can be collapsed, and its expanded/collapsed state is remembered.
 - The first page is the notepad's title page — a fixed cover (title + summary) that can't be deleted, moved or renamed. Other pages don't need a title: their display title comes from the first line.
@@ -21,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Tables: a multi-cell selection could crash with "Cannot read properties of null (reading 'getBoundingClientRect')" — a pending caret-sync callback of a bubble menu fired while the menu element was being moved between containers (its first tippy mount) and had not rendered yet. All bubble menus now tolerate that empty state, and the layer caret placers are guarded the same way.
 - Notepad: expanding a page no longer makes its content jump down a few pixels after the unfold. While the fold morph held the page frame at the row height with `overflow: hidden`, that frame was still a scroll container — the editor's initial autofocus scrolled it internally (~18px), so the page revealed pre-scrolled with its top padding clipped away, and releasing the pin reset the scroll, snapping the content down. The morph now pins the frame with `overflow: clip` (nothing can scroll it) and skips the editor autofocus while morphing; the real focus is applied after the morph settles, as before.
 - Links whose text carries any formatting (underline, bold, italic, strike, code, highlight, color) ignored clicks: the click handler only accepted clicks landing on the `<a>` element itself, while marks render as nested elements inside it. The anchor is now resolved up the DOM tree, so a click anywhere on the link text opens it.
 

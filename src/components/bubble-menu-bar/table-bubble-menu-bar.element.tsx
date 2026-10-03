@@ -39,10 +39,11 @@ export const TableBubbleMenuElement = litView.element({
   };
 
   const placeLayerCaret = (layerSel: string, btnSel: string) => {
-    const layer = barEl().querySelector<HTMLElement>(layerSel);
-    const btn = barEl().querySelector<HTMLElement>(btnSel);
-    if (!layer || !btn) return;
     const bar = barEl();
+    if (!bar) return;
+    const layer = bar.querySelector<HTMLElement>(layerSel);
+    const btn = bar.querySelector<HTMLElement>(btnSel);
+    if (!layer || !btn) return;
     const bx = btn.offsetLeft + btn.offsetWidth / 2;
     const lw = layer.offsetWidth;
     const caret = Math.max(14, Math.min(lw - 14, bx - (bar.offsetWidth - lw)));
@@ -52,6 +53,7 @@ export const TableBubbleMenuElement = litView.element({
   const placeLayerDirection = (layerSel: string) => {
     window.requestAnimationFrame(() => {
       const bar = barEl();
+      if (!bar) return;
       const layer = bar.querySelector<HTMLElement>(layerSel);
       if (!layer) return;
       const barRect = bar.getBoundingClientRect();
@@ -148,7 +150,10 @@ export const TableBubbleMenuElement = litView.element({
     if (editor.isDestroyed || !editor.view) return;
     const { from, to } = editor.view.state.selection;
     const rect = posToDOMRect(editor.view, from, to);
+    // The rAF can land while the element is detached or not yet rendered
+    // (toolbar re-render / generator restart) — nothing to sync then.
     const bar = barEl();
+    if (!bar) return;
     const barRect = bar.getBoundingClientRect();
     if (!barRect.width) return;
     const cx = rect.left + rect.width / 2;
@@ -212,14 +217,17 @@ export const TableBubbleMenuElement = litView.element({
 
   const onKeydown = (e: KeyboardEvent) => {
     if (e.key === "Escape") {
+      // Docked into the toolbar there is no tippy — still close the layer.
+      if (openLayer) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeLayer();
+        return;
+      }
       const tippy = getTippy();
       if (!tippy || !tippy.state?.isVisible) return;
       e.preventDefault();
       e.stopPropagation();
-      if (openLayer) {
-        closeLayer();
-        return;
-      }
       tippy.hide();
     }
   };

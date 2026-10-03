@@ -52,7 +52,10 @@ export const MediaBubbleMenuElement = litView.element({
     if (editor.isDestroyed || !editor.view) return;
     const { from, to } = editor.view.state.selection;
     const rect = posToDOMRect(editor.view, from, to);
+    // The rAF can land while the element is detached or not yet rendered
+    // (tippy move / generator restart) — nothing to sync then.
     const bar = barEl();
+    if (!bar) return;
     const barRect = bar.getBoundingClientRect();
     if (!barRect.width) return;
     const cx = rect.left + rect.width / 2;

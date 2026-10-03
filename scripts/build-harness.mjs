@@ -28,7 +28,27 @@ fs.writeFileSync(
   obsidianShim,
   [
     "export const Platform = { isIosApp: false, isMacOS: true, isMobile: false, isMobileApp: false, isPhone: false, isTablet: false };",
-    "export const moment = () => ({});",
+    // Minimal moment: NotepadView's folded-row meta formats stamps with
+    // "L LT" and "YYYY-MM-DD HH:mm:ss" (um-page-updated-at). Only the token
+    // shapes those formats use are supported.
+    `export function moment(epochMs) {
+      const d = new Date(epochMs);
+      const pad = (n) => String(n).padStart(2, "0");
+      return {
+        format(f) {
+          if (f === "YYYY-MM-DD HH:mm:ss") {
+            return (
+              d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+              " " + pad(d.getHours()) + ":" + pad(d.getMinutes()) + ":" + pad(d.getSeconds())
+            );
+          }
+          return (
+            pad(d.getDate()) + "." + pad(d.getMonth() + 1) + "." + d.getFullYear() +
+            " " + pad(d.getHours()) + ":" + pad(d.getMinutes())
+          );
+        },
+      };
+    }`,
     "export function normalizePath(p) { return p; }",
     "export class TFile { constructor() { this.path = ''; this.name = ''; this.basename = ''; this.extension = ''; this.parent = null; this.vault = null; } }",
     "export class TFolder { constructor() { this.path = ''; this.name = ''; this.parent = null; this.children = []; } }",

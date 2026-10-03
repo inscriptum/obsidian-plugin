@@ -52,8 +52,10 @@ import {
 } from "./texto/extensions/bubble-menu";
 import { BubbleMenuBarElement } from "./components/bubble-menu-bar/bubble-menu-bar.element";
 import { TableBubbleMenuElement } from "./components/bubble-menu-bar/table-bubble-menu-bar.element";
+import { TableCellsBubbleMenuElement } from "./components/bubble-menu-bar/table-cells-bubble-menu-bar.element";
 import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubble-menu-bar.element";
 import { isMediaNodeSelection } from "./components/bubble-menu-bar/mediaMenuState";
+import { getTableMenuState } from "./components/bubble-menu-bar/tableMenuState";
 import {
   createPhysicalShortcutPlugin,
   isForwardedShortcut,
@@ -411,6 +413,8 @@ export class NoteView extends FileView {
     bubbleMenuBarEl.addClass("bubble-menu-bar-host");
     const tableBubbleMenuEl = new TableBubbleMenuElement();
     tableBubbleMenuEl.addClass("table-bubble-menu-bar-host");
+    const tableCellsBubbleMenuEl = new TableCellsBubbleMenuElement();
+    tableCellsBubbleMenuEl.addClass("bubble-menu-bar-host");
     const mediaBubbleMenuEl = new MediaBubbleMenuElement();
     mediaBubbleMenuEl.addClass("bubble-menu-bar-host");
 
@@ -563,6 +567,7 @@ export class NoteView extends FileView {
           toolbarEl.props.editor = this.editor;
           bubbleMenuBarEl.props.editor = this.editor;
           tableBubbleMenuEl.props.editor = this.editor;
+          tableCellsBubbleMenuEl.props.editor = this.editor;
           mediaBubbleMenuEl.props.editor = this.editor;
           mediaBubbleMenuEl.props.app = this.app;
 
@@ -582,8 +587,14 @@ export class NoteView extends FileView {
             this.editor.on("update", () => mediaBubbleMenuEl.next());
           } else {
             this.contentEl.appendChild(bubbleMenuBarEl);
-            this.contentEl.appendChild(tableBubbleMenuEl);
             this.contentEl.appendChild(mediaBubbleMenuEl);
+            // Table controls dock into the toolbar (like mobile); there is no
+            // floating table bubble menu anymore.
+            toolbarEl.props.tableBar = tableBubbleMenuEl;
+            // The cells-format bubble element lives inside its tippy popup
+            // once the plugin below is registered (it is detached from
+            // contentEl on first show), so park it in the DOM until then.
+            this.contentEl.appendChild(tableCellsBubbleMenuEl);
 
             // ── Text bubble menu ──
             // Show for non-empty text selection OUTSIDE tables.
@@ -657,14 +668,17 @@ export class NoteView extends FileView {
                 }),
               );
 
-            // ── Table bubble menu ──
-            // Always show when inside a table.
+            // ── Table cells bubble menu ──
+            // Only for a multi-cell selection (CellSelection over 2+ cells):
+            // text-formatting actions applied to every selected cell.
+            // The caret / single-cell cases are served by the table bar docked
+            // in the toolbar (toolbarEl.props.tableBar).
             if (!isMobile)
               this.editor.registerPlugin(
                 bubbleMenuPlugin({
-                  pluginKey: "tableBubbleMenu",
+                  pluginKey: "tableCellsBubbleMenu",
                   editor: this.editor,
-                  element: tableBubbleMenuEl,
+                  element: tableCellsBubbleMenuEl,
                   shouldShow: function (
                     this: BubbleMenuView,
                     { editor, state }: ShouldShowProps,
@@ -685,11 +699,9 @@ export class NoteView extends FileView {
                       return false;
                     }
 
-                    // Table menu — only for caret or CellSelection.
-                    // When text is selected in a cell — text menu.
                     return (
-                      isInTable(state) &&
-                      (selection.empty || selection instanceof CellSelection)
+                      selection instanceof CellSelection &&
+                      getTableMenuState(state).multiCell
                     );
                   },
                   tippyOptions: {

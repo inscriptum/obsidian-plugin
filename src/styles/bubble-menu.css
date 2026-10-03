@@ -83,6 +83,16 @@ never keep the menu invisible. */
   display: flex;
 }
 
+/* Multi-cell selection format bar (bold / italic / fill & color) */
+.bubble-menu-cells-bar {
+  display: none;
+  align-items: center;
+  gap: 1px;
+}
+.bubble-menu-cells-bar.show {
+  display: flex;
+}
+
 /* Media menu (image/attachment) — filename + replace + delete */
 .bubble-menu-media-bar {
   display: none;

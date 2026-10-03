@@ -1,51 +1,49 @@
+import type { Instance } from "tippy.js";
 import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
-import type { Instance } from "tippy.js";
-import { Editor, isTextSelection, posToDOMRect } from "../../texto/core";
+import { Editor, posToDOMRect } from "../../texto/core";
+import { CellSelection } from "prosemirror-tables";
 import { elTag } from "../../tags";
 import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
 import {
-  getBubbleMenuState,
-  TEXT_COLORS,
-  type BubbleMenuState,
-} from "./bubbleMenuState";
+  bgHexToAttr,
+  getTableMenuState,
+  TABLE_FILLS,
+} from "./tableMenuState";
+import { getBubbleMenuState, TEXT_COLORS } from "./bubbleMenuState";
 import { bubbleIconNodes } from "./icons.svgnode";
 
-type OpenLayer = "styles" | "link" | null;
+type OpenLayer = "table-color" | "link" | null;
 
 const cls = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");
 
-const HEADING_LEVEL: Record<"h1" | "h2" | "h3", 1 | 2 | 3> = {
-  h1: 1,
-  h2: 2,
-  h3: 3,
-};
-
-type MarkAction = "bold" | "italic" | "underline" | "strike" | "code" | "mark";
-type BlockAction =
-  | "paragraph"
-  | "h1"
-  | "h2"
-  | "h3"
-  | "quote"
-  | "list"
-  | "taskList";
+type MarkAction =
+  | "bold"
+  | "italic"
+  | "underline"
+  | "strike"
+  | "code"
+  | "mark";
 
 /**
- * Full-featured bubble menu based on the docs/design/Bubble-Menu-Prototype design:
- * a row of inline formats (B I U S code marker | Aa | link | clear formatting),
- * a "Styles & color" layer (blocks + palette) and a "Link" layer (URL input).
- *
- * Positions the menu via tippy.js (bubbleMenuPlugin); here — content, layers,
- * active states, keyboard (Esc, ⌘K), and a caret pointing to the selection center.
+ * Floating bubble menu for a multi-cell table selection (CellSelection over
+ * 2+ cells). Mirrors the text-selection formatting row — bold, italic,
+ * underline, strike, inline code, highlight, fill & color, link, clear
+ * formatting — applied to every selected cell: mark commands walk
+ * selection.ranges (one range per cell) and cell colors go through
+ * setCellsAttribute. Structural table actions live in the toolbar
+ * (see ToolbarElement.tableBar); block styles are deliberately absent —
+ * they are not text formatting and must not touch cell structure.
  */
-export const BubbleMenuBarElement = litView.element({
+export const TableCellsBubbleMenuElement = litView.element({
   props: {
     editor: p.req<Editor>(),
+    /** bubbleMenuPlugin key this element is attached to (tippy lookup). */
+    pluginKey: p.opt<string>(),
   },
 })(function* (props) {
-  let state: BubbleMenuState = getBubbleMenuState(props.editor);
+  const pluginKey = () => props.pluginKey ?? "tableCellsBubbleMenu";
   let openLayer: OpenLayer = null;
   let linkDraft = "";
   let lastSelKey = "";
@@ -54,33 +52,6 @@ export const BubbleMenuBarElement = litView.element({
   const root: HTMLElement = this;
   const barEl = () => root.querySelector<HTMLElement>(".bubble-menu-bar")!;
 
-  // Mobile (phone/tablet): the keyboard hints (Enter/Esc) are meaningless —
-  // there are no such keys on touch devices, so the link layer renders
-  // without the kbd footer. Detected once: the host does not move between
-  // mobile and desktop containers during a view's lifetime.
-  const isMobileContext =
-    root.closest(".note-view-container.is-mobile, .mobile-navbar") != null;
-
-  /** Plugin instances expose a private `key` field holding the PluginKey name. */
-  type KeyedPlugin = { key?: { key?: string } };
-
-  const wiredTippies = new WeakSet<Instance>();
-
-  /* ── Access to tippy instance (stored in bubbleMenu plugin state) ── */
-  const getTippy = (): Instance | undefined => {
-    if (props.editor.isDestroyed) return undefined;
-    const es = props.editor.state;
-    for (const plugin of es.plugins) {
-      const key = (plugin as KeyedPlugin).key?.key;
-      if (key === "bubbleMenu") {
-        return (plugin.getState(es) as BubbleMenuPluginState | undefined)
-          ?.tippy;
-      }
-    }
-    return undefined;
-  };
-
-  /* ── Layers ── */
   const closeLayer = () => {
     if (openLayer) {
       openLayer = null;
@@ -100,29 +71,15 @@ export const BubbleMenuBarElement = litView.element({
     layer.style.setProperty("--caret-left", `${caret}px`);
   };
 
-  /**
-   * Layer open direction: tippy only accounts for the menu bar height,
-   * but the layer is taller — measure available screen space and open
-   * the layer where it fits (up by default, down if there's room below).
-   */
   const placeLayerDirection = (layerSel: string) => {
     window.requestAnimationFrame(() => {
       const bar = barEl();
       if (!bar) return;
       const layer = bar.querySelector<HTMLElement>(layerSel);
       if (!layer) return;
-      // Mobile: the layer is DOCKED as a static row inside the toolbar (see
-      // mobile.css) and the toolbar grows upward with it — the floating-popup
-      // "which side has room" math does not apply (the bar's pre-layout-shift
-      // rect would cap the layer mid-list). Clear the inline cap and let the
-      // CSS cap (max-height: calc(100vh - 120px)) bound the height.
-      if (isMobileContext) {
-        layer.style.removeProperty("max-height");
-        return;
-      }
       const barRect = bar.getBoundingClientRect();
       const layerHeight = layer.offsetHeight;
-      const gap = 9; // calc(100% + 9px)
+      const gap = 9;
       const spaceAbove = barRect.top;
       const spaceBelow = window.innerHeight - barRect.bottom;
       let openUp: boolean;
@@ -137,79 +94,26 @@ export const BubbleMenuBarElement = litView.element({
     });
   };
 
-  const toggleStylesLayer = () => {
-    openLayer = openLayer === "styles" ? null : "styles";
-    void this.next().then(() => {
-      window.requestAnimationFrame(() => {
-        placeLayerCaret(
-          ".bubble-menu-layer--styles",
-          '[data-bb-action="styles"]',
-        );
-        placeLayerDirection(".bubble-menu-layer--styles");
-      });
-    });
-  };
-
-  const openLinkLayer = () => {
-    const sel = props.editor.state.selection;
-    if (sel.from === sel.to || !isTextSelection(sel)) return;
-    const attrs = props.editor.getAttributes("link");
-    linkDraft = typeof attrs.href === "string" ? attrs.href : "";
-    openLayer = "link";
-    void this.next().then(() => {
-      window.requestAnimationFrame(() => {
-        const input = barEl().querySelector<HTMLInputElement>(
-          ".bubble-menu-link-input",
-        );
-        input?.focus();
-        input?.select();
-        placeLayerCaret(".bubble-menu-layer--link", '[data-bb-action="link"]');
-      });
-    });
-  };
-
-  const toggleLinkLayer = () => {
-    if (openLayer === "link") {
+  const toggleTableColorLayer = () => {
+    if (openLayer === "table-color") {
       closeLayer();
       return;
     }
-    openLinkLayer();
+    openLayer = "table-color";
+    void this.next().then(() => {
+      window.requestAnimationFrame(() => {
+        placeLayerCaret(
+          ".bubble-menu-layer--table-color",
+          '[data-tbl="color"]',
+        );
+        placeLayerDirection(".bubble-menu-layer--table-color");
+      });
+    });
   };
 
-  /** Remove the link mark from the current selection (trash button).
-   * unsetLink is not exposed in the ChainedCommands type (see applyLink),
-   * so use its underlying equivalent: unsetMark('link', extendEmptyMarkRange). */
-  const removeLink = () => {
-    const sel = props.editor.state.selection;
-    if (!sel.empty && isTextSelection(sel)) {
-      props.editor
-        .chain()
-        .focus()
-        .unsetMark("link", { extendEmptyMarkRange: true })
-        .setMeta("preventAutolink", true)
-        .run();
-    }
-    closeLayer();
-  };
-
-  const applyLink = () => {
-    const url = linkDraft.trim();
-    const sel = props.editor.state.selection;
-    if (url && !sel.empty && isTextSelection(sel)) {
-      // setLink from extensions/link is not exposed in ChainedCommands type —
-      // use the equivalent chain from its addCommands:
-      // chain().setMark('link', attrs).setMeta('preventAutolink', true).run()
-      props.editor
-        .chain()
-        .focus()
-        .setMark("link", { href: url })
-        .setMeta("preventAutolink", true)
-        .run();
-    }
-    closeLayer();
-  };
-
-  /* ── Formatting actions (selection is preserved: mousedown+preventDefault) ── */
+  /* ── Formatting actions (selection is preserved: mousedown+preventDefault).
+     Mark commands walk selection.ranges — CellSelection exposes one range
+     per selected cell, so a toggle reaches every selected cell. ── */
   const applyMark = (mark: MarkAction) => {
     const e = props.editor;
     switch (mark) {
@@ -234,51 +138,89 @@ export const BubbleMenuBarElement = litView.element({
     }
   };
 
-  const applyBlock = (block: BlockAction) => {
-    const e = props.editor;
-    switch (block) {
-      case "paragraph":
-        e.chain().focus().clearNodes().run();
-        break;
-      case "h1":
-      case "h2":
-      case "h3":
-        e.chain().focus().toggleHeading({ level: HEADING_LEVEL[block] }).run();
-        break;
-      case "quote":
-        e.chain().focus().toggleBlockquote().run();
-        break;
-      case "list":
-        e.chain().focus().toggleBulletList().run();
-        break;
-      case "taskList":
-        e.chain().focus().toggleTaskList().run();
-        break;
-    }
+  const applyCellBg = (color: string | null) => {
+    props.editor
+      .chain()
+      .focus()
+      .setCellsAttribute(
+        "backgroundColor",
+        bgHexToAttr(color) ?? (null as unknown as string),
+      )
+      .run();
   };
 
-  const applyColor = (color: string | null) => {
-    const e = props.editor;
-    if (color == null) {
-      e.chain().focus().unsetColor().run();
-    } else {
-      e.chain().focus().setColor(color).run();
-    }
+  const applyCellTextColor = (color: string | null) => {
+    props.editor
+      .chain()
+      .focus()
+      .setCellsAttribute("dataColor", color ?? (null as unknown as string))
+      .run();
   };
 
   const clearFormatting = () => {
+    // unsetAllMarks removes marks over selection.ranges — every selected
+    // cell; cell fill / dataColor attributes are not marks and stay.
     props.editor.chain().focus().unsetAllMarks().run();
   };
 
-  /* ── Selection center caret + flip (tippy flip) ── */
+  /* ── Link layer (same behavior as the text bubble menu, for cells) ── */
+  const openLinkLayer = () => {
+    linkDraft = String(props.editor.getAttributes("link").href ?? "");
+    openLayer = "link";
+    void this.next().then(() => {
+      window.requestAnimationFrame(() => {
+        const input = barEl()?.querySelector<HTMLInputElement>(
+          ".bubble-menu-link-input",
+        );
+        input?.focus();
+        input?.select();
+        placeLayerCaret(".bubble-menu-layer--link", '[data-tbl="link"]');
+      });
+    });
+  };
+
+  const toggleLinkLayer = () => {
+    if (openLayer === "link") {
+      closeLayer();
+      return;
+    }
+    openLinkLayer();
+  };
+
+  const applyLink = () => {
+    const url = linkDraft.trim();
+    const sel = props.editor.state.selection;
+    if (url && sel instanceof CellSelection) {
+      props.editor
+        .chain()
+        .focus()
+        .setMark("link", { href: url })
+        .setMeta("preventAutolink", true)
+        .run();
+    }
+    closeLayer();
+  };
+
+  const removeLink = () => {
+    const sel = props.editor.state.selection;
+    if (sel instanceof CellSelection) {
+      props.editor
+        .chain()
+        .focus()
+        .unsetMark("link", { extendEmptyMarkRange: true })
+        .setMeta("preventAutolink", true)
+        .run();
+    }
+    closeLayer();
+  };
+
   const syncCaret = () => {
     const editor = props.editor;
     if (editor.isDestroyed || !editor.view) return;
     const { from, to } = editor.view.state.selection;
-    // In table mode the selection is collapsed (caret in cell) — zero-width rect at caret
     const rect = posToDOMRect(editor.view, from, to);
     // The rAF can land while the element is detached or not yet rendered
-    // (tippy move / generator restart) — nothing to sync then.
+    // (tippy move / generator restart) — there is nothing to sync then.
     const bar = barEl();
     if (!bar) return;
     const barRect = bar.getBoundingClientRect();
@@ -297,13 +239,29 @@ export const BubbleMenuBarElement = litView.element({
     );
   };
 
-  /* ── State update from editor events ── */
+  /** Plugin instances expose a private `key` field holding the PluginKey name. */
+  type KeyedPlugin = { key?: { key?: string } };
+
+  const wiredTippies = new WeakSet<Instance>();
+
+  const getTippy = (): Instance | undefined => {
+    if (props.editor.isDestroyed) return undefined;
+    const es = props.editor.state;
+    for (const plugin of es.plugins) {
+      const key = (plugin as KeyedPlugin).key?.key;
+      if (key === pluginKey()) {
+        return (plugin.getState(es) as BubbleMenuPluginState | undefined)
+          ?.tippy;
+      }
+    }
+    return undefined;
+  };
+
   const wireTippy = () => {
     const tippy = getTippy();
     if (tippy && !wiredTippies.has(tippy)) {
       wiredTippies.add(tippy);
       tippy.setProps({
-        // Click outside / hide menu closes open layers
         onHide: () => {
           closeLayer();
         },
@@ -316,7 +274,6 @@ export const BubbleMenuBarElement = litView.element({
 
   const refreshState = () => {
     if (props.editor.isDestroyed) return;
-    state = getBubbleMenuState(props.editor);
     const sel = props.editor.state.selection;
     const selKey = `${sel.from}:${sel.to}`;
     if (selKey !== lastSelKey) openLayer = null;
@@ -344,7 +301,11 @@ export const BubbleMenuBarElement = litView.element({
     const mod = e.metaKey || e.ctrlKey;
     if (mod && (e.key === "k" || e.key === "K")) {
       const sel = props.editor.state.selection;
-      if (props.editor.isFocused && !sel.empty && isTextSelection(sel)) {
+      if (
+        props.editor.isFocused &&
+        sel instanceof CellSelection &&
+        getTableMenuState(props.editor.state).multiCell
+      ) {
         e.preventDefault();
         e.stopPropagation();
         openLinkLayer();
@@ -358,9 +319,11 @@ export const BubbleMenuBarElement = litView.element({
 
   try {
     while (true) {
+      const state = getBubbleMenuState(props.editor);
+      const tableState = getTableMenuState(props.editor.state);
       props = yield (
         <div class="bubble-menu-bar">
-          <div class="bubble-menu-bar__row show">
+          <div class="bubble-menu-cells-bar show">
             <button
               class={cls("bb-btn", state.bold && "is-active")}
               data-tip="Bold"
@@ -416,10 +379,11 @@ export const BubbleMenuBarElement = litView.element({
             </button>
             <span class="bubble-menu-sep"></span>
             <button
-              class={cls("bb-btn", openLayer === "styles" && "is-active")}
-              data-tip="Styles & color"
+              class={cls("bb-btn", openLayer === "table-color" && "is-active")}
+              data-tbl="color"
+              data-tip="Fill & color"
               onmousedown={(e: MouseEvent) => e.preventDefault()}
-              onclick={toggleStylesLayer}
+              onclick={toggleTableColorLayer}
             >
               <span class="bb-aa">Aa</span>
             </button>
@@ -428,6 +392,7 @@ export const BubbleMenuBarElement = litView.element({
                 "bb-btn",
                 (openLayer === "link" || state.link) && "is-active",
               )}
+              data-tbl="link"
               data-tip="Link"
               data-kbd="⌘K"
               onmousedown={(e: MouseEvent) => e.preventDefault()}
@@ -448,89 +413,32 @@ export const BubbleMenuBarElement = litView.element({
 
           <span class="bb-caret"></span>
 
-          {/* "Styles & color" layer — pops up above the menu */}
           <div
             class={cls(
               "bubble-menu-layer",
-              "bubble-menu-layer--styles",
-              openLayer === "styles" && "show",
+              "bubble-menu-layer--table-color",
+              openLayer === "table-color" && "show",
             )}
             role="dialog"
-            aria-label="Text styles & color"
+            aria-label="Cell fill & text color"
           >
             <span class="bb-layer-caret"></span>
-            <div class="bb-layer-label">Block</div>
-            <button
-              class={cls("bb-mi", state.paragraph && "is-active")}
-              aria-label="Paragraph"
-              onmousedown={(e: MouseEvent) => e.preventDefault()}
-              onclick={() => applyBlock("paragraph")}
-            >
-              {bubbleIconNodes.paragraph()}
-              <span>Paragraph</span>
-              <span class="bb-tick">{bubbleIconNodes.check()}</span>
-            </button>
-            <button
-              class={cls("bb-mi", "bb-mi--h1", state.h1 && "is-active")}
-              aria-label="Heading 1"
-              onmousedown={(e: MouseEvent) => e.preventDefault()}
-              onclick={() => applyBlock("h1")}
-            >
-              {bubbleIconNodes.h1()}
-              <span>Heading 1</span>
-              <span class="bb-tick">{bubbleIconNodes.check()}</span>
-            </button>
-            <button
-              class={cls("bb-mi", "bb-mi--h2", state.h2 && "is-active")}
-              aria-label="Heading 2"
-              onmousedown={(e: MouseEvent) => e.preventDefault()}
-              onclick={() => applyBlock("h2")}
-            >
-              {bubbleIconNodes.h2()}
-              <span>Heading 2</span>
-              <span class="bb-tick">{bubbleIconNodes.check()}</span>
-            </button>
-            <button
-              class={cls("bb-mi", "bb-mi--h3", state.h3 && "is-active")}
-              aria-label="Heading 3"
-              onmousedown={(e: MouseEvent) => e.preventDefault()}
-              onclick={() => applyBlock("h3")}
-            >
-              {bubbleIconNodes.h3()}
-              <span>Heading 3</span>
-              <span class="bb-tick">{bubbleIconNodes.check()}</span>
-            </button>
-            <button
-              class={cls("bb-mi", state.quote && "is-active")}
-              aria-label="Blockquote"
-              onmousedown={(e: MouseEvent) => e.preventDefault()}
-              onclick={() => applyBlock("quote")}
-            >
-              {bubbleIconNodes.blockquote()}
-              <span>Blockquote</span>
-              <span class="bb-tick">{bubbleIconNodes.check()}</span>
-            </button>
-            <button
-              class={cls("bb-mi", state.list && "is-active")}
-              aria-label="List"
-              onmousedown={(e: MouseEvent) => e.preventDefault()}
-              onclick={() => applyBlock("list")}
-            >
-              {bubbleIconNodes.list()}
-              <span>List</span>
-              <span class="bb-tick">{bubbleIconNodes.check()}</span>
-            </button>
-            <button
-              class={cls("bb-mi", state.taskList && "is-active")}
-              aria-label="Checkbox"
-              onmousedown={(e: MouseEvent) => e.preventDefault()}
-              onclick={() => applyBlock("taskList")}
-            >
-              {bubbleIconNodes.taskList()}
-              <span>Checkbox</span>
-              <span class="bb-tick">{bubbleIconNodes.check()}</span>
-            </button>
-
+            <div class="bb-layer-label">Cell fill</div>
+            <div class="bb-sw-row">
+              {TABLE_FILLS.map((sw) => (
+                <button
+                  class={cls(
+                    "bb-sw",
+                    `bb-sw--${sw.css}`,
+                    (sw.color == null ? null : bgHexToAttr(sw.color)) ===
+                      tableState.bg && "is-active",
+                  )}
+                  aria-label={sw.label}
+                  onmousedown={(e: MouseEvent) => e.preventDefault()}
+                  onclick={() => applyCellBg(sw.color)}
+                ></button>
+              ))}
+            </div>
             <div class="bb-layer-sep"></div>
             <div class="bb-layer-label">Text color</div>
             <div class="bb-sw-row">
@@ -539,11 +447,11 @@ export const BubbleMenuBarElement = litView.element({
                   class={cls(
                     "bb-sw",
                     `bb-sw--${sw.css}`,
-                    (sw.color ?? null) === state.color && "is-active",
+                    (sw.color ?? null) === tableState.textColor && "is-active",
                   )}
                   aria-label={sw.label}
                   onmousedown={(e: MouseEvent) => e.preventDefault()}
-                  onclick={() => applyColor(sw.color)}
+                  onclick={() => applyCellTextColor(sw.color)}
                 ></button>
               ))}
             </div>
@@ -598,13 +506,11 @@ export const BubbleMenuBarElement = litView.element({
                 {bubbleIconNodes.trash()}
               </button>
             </div>
-            {/* Keyboard hints are desktop-only: touch devices (phones, tablets)
-                have no Enter/Esc keys and no way to trigger them. */}
-            {isMobileContext ? null : (
-              <div class="bb-link-foot">
-                <kbd>Enter</kbd> apply · <kbd>Esc</kbd> cancel
-              </div>
-            )}
+            {/* Desktop-only element (multi-cell selection bubbles are not
+                registered on mobile) — keyboard hints always apply. */}
+            <div class="bb-link-foot">
+              <kbd>Enter</kbd> apply · <kbd>Esc</kbd> cancel
+            </div>
           </div>
         </div>
       );
@@ -614,4 +520,4 @@ export const BubbleMenuBarElement = litView.element({
     props.editor.off("update", refreshState);
     document.removeEventListener("keydown", onKeydown);
   }
-})(elTag("bubble-menu-bar"));
+})(elTag("table-cells-bubble-menu-bar"));

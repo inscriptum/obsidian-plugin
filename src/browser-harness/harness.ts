@@ -285,6 +285,8 @@ export interface NotepadPageSpec {
   paragraphs: number;
   /** Page title; defaults to the id. */
   title?: string;
+  /** Raw page body; overrides `paragraphs` (used to mount tables etc.). */
+  doc?: JSONContent[];
 }
 
 /** The private fields mountNotepad needs to populate in place of onOpen. */
@@ -295,6 +297,7 @@ interface NotepadViewInternals {
   toolbarHost: HTMLElement | null;
   scrollerEl: HTMLElement | null;
   sectionsEl: HTMLElement | null;
+  sections: Map<string, { editor: Editor | null }>;
   render(): void;
 }
 
@@ -346,7 +349,8 @@ function mountNotepad(pages: NotepadPageSpec[]): string {
     });
     notes.set(page.id, {
       type: "noteDoc",
-      content: noteParagraphs(page.title ?? page.id, page.paragraphs),
+      content:
+        page.doc ?? noteParagraphs(page.title ?? page.id, page.paragraphs),
     });
   });
 
@@ -423,6 +427,9 @@ function mountNotepad(pages: NotepadPageSpec[]): string {
     name: "harness.um",
     basename: "harness",
     parent: null,
+    // renderCollapsedTitle falls back to the container mtime for pages
+    // without a modifiedAt stamp (um-page-updated-at) — TFile always has it.
+    stat: { mtime: 1790000000000, ctime: 1790000000000, size: 1 },
   };
   // Mirror onOpen's DOM skeleton; the nav drawer (buildNavSidebar) stays
   // unbuilt — rebuildNavList null-guards on the missing navListEl.
@@ -431,8 +438,22 @@ function mountNotepad(pages: NotepadPageSpec[]): string {
   v.sectionsEl = v.scrollerEl.createDiv("notepad-sections");
   v.notepad = new UmNotepad(data);
   v.render();
+  mountedNotepad = v;
   appContainer().replaceChildren(view.contentEl);
   return "notepad";
 }
 
-g.__e2eNotepad = { mount: mountNotepad };
+let mountedNotepad: NotepadViewInternals | null = null;
+g.__e2eNotepad = {
+  mount: mountNotepad,
+  /** Live editors of all mounted sections (sections-map order). */
+  editors(): Editor[] {
+    const out: Editor[] = [];
+    mountedNotepad?.sections.forEach((handle) => {
+      if (handle.editor != null && !handle.editor.isDestroyed) {
+        out.push(handle.editor);
+      }
+    });
+    return out;
+  },
+};

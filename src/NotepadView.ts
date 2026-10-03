@@ -50,8 +50,10 @@ import { NoteElement } from "./components/note/note.element";
 import { ToolbarElement } from "./components/toolbar/toolbar.element";
 import { BubbleMenuBarElement } from "./components/bubble-menu-bar/bubble-menu-bar.element";
 import { TableBubbleMenuElement } from "./components/bubble-menu-bar/table-bubble-menu-bar.element";
+import { TableCellsBubbleMenuElement } from "./components/bubble-menu-bar/table-cells-bubble-menu-bar.element";
 import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubble-menu-bar.element";
 import { isMediaNodeSelection } from "./components/bubble-menu-bar/mediaMenuState";
+import { getTableMenuState } from "./components/bubble-menu-bar/tableMenuState";
 import {
   bubbleMenuPlugin,
   type BubbleMenuView,
@@ -121,6 +123,11 @@ const makeTableBubbleMenuElement = () =>
   createCustomElement(
     "table-bubble-menu-bar",
     () => new TableBubbleMenuElement(),
+  );
+const makeTableCellsBubbleMenuElement = () =>
+  createCustomElement(
+    "table-cells-bubble-menu-bar",
+    () => new TableCellsBubbleMenuElement(),
   );
 const makeMediaBubbleMenuElement = () =>
   createCustomElement(
@@ -211,6 +218,9 @@ interface SectionHandle {
   editor: Editor | null;
   editorRef: { current: Editor | null };
   bubbleEls: HTMLElement[];
+  /** The table controls bar docked into the toolbar while the focus is in
+   *  this section's table (mirrors NoteView); null until the editor exists. */
+  tableBubbleEl: HTMLElement | null;
   /** Device-local persistence of this page's in-document fold state
    *  (headings + task items), created lazily — see foldPersistence.ts. */
   folds: FoldPersistence | null;
@@ -654,6 +664,7 @@ export class NotepadView extends FileView {
       editor: null,
       editorRef: { current: null },
       bubbleEls: [],
+      tableBubbleEl: null,
       folds: null,
       morphAnim: null,
       morphFade: null,
@@ -1402,6 +1413,14 @@ export class NotepadView extends FileView {
     toolbarEl.addClass("notepad-toolbar");
     toolbarEl.setAttribute("data-ignore-swipe", "true");
     toolbarEl.props.editor = editor;
+    // The section owning this editor provides the table controls docked into
+    // the toolbar while the focus is inside a table (mirrors NoteView).
+    for (const handle of this.sections.values()) {
+      if (handle.editor === editor) {
+        toolbarEl.props.tableBar = handle.tableBubbleEl ?? undefined;
+        break;
+      }
+    }
     this.toolbarEl = toolbarEl;
     this.toolbarHost.appendChild(toolbarEl);
   }
@@ -2053,16 +2072,32 @@ export class NotepadView extends FileView {
   private createBubbleMenus(editor: Editor, handle: SectionHandle): void {
     const bubbleMenuBarEl = makeBubbleMenuBarElement();
     const tableBubbleMenuEl = makeTableBubbleMenuElement();
+    const tableCellsBubbleMenuEl = makeTableCellsBubbleMenuElement();
     const mediaBubbleMenuEl = makeMediaBubbleMenuElement();
     bubbleMenuBarEl.addClass("bubble-menu-bar-host");
     tableBubbleMenuEl.addClass("table-bubble-menu-bar-host");
+    tableCellsBubbleMenuEl.addClass("bubble-menu-bar-host");
     mediaBubbleMenuEl.addClass("bubble-menu-bar-host");
-    handle.bubbleEls = [bubbleMenuBarEl, tableBubbleMenuEl, mediaBubbleMenuEl];
+    handle.bubbleEls = [
+      bubbleMenuBarEl,
+      tableBubbleMenuEl,
+      tableCellsBubbleMenuEl,
+      mediaBubbleMenuEl,
+    ];
+    handle.tableBubbleEl = tableBubbleMenuEl;
     this.contentEl.appendChild(bubbleMenuBarEl);
-    this.contentEl.appendChild(tableBubbleMenuEl);
+    this.contentEl.appendChild(mediaBubbleMenuEl);
+    // Table controls dock into the toolbar (like mobile); there is no
+    // floating table bubble menu anymore. The cells-format bubble element
+    // lives inside its tippy popup once the plugin below is registered (it
+    // is detached from contentEl on first show), so park it in the DOM
+    // until then.
+    this.contentEl.appendChild(tableCellsBubbleMenuEl);
     this.contentEl.appendChild(mediaBubbleMenuEl);
     bubbleMenuBarEl.props.editor = editor;
     tableBubbleMenuEl.props.editor = editor;
+    tableCellsBubbleMenuEl.props.editor = editor;
+    tableCellsBubbleMenuEl.props.pluginKey = `nb-table-cells-${handle.id}`;
     mediaBubbleMenuEl.props.editor = editor;
     // Required prop of the media menu (open/delete actions route through
     // the app); without it the element's generator never starts.
@@ -2099,11 +2134,15 @@ export class NotepadView extends FileView {
       }),
     );
 
+    // Table controls live in the toolbar (rebuildToolbar docks
+    // handle.tableBubbleEl while the focus is in a table). This floating
+    // plugin serves only the multi-cell selection: text formatting applied
+    // to every selected cell.
     editor.registerPlugin(
       bubbleMenuPlugin({
-        pluginKey: `nb-table-${handle.id}`,
+        pluginKey: `nb-table-cells-${handle.id}`,
         editor,
-        element: tableBubbleMenuEl,
+        element: tableCellsBubbleMenuEl,
         shouldShow: function (
           this: BubbleMenuView,
           { editor, state }: ShouldShowProps,
@@ -2117,8 +2156,8 @@ export class NotepadView extends FileView {
             return false;
           const selection = state.selection;
           return (
-            isInTable(state) &&
-            (selection.empty || selection instanceof CellSelection)
+            selection instanceof CellSelection &&
+            getTableMenuState(state).multiCell
           );
         },
         tippyOptions: { placement: "top", offset: [0, 8] },
