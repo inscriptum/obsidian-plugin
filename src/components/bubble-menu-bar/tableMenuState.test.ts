@@ -7,6 +7,8 @@ import { createTable } from "../../texto/extensions/table/helpers/createTable";
 import {
   bgHexToAttr,
   getTableMenuState,
+  BORDER_COLORS,
+  isHexColor,
   TABLE_BG_RGBA,
 } from "./tableMenuState";
 
@@ -45,6 +47,7 @@ describe("getTableMenuState", () => {
       headerRow: false,
       bg: null,
       textColor: null,
+      bordersNone: false,
     });
   });
 
@@ -106,6 +109,21 @@ describe("getTableMenuState", () => {
     expect(s.bg).toBe("rgba(74,222,128,.14)");
     expect(s.textColor).toBe("#4ade80");
   });
+
+  it("reports bordersNone when the table attr is set", () => {
+    const table = createTable(schema, 2, 2, false);
+    const [p1] = cellPositions(table);
+    // The standalone doc IS the table node — rebuild it with borders: "none".
+    const borderless = table.type.create(
+      { ...table.attrs, borders: "none" },
+      table.content,
+    );
+    expect(getTableMenuState(caretState(borderless, p1)).bordersNone).toBe(
+      true,
+    );
+
+    expect(getTableMenuState(caretState(table, p1)).bordersNone).toBe(false);
+  });
 });
 
 describe("TABLE_BG_RGBA / bgHexToAttr", () => {
@@ -120,5 +138,23 @@ describe("TABLE_BG_RGBA / bgHexToAttr", () => {
 
   it("has an entry for every fill", () => {
     expect(Object.keys(TABLE_BG_RGBA)).toHaveLength(4);
+  });
+});
+
+describe("BORDER_COLORS / isHexColor", () => {
+  it("palette has auto + 11 swatches, unique hex values", () => {
+    expect(BORDER_COLORS).toHaveLength(12);
+    const hexes = BORDER_COLORS.filter((c) => c.color).map((c) => c.color);
+    expect(new Set(hexes).size).toBe(hexes.length);
+    expect(BORDER_COLORS[0].color).toBe(null);
+  });
+
+  it("isHexColor accepts #rgb and #rrggbb only", () => {
+    expect(isHexColor("#4ade80")).toBe(true);
+    expect(isHexColor("#F71")).toBe(true);
+    expect(isHexColor("4ade80")).toBe(false);
+    expect(isHexColor("#4ade8")).toBe(false);
+    expect(isHexColor("rgb(74, 222, 128)")).toBe(false);
+    expect(isHexColor("")).toBe(false);
   });
 });

@@ -144,8 +144,10 @@ never keep the menu invisible. */
     background-color 0.1s;
 }
 /* Hover fill applies to action buttons; swatches hover with their own scale
-   effect (see .bb-sw:hover), not a dark fill. */
-.bubble-menu-bar button:hover:not(.bb-sw) {
+   effect (see .bb-sw:hover), not a dark fill; dropdown items (.bb-dd-it)
+   keep their own dark-panel hover styles. Pen selects (.bb-sel) hover like
+   regular action buttons. */
+.bubble-menu-bar button:hover:not(.bb-sw, .bb-dd-it) {
   color: #e6e6ee;
   background-color: #23232a;
 }
@@ -153,12 +155,12 @@ never keep the menu invisible. */
    (.bb-sw) must keep their palette color even when active (e.g. the "No
    fill" swatch was repainted violet by this rule). Swatches indicate the
    active state with their own outline (see .bb-sw.is-active below). */
-.bubble-menu-bar button.is-active:not(.bb-sw) {
+.bubble-menu-bar button.is-active:not(.bb-sw, .bb-dd-it) {
   color: #c0b1ff;
   background-color: rgba(124, 106, 247, 0.16);
   box-shadow: inset 0 0 0 1px rgba(124, 106, 247, 0.35);
 }
-.bubble-menu-bar button.is-active:not(.bb-sw):hover {
+.bubble-menu-bar button.is-active:not(.bb-sw, .bb-dd-it):hover {
   background-color: rgba(124, 106, 247, 0.24);
 }
 /* Unavailable table operation (merge/split) */
@@ -456,6 +458,224 @@ never keep the menu invisible. */
     transparent 55%
   );
   border-radius: 50%;
+}
+
+/* ─── Table borders layer ──────────────────────────────────────────
+   Row 1: the pen as self-describing dropdown selects (style / weight /
+   color — the current choice is always visible on the closed select).
+   Row 2: applying the pen — table-wide presets ┊ selected cells' sides.
+   Schema buttons reuse the generic .bubble-menu-bar button chrome; the
+   selects (.bb-sel) and dropdown items (.bb-dd-it) size themselves and are
+   excluded from the generic hover/active fills via :not() (the same
+   specificity pattern as .bb-sw / .bb-mi — see rule-bubble-menu-buttons). */
+.bubble-menu-bar .bb-bd-pen-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 4px 8px 8px;
+}
+
+.bubble-menu-bar .bb-bd-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 0 8px 8px;
+}
+
+.bubble-menu-bar .bb-bd svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.6;
+}
+
+.bubble-menu-bar .bb-bd--width {
+  width: 22px;
+}
+
+.bubble-menu-bar .bb-bd-widthbar {
+  display: block;
+  width: 13px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+/* Pen selects */
+.bubble-menu-bar .bb-sel-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.bubble-menu-bar .bb-sel {
+  width: auto;
+  height: 26px;
+  padding: 0 8px;
+  gap: 6px;
+  border-radius: 7px;
+  color: #c9cad3;
+}
+
+.bubble-menu-bar .bb-sel > svg,
+.bubble-menu-bar .bb-sel .bb-bd-widthbar {
+  flex: none;
+}
+
+.bubble-menu-bar .bb-sel > svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.6;
+}
+
+.bubble-menu-bar .bb-sel .bb-sel-chev {
+  display: inline-flex;
+  opacity: 0.55;
+}
+
+.bubble-menu-bar .bb-sel .bb-sel-chev svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* Open select: same chrome as the generic hover, keyed on the class (the
+   pointer may already have left the button while the panel is open). */
+.bubble-menu-bar .bb-sel.is-open {
+  color: #e6e6ee;
+  background-color: #23232a;
+}
+
+.bubble-menu-bar .bb-dd-label {
+  font-size: 11.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.bubble-menu-bar .bb-sel-dot {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.bubble-menu-bar .bb-sel-dot--auto {
+  background: linear-gradient(45deg, #2c2c34 50%, #d7d7e0 50%);
+  outline: 1px solid #30303a;
+}
+
+/* Dropdown panels — anchored to their select, overlapping the row below */
+.bubble-menu-bar .bb-dd {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  z-index: 3;
+  min-width: 158px;
+  background: #19191e;
+  border: 1px solid #30303a;
+  border-radius: 9px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  padding: 4px;
+}
+
+/* Color dropdown: swatch grid + custom picker row */
+.bubble-menu-bar .bb-dd-swatches {
+  display: grid;
+  grid-template-columns: repeat(6, 18px);
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 10px 6px;
+}
+
+/* "Auto (theme)" dot inside the swatch grid: half dark / half light */
+.bubble-menu-bar .bb-dd .bb-sw--auto {
+  background: linear-gradient(45deg, #2c2c34 50%, #d7d7e0 50%);
+}
+
+.bubble-menu-bar .bb-dd-custom {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 10px 8px;
+}
+
+.bubble-menu-bar .bb-dd-custom input[type="color"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  flex: none;
+}
+
+.bubble-menu-bar .bb-dd-custom input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.bubble-menu-bar .bb-dd-custom input[type="color"]::-webkit-color-swatch {
+  border: 1px solid #30303a;
+  border-radius: 50%;
+}
+
+.bubble-menu-bar .bb-dd-hex {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 7px;
+  border: 1px solid #30303a;
+  border-radius: 6px;
+  background: #23232a;
+  color: #c9cad3;
+  font: inherit;
+  font-size: 11.5px;
+}
+
+.bubble-menu-bar .bb-dd-hex:focus {
+  outline: 1px solid rgba(124, 106, 247, 0.8);
+}
+
+.bubble-menu-bar .bb-dd-it {
+  width: 100%;
+  height: auto;
+  padding: 5px 8px;
+  justify-content: flex-start;
+  gap: 8px;
+  border-radius: 6px;
+}
+
+.bubble-menu-bar .bb-dd-it:hover {
+  background: #23232a;
+}
+
+.bubble-menu-bar .bb-dd-it svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.6;
+  flex: none;
+}
+
+.bubble-menu-bar .bb-dd-it .bb-dd-label {
+  color: #c9cad3;
+}
+
+.bubble-menu-bar .bb-dd-it.is-active .bb-dd-label {
+  color: #c0b1ff;
+}
+
+.bubble-menu-bar .bb-dd-tick {
+  margin-left: auto;
+  display: inline-flex;
+  color: #b3a3f7;
+}
+
+.bubble-menu-bar .bb-dd-tick svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 2.6;
 }
 
 /* "Link" layer */

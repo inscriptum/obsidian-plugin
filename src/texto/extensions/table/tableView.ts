@@ -80,6 +80,7 @@ export class TableView implements NodeView {
     this.table = this.dom.appendChild(createEl("table"));
     this.colgroup = this.table.appendChild(createEl("colgroup"));
     updateColumns(node, this.colgroup, this.table, cellMinWidth);
+    this.syncBordersAttr();
     this.contentDOM = this.table.appendChild(createEl("tbody"));
   }
 
@@ -90,8 +91,20 @@ export class TableView implements NodeView {
 
     this.node = node;
     updateColumns(node, this.colgroup, this.table, this.cellMinWidth);
+    this.syncBordersAttr();
 
     return true;
+  }
+
+  /** The live <table> is owned by this NodeView (ignoreMutation swallows
+     its attribute mutations), so the table-level `borders` attr must be
+     projected onto data-borders here — renderHTML only covers static HTML. */
+  private syncBordersAttr() {
+    if (this.node.attrs.borders === "none") {
+      this.table.setAttribute("data-borders", "none");
+    } else {
+      this.table.removeAttribute("data-borders");
+    }
   }
 
   ignoreMutation(mutation: ViewMutationRecord) {

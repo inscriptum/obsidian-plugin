@@ -190,7 +190,10 @@
   color: var(--text-faint);
 }
 
-.note-toolbar .note-toolbar__table-bar .bubble-menu-bar button:hover:not(.bb-sw) {
+.note-toolbar
+  .note-toolbar__table-bar
+  .bubble-menu-bar
+  button:hover:not(.bb-sw, .bb-dd-it) {
   background: color-mix(in srgb, var(--text-normal) 7%, transparent);
   box-shadow: none;
   color: var(--text-muted);
@@ -199,7 +202,7 @@
 .note-toolbar
   .note-toolbar__table-bar
   .bubble-menu-bar
-  button.is-active:not(.bb-sw) {
+  button.is-active:not(.bb-sw, .bb-dd-it) {
   background: color-mix(in srgb, var(--interactive-accent) 13%, transparent);
   box-shadow: none;
   color: var(--text-accent);
@@ -208,8 +211,19 @@
 .note-toolbar
   .note-toolbar__table-bar
   .bubble-menu-bar
-  button.is-active:not(.bb-sw):hover {
+  button.is-active:not(.bb-sw, .bb-dd-it):hover {
   background: color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+}
+
+/* Open pen select follows the toolbar theme (the generic is-active fill
+   keys on .is-active; the select uses .is-open). */
+.note-toolbar
+  .note-toolbar__table-bar
+  .bubble-menu-bar
+  .bb-sel.is-open {
+  background: color-mix(in srgb, var(--text-normal) 10%, transparent);
+  box-shadow: none;
+  color: var(--text-muted);
 }
 
 .note-toolbar .note-toolbar__table-bar .bubble-menu-bar button.danger {

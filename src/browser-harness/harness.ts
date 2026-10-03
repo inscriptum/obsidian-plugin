@@ -7,6 +7,7 @@ import { getExtensions } from "../texto/getExtensions";
 import { headingFoldingKey } from "../texto/extensions/heading/folding";
 import { taskFoldingKey } from "../texto/extensions/task-item-folding/taskFoldingPlugin";
 import { NotepadView } from "../NotepadView";
+import { installIconSprite } from "../components/icons/iconSprite";
 import { UmNotepad } from "../storage/um/umNotepad";
 import type { UmContainerData, UmNoteDescriptor } from "../storage/um/umTypes";
 import type { WorkspaceLeaf } from "obsidian";
@@ -413,6 +414,10 @@ function mountNotepad(pages: NotepadPageSpec[]): string {
     },
   };
 
+  // The real app injects the shared <svg> icon sprite from main.ts; the
+  // toolbar/bubble-menu buttons reference it via <use> and render empty
+  // without it.
+  installIconSprite();
   const view = new NotepadView({} as unknown as WorkspaceLeaf);
   const v = view as unknown as NotepadViewInternals;
   // Obsidian gives a view's contentEl the .view-content class; the harness

@@ -161,7 +161,7 @@ test.describe("table toolbar dock + cells bubble", () => {
     await expect(page.locator(".note-toolbar__table-bar")).toBeVisible();
     await expect(
       page.locator(".note-toolbar__table-bar .bubble-menu-table-bar button"),
-    ).toHaveCount(11);
+    ).toHaveCount(12);
     await expect(page.locator(".note-toolbar .note-toolbar__btn")).toHaveCount(
       0,
     );
@@ -338,5 +338,216 @@ test.describe("table toolbar dock + cells bubble", () => {
     await expect(
       page.locator(".note-toolbar .note-toolbar__btn").first(),
     ).toBeVisible();
+  });
+
+  test("borders layer: No borders / All borders presets target the whole table", async ({
+    page,
+  }) => {
+    await mountNotepadWithTable(page);
+
+    const cellA2 = page.locator(".texto-editor td", { hasText: "A2" });
+    await clickInsideNotepadText(page, cellA2.locator("p"), "A2");
+
+    // Open the borders layer from the docked table bar.
+    await page
+      .locator('.note-toolbar__table-bar [data-tbl="borders"]')
+      .click();
+    const layer = page.locator(".bubble-menu-layer--table-borders");
+    await expect(layer).toBeVisible();
+
+    const editorIndex = await editorWith(page, "A1");
+    const tableState = async () =>
+      page.evaluate((i) => {
+        const editor = window.__e2eNotepad.editors()[i];
+        const out: {
+          tableBorders: unknown;
+          cellBorders: unknown[];
+          domDataBorders: string | null;
+        } = {
+          tableBorders: undefined,
+          cellBorders: [],
+          domDataBorders: null,
+        };
+        editor.state.doc.descendants((node) => {
+          if (node.type.name === "table") out.tableBorders = node.attrs.borders;
+          const role = node.type.spec.tableRole;
+          if (role === "cell" || role === "header_cell")
+            out.cellBorders.push(node.attrs.borders);
+          return true;
+        });
+        out.domDataBorders =
+          editor.view.dom.querySelector("table[data-borders]")?.getAttribute(
+            "data-borders",
+          ) ?? null;
+        return out;
+      }, editorIndex);
+
+    // "No borders" — always the whole table: table attr + cleared cells.
+    // The layer stays open across operations (it only closes when the focus
+    // leaves the table), so both presets run in one opening.
+    await layer.locator('[data-tip="No borders"]').click();
+    let s = await tableState();
+    expect(s.tableBorders).toBe("none");
+    expect(s.cellBorders).toHaveLength(4);
+    for (const b of s.cellBorders) expect(b).toBe(null);
+    expect(s.domDataBorders).toBe("none");
+
+    // "All borders" — the pen (default 1pt solid auto) on every side of
+    // every cell; the borderless attr is lifted (new cells get the grid).
+    await layer.locator('[data-tip="All borders"]').click();
+    s = await tableState();
+    expect(s.cellBorders).toHaveLength(4);
+    for (const b of s.cellBorders) {
+      expect(b).toEqual({
+        top: { style: "solid", width: "1pt", color: null },
+        right: { style: "solid", width: "1pt", color: null },
+        bottom: { style: "solid", width: "1pt", color: null },
+        left: { style: "solid", width: "1pt", color: null },
+      });
+    }
+    expect(s.domDataBorders).toBe(null);
+  });
+
+  test("borders layer: pen selects change style/width before applying", async ({
+    page,
+  }) => {
+    await mountNotepadWithTable(page);
+
+    const cellA2 = page.locator(".texto-editor td", { hasText: "A2" });
+    await clickInsideNotepadText(page, cellA2.locator("p"), "A2");
+
+    await page
+      .locator('.note-toolbar__table-bar [data-tbl="borders"]')
+      .click();
+    const layer = page.locator(".bubble-menu-layer--table-borders");
+    await expect(layer).toBeVisible();
+
+    // Style select: pick "Double".
+    await layer.locator('button[aria-label="Line style"]').click();
+    const stylePanel = layer.locator(".bb-dd").first();
+    await stylePanel.locator(".bb-dd-it", { hasText: "Double" }).click();
+    await page.waitForTimeout(150);
+
+    // Width select: pick "3 pt".
+    await layer.locator('button[aria-label="Stroke weight"]').click();
+    const widthPanel = layer.locator(".bb-dd").first();
+    await widthPanel.locator(".bb-dd-it", { hasText: "3 pt" }).click();
+    await page.waitForTimeout(150);
+
+    // Apply via a side button — the pen must arrive in one click.
+    await layer.locator('[data-tip="Top border"]').click();
+
+    const index = await editorWith(page, "A1");
+    const attrs = await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      const out: Array<Record<string, unknown>> = [];
+      editor.state.doc.descendants((node) => {
+        if (node.type.spec.tableRole === "cell")
+          out.push({ text: node.textContent, borders: node.attrs.borders });
+        return true;
+      });
+      return out;
+    }, index);
+
+    const a2 = attrs.find((c) => c.text === "A2");
+    expect(a2?.borders).toEqual({
+      top: { style: "double", width: "3pt", color: null },
+    });
+    expect(attrs.find((c) => c.text === "B2")?.borders).toBe(null);
+  });
+
+  test("borders layer: custom color via the picker input lands in the pen", async ({
+    page,
+  }) => {
+    await mountNotepadWithTable(page);
+
+    const cellA2 = page.locator(".texto-editor td", { hasText: "A2" });
+    await clickInsideNotepadText(page, cellA2.locator("p"), "A2");
+
+    await page
+      .locator('.note-toolbar__table-bar [data-tbl="borders"]')
+      .click();
+    const layer = page.locator(".bubble-menu-layer--table-borders");
+    await expect(layer).toBeVisible();
+
+    // Open the color select; the palette grid + custom inputs render.
+    await layer.locator('button[aria-label="Border color"]').click();
+    const colorPanel = layer.locator(".bb-dd").first();
+    await expect(colorPanel.locator(".bb-sw")).toHaveCount(12);
+
+    // A palette swatch first…
+    await colorPanel.locator('.bb-sw[title="Blue"]').click();
+    await page.waitForTimeout(120);
+    // …then the custom picker: fill() sets value and fires input+change.
+    await layer
+      .locator('button[aria-label="Border color"]')
+      .click();
+    await page.locator('.bubble-menu-layer--table-borders input[type="color"]').fill(
+      "#123456",
+    );
+    await page.waitForTimeout(150);
+    // Dropdown closes after a pick; reopen is unnecessary — apply a side.
+    const shown = await layer.evaluate((el) =>
+      el.classList.contains("show"),
+    );
+    if (!shown) {
+      await page
+        .locator('.note-toolbar__table-bar [data-tbl="borders"]')
+        .click();
+      await page.waitForTimeout(250);
+    }
+    await layer.locator('[data-tip="Top border"]').click();
+
+    const index = await editorWith(page, "A1");
+    const attrs = await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      const out: Array<Record<string, unknown>> = [];
+      editor.state.doc.descendants((node) => {
+        if (node.type.spec.tableRole === "cell")
+          out.push({ text: node.textContent, borders: node.attrs.borders });
+        return true;
+      });
+      return out;
+    }, index);
+
+    const a2 = attrs.find((c) => c.text === "A2");
+    expect(a2?.borders).toEqual({
+      top: { style: "solid", width: "1pt", color: "#123456" },
+    });
+  });
+
+  test("borders layer: side button applies the pen to the current cell", async ({
+    page,
+  }) => {
+    await mountNotepadWithTable(page);
+
+    const cellA2 = page.locator(".texto-editor td", { hasText: "A2" });
+    await clickInsideNotepadText(page, cellA2.locator("p"), "A2");
+
+    await page
+      .locator('.note-toolbar__table-bar [data-tbl="borders"]')
+      .click();
+    const layer = page.locator(".bubble-menu-layer--table-borders");
+    await expect(layer).toBeVisible();
+    await layer.locator('[data-tip="Top border"]').click();
+
+    const index = await editorWith(page, "A1");
+    const attrs = await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      const out: Array<Record<string, unknown>> = [];
+      editor.state.doc.descendants((node) => {
+        if (node.type.spec.tableRole === "cell")
+          out.push({ text: node.textContent, borders: node.attrs.borders });
+        return true;
+      });
+      return out;
+    }, index);
+
+    const a2 = attrs.find((c) => c.text === "A2");
+    expect(a2?.borders).toEqual({
+      top: { style: "solid", width: "1pt", color: null },
+    });
+    // Untouched neighbours stay on the default grid.
+    expect(attrs.find((c) => c.text === "B2")?.borders).toBe(null);
   });
 });

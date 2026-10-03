@@ -100,13 +100,14 @@ await build({
 
 // The harness CSS: build the same import chain vite uses for the plugin
 // (editor.css pulls the rest) so @imports get inlined with correct paths,
-// plus notepad.css — NotepadView imports it from TS, which the CSS-only
-// entry chain never reaches.
+// plus the TS-imported stylesheets — notepad.css (NotepadView) and
+// bubble-menu.css (NoteView, loaded app-wide in the real plugin) — which
+// the CSS-only entry chain never reaches.
 import { readFileSync } from "node:fs";
 const cssEntry = path.join(root, ".harness/harness.css");
 fs.writeFileSync(
   cssEntry,
-  '@import "../src/styles/editor.css";\n@import "../src/styles/notepad.css";\n',
+  '@import "../src/styles/editor.css";\n@import "../src/styles/notepad.css";\n@import "../src/styles/bubble-menu.css";\n',
 );
 await build({
   configFile: false,
