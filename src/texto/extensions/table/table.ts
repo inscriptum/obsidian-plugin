@@ -11,6 +11,7 @@ import { NodeView } from "prosemirror-view";
 
 import { addCommands } from "./commands";
 import { deleteTableWhenAllCellsSelected } from "./helpers";
+import { cellTrailingParagraphPlugin } from "./helpers/cellTrailingParagraph";
 import { createColGroup } from "./helpers/createColGroup";
 import { handleCellSelection } from "./helpers/handleCellSelection";
 import { TableView } from "./tableView";
@@ -140,6 +141,10 @@ export const Table = Node.create<TableOptions, AnyObject>({
 
     return [
       handleCellSelection(isMobileView),
+      // Cells may hold images now: keep a trailing paragraph in every cell
+      // whose last block is a cursor-hostile atom (cell-level twin of the
+      // note trailing-paragraph invariant).
+      cellTrailingParagraphPlugin(),
       ...(isResizable
         ? [
             columnResizing({

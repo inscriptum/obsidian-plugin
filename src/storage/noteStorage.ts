@@ -1,6 +1,7 @@
 import type { DataAdapter, TFile, Vault } from "obsidian";
 import type { JSONContent } from "../texto/core/@types";
 import { ensureTrailingParagraphJSON } from "../texto/extensions/note-doc/trailingParagraph";
+import { ensureCellTrailingParagraphJSON } from "../texto/extensions/table/helpers/cellTrailingParagraph";
 
 export const EMPTY_DOC: JSONContent = {
   type: "noteDoc",
@@ -44,8 +45,10 @@ export function parseNoteDoc(raw: string): JSONContent {
   // prosemirror's nodeFromJSON rejects them ("Empty text nodes are not
   // allowed") and the note would never open. Strip them on read; the next
   // normalized autosave rewrites the file without them.
-  return ensureTrailingParagraphJSON(
-    sanitizeNoteDoc(JSON.parse(raw) as JSONContent),
+  return ensureCellTrailingParagraphJSON(
+    ensureTrailingParagraphJSON(
+      sanitizeNoteDoc(JSON.parse(raw) as JSONContent),
+    ),
   );
 }
 

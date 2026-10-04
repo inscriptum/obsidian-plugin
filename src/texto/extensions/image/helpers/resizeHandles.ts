@@ -42,6 +42,27 @@ export function computeResizePercent({
 }
 
 /**
+ * Width the resize percent refers to: the editor content box on the top
+ * level, the table cell's content box when the image lives inside td/th —
+ * the same box the CSS percent width resolves against there, so the
+ * committed attrs.width replays the dragged pixel width exactly.
+ */
+function getReferenceWidth(element: HTMLElement, editor: Editor): number {
+  const cell = element.closest("td, th");
+  if (cell instanceof HTMLElement) {
+    const style = window.getComputedStyle(cell);
+    const padding =
+      Number.parseFloat(style.paddingLeft) +
+      Number.parseFloat(style.paddingRight);
+    const width = cell.clientWidth - padding;
+    if (width > 0) {
+      return width;
+    }
+  }
+  return editor.view.dom.clientWidth || 0;
+}
+
+/**
  * Builds the left/right resize handles for an image node view.
  * Handles are visible only while the node is selected (CSS). During a drag
  * the width is applied inline for live feedback, and committed to the node
@@ -64,7 +85,7 @@ export function createResizeHandles(
       event.stopPropagation();
 
       const startWidth = element.getBoundingClientRect().width;
-      const contentWidth = editor.view.dom.clientWidth || startWidth;
+      const contentWidth = getReferenceWidth(element, editor) || startWidth;
       if (startWidth <= 0 || contentWidth <= 0) return;
 
       const startX = event.clientX;

@@ -125,14 +125,21 @@ describe("migrations (8.6.3)", () => {
     expect(result.doc).toBe(original);
   });
 
-  it("reports missing chain entries as failure, current-version docs as ok", () => {
-    // v1 is current: nothing to migrate, and fromVersion >= current is
-    // rejected as a misuse.
+  it("migrates v1 docs to the current version; current-version docs are rejected as misuse", () => {
     const doc = titleDoc();
+    // v1 → current runs the registered (identity) chain: the cell-schema
+    // bump is additive, the document itself does not change.
     expect(migrateNoteDoc("title", 1, doc)).toEqual({
+      ok: true,
+      doc,
+      toVersion: UM_SCHEMA_VERSION,
+    });
+    // current version: nothing to migrate, fromVersion >= current is
+    // rejected as a misuse.
+    expect(migrateNoteDoc("title", UM_SCHEMA_VERSION, doc)).toEqual({
       ok: false,
       doc,
-      toVersion: 1,
+      toVersion: UM_SCHEMA_VERSION,
     });
   });
 });

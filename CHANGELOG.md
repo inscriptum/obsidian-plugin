@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Images inside table cells: insert (toolbar button, paste, command) with the caret in a cell and the picture lands in that cell. Inside a table the layout layers resolve against the cell — "full width" spans the cell, not the editor — and the resize handles take the cell width as their 100%. Cells keep a trailing paragraph so the caret always has a place below the picture. Documents with pictures in cells are schema v2 for notepads (older plugin versions show such pages with a "newer version" notice instead of breaking).
 - Tables: border drawing, MS Word style — pick a pen (line style, weight, color) and apply it with whole-table presets (none / all / outer / inside horizontal / inside vertical) or to the selected cell's sides. Borders are stored in the note and survive reopen, sync, paste and website export.
 - Tables: the table controls now dock into the note toolbar while the caret is inside a table (desktop, like on mobile), and selecting several cells opens a bubble with the full text-formatting row applied to every selected cell.
 - Notepad: folded page rows show when the page was last updated — "date · word count", with the exact timestamp on hover.
