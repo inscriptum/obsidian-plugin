@@ -489,7 +489,12 @@ button.notepad-section-gutter:hover {
 
 .notepad-section-body {
   min-width: 0;
-  /* padding: 2px 0 0 16px; */
+  /* Fold-morph pin (see pinFoldMorph in NotepadView): while the body's
+     height is pinned for the row ↔ page swap, these carry the pinned
+     height and the clipped overflow. Unset they are inert — height auto,
+     overflow visible — so the page always lays out naturally. */
+  height: var(--fold-pin-height, auto);
+  overflow: var(--fold-pin-overflow, visible);
 }
 
 /* The title page is the cover: no frame, ever (spec 9.1). Higher
@@ -574,13 +579,13 @@ button.notepad-section-gutter:hover {
 }
 
 /* ── Collapsed row ──
-   A folded page is a table-of-contents entry: title, dotted leader, quiet
-   word count — baseline-aligned like a printed contents line, so the row
-   reads as designed navigation rather than a stray line of editor text.
-   The title column starts where the OPEN page's text column starts (the
-   48px editor side padding), so unfolding never shifts the text. */
+   A folded page is a table-of-contents entry on two lines: the title,
+   a dotted rule under it, then a quiet meta line (last-update time, word
+   count) — the row reads as designed navigation rather than a stray line
+   of editor text. The title column starts where the OPEN page's text
+   column starts (the 48px editor side padding), so unfolding never
+   shifts the text. */
 .notepad-section-collapsed {
-  align-items: baseline;
   padding: 13px 20px 13px 8px;
   cursor: pointer;
   font-size: 18px;
@@ -597,15 +602,12 @@ button.notepad-section-gutter:hover {
 }
 
 .notepad-section-title {
-  flex: 0 1 auto;
-  min-width: 0;
   font-weight: 200;
   letter-spacing: -0.01em;
 }
 
-/* Ellipsis lives on the inner span: the outer item must keep its text
-   baseline (an overflow-hidden flex item baseline-aligns by its bottom
-   edge, which would sink the whole row's contents line). */
+/* The one-line clip lives on the inner block, so the outer label stays a
+   plain styling hook (the .is-empty restyle targets it). */
 .notepad-section-title-text {
   display: block;
   overflow: hidden;
@@ -619,19 +621,16 @@ button.notepad-section-gutter:hover {
   font-weight: 100;
 }
 
-/* The dotted leader — the row's one flourish, borrowed from printed
-   tables of contents. An empty zero-height div baseline-aligns by its
-   bottom edge, so the dots sit exactly on the text baseline. */
+/* The dotted rule between the title and the meta line — the row's one
+   flourish, borrowed from printed tables of contents. A zero-height div
+   renders it as its bottom border. */
 .notepad-section-tocleader {
-  flex: 1 1 24px;
-  min-width: 20px;
   height: 0;
   border-bottom: 1px dotted var(--ins-border);
   transition: border-color 0.15s ease;
 }
 
 .notepad-section-meta {
-  flex: 0 0 auto;
   font-size: 12px;
   font-weight: 400;
   letter-spacing: 0.01em;

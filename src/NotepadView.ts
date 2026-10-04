@@ -817,13 +817,15 @@ export class NotepadView extends FileView {
     return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   }
 
-  /** Cancel an in-flight morph and release any inline pin on the body. */
+  /** Cancel an in-flight morph and release the body's pin. */
   private clearFoldMorph(handle: SectionHandle): void {
     handle.morphAnim?.cancel();
     handle.morphAnim = null;
     this.releaseHiddenContent(handle);
-    handle.body.style.height = "";
-    handle.body.style.overflow = "";
+    handle.body.setCssProps({
+      "--fold-pin-height": "",
+      "--fold-pin-overflow": "",
+    });
   }
 
   /** End the dissolve phase and give the content its natural opacity back.
@@ -842,8 +844,6 @@ export class NotepadView extends FileView {
       }
       fade.cancel();
     }
-    handle.content.style.opacity = "";
-    handle.content.style.transform = "";
   }
 
   /** Phase one of the morph: dissolve whatever the body shows (the folded
@@ -868,15 +868,17 @@ export class NotepadView extends FileView {
     this.clearFoldMorph(handle);
     const fromH = handle.body.offsetHeight;
     if (this.prefersReducedMotion()) return 0;
-    handle.body.style.height = `${fromH}px`;
     // `clip`, not `hidden`: hidden still makes the body a scroll container,
     // so a scroll-into-view during the build (editor autofocus, focus) lands
     // on the body itself — the morph then reveals a pre-scrolled page and
     // the unpin resets the scroll, snapping the content down. Clip just
     // clips: nothing can scroll the pin.
-    handle.body.style.overflow = CSS.supports("overflow", "clip")
-      ? "clip"
-      : "hidden";
+    handle.body.setCssProps({
+      "--fold-pin-height": `${fromH}px`,
+      "--fold-pin-overflow": CSS.supports("overflow", "clip")
+        ? "clip"
+        : "hidden",
+    });
     return fromH;
   }
 
@@ -887,13 +889,14 @@ export class NotepadView extends FileView {
     const body = handle.body;
     this.releaseHiddenContent(handle);
     if (fromH === 0) return;
-    body.style.height = "auto";
+    // Unpin (the var falls back to natural height) to measure the target.
+    body.setCssProps({ "--fold-pin-height": "" });
     const toH = body.offsetHeight;
     if (toH === fromH) {
       this.clearFoldMorph(handle);
       return;
     }
-    body.style.height = `${fromH}px`;
+    body.setCssProps({ "--fold-pin-height": `${fromH}px` });
     const anim = body.animate(
       [{ height: `${fromH}px` }, { height: `${toH}px` }],
       {
@@ -917,13 +920,13 @@ export class NotepadView extends FileView {
       // Release the pin; if the natural height has drifted from the
       // measured target (an asset landed late anyway), glide the
       // difference instead of letting the unpin snap.
-      body.style.height = "";
+      body.setCssProps({ "--fold-pin-height": "" });
       const natural = body.getBoundingClientRect().height;
       if (Math.abs(natural - toH) <= 0.5) {
         this.clearFoldMorph(handle);
         return;
       }
-      body.style.height = `${toH}px`;
+      body.setCssProps({ "--fold-pin-height": `${toH}px` });
       const corr = body.animate(
         [{ height: `${toH}px` }, { height: `${natural}px` }],
         { duration: 120, easing: "ease-out" },

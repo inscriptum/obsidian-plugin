@@ -120,6 +120,15 @@ defineHelper("setAttrs", (el, [obj]) => {
   }
 });
 defineHelper("getAttr", (el, [name]) => el.getAttribute(name as string));
+defineHelper("setCssProps", (el, [props]) => {
+  // Empty value resets the property (Obsidian semantics) — the NotepadView
+  // fold-morph pin and NoteView's keyboard offset rely on that.
+  const style = (el as HTMLElement).style;
+  for (const [name, value] of Object.entries(props as Record<string, string>)) {
+    if (value == null || value === "") style.removeProperty(name);
+    else style.setProperty(name, value);
+  }
+});
 defineHelper("empty", (el) => {
   while (el.firstChild) el.removeChild(el.firstChild);
 });
