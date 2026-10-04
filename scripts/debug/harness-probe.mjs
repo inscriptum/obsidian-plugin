@@ -1,7 +1,9 @@
-// harness-probe.mjs — run a JS body in the local harness page (playwright-core).
+// harness-probe.mjs — run a JS body in the local harness page (playwright).
 // Usage: node harness-probe.mjs <body.js> [timeoutMs]
+// Uses Playwright's own managed Chromium (npx playwright install chromium);
+// point HARNESS_CHROMIUM at a binary to override.
 import fs from 'node:fs';
-import { chromium } from 'playwright-core';
+import { chromium } from 'playwright';
 
 const file = process.argv[2];
 if (file == null) {
@@ -13,7 +15,7 @@ const body = fs.readFileSync(file, 'utf8');
 
 const browser = await chromium.launch({
   headless: true,
-  executablePath: '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  executablePath: process.env.HARNESS_CHROMIUM || undefined,
 });
 const page = await browser.newPage({ viewport: { width: 900, height: 1000 } });
 try {
