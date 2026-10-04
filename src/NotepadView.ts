@@ -295,6 +295,9 @@ export class NotepadView extends FileView {
     startX: number;
     startY: number;
     active: boolean;
+    /** Esc-canceled: the pointer is still down; its release must only
+     *  swallow the fold toggle the release click would fire. */
+    canceled?: boolean;
   } | null = null;
   private dropLineEl: HTMLElement | null = null;
   private suppressGutterToggle = false;
@@ -1129,6 +1132,12 @@ export class NotepadView extends FileView {
           ),
         ]);
       }
+      // The dissolve wait races the view's teardown (which nulls
+      // this.notepad) and rebuilds (which replaces the section's handle) —
+      // a stale collapse must not write the model or fold a page it no
+      // longer owns. The user's toggle is dropped; the rebuilt section is
+      // consistent with the untouched model.
+      if (this.notepad == null || this.sections.get(id) !== handle) return;
       // Flush the editor content into the in-memory notepad first.
       this.flushSectionToNotepad(handle);
 
@@ -1779,6 +1788,18 @@ export class NotepadView extends FileView {
 
     const handle = this.sections.get(drag.id);
     handle?.root.removeClass("is-dragging");
+    if (drag.canceled) {
+      // The click follows the release pointerup synchronously (same
+      // premise as the active-drag swallow below), so arming the swallow
+      // exactly here covers a release long after Esc — and the listener
+      // pair is gone the moment the release lands, so a later ordinary
+      // gutter click toggles as usual.
+      this.suppressGutterToggle = true;
+      window.setTimeout(() => {
+        this.suppressGutterToggle = false;
+      }, 0);
+      return;
+    }
     if (!drag.active) return; // plain click — the gutter click toggles
     // Swallow the click that follows a completed drag.
     this.suppressGutterToggle = true;
@@ -1803,32 +1824,20 @@ export class NotepadView extends FileView {
 
   /** Esc during a drag (even before the 6px activation): discard the move
    *  entirely. The pointer is still down — the eventual release must not
-   *  reorder, nor toggle the fold the release click would otherwise fire. */
+   *  reorder, nor toggle the fold the release click would otherwise fire.
+   *  The pointerup listener stays armed for exactly that release; marking
+   *  the drag canceled routes its handling into onDragPointerUp's swallow,
+   *  which also cleans the listener up — nothing outlives the interaction. */
   private cancelDrag(): void {
     const drag = this.drag;
     if (!drag) return;
-    this.drag = null;
+    drag.canceled = true;
     window.removeEventListener("pointermove", this.onDragPointerMove);
-    window.removeEventListener("pointerup", this.onDragPointerUp);
     window.removeEventListener("keydown", this.onDragKeyDown, true);
     const handle = this.sections.get(drag.id);
     handle?.root.removeClass("is-dragging");
     this.dropLineEl?.remove();
     this.dropLineEl = null;
-    // The click follows the release pointerup synchronously (same premise
-    // as onDragPointerUp's swallow), so arming the swallow exactly then
-    // covers a release long after Esc — and cannot outlive it: the
-    // one-shot listener is consumed by that same pointerup.
-    window.addEventListener(
-      "pointerup",
-      () => {
-        this.suppressGutterToggle = true;
-        window.setTimeout(() => {
-          this.suppressGutterToggle = false;
-        }, 0);
-      },
-      { once: true, capture: true },
-    );
   }
 
   /** The title page's note id (order 0) — excluded from drag geometry. */
