@@ -280,6 +280,42 @@ describe("UmNotepad", () => {
     expect(nb.noteContent(added.id)?.type).toBe("noteDoc");
   });
 
+  it("stamps modifiedAt at creation, duplication and content change", async () => {
+    const nb = notepadWithTwoNotes();
+    const before = nb.note(nb.notes()[0].id)?.modifiedAt;
+    expect(typeof before).toBe("number");
+
+    // Duplication stamps the copy (a fresh moment — monotonic wall clock).
+    const dup = nb.duplicateNote(nb.notes()[0].id);
+    expect(dup).not.toBeNull();
+    expect(typeof dup?.modifiedAt).toBe("number");
+
+    // A real content change moves the stamp forward.
+    await new Promise((r) => setTimeout(r, 5));
+    nb.setNoteContent(nb.notes()[0].id, helloDoc("Rewritten"));
+    const after = nb.note(nb.notes()[0].id)?.modifiedAt;
+    expect(after).not.toBe(before);
+    expect(after ?? 0).toBeGreaterThan(before ?? 0);
+  });
+
+  it("preserves modifiedAt across a serialize/load round trip", () => {
+    const nb = notepadWithTwoNotes();
+    const expected = nb.notes().map((n) => n.modifiedAt);
+    const parsed = parseUmContainer(nb.serialize());
+    expect(parsed.manifest.notes.map((n) => n.modifiedAt)).toEqual(expected);
+  });
+
+  it("loads a legacy manifest without modifiedAt (absent, not fatal)", () => {
+    const nb = notepadWithTwoNotes();
+    const parsed = parseUmContainer(nb.serialize());
+    for (const note of parsed.manifest.notes) delete note.modifiedAt;
+    const reparsed = parseUmContainer(serializeUmContainer(parsed));
+    expect(reparsed.manifest.notes.map((n) => n.modifiedAt)).toEqual([
+      undefined,
+      undefined,
+    ]);
+  });
+
   it("gc keeps referenced assets across notes and drops the rest", () => {
     const nb = notepadWithTwoNotes();
     const kept = nb.addAsset(new Uint8Array([1]), "kept.png", "image/png");
@@ -458,6 +494,26 @@ describe("UmNotepad", () => {
     const first = nb.notes()[0];
     nb.moveNote(first.id, 99);
     expect(nb.notes().map((n) => n.title)).toEqual(["Second", "First"]);
+  });
+
+  it("moveNote toIndex spans the full list including the title slot", () => {
+    const nb = UmNotepad.empty();
+    const title = nb.addNote(undefined, "Title");
+    const p1 = nb.addNote(title.id, "Page 1");
+    const p2 = nb.addNote(p1.id, "Page 2");
+    const p3 = nb.addNote(p2.id, "Page 3");
+
+    // The drag view computes "drop before Page 2" as toIndex 2: the title
+    // occupies slot 0 and page 1 slot 1. Not offsetting for the title slot
+    // landed the page one boundary too high (NotepadView.computeDropIndex).
+    expect(nb.moveNote(p3.id, 2)).toBe(true);
+    expect(nb.notes().map((n) => n.title)).toEqual([
+      "Title",
+      "Page 1",
+      "Page 3",
+      "Page 2",
+    ]);
+    expect(nb.notes().map((n) => n.order)).toEqual([0, 1, 2, 3]);
   });
 
   it("persists the expanded flag and defaults to collapsed", () => {

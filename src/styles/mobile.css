@@ -617,5 +617,5 @@
      handle centered on the border. */
   width: 8px;
   margin-left: -4px;
-  background: rgba(124, 106, 247, 0.5);
+  background: color-mix(in srgb, var(--interactive-accent, #7c6af7) 50%, transparent);
 }

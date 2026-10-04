@@ -17,6 +17,9 @@
   }
   body { background: #1e1e1e; color: #dadada; margin: 0; font-family: sans-serif; }
   #app { max-width: 720px; margin: 40px auto; }
+  /* The notepad mount needs a bounded container, else the scroller grows
+     with the document and never scrolls (drag geometry is scroll-aware). */
+  #app .notepad-view-container { height: 620px; }
 </style>
 </head>
 <body>

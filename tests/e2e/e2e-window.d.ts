@@ -14,6 +14,20 @@ declare global {
       taskFolds(): number[];
       lastError(): unknown;
     };
+    __e2eNotepad: {
+      mount(
+        pages: {
+          id: string;
+          paragraphs: number;
+          title?: string;
+          doc?: unknown[];
+          expanded?: boolean;
+        }[],
+        opts?: { titleExpanded?: boolean; titleDoc?: unknown[] },
+      ): string;
+      /** Live editors of all mounted sections. */
+      editors(): Editor[];
+    };
   }
 }
 

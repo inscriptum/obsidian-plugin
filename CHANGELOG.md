@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Tables: border drawing, MS Word style — pick a pen (line style, weight, color) and apply it with whole-table presets (none / all / outer / inside horizontal / inside vertical) or to the selected cell's sides. Borders are stored in the note and survive reopen, sync, paste and website export.
+- Tables: the table controls now dock into the note toolbar while the caret is inside a table (desktop, like on mobile), and selecting several cells opens a bubble with the full text-formatting row applied to every selected cell.
+- Notepad: folded page rows show when the page was last updated — "date · word count", with the exact timestamp on hover.
 - New document type: notepad (`.um`) — a single file that holds an ordered list of pages, edited one under another like one document. Pages can be added, duplicated, deleted (with confirmation and undo), renamed inline and reordered by drag & drop; each page can be collapsed, and its expanded/collapsed state is remembered.
 - The first page is the notepad's title page — a fixed cover (title + summary) that can't be deleted, moved or renamed. Other pages don't need a title: their display title comes from the first line.
 - Notepad navigation drawer (☰): lists all pages and jumps to the clicked one (smooth scrolling).
@@ -16,9 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Images added inside a notepad are packed into the `.um` file itself, so the notepad is self-contained; other attachments stay as regular vault files.
 - Pages created in a newer version of the plugin open with a "created in a newer version" notice instead of an editor and are preserved untouched on save.
 - "New notepad" command and a Type selector (Note/Notepad) in the "New inscriptum" modal.
+- Notepad: Esc cancels a page drag — releasing the mouse afterwards reorders nothing and toggles nothing.
 
 ### Fixed
 
+- Floating drag-handle: appears when hovering the gutter left of a block (not only over the block itself) and hides on any document change until hovered again.
+- Tables: a multi-cell selection could crash the editor — fixed.
+- Notepad: expanding a page no longer makes its content jump down a few pixels after the unfold.
+- Links with formatted text (bold, italic, code, highlight, color, …) now open on click — previously only plain-text links did.
+- Notepad: the drag & drop line marked the wrong spot in scrolled documents — the dropped page now lands exactly on the boundary the line marks.
 - Saving a `.um` container can no longer clobber its own manifest or note documents: asset descriptors naming a protected archive path (e.g. a hand-edited registry) are skipped at write time instead of overwriting the required entries.
 - Assets are no longer garbage-collected while a notepad has a page this editor cannot interpret (newer version, unknown family, failed migration): the page is preserved verbatim, so its media stays in the archive even if its references use a shape this editor does not know.
 - Opening a `.um` file is size-guarded against zip bombs: archives over a compressed-size cap are rejected before being read into memory, and decompression is bounded by a cap on the total inflated size — a hostile `.um` fails cleanly with a "too large" error instead of exhausting memory.

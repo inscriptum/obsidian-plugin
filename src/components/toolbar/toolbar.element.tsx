@@ -131,6 +131,9 @@ export const ToolbarElement = litView.element({
     tableSelectionBar: p.opt<HTMLElement>(),
     /** Mobile only: the media (image/attachment) bubble menu bar. */
     mediaSelectionBar: p.opt<HTMLElement>(),
+    /** Desktop: the table controls bar docked into the toolbar row while the
+     *  focus is inside a table (the floating table bubble menu is gone). */
+    tableBar: p.opt<HTMLElement>(),
   },
 })(function* (props) {
   let state = getToolbarState(props.editor);
@@ -287,12 +290,20 @@ export const ToolbarElement = litView.element({
   try {
     while (true) {
       const isMobileSwap = !!props.selectionBar;
+      // Desktop: while the focus is inside a table the toolbar's button groups
+      // are replaced by the table controls (mobile swaps the whole row in
+      // .mobile-sel-bar instead — see the mobile branch below).
+      const desktopTableDock =
+        !isMobileSwap && !!props.tableBar && mode === "table";
       props = yield (
         <>
           <div
             class={`note-toolbar${isMobileSwap && mode !== "none" ? " is-hidden" : ""}`}
           >
-            {GROUPS.map((group, gi) => [
+            {desktopTableDock && props.tableBar ? (
+              <div class="note-toolbar__table-bar">{props.tableBar}</div>
+            ) : (
+              GROUPS.map((group, gi) => [
               gi > 0 ? <div class="note-toolbar__sep"></div> : null,
               group.map((btn) => (
                 <button
@@ -309,7 +320,8 @@ export const ToolbarElement = litView.element({
                   </span>
                 </button>
               )),
-            ])}
+              ])
+            )}
             <div class="note-toolbar__spacer"></div>
             <div class="note-toolbar__meta">
               {BUILD_TAG ? (

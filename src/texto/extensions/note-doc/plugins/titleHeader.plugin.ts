@@ -55,7 +55,7 @@ export function titleHeaderPlugin(): Plugin {
               title.nodeSize + summary.nodeSize,
               {
                 class: "empty",
-                "data-placeholder": "Summary of the text",
+                "data-placeholder": "Add a short summary",
               },
             ),
           );

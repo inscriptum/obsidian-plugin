@@ -18,7 +18,7 @@ export const NoteSummary = Node.create({
   addAttributes() {
     return {
       "data-placeholder": {
-        default: "Summary of the text",
+        default: "Add a short summary",
       },
       "data-label": {
         default: "Summary",

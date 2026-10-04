@@ -3,23 +3,30 @@
    ──────────────────────────────────────────────────────────────
    Medium:  high-contrast scale, reading column, rhythm, microtypography
    Notion:  calm headings, subtle dividers, quiet tables
-   ═══════════════════════════════════════════════════════════════ */
+   ──────────────────────────────────────────────────────────────
+   Color policy: every color is an Obsidian theme token (or a color-mix
+   derivative of one). The editor inherits the active theme's text,
+   borders and accent — a note reads natively in stock dark, stock light
+   and community themes (cream "paper" themes included). */
 
 /* ─── Base note container ─── */
 .note {
+  --note-accent: var(--interactive-accent, #7c6af7);
+  --note-accent-text: var(--text-accent, var(--note-accent));
+  --note-accent-hover: var(--text-accent-hover, var(--note-accent-text));
+
   outline: none;
   text-rendering: optimizeLegibility;
-  font-size: 15.5px;
-  color: #c2c4cf;
-  line-height: 1.8;
+  font-size: 16px;
+  color: var(--text-normal);
+  line-height: 1.7;
 }
 
 .note ::selection {
-  background: rgba(124, 106, 247, 0.3);
-  color: #f2f2f7;
+  background: color-mix(in srgb, var(--note-accent) 24%, transparent);
 }
 
-/* ─── Headings: high-contrast scale 34/22/17/15.5, balance ─── */
+/* ─── Headings: high-contrast scale 34/22/17/16, balance ─── */
 .note h1,
 .note h2,
 .note h3,
@@ -32,14 +39,14 @@
   font-weight: 650;
   line-height: 1.22;
   letter-spacing: -0.022em;
-  color: #f4f4f8;
+  color: var(--text-normal);
   margin: 4px 0 8px;
 }
 
 .note .lead {
   font-size: 17px;
-  color: #a4a5b2;
-  line-height: 1.7;
+  color: var(--text-muted);
+  line-height: 1.65;
   margin: 0 0 34px;
   max-width: 60ch;
 }
@@ -49,7 +56,7 @@
   font-weight: 650;
   line-height: 1.3;
   letter-spacing: -0.015em;
-  color: #e2e3ea;
+  color: var(--text-normal);
   margin: 42px 0 12px;
 }
 
@@ -58,21 +65,21 @@
   font-weight: 600;
   line-height: 1.4;
   letter-spacing: -0.01em;
-  color: #d2d4de;
+  color: var(--text-normal);
   margin: 30px 0 10px;
 }
 
 .note h4 {
-  font-size: 15.5px;
+  font-size: 16px;
   font-weight: 600;
-  color: #c6c8d4;
+  color: var(--text-normal);
   margin: 24px 0 8px;
 }
 
 /* ─── Text: rhythm based on line-height, no widows ─── */
 .note p {
-  font-size: 15.5px;
-  line-height: 1.8;
+  font-size: inherit;
+  line-height: inherit;
   color: inherit;
   margin: 0;
   padding: 4px 0;
@@ -82,30 +89,37 @@
 }
 
 .note p strong {
-  color: #ededf3;
-  font-weight: 600;
+  color: inherit;
+  font-weight: 620;
 }
 
 .note em {
-  color: #d8dae3;
+  color: inherit;
 }
 
-/* ─── Inline elements ─── */
+/* ─── Inline elements ───
+   Inline code is a quiet neutral chip (Notion/GitHub practice): the mono
+   face and the faint fill differentiate it; color stays readable in any
+   theme because both fills derive from --text-normal. */
 .note :not(pre) > code {
-  font-family: var(--font-mono, "JetBrains Mono", "SF Mono", monospace);
-  font-size: 0.84em;
-  color: var(--accent-2, #b3a3f7);
-  background: #17171d;
-  border: 1px solid #292932;
+  font-family: var(--font-monospace, "JetBrains Mono", "SF Mono", monospace);
+  font-size: 0.85em;
+  color: var(--text-normal);
+  background: color-mix(in srgb, var(--text-normal) 5.5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-normal) 10%, transparent);
   border-radius: 5px;
-  padding: 1.5px 6px;
+  padding: 1.5px 5px;
 }
 
 .note a {
-  color: var(--accent-2, #b3a3f7);
+  color: var(--note-accent-text);
   text-decoration: underline;
   text-decoration-thickness: 1px;
-  text-decoration-color: rgba(179, 163, 247, 0.35);
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--note-accent-text) 40%,
+    transparent
+  );
   text-underline-offset: 3px;
   transition:
     color 150ms,
@@ -114,12 +128,16 @@
 }
 
 .note a:hover {
-  color: #cdbffb;
-  text-decoration-thickness: 2px;
+  color: var(--note-accent-hover);
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--note-accent-hover) 55%,
+    transparent
+  );
 }
 
 .note a:focus-visible {
-  outline: 2px solid var(--accent, #7c6af7);
+  outline: 2px solid var(--note-accent);
   outline-offset: 2px;
   border-radius: 2px;
 }
@@ -133,8 +151,8 @@
 
 /* ─── Lists: hanging markers, nesting, muted numbers ─── */
 .note ul {
-  font-size: 15.5px;
-  line-height: 1.8;
+  font-size: inherit;
+  line-height: inherit;
   max-width: 68ch;
 }
 
@@ -143,8 +161,8 @@
 }
 
 .note ol {
-  font-size: 15.5px;
-  line-height: 1.8;
+  font-size: inherit;
+  line-height: inherit;
   max-width: 68ch;
 }
 
@@ -156,7 +174,7 @@
   font-variant-numeric: tabular-nums;
   font-size: 0.9em;
   font-weight: 500;
-  color: #7c7d8a;
+  color: var(--text-faint);
 }
 
 .note ul ul,
@@ -191,11 +209,11 @@
 /* ─── Blockquote: line only, no background (Notion) ─── */
 .note blockquote {
   margin: 30px 0;
-  padding: 2px 0 2px 20px;
-  border-left: 3px solid rgba(124, 106, 247, 0.5);
-  color: #a9abb8;
-  font-size: 15.5px;
-  line-height: 1.75;
+  padding: 2px 0 2px 18px;
+  border-left: 2px solid color-mix(in srgb, var(--note-accent) 45%, transparent);
+  color: var(--text-muted);
+  font-size: inherit;
+  line-height: 1.7;
   max-width: 62ch;
 }
 
@@ -206,7 +224,7 @@
 /* ─── Divider ─── */
 .note hr {
   border: none;
-  border-top: 1px solid #26262d;
+  border-top: 1px solid var(--background-modifier-border);
   margin: 44px 0;
 }
 
@@ -232,7 +250,7 @@
   width: 16px;
   height: 16px;
   border-radius: 4.5px;
-  border: 1px solid #3a3a45;
+  border: 1px solid color-mix(in srgb, var(--text-normal) 30%, transparent);
   background: transparent;
   display: flex;
   align-items: center;
@@ -243,14 +261,14 @@
 }
 
 .note .chk li.on .box {
-  background: var(--accent-dim, rgba(124, 106, 247, 0.14));
-  border-color: rgba(124, 106, 247, 0.55);
+  background: color-mix(in srgb, var(--note-accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--note-accent) 55%, transparent);
 }
 
 .note .chk li.on .box svg {
   width: 11px;
   height: 11px;
-  color: var(--accent-2, #b3a3f7);
+  color: var(--note-accent-text);
 }
 
 .note .chk li {
@@ -259,16 +277,23 @@
 }
 
 .note .chk li.on {
-  color: #8d8f9b;
+  color: var(--text-muted);
   text-decoration: line-through;
-  text-decoration-color: rgba(141, 143, 155, 0.45);
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--text-muted) 45%,
+    transparent
+  );
   text-decoration-thickness: 1px;
 }
 
-/* ─── Code block ─── */
+/* ─── Code block ───
+   The block keeps its own dark surface in dark themes (a deliberate
+   contrast piece the hljs palette is tuned for) and flips to a light
+   surface in light themes below. Only the frame is tokenized. */
 .note .code-wrap {
-  border: 1px solid var(--border-hi, #2e2e36);
-  border-radius: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
   overflow: hidden;
   margin: 22px 0 32px;
   background: #0b0b0f;
@@ -285,9 +310,9 @@
 }
 
 .note .code-lang {
-  font-family: var(--font-mono, "JetBrains Mono", "SF Mono", monospace);
+  font-family: var(--font-monospace, "JetBrains Mono", "SF Mono", monospace);
   font-size: 11px;
-  color: var(--accent-2, #b3a3f7);
+  color: var(--note-accent-text);
   font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -297,103 +322,19 @@
   margin: 0;
   padding: 16px 18px;
   overflow-x: auto;
-  font-family: var(--font-mono, "JetBrains Mono", "SF Mono", monospace);
+  font-family: var(--font-monospace, "JetBrains Mono", "SF Mono", monospace);
   font-size: 13px;
   line-height: 1.75;
   color: #c7c9d4;
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   Light theme (Obsidian: .theme-light on body)
-   Adapted from typography-v2.html → body.light
-   Accent darkens for AA contrast on light background.
+   Light theme
+   Everything structural is token-based above; only the code block
+   surface flips (its syntax palette is tuned per theme).
    ═══════════════════════════════════════════════════════════════ */
-.theme-light .note {
-  color: #3a3a42;
-}
-
-.theme-light .note ::selection {
-  background: rgba(124, 106, 247, 0.25);
-  color: #1d1d22;
-}
-
-/* ── Headings ── */
-.theme-light .note h1 {
-  color: #1e1e24;
-}
-.theme-light .note .lead {
-  color: #6a6a74;
-}
-.theme-light .note h2 {
-  color: #26262d;
-}
-.theme-light .note h3 {
-  color: #2f2f37;
-}
-.theme-light .note h4 {
-  color: #38383f;
-}
-
-/* ── Text ── */
-.theme-light .note p strong {
-  color: #1d1d22;
-}
-.theme-light .note em {
-  color: #45454d;
-}
-
-/* ── Inline ── */
-.theme-light .note :not(pre) > code {
-  background: #f0f0f4;
-  border-color: #dddde4;
-  color: #6b5bd2;
-}
-
-.theme-light .note a {
-  color: #6b5bd2;
-  text-decoration-color: rgba(91, 69, 216, 0.35);
-}
-
-.theme-light .note a:hover {
-  color: #5a4bbf;
-  text-decoration-color: rgba(91, 69, 216, 0.5);
-}
-
 .theme-light .note mark {
   background: rgba(245, 158, 11, 0.22);
-}
-
-/* ── Lists ── */
-.theme-light .note ol li::marker {
-  color: #9a9aa5;
-}
-
-/* ── Blockquote ── */
-.theme-light .note blockquote {
-  color: #5f5f69;
-  border-left-color: rgba(124, 106, 247, 0.55);
-}
-
-/* ── Divider ── */
-.theme-light .note hr {
-  border-top-color: #e6e6ec;
-}
-
-/* ProseMirror tables: styles in table.css */
-
-/* ── Checklist ── */
-.theme-light .note .chk .box {
-  border-color: #c9c9d2;
-}
-
-.theme-light .note .chk li.on .box {
-  background: rgba(124, 106, 247, 0.14);
-  border-color: rgba(124, 106, 247, 0.55);
-}
-
-.theme-light .note .chk li.on {
-  color: #8f8f99;
-  text-decoration-color: rgba(143, 143, 153, 0.5);
 }
 
 /* ── Code block ── */

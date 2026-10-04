@@ -58,6 +58,20 @@ export const Table = Node.create<TableOptions, AnyObject>({
           [`data-colsCount`]: attributes.data?.colsCount,
         }),
       },
+      borders: {
+        default: null,
+        parseHTML: (element: HTMLElement) => {
+          return element.dataset["borders"] === "none" ? "none" : null;
+        },
+        renderHTML: (attributes: { borders: string | null }) => {
+          if (!attributes.borders) {
+            return {};
+          }
+          return {
+            [`data-borders`]: attributes.borders,
+          };
+        },
+      },
     };
   },
 

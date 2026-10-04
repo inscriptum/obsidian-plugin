@@ -1,5 +1,10 @@
 import { mergeAttributes, Node } from "../../../../core";
 import type { AnyRecord } from "../../../../core/@types";
+import {
+  bordersFromStyle,
+  bordersToStyle,
+  type CellBorders,
+} from "../../helpers/borders";
 
 export interface TableCellOptions {
   HTMLAttributes: AnyRecord;
@@ -80,6 +85,16 @@ export const TableCell = Node.create<TableCellOptions>({
         },
         parseHTML: (element) => {
           return element.style.backgroundColor;
+        },
+      },
+      borders: {
+        default: null,
+        renderHTML: (attributes: { borders: CellBorders | null }) => {
+          const style = bordersToStyle(attributes.borders);
+          return style ? { style } : {};
+        },
+        parseHTML: (element: HTMLElement) => {
+          return bordersFromStyle(element);
         },
       },
     };

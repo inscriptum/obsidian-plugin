@@ -15,14 +15,18 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
           return false;
         }
 
-        const eventTarget = event.target as HTMLElement;
+        // Marks render as nested elements (<u>, <strong>, <em>, <s>,
+        // <code>, <mark>, <span>), so the click target is often inside the
+        // anchor, not the anchor itself — resolve it up the tree.
+        const link = (event.target as HTMLElement)?.closest?.(
+          "a",
+        ) as HTMLAnchorElement | null;
 
-        if (eventTarget.nodeName !== "A") {
+        if (!link) {
           return false;
         }
 
         const attrs = getAttributes(view.state, options.type.name);
-        const link = event.target as HTMLAnchorElement;
 
         const href = link?.href ?? attrs.href;
         const target = link?.target ?? attrs.target;

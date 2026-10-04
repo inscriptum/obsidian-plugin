@@ -150,6 +150,98 @@
   font-size: 10px;
 }
 
+/* ── Table controls docked into the toolbar (focus inside a table) ──
+   The table bubble menu element (see bubble-menu.css) replaces the
+   typography button groups while the caret / cell selection is inside a
+   table (mobile swaps the whole row instead — see mobile.css). The floating
+   chrome of the bubble menu is stripped; the buttons keep their look. */
+.note-toolbar .note-toolbar__table-bar {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.note-toolbar .note-toolbar__table-bar .bubble-menu-bar {
+  display: flex;
+  align-items: center;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* The selection-center caret makes no sense docked into the bar. */
+.note-toolbar .note-toolbar__table-bar .bb-caret {
+  display: none;
+}
+
+/* Hover tooltips open downwards: above the bar is the window edge. */
+.note-toolbar .note-toolbar__table-bar .bb-btn[data-tip]::after {
+  bottom: auto;
+  top: calc(100% + 9px);
+}
+
+/* The docked bar must speak the toolbar's language, not the floating bubble
+   menu's hard-coded dark chrome: theme tokens for the base color, hover and
+   active states, and the separators (same specificity fight as the toolbar
+   buttons above — the bubble-menu selectors are matched and beaten). */
+.note-toolbar .note-toolbar__table-bar .bubble-menu-bar button {
+  color: var(--text-faint);
+}
+
+.note-toolbar
+  .note-toolbar__table-bar
+  .bubble-menu-bar
+  button:hover:not(.bb-sw, .bb-dd-it) {
+  background: color-mix(in srgb, var(--text-normal) 7%, transparent);
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.note-toolbar
+  .note-toolbar__table-bar
+  .bubble-menu-bar
+  button.is-active:not(.bb-sw, .bb-dd-it) {
+  background: color-mix(in srgb, var(--interactive-accent) 13%, transparent);
+  box-shadow: none;
+  color: var(--text-accent);
+}
+
+.note-toolbar
+  .note-toolbar__table-bar
+  .bubble-menu-bar
+  button.is-active:not(.bb-sw, .bb-dd-it):hover {
+  background: color-mix(in srgb, var(--interactive-accent) 20%, transparent);
+}
+
+/* Open pen select follows the toolbar theme (the generic is-active fill
+   keys on .is-active; the select uses .is-open). */
+.note-toolbar
+  .note-toolbar__table-bar
+  .bubble-menu-bar
+  .bb-sel.is-open {
+  background: color-mix(in srgb, var(--text-normal) 10%, transparent);
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.note-toolbar .note-toolbar__table-bar .bubble-menu-bar button.danger {
+  color: var(--text-error, #e07a7a);
+}
+
+.note-toolbar
+  .note-toolbar__table-bar
+  .bubble-menu-bar
+  button.danger:hover {
+  background: color-mix(in srgb, var(--text-error, #e07a7a) 10%, transparent);
+  color: var(--text-error, #e07a7a);
+}
+
+.note-toolbar .note-toolbar__table-bar .bubble-menu-sep {
+  background: var(--background-modifier-border);
+}
+
 /* ── Link layer (toolbar Link button) ─────────────────────────────────
    Desktop: a small popover under the bar (the host is position:sticky, so it
    is the positioned ancestor). On mobile mobile.css re-docks this row above

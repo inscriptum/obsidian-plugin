@@ -1,6 +1,7 @@
 import {
   FileView,
   Menu,
+  moment,
   Notice,
   Platform,
   setIcon,
@@ -49,8 +50,10 @@ import { NoteElement } from "./components/note/note.element";
 import { ToolbarElement } from "./components/toolbar/toolbar.element";
 import { BubbleMenuBarElement } from "./components/bubble-menu-bar/bubble-menu-bar.element";
 import { TableBubbleMenuElement } from "./components/bubble-menu-bar/table-bubble-menu-bar.element";
+import { TableCellsBubbleMenuElement } from "./components/bubble-menu-bar/table-cells-bubble-menu-bar.element";
 import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubble-menu-bar.element";
 import { isMediaNodeSelection } from "./components/bubble-menu-bar/mediaMenuState";
+import { getTableMenuState } from "./components/bubble-menu-bar/tableMenuState";
 import {
   bubbleMenuPlugin,
   type BubbleMenuView,
@@ -98,6 +101,17 @@ function createCustomElement<T>(baseTag: string, make: () => T): T {
 
 const makeNoteElement = () =>
   createCustomElement<NoteElement>("texto-editor", () => new NoteElement());
+
+// obsidian re-exports moment for runtime use, but its type is the moment
+// module namespace and without @types/moment TS cannot call it — a
+// one-method local view is all the folded-row meta needs.
+const momentFormat = (
+  epochMs: number,
+  fmt: string,
+): string =>
+  (moment as unknown as {
+    (t: number): { format(f: string): string };
+  })(epochMs).format(fmt);
 const makeToolbarElement = () =>
   createCustomElement<ToolbarElement>(
     "note-toolbar",
@@ -109,6 +123,11 @@ const makeTableBubbleMenuElement = () =>
   createCustomElement(
     "table-bubble-menu-bar",
     () => new TableBubbleMenuElement(),
+  );
+const makeTableCellsBubbleMenuElement = () =>
+  createCustomElement(
+    "table-cells-bubble-menu-bar",
+    () => new TableCellsBubbleMenuElement(),
   );
 const makeMediaBubbleMenuElement = () =>
   createCustomElement(
@@ -199,9 +218,17 @@ interface SectionHandle {
   editor: Editor | null;
   editorRef: { current: Editor | null };
   bubbleEls: HTMLElement[];
+  /** The table controls bar docked into the toolbar while the focus is in
+   *  this section's table (mirrors NoteView); null until the editor exists. */
+  tableBubbleEl: HTMLElement | null;
   /** Device-local persistence of this page's in-document fold state
    *  (headings + task items), created lazily — see foldPersistence.ts. */
   folds: FoldPersistence | null;
+  /** In-flight fold morph (row ↔ page height animation), if any. */
+  morphAnim: Animation | null;
+  /** The morph's dissolve phase (old content fading out, fill forwards).
+   *  Kept so the reveal phase can release it in the same frame. */
+  morphFade: Animation | null;
 }
 
 /**
@@ -226,6 +253,9 @@ export class NotepadView extends FileView {
   /** Expansion builds in flight, to prevent double editor creation for the
    *  same note. */
   private pendingExpansions = new Set<string>();
+  /** Teardowns in flight (the fold morph's dissolve phase delays them), so
+   *  a second click can't tear down a page that is already folding. */
+  private pendingCollapses = new Set<string>();
 
   private scrollerEl: HTMLElement | null = null;
   private sectionsEl: HTMLElement | null = null;
@@ -265,6 +295,9 @@ export class NotepadView extends FileView {
     startX: number;
     startY: number;
     active: boolean;
+    /** Esc-canceled: the pointer is still down; its release must only
+     *  swallow the fold toggle the release click would fire. */
+    canceled?: boolean;
   } | null = null;
   private dropLineEl: HTMLElement | null = null;
   private suppressGutterToggle = false;
@@ -545,7 +578,10 @@ export class NotepadView extends FileView {
     for (const descriptor of this.notepad.notes()) {
       if (!this.notepad.isNoteOpenable(descriptor.id)) continue;
       if (descriptor.order === 0 || this.notepad.isExpanded(descriptor.id)) {
-        void this.expandSection(descriptor.id, { focus: false });
+        // Restoring persisted state on load: no morph — the sections are
+        // not painted yet, and the view's scroll restore must see the
+        // final layout, not a morph in flight.
+        void this.expandSection(descriptor.id, { focus: false, morph: false });
       }
     }
     this.rebuildNavList();
@@ -564,10 +600,12 @@ export class NotepadView extends FileView {
     if (isTitlePage) root.addClass("is-title");
     if (isUnsupported) root.addClass("is-unsupported");
 
-    // Left margin: page order (the first page is unlabeled, like the blog
-    // draft view) + the fold chevron for foldable pages.
+    // Left margin: the fold chevron for foldable pages. The page order
+    // number lives on the right edge instead (folded: the title line's end;
+    // expanded: the page's bottom-right corner) — CSS positions it against
+    // the section root.
     const margin = root.createDiv("notepad-section-margin");
-    const orderLabel = margin.createDiv("notepad-section-order");
+    const orderLabel = root.createDiv("notepad-section-order");
     if (order > 0) orderLabel.setText(String(order));
     if (!isTitlePage && !isUnsupported) {
       const gutter = createEl("button", { cls: "notepad-section-gutter" });
@@ -590,29 +628,34 @@ export class NotepadView extends FileView {
     const body = root.createDiv("notepad-section-body");
     const content = body.createDiv("notepad-section-content");
 
-    // Ghost controls under the section content but INSIDE the page frame
-    // (above its bottom separator) — so they visibly belong to this page.
-    // The title page carries no duplicate/delete control — it anchors the
-    // notepad (spec 9.1); unopenable pages are preserved as-is.
-    const controls = body.createDiv("notepad-section-controls");
-    const addBtn = createEl("button", { cls: "notepad-section-control" });
-    addBtn.setAttribute("aria-label", "Add note after");
-    setIcon(addBtn, "plus");
-    addBtn.addEventListener("click", () => this.addNoteAfter(id));
-    controls.appendChild(addBtn);
-    if (!isTitlePage && !isUnsupported) {
-      const copyBtn = createEl("button", { cls: "notepad-section-control" });
-      copyBtn.setAttribute("aria-label", "Duplicate note");
-      setIcon(copyBtn, "copy");
-      copyBtn.addEventListener("click", () => this.duplicateNote(id));
-      controls.appendChild(copyBtn);
-      const delBtn = createEl("button", {
-        cls: "notepad-section-control is-danger",
-      });
-      delBtn.setAttribute("aria-label", "Delete note");
-      setIcon(delBtn, "trash-2");
-      delBtn.addEventListener("click", () => this.deleteNote(id));
-      controls.appendChild(delBtn);
+    // Ghost controls inside the page frame, top-right — so they visibly
+    // belong to this page. The title page carries no controls at all
+    // (spec 9.1): it anchors the notepad, and the dashed "Add note" row at
+    // the document's end covers page creation; unopenable pages keep the
+    // add-only chip and are preserved as-is.
+    const controls = isTitlePage
+      ? null
+      : body.createDiv("notepad-section-controls");
+    if (controls != null) {
+      const addBtn = createEl("button", { cls: "notepad-section-control" });
+      addBtn.setAttribute("aria-label", "Add note after");
+      setIcon(addBtn, "plus");
+      addBtn.addEventListener("click", () => this.addNoteAfter(id));
+      controls.appendChild(addBtn);
+      if (!isUnsupported) {
+        const copyBtn = createEl("button", { cls: "notepad-section-control" });
+        copyBtn.setAttribute("aria-label", "Duplicate note");
+        setIcon(copyBtn, "copy");
+        copyBtn.addEventListener("click", () => this.duplicateNote(id));
+        controls.appendChild(copyBtn);
+        const delBtn = createEl("button", {
+          cls: "notepad-section-control is-danger",
+        });
+        delBtn.setAttribute("aria-label", "Delete note");
+        setIcon(delBtn, "trash-2");
+        delBtn.addEventListener("click", () => this.deleteNote(id));
+        controls.appendChild(delBtn);
+      }
     }
 
     const handle: SectionHandle = {
@@ -624,7 +667,10 @@ export class NotepadView extends FileView {
       editor: null,
       editorRef: { current: null },
       bubbleEls: [],
+      tableBubbleEl: null,
       folds: null,
+      morphAnim: null,
+      morphFade: null,
     };
     this.sections.set(id, handle);
 
@@ -667,15 +713,62 @@ export class NotepadView extends FileView {
     handle.content.empty();
     const row = handle.content.createDiv("notepad-section-collapsed");
     const label = row.createDiv("notepad-section-title");
+    const text = label.createSpan("notepad-section-title-text");
     if (title.trim().length > 0) {
-      label.setText(title);
+      text.setText(title);
     } else {
       label.addClass("is-empty");
-      label.setText("Untitled");
+      text.setText("Untitled");
+    }
+    // A printed-contents line: dotted leader, then a quiet meta — the page's
+    // last-update time first, word count second. The invariant date anchors
+    // the line's start (and aligns into a column across rows, tabular
+    // figures); the variable-width count hangs at the tail. The time rides
+    // the app's locale (moment L LT); pages never edited by a tracking
+    // build fall back to the container file's mtime, and the exact
+    // timestamp rides the tooltip.
+    row.createDiv("notepad-section-tocleader");
+    const words = this.countNoteWords(handle.id);
+    const meta: string[] = [];
+    const modifiedAt =
+      this.notepad?.note(handle.id)?.modifiedAt ?? this.file?.stat.mtime;
+    if (modifiedAt != null) {
+      meta.push(momentFormat(modifiedAt, "L LT"));
+    }
+    meta.push(words === 0 ? "Empty" : words === 1 ? "1 word" : `${words} words`);
+    const metaEl = row.createSpan({
+      cls: "notepad-section-meta",
+      text: meta.join(" · "),
+    });
+    if (modifiedAt != null) {
+      // The tooltip carries the exact stamp with seconds — some locales'
+      // LLLL already embeds the time, so a composed format would double it.
+      metaEl.setAttr("title", momentFormat(modifiedAt, "YYYY-MM-DD HH:mm:ss"));
     }
     row.addEventListener("click", () =>
       this.toggleSection(handle.id, { expand: true }),
     );
+  }
+
+  /** Rough word count of the page's stored JSON (text nodes only) — the
+   *  folded row shows it as its TOC meta. Whitespace-split tokens: close
+   *  enough for a quiet row label, cheap enough to run on every fold. */
+  private countNoteWords(id: string): number {
+    const visit = (node: unknown): number => {
+      if (node == null || typeof node !== "object") return 0;
+      const rec = node as { text?: unknown; content?: unknown };
+      let words = 0;
+      if (typeof rec.text === "string") {
+        for (const token of rec.text.split(/\s+/)) {
+          if (token.length > 0) words++;
+        }
+      }
+      if (Array.isArray(rec.content)) {
+        for (const child of rec.content) words += visit(child);
+      }
+      return words;
+    };
+    return visit(this.notepad?.noteContent(id) ?? null);
   }
 
   /** Re-render the collapsed title text after inline editing. */
@@ -693,11 +786,12 @@ export class NotepadView extends FileView {
     const title = descriptor?.title ?? "";
     const row = handle.content.createDiv("notepad-section-collapsed is-static");
     const label = row.createDiv("notepad-section-title");
+    const text = label.createSpan("notepad-section-title-text");
     if (title.trim().length > 0) {
-      label.setText(title);
+      text.setText(title);
     } else {
       label.addClass("is-empty");
-      label.setText("Untitled");
+      text.setText("Untitled");
     }
   }
 
@@ -710,6 +804,189 @@ export class NotepadView extends FileView {
 
   // ── Expand / collapse ──
 
+  // ── Fold morph (row ↔ page) ──
+  // The morph is Notion's: the row keeps its height while the page builds,
+  // then the frame grows to the page's natural height and the new content
+  // fades in. Height is driven by WAAPI because the page mounts lazily —
+  // the editor builds after an await, and a CSS-only transition would
+  // animate an empty body. Chrome (frame, margins, gutter) rides along via
+  // CSS transitions timed by --ins-morph.
+  private static readonly FOLD_MORPH_MS = 280;
+
+  private prefersReducedMotion(): boolean {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  }
+
+  /** Cancel an in-flight morph and release the body's pin. */
+  private clearFoldMorph(handle: SectionHandle): void {
+    handle.morphAnim?.cancel();
+    handle.morphAnim = null;
+    this.releaseHiddenContent(handle);
+    handle.body.setCssProps({
+      "--fold-pin-height": "",
+      "--fold-pin-overflow": "",
+    });
+  }
+
+  /** End the dissolve phase and give the content its natural opacity back.
+   *  All in the same frame as the reveal animation starts, so nothing
+   *  flashes in between. */
+  private releaseHiddenContent(handle: SectionHandle): void {
+    const fade = handle.morphFade;
+    handle.morphFade = null;
+    if (fade) {
+      // Jump a still-running dissolve to its end before cancelling: the
+      // reveal must start from fully hidden, never from a half-faded row.
+      try {
+        if (fade.playState === "running") fade.finish();
+      } catch {
+        /* already finished or cancelled */
+      }
+      fade.cancel();
+    }
+  }
+
+  /** Phase one of the morph: dissolve whatever the body shows (the folded
+   *  row when expanding, the page when folding) while the other state is
+   *  being built. The DOM swap then happens invisibly — the eye never sees
+   *  the row's 15px title restyle into the page's h1, which is the "step"
+   *  a plain swap produces. */
+  private hideFoldContent(handle: SectionHandle): Animation {
+    handle.morphFade?.cancel();
+    const fade = handle.content.animate(
+      [{ opacity: 1 }, { opacity: 0 }],
+      { duration: 110, easing: "ease-out", fill: "forwards" },
+    );
+    handle.morphFade = fade;
+    return fade;
+  }
+
+  /** Pin the body at its current height so the DOM swap (row → editor)
+   *  doesn't jump while the editor builds. Returns the pinned height, or
+   *  0 when motion is reduced (no pin, no morph). */
+  private pinFoldMorph(handle: SectionHandle): number {
+    this.clearFoldMorph(handle);
+    const fromH = handle.body.offsetHeight;
+    if (this.prefersReducedMotion()) return 0;
+    // `clip`, not `hidden`: hidden still makes the body a scroll container,
+    // so a scroll-into-view during the build (editor autofocus, focus) lands
+    // on the body itself — the morph then reveals a pre-scrolled page and
+    // the unpin resets the scroll, snapping the content down. Clip just
+    // clips: nothing can scroll the pin.
+    handle.body.setCssProps({
+      "--fold-pin-height": `${fromH}px`,
+      "--fold-pin-overflow": CSS.supports("overflow", "clip")
+        ? "clip"
+        : "hidden",
+    });
+    return fromH;
+  }
+
+  /** Phase two of the morph: animate the pinned body to its natural height
+   *  while the swapped-in content fades in, rising slightly into the growing
+   *  frame. `fromH === 0` (reduced motion) skips straight to natural. */
+  private playFoldMorph(handle: SectionHandle, fromH: number): void {
+    const body = handle.body;
+    this.releaseHiddenContent(handle);
+    if (fromH === 0) return;
+    // Unpin (the var falls back to natural height) to measure the target.
+    body.setCssProps({ "--fold-pin-height": "" });
+    const toH = body.offsetHeight;
+    if (toH === fromH) {
+      this.clearFoldMorph(handle);
+      return;
+    }
+    body.setCssProps({ "--fold-pin-height": `${fromH}px` });
+    const anim = body.animate(
+      [{ height: `${fromH}px` }, { height: `${toH}px` }],
+      {
+        duration: NotepadView.FOLD_MORPH_MS,
+        easing: "cubic-bezier(0.25, 0.8, 0.25, 1)",
+      },
+    );
+    // The swapped-in content rises into the growing frame as it fades —
+    // starting from fully hidden, so no intermediate state of the two
+    // text styles is ever visible at full opacity.
+    handle.content.animate(
+      [
+        { opacity: 0, transform: "translateY(6px)" },
+        { opacity: 1, transform: "none" },
+      ],
+      { duration: NotepadView.FOLD_MORPH_MS, easing: "ease-out" },
+    );
+    handle.morphAnim = anim;
+    const finishMorph = () => {
+      if (handle.morphAnim !== anim) return;
+      // Release the pin; if the natural height has drifted from the
+      // measured target (an asset landed late anyway), glide the
+      // difference instead of letting the unpin snap.
+      body.setCssProps({ "--fold-pin-height": "" });
+      const natural = body.getBoundingClientRect().height;
+      if (Math.abs(natural - toH) <= 0.5) {
+        this.clearFoldMorph(handle);
+        return;
+      }
+      body.setCssProps({ "--fold-pin-height": `${toH}px` });
+      const corr = body.animate(
+        [{ height: `${toH}px` }, { height: `${natural}px` }],
+        { duration: 120, easing: "ease-out" },
+      );
+      handle.morphAnim = corr;
+      corr.finished
+        .then(() => {
+          if (handle.morphAnim === corr) this.clearFoldMorph(handle);
+        })
+        .catch(() => this.clearFoldMorph(handle));
+      window.setTimeout(() => {
+        if (handle.morphAnim === corr) this.clearFoldMorph(handle);
+      }, 500);
+    };
+    anim.finished.then(finishMorph).catch(() => {
+      /* cancelled — a newer morph owns the body */
+    });
+    // Hidden panes freeze WAAPI: never let the pin outlive the morph by
+    // more than a grace period — the fold then completes without the
+    // animation instead of never (same reasoning as the collapse race).
+    window.setTimeout(finishMorph, NotepadView.FOLD_MORPH_MS + 400);
+  }
+
+  /** Resolve once the section's height-affecting assets are laid out:
+   *  image decode and font swap. Capped — a slow asset delays the unfold
+   *  by at most the cap (the row stays dissolved on the pinned frame),
+   *  and the corrective settle absorbs whatever still lands late. */
+  private async settleSectionAssets(handle: SectionHandle): Promise<void> {
+    const body = handle.body;
+    const waits: Promise<void>[] = [];
+    if (document.fonts?.status !== "loaded") {
+      waits.push(document.fonts.ready.then(() => undefined));
+    }
+    for (const img of Array.from(body.querySelectorAll("img"))) {
+      if (img.complete) continue;
+      waits.push(
+        new Promise<void>((resolve) => {
+          img.addEventListener("load", () => resolve(), { once: true });
+          img.addEventListener("error", () => resolve(), { once: true });
+        }),
+      );
+    }
+    if (!waits.length) return;
+    await Promise.race([
+      Promise.all(waits),
+      new Promise<void>((resolve) => window.setTimeout(resolve, 1200)),
+    ]);
+  }
+
+  /** Fold layout transitions (margins) must not run while a caller measures
+   *  scroll targets — a mid-transition margin skews the math by up to the
+   *  rhythm delta. Kill them for one morph duration, then restore. */
+  private settleFoldLayout(): void {
+    this.contentEl.addClass("is-jumping");
+    window.setTimeout(
+      () => this.contentEl.removeClass("is-jumping"),
+      NotepadView.FOLD_MORPH_MS + 70,
+    );
+  }
+
   private toggleSection(id: string, opts?: { expand?: boolean }): void {
     // The title page is the fixed cover: never folded, never expanded by
     // the fold toggle (spec 9.1).
@@ -717,13 +994,16 @@ export class NotepadView extends FileView {
     if (!descriptor || descriptor.order === 0) return;
     const isFolded = !this.notepad?.isExpanded(id);
     if (!isFolded && opts?.expand === true) return; // already expanded
+    // Mid-morph pages ignore the toggle: the collapse's dissolve phase and
+    // the expand's build phase each own the section exclusively.
+    if (this.pendingCollapses.has(id)) return;
     if (isFolded) void this.expandSection(id, { focus: true });
     else void this.collapseSection(id);
   }
 
   private async expandSection(
     id: string,
-    opts?: { focus?: boolean; autofocus?: boolean },
+    opts?: { focus?: boolean; autofocus?: boolean; morph?: boolean },
   ): Promise<void> {
     const notepad = this.notepad;
     const handle = this.sections.get(id);
@@ -734,7 +1014,12 @@ export class NotepadView extends FileView {
     const content = notepad.noteContent(id);
     if (content == null) return;
     // Already expanded (or expansion in flight) — nothing to build.
-    if (handle.editor != null || this.pendingExpansions.has(id)) {
+    // Also stand down while a collapse is dissolving this page.
+    if (
+      handle.editor != null ||
+      this.pendingExpansions.has(id) ||
+      this.pendingCollapses.has(id)
+    ) {
       notepad.setExpanded(id, true);
       this.scheduleSave();
       if (opts?.focus) handle.editor?.view.focus();
@@ -745,20 +1030,42 @@ export class NotepadView extends FileView {
     try {
       notepad.setExpanded(id, true);
       this.scheduleSave();
-      handle.root.addClass("is-expanded");
-      handle.content.empty();
+      // Pin the row height BEFORE the class flip so the swap below doesn't
+      // jump; the editor builds behind the pin, then the frame unfolds.
+      const morphH = opts?.morph === false ? 0 : this.pinFoldMorph(handle);
+      // On a morph the flip is deferred to the morph start: the chrome and
+      // rhythm transitions must begin in the same frame as the height
+      // animation, or a slow-building page shows the neighbors' margin
+      // slide finishing visibly before the fold starts (a two-phase move).
+      if (morphH === 0) handle.root.addClass("is-expanded");
 
       const noteEl = makeNoteElement();
       noteEl.addClass("notepad-note-host");
-      handle.content.appendChild(noteEl);
       handle.noteEl = noteEl;
+      if (morphH === 0) {
+        // Reduced motion, or a measured jump (nav): swap immediately.
+        handle.content.empty();
+        handle.content.appendChild(noteEl);
+      } else {
+        // The folded row stays on screen while the page builds (the click
+        // feels instant) and dissolves underneath it; the page then fades
+        // in rising into the unfolding frame. Swapping the DOM while the
+        // body is visually empty is what removes the restyle "step".
+        this.hideFoldContent(handle);
+        handle.content.appendChild(noteEl);
+      }
 
       const editor = await this.createEditorForSection(handle, content, {
-        autofocus: opts?.autofocus,
+        // No editor autofocus while morphing: PM's scroll-to-selection at
+        // creation must not scroll anything while the body is pinned (the
+        // real focus is applied after the morph via opts.focus). Unpinned
+        // mounts keep the caller's autofocus (background mounts pass false).
+        autofocus: morphH !== 0 ? false : opts?.autofocus,
       });
       if (editor == null) {
         handle.noteEl = null;
         noteEl.remove();
+        this.clearFoldMorph(handle);
         if (notepad.note(handle.id)?.order === 0) {
           // The title page never folds (spec 9.1): keep the section open
           // and show a static header row instead of the collapsed title.
@@ -774,7 +1081,30 @@ export class NotepadView extends FileView {
         return;
       }
       handle.editor = editor;
-      if (opts?.focus) editor.view.focus();
+      // The row has dissolved — swap it out unseen, then unfold the page.
+      handle.content
+        .querySelector<HTMLElement>(":scope > .notepad-section-collapsed")
+        ?.remove();
+      if (morphH !== 0) {
+        // A page whose images decode (or fonts swap) after the height
+        // target is measured lands the morph on a stale frame — the pin
+        // release then snaps. Wait, capped, for the height-affecting
+        // assets; the corrective settle in playFoldMorph absorbs what
+        // still lands late.
+        await this.settleSectionAssets(handle);
+      }
+      handle.root.addClass("is-expanded");
+      this.playFoldMorph(handle, morphH);
+      if (opts?.focus) {
+        // Focus only after the morph settles: an immediate focus() can
+        // scroll the still-animating body (overflow clip) and kill the
+        // motion — same reasoning as jumpToPage's delayed focus.
+        if (morphH === 0) editor.view.focus();
+        else
+          window.setTimeout(() => {
+            if (!editor.isDestroyed) editor.view.focus();
+          }, NotepadView.FOLD_MORPH_MS + 20);
+      }
     } finally {
       this.pendingExpansions.delete(id);
     }
@@ -783,36 +1113,67 @@ export class NotepadView extends FileView {
   private async collapseSection(id: string): Promise<void> {
     const handle = this.sections.get(id);
     if (!handle || this.notepad?.isExpanded(id) !== true) return;
+    // A collapse is two phases now (dissolve, then fold) — a second toggle
+    // while the page is dissolving must not tear it down twice.
+    if (this.pendingCollapses.has(id) || this.pendingExpansions.has(id)) return;
+    this.pendingCollapses.add(id);
+    try {
+      // Pin the page height before tearing it down so the swap to the row
+      // animates instead of snapping (0 = reduced motion, no morph).
+      const morphH = this.pinFoldMorph(handle);
+      if (morphH !== 0) {
+        // Phase one: dissolve the page BEFORE teardown — the eye sees the
+        // text fade away, then the frame folds shut around the row fading
+        // back in. The editor stays alive during the 110ms fade. The race
+        // guards frozen animations (hidden pane: WAAPI never advances) —
+        // the fold then completes without the dissolve, not never.
+        const fade = this.hideFoldContent(handle);
+        await Promise.race([
+          fade.finished.catch(() => {}),
+          new Promise<void>((resolve) =>
+            window.setTimeout(resolve, NotepadView.FOLD_MORPH_MS),
+          ),
+        ]);
+      }
+      // The dissolve wait races the view's teardown (which nulls
+      // this.notepad) and rebuilds (which replaces the section's handle) —
+      // a stale collapse must not write the model or fold a page it no
+      // longer owns. The user's toggle is dropped; the rebuilt section is
+      // consistent with the untouched model.
+      if (this.notepad == null || this.sections.get(id) !== handle) return;
+      // Flush the editor content into the in-memory notepad first.
+      this.flushSectionToNotepad(handle);
 
-    // Flush the editor content into the in-memory notepad first.
-    this.flushSectionToNotepad(handle);
+      const ownedToolbar = this.toolbarEl?.props.editor === handle.editor;
+      if (this.focusedEditorValue === handle.editor) {
+        this.focusedEditorValue = null;
+      }
 
-    const ownedToolbar = this.toolbarEl?.props.editor === handle.editor;
-    if (this.focusedEditorValue === handle.editor) {
-      this.focusedEditorValue = null;
+      this.notepad.setExpanded(id, false);
+      this.scheduleSave();
+      handle.root.removeClass("is-expanded");
+      for (const el of handle.bubbleEls) el.remove();
+      handle.bubbleEls = [];
+      // Detach the dying editor before rebinding: the toolbar must not be
+      // handed to an editor that is about to be destroyed.
+      handle.editor = null;
+      handle.editorRef.current = null;
+      if (ownedToolbar) this.rebindOrIdleToolbar();
+      // Removing the element destroys the editor (NoteElement cleanup).
+      handle.noteEl?.remove();
+      handle.noteEl = null;
+      handle.content.empty();
+
+      const descriptor = this.notepad?.note(id);
+      this.renderCollapsedTitle(handle, descriptor?.title ?? "");
+      // The flush above may have synced a title edited in the page's first
+      // line — the nav list must show it right away, not after the next
+      // rebuild (nav open / add / delete).
+      this.rebuildNavList();
+      this.playFoldMorph(handle, morphH);
+    } finally {
+      this.pendingCollapses.delete(id);
     }
-
-    this.notepad.setExpanded(id, false);
-    this.scheduleSave();
-    handle.root.removeClass("is-expanded");
-    for (const el of handle.bubbleEls) el.remove();
-    handle.bubbleEls = [];
-    // Detach the dying editor before rebinding: the toolbar must not be
-    // handed to an editor that is about to be destroyed.
-    handle.editor = null;
-    handle.editorRef.current = null;
-    if (ownedToolbar) this.rebindOrIdleToolbar();
-    // Removing the element destroys the editor (NoteElement cleanup).
-    handle.noteEl?.remove();
-    handle.noteEl = null;
-    handle.content.empty();
-
-    const descriptor = this.notepad?.note(id);
-    this.renderCollapsedTitle(handle, descriptor?.title ?? "");
-    // The flush above may have synced a title edited in the page's first
-    // line — the nav list must show it right away, not after the next
-    // rebuild (nav open / add / delete).
-    this.rebuildNavList();
   }
 
   /** Copy the live editor JSON into the notepad model (change-gated, so
@@ -927,10 +1288,16 @@ export class NotepadView extends FileView {
     );
 
     if (!isMobile) {
-      // The toolbar is always visible: bind it to the most recently
-      // expanded page right away (focus re-binds it later).
-      this.ensureToolbar(editor);
+      // Bubble menus first: the toolbar build below docks this section's
+      // table bar (handle.tableBubbleEl, created here). Building the toolbar
+      // first left tableBar undefined, and with a single expanded page
+      // nothing ever re-binds it — the table menu never appeared.
       this.createBubbleMenus(editor, handle);
+      // The toolbar is always visible: bind it to the most recently
+      // expanded page right away (focus re-binds it later). The handle is
+      // passed explicitly: handle.editor is only assigned after this call
+      // returns, so the editor-based lookup in rebuildToolbar finds nothing.
+      this.ensureToolbar(editor, handle);
       // Restore heading/task folds saved for this page (desktop only —
       // folding is disabled on mobile; mirrors NoteView's device-local
       // fold persistence).
@@ -1051,19 +1418,27 @@ export class NotepadView extends FileView {
 
   // ── Toolbar (always visible; follows the focused section) ──
 
-  private ensureToolbar(editor: Editor): void {
+  private ensureToolbar(editor: Editor, owner?: SectionHandle): void {
     if (this.toolbarEl != null && this.toolbarEl.props.editor === editor)
       return;
-    this.rebuildToolbar(editor);
+    this.rebuildToolbar(editor, owner);
   }
 
-  private rebuildToolbar(editor: Editor): void {
+  private rebuildToolbar(editor: Editor, owner?: SectionHandle): void {
     this.destroyToolbar();
     if (!this.toolbarHost) return;
     const toolbarEl = makeToolbarElement();
     toolbarEl.addClass("notepad-toolbar");
     toolbarEl.setAttribute("data-ignore-swipe", "true");
     toolbarEl.props.editor = editor;
+    // The section owning this editor provides the table controls docked into
+    // the toolbar while the focus is inside a table (mirrors NoteView). At
+    // mount time handle.editor is not yet assigned (it lands in expandSection
+    // after createEditorForSection returns), so the owner is passed
+    // explicitly; later callers resolve it by editor.
+    const ownerHandle =
+      owner ?? [...this.sections.values()].find((h) => h.editor === editor);
+    toolbarEl.props.tableBar = ownerHandle?.tableBubbleEl ?? undefined;
     this.toolbarEl = toolbarEl;
     this.toolbarHost.appendChild(toolbarEl);
   }
@@ -1338,8 +1713,11 @@ export class NotepadView extends FileView {
     if (!handle || !this.notepad) return;
     if (handle.editor == null) {
       // No mount autofocus: the smooth scroll below must own the movement —
-      // an editor scrolling itself into view would snap the jump.
-      void this.expandSection(id, { focus: false, autofocus: false });
+      // an editor scrolling itself into view would snap the jump. No morph
+      // either: the scroll target is measured 60ms from now, and a body
+      // growing under the measurement would land the jump short.
+      this.settleFoldLayout();
+      void this.expandSection(id, { focus: false, autofocus: false, morph: false });
     }
     window.setTimeout(() => {
       const scroller = this.scrollerEl;
@@ -1383,6 +1761,10 @@ export class NotepadView extends FileView {
     };
     window.addEventListener("pointermove", this.onDragPointerMove);
     window.addEventListener("pointerup", this.onDragPointerUp);
+    // Capture phase: while the drag holds the pointer it owns the
+    // interaction, so Escape must not reach the focused page's editor
+    // (ProseMirror reactions, bubble menu) first.
+    window.addEventListener("keydown", this.onDragKeyDown, true);
   }
 
   private onDragPointerMove = (event: PointerEvent): void => {
@@ -1406,6 +1788,7 @@ export class NotepadView extends FileView {
   private onDragPointerUp = (event: PointerEvent): void => {
     window.removeEventListener("pointermove", this.onDragPointerMove);
     window.removeEventListener("pointerup", this.onDragPointerUp);
+    window.removeEventListener("keydown", this.onDragKeyDown, true);
     const drag = this.drag;
     this.drag = null;
     this.dropLineEl?.remove();
@@ -1414,6 +1797,18 @@ export class NotepadView extends FileView {
 
     const handle = this.sections.get(drag.id);
     handle?.root.removeClass("is-dragging");
+    if (drag.canceled) {
+      // The click follows the release pointerup synchronously (same
+      // premise as the active-drag swallow below), so arming the swallow
+      // exactly here covers a release long after Esc — and the listener
+      // pair is gone the moment the release lands, so a later ordinary
+      // gutter click toggles as usual.
+      this.suppressGutterToggle = true;
+      window.setTimeout(() => {
+        this.suppressGutterToggle = false;
+      }, 0);
+      return;
+    }
     if (!drag.active) return; // plain click — the gutter click toggles
     // Swallow the click that follows a completed drag.
     this.suppressGutterToggle = true;
@@ -1428,6 +1823,31 @@ export class NotepadView extends FileView {
       void this.flushSave("drag-reorder");
     }
   };
+
+  private onDragKeyDown = (event: KeyboardEvent): void => {
+    if (event.key !== "Escape" || !this.drag) return;
+    event.preventDefault();
+    event.stopPropagation();
+    this.cancelDrag();
+  };
+
+  /** Esc during a drag (even before the 6px activation): discard the move
+   *  entirely. The pointer is still down — the eventual release must not
+   *  reorder, nor toggle the fold the release click would otherwise fire.
+   *  The pointerup listener stays armed for exactly that release; marking
+   *  the drag canceled routes its handling into onDragPointerUp's swallow,
+   *  which also cleans the listener up — nothing outlives the interaction. */
+  private cancelDrag(): void {
+    const drag = this.drag;
+    if (!drag) return;
+    drag.canceled = true;
+    window.removeEventListener("pointermove", this.onDragPointerMove);
+    window.removeEventListener("keydown", this.onDragKeyDown, true);
+    const handle = this.sections.get(drag.id);
+    handle?.root.removeClass("is-dragging");
+    this.dropLineEl?.remove();
+    this.dropLineEl = null;
+  }
 
   /** The title page's note id (order 0) — excluded from drag geometry. */
   private titleSectionId(): string | null {
@@ -1445,9 +1865,11 @@ export class NotepadView extends FileView {
     for (const other of others) {
       if (clientY > other.rect.top + other.rect.height / 2) index++;
     }
-    // The title page is fixed at index 0 — a drop never lands above page 1
-    // (spec 9.1: the cover cannot be reordered).
-    return Math.max(index, 1);
+    // moveNote's index spans the full descriptor list, where the title page
+    // is fixed at slot 0 (spec 9.1: the cover cannot be reordered) — the
+    // midpoint count above skips it, so offset by one. The minimum result
+    // is the slot right after the title: a drop never lands above page 1.
+    return index + 1;
   }
 
   private updateDropLine(clientY: number): void {
@@ -1455,22 +1877,32 @@ export class NotepadView extends FileView {
     // and TS cannot see that `this.drag` hasn't changed in between.
     const drag = this.drag;
     if (!this.dropLineEl || !drag || !this.sectionsEl) return;
+    // The line is absolutely positioned inside .notepad-sections (its
+    // position: relative containing block), so its top must be expressed
+    // relative to that box. offsetTop of a section is measured from the
+    // nearest positioned ancestor ABOVE the scroller — a scroll-immune
+    // layout value — which ignored the scroller's scrollTop and pushed the
+    // line down by exactly the scrolled amount on long documents. Measure
+    // both sides in viewport coords and map into the sections box instead.
+    const sectionsTop = this.sectionsEl.getBoundingClientRect().top;
     const titleId = this.titleSectionId();
     const others = [...this.sections.values()]
       .filter((h) => h.id !== drag.id && h.id !== titleId)
-      .map((h) => ({ root: h.root }))
-      .sort((a, b) => a.root.offsetTop - b.root.offsetTop);
+      .map((h) => h.root)
+      .sort(
+        (a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top,
+      );
     let top: number | null = null;
     for (const other of others) {
-      const rect = other.root.getBoundingClientRect();
+      const rect = other.getBoundingClientRect();
       if (clientY < rect.top + rect.height / 2) {
-        top = other.root.offsetTop - 4;
+        top = rect.top - sectionsTop - 4;
         break;
       }
     }
     if (top == null) {
       const last = others[others.length - 1];
-      top = last ? last.root.offsetTop + last.root.offsetHeight - 2 : 0;
+      top = last ? last.getBoundingClientRect().bottom - sectionsTop - 2 : 0;
     }
     this.dropLineEl.style.top = `${top}px`;
   }
@@ -1609,9 +2041,12 @@ export class NotepadView extends FileView {
       return;
     }
     // Mount the page quietly (no autofocus): the search input keeps focus.
+    // No morph: revealSearchMatch measures the match's position right after
+    // the mount, and a growing body would skew it.
     void this.expandSection(match.noteId, {
       focus: false,
       autofocus: false,
+      morph: false,
     }).then(() => this.revealSearchMatch(match));
   }
 
@@ -1655,16 +2090,32 @@ export class NotepadView extends FileView {
   private createBubbleMenus(editor: Editor, handle: SectionHandle): void {
     const bubbleMenuBarEl = makeBubbleMenuBarElement();
     const tableBubbleMenuEl = makeTableBubbleMenuElement();
+    const tableCellsBubbleMenuEl = makeTableCellsBubbleMenuElement();
     const mediaBubbleMenuEl = makeMediaBubbleMenuElement();
     bubbleMenuBarEl.addClass("bubble-menu-bar-host");
     tableBubbleMenuEl.addClass("table-bubble-menu-bar-host");
+    tableCellsBubbleMenuEl.addClass("bubble-menu-bar-host");
     mediaBubbleMenuEl.addClass("bubble-menu-bar-host");
-    handle.bubbleEls = [bubbleMenuBarEl, tableBubbleMenuEl, mediaBubbleMenuEl];
+    handle.bubbleEls = [
+      bubbleMenuBarEl,
+      tableBubbleMenuEl,
+      tableCellsBubbleMenuEl,
+      mediaBubbleMenuEl,
+    ];
+    handle.tableBubbleEl = tableBubbleMenuEl;
     this.contentEl.appendChild(bubbleMenuBarEl);
-    this.contentEl.appendChild(tableBubbleMenuEl);
+    this.contentEl.appendChild(mediaBubbleMenuEl);
+    // Table controls dock into the toolbar (like mobile); there is no
+    // floating table bubble menu anymore. The cells-format bubble element
+    // lives inside its tippy popup once the plugin below is registered (it
+    // is detached from contentEl on first show), so park it in the DOM
+    // until then.
+    this.contentEl.appendChild(tableCellsBubbleMenuEl);
     this.contentEl.appendChild(mediaBubbleMenuEl);
     bubbleMenuBarEl.props.editor = editor;
     tableBubbleMenuEl.props.editor = editor;
+    tableCellsBubbleMenuEl.props.editor = editor;
+    tableCellsBubbleMenuEl.props.pluginKey = `nb-table-cells-${handle.id}`;
     mediaBubbleMenuEl.props.editor = editor;
     // Required prop of the media menu (open/delete actions route through
     // the app); without it the element's generator never starts.
@@ -1701,11 +2152,15 @@ export class NotepadView extends FileView {
       }),
     );
 
+    // Table controls live in the toolbar (rebuildToolbar docks
+    // handle.tableBubbleEl while the focus is in a table). This floating
+    // plugin serves only the multi-cell selection: text formatting applied
+    // to every selected cell.
     editor.registerPlugin(
       bubbleMenuPlugin({
-        pluginKey: `nb-table-${handle.id}`,
+        pluginKey: `nb-table-cells-${handle.id}`,
         editor,
-        element: tableBubbleMenuEl,
+        element: tableCellsBubbleMenuEl,
         shouldShow: function (
           this: BubbleMenuView,
           { editor, state }: ShouldShowProps,
@@ -1719,8 +2174,8 @@ export class NotepadView extends FileView {
             return false;
           const selection = state.selection;
           return (
-            isInTable(state) &&
-            (selection.empty || selection instanceof CellSelection)
+            selection instanceof CellSelection &&
+            getTableMenuState(state).multiCell
           );
         },
         tippyOptions: { placement: "top", offset: [0, 8] },
