@@ -580,7 +580,6 @@ button.notepad-section-gutter:hover {
    The title column starts where the OPEN page's text column starts (the
    48px editor side padding), so unfolding never shifts the text. */
 .notepad-section-collapsed {
-  display: flex;
   align-items: baseline;
   padding: 13px 20px 13px 8px;
   cursor: pointer;
