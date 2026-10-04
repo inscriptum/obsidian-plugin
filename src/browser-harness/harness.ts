@@ -297,6 +297,8 @@ export interface NotepadPageSpec {
   title?: string;
   /** Raw page body; overrides `paragraphs` (used to mount tables etc.). */
   doc?: JSONContent[];
+  /** Mount the page expanded (default true — drag geometry needs editors). */
+  expanded?: boolean;
 }
 
 /** The private fields mountNotepad needs to populate in place of onOpen. */
@@ -322,7 +324,10 @@ function noteParagraphs(prefix: string, count: number): JSONContent[] {
   return out;
 }
 
-function mountNotepad(pages: NotepadPageSpec[]): string {
+function mountNotepad(
+  pages: NotepadPageSpec[],
+  opts?: { titleExpanded?: boolean; titleDoc?: JSONContent[] },
+): string {
   const notes = new Map<string, JSONContent>();
   const descriptors: UmNoteDescriptor[] = [
     {
@@ -332,19 +337,20 @@ function mountNotepad(pages: NotepadPageSpec[]): string {
       title: "Notepad title",
       schema: UM_SCHEMA_TITLE,
       schemaVersion: UM_SCHEMA_VERSION,
-      expanded: true,
+      expanded: opts?.titleExpanded ?? true,
     },
   ];
   notes.set("title-page", {
     type: "noteDoc",
-    content: [
-      {
-        type: "noteTitle",
-        content: [{ type: "text", text: "Notepad title" }],
-      },
-      { type: "noteSummary" },
-      { type: "paragraph" },
-    ],
+    content:
+      opts?.titleDoc ?? [
+        {
+          type: "noteTitle",
+          content: [{ type: "text", text: "Notepad title" }],
+        },
+        { type: "noteSummary" },
+        { type: "paragraph" },
+      ],
   });
   pages.forEach((page, i) => {
     descriptors.push({
@@ -355,7 +361,7 @@ function mountNotepad(pages: NotepadPageSpec[]): string {
       schema: UM_SCHEMA_PLAIN,
       schemaVersion: UM_SCHEMA_VERSION,
       // Open every page so the drag geometry runs against real editors.
-      expanded: true,
+      expanded: page.expanded ?? true,
     });
     notes.set(page.id, {
       type: "noteDoc",

@@ -1288,10 +1288,16 @@ export class NotepadView extends FileView {
     );
 
     if (!isMobile) {
-      // The toolbar is always visible: bind it to the most recently
-      // expanded page right away (focus re-binds it later).
-      this.ensureToolbar(editor);
+      // Bubble menus first: the toolbar build below docks this section's
+      // table bar (handle.tableBubbleEl, created here). Building the toolbar
+      // first left tableBar undefined, and with a single expanded page
+      // nothing ever re-binds it — the table menu never appeared.
       this.createBubbleMenus(editor, handle);
+      // The toolbar is always visible: bind it to the most recently
+      // expanded page right away (focus re-binds it later). The handle is
+      // passed explicitly: handle.editor is only assigned after this call
+      // returns, so the editor-based lookup in rebuildToolbar finds nothing.
+      this.ensureToolbar(editor, handle);
       // Restore heading/task folds saved for this page (desktop only —
       // folding is disabled on mobile; mirrors NoteView's device-local
       // fold persistence).
@@ -1412,13 +1418,13 @@ export class NotepadView extends FileView {
 
   // ── Toolbar (always visible; follows the focused section) ──
 
-  private ensureToolbar(editor: Editor): void {
+  private ensureToolbar(editor: Editor, owner?: SectionHandle): void {
     if (this.toolbarEl != null && this.toolbarEl.props.editor === editor)
       return;
-    this.rebuildToolbar(editor);
+    this.rebuildToolbar(editor, owner);
   }
 
-  private rebuildToolbar(editor: Editor): void {
+  private rebuildToolbar(editor: Editor, owner?: SectionHandle): void {
     this.destroyToolbar();
     if (!this.toolbarHost) return;
     const toolbarEl = makeToolbarElement();
@@ -1426,13 +1432,13 @@ export class NotepadView extends FileView {
     toolbarEl.setAttribute("data-ignore-swipe", "true");
     toolbarEl.props.editor = editor;
     // The section owning this editor provides the table controls docked into
-    // the toolbar while the focus is inside a table (mirrors NoteView).
-    for (const handle of this.sections.values()) {
-      if (handle.editor === editor) {
-        toolbarEl.props.tableBar = handle.tableBubbleEl ?? undefined;
-        break;
-      }
-    }
+    // the toolbar while the focus is inside a table (mirrors NoteView). At
+    // mount time handle.editor is not yet assigned (it lands in expandSection
+    // after createEditorForSection returns), so the owner is passed
+    // explicitly; later callers resolve it by editor.
+    const ownerHandle =
+      owner ?? [...this.sections.values()].find((h) => h.editor === editor);
+    toolbarEl.props.tableBar = ownerHandle?.tableBubbleEl ?? undefined;
     this.toolbarEl = toolbarEl;
     this.toolbarHost.appendChild(toolbarEl);
   }

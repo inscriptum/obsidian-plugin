@@ -186,6 +186,52 @@ test.describe("table toolbar dock + cells bubble", () => {
     await expect(buttons.first()).toBeVisible();
   });
 
+  test("table bar docks when the table lives on the only expanded page", async ({
+    page,
+  }) => {
+    // Regression for the ins.um shape: the table lives on the title page,
+    // the notepad's one and only editor. The toolbar was built before the
+    // section's table bar existed AND its owner lookup failed (handle.editor
+    // is assigned after the editor factory returns), so tableBar stayed
+    // undefined and the focus handler early-returned on the already-bound
+    // toolbar — the table menu never appeared. The multi-page mount above
+    // masks this: its click re-binds the toolbar across editors.
+    await page.goto("/tests/e2e/harness/index.html");
+    await page.waitForFunction(
+      () =>
+        Boolean((window as unknown as { __e2eNotepad?: unknown }).__e2eNotepad),
+    );
+    await page.evaluate(
+      ({ pages, opts }) => window.__e2eNotepad.mount(pages, opts),
+      {
+        pages: [],
+        opts: {
+          titleDoc: [
+            {
+              type: "noteTitle",
+              content: [{ type: "text", text: "Notepad title" }],
+            },
+            { type: "noteSummary" },
+            table([
+              ["A1", "B1"],
+              ["A2", "B2"],
+            ]),
+            p("after"),
+          ],
+        },
+      },
+    );
+    await page.waitForTimeout(150);
+
+    const cellA2 = page.locator(".texto-editor td", { hasText: "A2" });
+    await clickInsideNotepadText(page, cellA2.locator("p"), "A2");
+
+    await expect(page.locator(".note-toolbar__table-bar")).toBeVisible();
+    await expect(page.locator(".note-toolbar .note-toolbar__btn")).toHaveCount(
+      0,
+    );
+  });
+
   test("multi-cell selection opens the cells bubble; bold applies to all selected cells", async ({
     page,
   }) => {
