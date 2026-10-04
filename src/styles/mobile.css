@@ -304,7 +304,7 @@
   display: none;
 }
 
-/* Layers ("Styles & color", "Fill & color", table "Cell fill & text color")
+/* Layers ("Styles & color", table "Cell fill", cells "Text color")
    are NOT floating popups on mobile. The desktop layer is absolutely
    positioned above the bar — on a phone that geometry is fragile: it depends
    on the bar's on-screen position, which shifts with the soft keyboard, and a

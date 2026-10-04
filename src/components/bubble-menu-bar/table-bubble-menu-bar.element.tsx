@@ -19,7 +19,6 @@ import type {
   BorderSideName,
 } from "../../texto/extensions/table/helpers/borders";
 import type { BubbleIconName } from "../icons/iconSprite";
-import { TEXT_COLORS } from "./bubbleMenuState";
 import { bubbleIconNodes } from "./icons.svgnode";
 
   type OpenLayer = "table-color" | "table-borders" | null;
@@ -232,14 +231,6 @@ export const TableBubbleMenuElement = litView.element({
       .run();
   };
 
-  const applyCellTextColor = (color: string | null) => {
-    props.editor
-      .chain()
-      .focus()
-      .setCellsAttribute("dataColor", color ?? (null as unknown as string))
-      .run();
-  };
-
   const syncCaret = () => {
     const editor = props.editor;
     if (editor.isDestroyed || !editor.view) return;
@@ -443,11 +434,11 @@ export const TableBubbleMenuElement = litView.element({
             <button
               class={cls("bb-btn", openLayer === "table-color" && "is-active")}
               data-tbl="color"
-              data-tip="Fill & color"
+              data-tip="Cell fill"
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={toggleTableColorLayer}
             >
-              <span class="bb-aa">Aa</span>
+              {bubbleIconNodes.paintBucket()}
             </button>
             <button
               class={cls(
@@ -481,7 +472,7 @@ export const TableBubbleMenuElement = litView.element({
               openLayer === "table-color" && "show",
             )}
             role="dialog"
-            aria-label="Cell fill & text color"
+            aria-label="Cell fill"
           >
             <span class="bb-layer-caret"></span>
             <div class="bb-layer-label">Cell fill</div>
@@ -497,22 +488,6 @@ export const TableBubbleMenuElement = litView.element({
                   aria-label={sw.label}
                   onmousedown={(e: MouseEvent) => e.preventDefault()}
                   onclick={() => applyCellBg(sw.color)}
-                ></button>
-              ))}
-            </div>
-            <div class="bb-layer-sep"></div>
-            <div class="bb-layer-label">Text color</div>
-            <div class="bb-sw-row">
-              {TEXT_COLORS.map((sw) => (
-                <button
-                  class={cls(
-                    "bb-sw",
-                    `bb-sw--${sw.css}`,
-                    (sw.color ?? null) === tableState.textColor && "is-active",
-                  )}
-                  aria-label={sw.label}
-                  onmousedown={(e: MouseEvent) => e.preventDefault()}
-                  onclick={() => applyCellTextColor(sw.color)}
                 ></button>
               ))}
             </div>

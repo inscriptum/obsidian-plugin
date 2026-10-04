@@ -81,6 +81,8 @@ const BUBBLE_ICON_PATHS: Record<string, string> = {
   delCol: `<path d="M4 6v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1 -1v-14a1 1 0 0 0 -1 -1h-14a1 1 0 0 0 -1 1z"/><path d="M12 9v6"/>`,
   header: `<path d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z"/><path d="M3 10h18"/>`,
   delTable: `<path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/><path d="M9 7v-3h6v3"/>`,
+  /* Paint bucket (Lucide, MIT) — the "cell fill" button of the table panel. */
+  paintBucket: `<path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z"/>`,
   /* Border-picker schemas: a ghost (dashed, faint) cell grid with the
      affected edges drawn solid on top. */
   bdNone: `<rect x="3.5" y="4.5" width="17" height="15" rx="1.5" stroke-dasharray="2.6 2.6" opacity="0.4"/>`,

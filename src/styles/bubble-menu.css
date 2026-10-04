@@ -83,7 +83,7 @@ never keep the menu invisible. */
   display: flex;
 }
 
-/* Multi-cell selection format bar (bold / italic / fill & color) */
+/* Multi-cell selection format bar (bold / italic / text color) */
 .bubble-menu-cells-bar {
   display: none;
   align-items: center;

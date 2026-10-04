@@ -4,7 +4,7 @@ import { p, table } from "./fixtures/docs";
 /**
  * Table menus on desktop: the table controls dock into the note toolbar
  * while the focus is inside a table (no floating table bubble menu), and a
- * floating bubble with text formatting (bold / italic / fill & color)
+ * floating bubble with text formatting (bold / italic / text color)
  * appears only for a multi-cell selection — applied to every selected cell.
  * The notepad harness mounts the real NotepadView (toolbar + bubble menus).
  */
@@ -275,10 +275,13 @@ test.describe("table toolbar dock + cells bubble", () => {
       .locator(".bubble-menu-bar:has(.bubble-menu-cells-bar)")
       .locator(".bubble-menu-layer--table-color");
     await expect(layer).toBeVisible();
-    // The layer has two rows: cell fills, then text colors. The yellow text
-    // swatch is the 4th of the second row (none/violet/green/yellow/red).
-    const textRow = layer.locator(".bb-sw-row").last();
-    await textRow.locator(".bb-sw").nth(3).click();
+    // Composition: the layer is text-color only — cell fill moved to the
+    // table panel. The yellow text swatch is the 4th (none/violet/green/
+    // yellow/red).
+    await expect(layer.locator(".bb-layer-label")).toHaveText(["Text color"]);
+    const rows = layer.locator(".bb-sw-row");
+    await expect(rows).toHaveCount(1);
+    await rows.locator(".bb-sw").nth(3).click();
 
     const index = await editorWith(page, "A1");
     const attrs = await page.evaluate((i) => {
@@ -294,6 +297,47 @@ test.describe("table toolbar dock + cells bubble", () => {
     }, index);
     expect(attrs[0].dataColor).toBe("#f59e0b");
     expect(attrs[1].dataColor).toBe("#f59e0b");
+  });
+
+  test("table toolbar color layer: cell fill only, paint-bucket button", async ({
+    page,
+  }) => {
+    await mountNotepadWithTable(page);
+    const cellA2 = page.locator(".texto-editor td", { hasText: "A2" });
+    await clickInsideNotepadText(page, cellA2.locator("p"), "A2");
+    await expect(page.locator(".note-toolbar__table-bar")).toBeVisible();
+
+    // The panel's color button is the paint bucket (an svg icon), not the
+    // "Aa" glyph — that one belongs to the text/cells bubbles now.
+    const colorBtn = page.locator(
+      '.note-toolbar__table-bar [data-tbl="color"]',
+    );
+    await expect(colorBtn.locator("svg")).toHaveCount(1);
+
+    await colorBtn.click();
+    const layer = page.locator(
+      ".note-toolbar__table-bar .bubble-menu-layer--table-color",
+    );
+    await expect(layer).toBeVisible();
+    // Composition: cell fill only — no text-color row.
+    await expect(layer.locator(".bb-layer-label")).toHaveText(["Cell fill"]);
+    await expect(layer.locator(".bb-sw-row")).toHaveCount(1);
+
+    // Applying a fill still targets the current cell (violet swatch).
+    await layer.locator(".bb-sw").nth(1).click();
+    const index = await editorWith(page, "A1");
+    const attrs = await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      const out: Array<Record<string, unknown>> = [];
+      editor.state.doc.descendants((node) => {
+        if (node.type.spec.tableRole === "cell") {
+          out.push({ ...node.attrs });
+        }
+        return true;
+      });
+      return out;
+    }, index);
+    expect(attrs[0].backgroundColor).toBe("rgba(179, 163, 247, .16)");
   });
 
   test("cells bubble applies underline and clear formatting to all selected cells", async ({
