@@ -56,6 +56,7 @@ import { TableCellsBubbleMenuElement } from "./components/bubble-menu-bar/table-
 import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubble-menu-bar.element";
 import { isMediaNodeSelection } from "./components/bubble-menu-bar/mediaMenuState";
 import { getTableMenuState } from "./components/bubble-menu-bar/tableMenuState";
+import { moveTargetIndex } from "./notepad/moveTargetIndex";
 import {
   bubbleMenuPlugin,
   type BubbleMenuView,
@@ -317,6 +318,10 @@ export class NotepadView extends FileView {
     /** Phone long-press origin: a release before the 6px activation opens
      *  the page sheet instead of being a plain click. */
     phone?: boolean;
+    /** Touch/pen origin: the only drags that edge-auto-scroll (design S6).
+     *  Desktop pointer drags keep their exact positioning — tests and
+     *  habits rely on the line hugging the pointer, no scroll fight. */
+    touch?: boolean;
     /** Esc-canceled: the pointer is still down; its release must only
      *  swallow the fold toggle the release click would fire. */
     canceled?: boolean;
@@ -1384,8 +1389,9 @@ export class NotepadView extends FileView {
         // never wipe folds saved from a desktop session.
         this.syncSectionFolds(handle);
         // Edits can add/remove tables or change their widths — refresh the
-        // phone scroll state (edge fades + hint) along with the doc.
-        if (Platform.isPhone) this.syncPhoneTableWrappers(handle);
+        // phone scroll state (edge fades + hint) along with the doc. rAF-
+        // throttled: one geometry pass per frame at most, not per keystroke.
+        if (Platform.isPhone) this.schedulePhoneTableSync(handle);
       },
       extensions: getExtensions(
         this.buildExtensionHooks(notepad, editorRef, ctx),
@@ -1956,6 +1962,7 @@ export class NotepadView extends FileView {
       startX: event.clientX,
       startY: event.clientY,
       active: false,
+      touch: event.pointerType !== "mouse",
     };
     window.addEventListener("pointermove", this.onDragPointerMove);
     window.addEventListener("pointerup", this.onDragPointerUp);
@@ -2050,6 +2057,7 @@ export class NotepadView extends FileView {
 
   private startDragAutoScroll(): void {
     if (this.dragAutoScrollFrame != null) return;
+    if (!this.drag?.touch) return;
     const step = () => {
       this.dragAutoScrollFrame = null;
       const scroller = this.scrollerEl;
@@ -2166,6 +2174,7 @@ export class NotepadView extends FileView {
       startY: y,
       active: false,
       phone: true,
+      touch: true,
     };
     window.addEventListener("pointermove", this.onDragPointerMove);
     window.addEventListener("pointerup", this.onDragPointerUp);
@@ -2680,12 +2689,12 @@ export class NotepadView extends FileView {
   }
 
   /** Capture-phase click handler (armed in onOpen): while move mode is on,
-   *  a tap on a page row inserts the lifted page after it and swallows the
-   *  tap so no fold/expand fires underneath. */
+   *  a tap on a collapsed row inserts the lifted page after it and swallows
+   *  the tap so no fold/expand fires underneath. */
   private onMoveModeClick(event: MouseEvent): void {
     if (this.moveModeId == null) return;
     const sectionEl = (event.target as HTMLElement | null)?.closest?.(
-      ".notepad-section",
+      ".notepad-section:not(.is-expanded)",
     );
     if (!sectionEl) return;
     event.preventDefault();
@@ -2701,9 +2710,13 @@ export class NotepadView extends FileView {
     const movingId = this.moveModeId;
     this.exitMoveMode();
     if (tappedId === movingId) return; // tap on the lifted row — cancel
-    const index = this.notepad?.notes().findIndex((n) => n.id === tappedId);
-    if (index == null || index < 0) return;
-    if (this.notepad?.moveNote(movingId, index + 1)) {
+    const toIndex = moveTargetIndex(
+      this.notepad?.notes() ?? [],
+      movingId,
+      tappedId,
+    );
+    if (toIndex == null) return;
+    if (this.notepad?.moveNote(movingId, toIndex)) {
       this.render();
       void this.flushSave("move-page");
     }
@@ -2726,6 +2739,18 @@ export class NotepadView extends FileView {
     )) {
       syncScrollShadow(wrapper);
     }
+  }
+
+  private tableSyncScheduled = false;
+
+  /** One table-state sync per frame at most (transaction-driven calls). */
+  private schedulePhoneTableSync(handle: SectionHandle): void {
+    if (this.tableSyncScheduled) return;
+    this.tableSyncScheduled = true;
+    window.requestAnimationFrame(() => {
+      this.tableSyncScheduled = false;
+      this.syncPhoneTableWrappers(handle);
+    });
   }
 
   // ── Notes ──

@@ -989,6 +989,13 @@ button.notepad-section-control:focus {
    above stay untouched — this whole branch is additive and phone-gated.
    ═══════════════════════════════════════════════════════════════════ */
 
+/* Viewport-fallback keyboards (desktop mobile emulation, browsers without
+   Capacitor) overlay the view — mirror the .note container and pad it away
+   while the keyboard is up. Real devices resize the view themselves. */
+.notepad-view-container.is-mobile.is-keyboard-open {
+  padding-bottom: var(--keyboard-offset, 0);
+}
+
 /* ── Column: full width, under Obsidian's floating shell controls ── */
 
 .notepad-view-container.is-phone .notepad-sections {
@@ -1031,9 +1038,9 @@ button.notepad-section-control:focus {
   position: absolute;
   top: 15px;
   left: 0;
-  width: 44px;
+  width: 44px; /* the tap zone */
   padding: 0;
-  justify-content: center;
+  justify-content: flex-start; /* the 32px control hugs the edge */
 }
 
 .notepad-view-container.is-phone
@@ -1086,6 +1093,7 @@ button.notepad-section-control:focus {
 .notepad-view-container.is-phone
   .notepad-section:not(.is-expanded)
   .notepad-section-gutter {
+  width: 32px; /* spec S1: chevron control 32px in a 44px tap zone */
   height: 44px;
 }
 
@@ -1172,7 +1180,6 @@ button.notepad-section-control:focus {
 
 /* The title page's field labels hang into the desktop's left margin —
    there is no margin on the phone. */
-.notepad-view-container.is-phone .notepad-view-container [data-label]:after,
 .notepad-view-container.is-phone [data-label]:after {
   display: none;
 }
@@ -1217,10 +1224,10 @@ button.notepad-section-control:focus {
 
 .notepad-view-container.is-phone button.notepad-nav-toggle {
   visibility: hidden;
-  top: 10px;
-  right: 10px;
-  width: 40px;
-  height: 40px;
+  top: 8px;
+  right: 8px;
+  width: 44px;
+  height: 44px;
 }
 
 .notepad-view-container.is-phone
@@ -1230,8 +1237,8 @@ button.notepad-section-control:focus {
 }
 
 .notepad-view-container.is-phone button.notepad-nav-toggle svg {
-  top: 8px;
-  left: 8px;
+  top: 10px;
+  left: 10px;
   width: 24px;
   height: 24px;
   stroke-width: 1.5px;
@@ -1290,8 +1297,8 @@ button.notepad-section-control:focus {
 }
 
 .notepad-view-container.is-phone .notepad-search-btn {
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
 }
 
 .notepad-view-container.is-phone .notepad-search-btn svg {
