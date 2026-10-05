@@ -61,8 +61,12 @@ export const TableHeader = Node.create<TableHeaderOptions>({
             return {};
           }
 
+          // The picked color is applied as-is — one rendering path for
+          // every color (owner decision: no theme-adaptive shades). Inline
+          // !important because the base cell color is !important.
           return {
             ["data-color"]: attributes.dataColor,
+            style: `color: ${attributes.dataColor} !important`,
           };
         },
         parseHTML: (element) => {

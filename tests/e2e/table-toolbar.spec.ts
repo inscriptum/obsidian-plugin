@@ -299,6 +299,15 @@ test.describe("table toolbar dock + cells bubble", () => {
     }, index);
     expect(attrs[0].dataColor).toBe("#f59e0b");
     expect(attrs[1].dataColor).toBe("#f59e0b");
+
+    // One rendering path for every color: the design palette paints inline
+    // too (no per-color CSS rules anymore).
+    const cellColor = await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      const td = editor.view.dom.querySelector("td");
+      return td ? window.getComputedStyle(td).color : null;
+    }, index);
+    expect(cellColor).toBe("rgb(245, 158, 11)");
   });
 
   test("cells bubble custom color row applies any hex to all selected cells", async ({
@@ -355,9 +364,11 @@ test.describe("table toolbar dock + cells bubble", () => {
       ".note-toolbar__table-bar .bubble-menu-layer--table-color",
     );
     await expect(layer).toBeVisible();
-    // Composition: cell fill only — no text-color row.
+    // Composition: cell fill only — no text-color row — and the palette is
+    // the unified one: 12 swatches + the custom row.
     await expect(layer.locator(".bb-layer-label")).toHaveText(["Cell fill"]);
-    await expect(layer.locator(".bb-sw-row")).toHaveCount(1);
+    await expect(layer.locator(".bb-dd-swatches .bb-sw")).toHaveCount(12);
+    await expect(layer.locator(".bb-dd-custom input")).toHaveCount(2);
     // Applying a fill still targets the current cell (violet swatch).
     await layer.locator(".bb-sw").nth(1).click();
     const index = await editorWith(page, "A1");
@@ -373,6 +384,67 @@ test.describe("table toolbar dock + cells bubble", () => {
       return out;
     }, index);
     expect(attrs[0].backgroundColor).toBe("rgba(179, 163, 247, .16)");
+  });
+
+  test("table toolbar custom fill applies any hex to the current cell", async ({
+    page,
+  }) => {
+    await mountNotepadWithTable(page);
+    const cellA2 = page.locator(".texto-editor td", { hasText: "A2" });
+    await clickInsideNotepadText(page, cellA2.locator("p"), "A2");
+    await expect(page.locator(".note-toolbar__table-bar")).toBeVisible();
+
+    await page.locator('.note-toolbar__table-bar [data-tbl="color"]').click();
+    const layer = page.locator(
+      ".note-toolbar__table-bar .bubble-menu-layer--table-color",
+    );
+    await expect(layer).toBeVisible();
+
+    const hex = layer.locator(".bb-dd-custom .bb-dd-hex");
+    await hex.click();
+    await hex.fill("#0ea5e9");
+    await hex.press("Enter");
+    await page.waitForTimeout(200);
+
+    const index = await editorWith(page, "A1");
+    const attrs = await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      const out: Array<Record<string, unknown>> = [];
+      editor.state.doc.descendants((node) => {
+        if (node.type.spec.tableRole === "cell") {
+          out.push({ ...node.attrs });
+        }
+        return true;
+      });
+      return out;
+    }, index);
+    expect(attrs[0].backgroundColor).toBe("#0ea5e9");
+  });
+
+  test("extended palette colors render on cell text (inline style)", async ({
+    page,
+  }) => {
+    await mountNotepadWithTable(page);
+    await selectCells(page, 2, 3);
+
+    // Pick the BLUE text color (extended palette — no legacy CSS rule).
+    await page.locator(`${CELLS_BAR} [data-tbl="color"]`).click();
+    const layer = page
+      .locator(".bubble-menu-bar:has(.bubble-menu-cells-bar)")
+      .locator(".bubble-menu-layer--table-color");
+    await expect(layer).toBeVisible();
+    await layer.locator(".bb-dd-swatches .bb-sw").nth(6).click();
+    await page.waitForTimeout(200);
+
+    const index = await editorWith(page, "A2");
+    const cellColor = await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      const dom = editor.view.dom;
+      const td = dom.querySelector("td");
+      return td ? window.getComputedStyle(td).color : null;
+    }, index);
+    // #60a5fa → rgb(96, 165, 250): the attr must actually paint the text.
+    expect(cellColor).toBe("rgb(96, 165, 250)");
   });
 
   test("cells bubble applies underline and clear formatting to all selected cells", async ({

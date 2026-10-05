@@ -12,9 +12,10 @@ import {
   BORDER_WIDTHS,
   isHexColor,
   pickerHexValue,
-  TABLE_FILLS,
+  TABLE_BG_RGBA,
   type TableMenuState,
 } from "./tableMenuState";
+import { TEXT_COLORS } from "./bubbleMenuState";
 import type {
   BorderPen,
   BorderSideName,
@@ -27,6 +28,16 @@ type PenSelect = "style" | "width" | "color" | null;
 
 const cls = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");
+
+/** The backgroundColor attr value as a picker-able hex: solid hexes pass
+ *  through, the design fills (rgba) map back to their palette key, anything
+ *  else (no fill) yields null → pickerHexValue's neutral fallback. */
+function fillHexForPicker(bg: string | null): string | null {
+  if (!bg) return null;
+  if (/^#[0-9a-f]{6}$/i.test(bg)) return bg;
+  const design = Object.entries(TABLE_BG_RGBA).find(([, rgba]) => rgba === bg);
+  return design ? design[0] : null;
+}
 
 export const TableBubbleMenuElement = litView.element({
   props: {
@@ -502,20 +513,53 @@ export const TableBubbleMenuElement = litView.element({
           >
             <span class="bb-layer-caret"></span>
             <div class="bb-layer-label">Cell fill</div>
-            <div class="bb-sw-row">
-              {TABLE_FILLS.map((sw) => (
+            {/* Unified palette (same source as the text-color layers): the
+               design fills stay semi-transparent (bgHexToAttr), the extended
+               colors apply as-is; the custom row adds any hex. */}
+            <div class="bb-dd-swatches">
+              {TEXT_COLORS.map((sw) => (
                 <button
                   class={cls(
                     "bb-sw",
-                    `bb-sw--${sw.css}`,
+                    sw.color == null && "bb-sw--none",
                     (sw.color == null ? null : bgHexToAttr(sw.color)) ===
                       tableState.bg && "is-active",
                   )}
-                  aria-label={sw.label}
+                  style={sw.color ? `background: ${sw.color}` : undefined}
+                  aria-label={sw.color == null ? "No fill" : sw.label}
+                  title={sw.color == null ? "No fill" : sw.label}
                   onmousedown={(e: MouseEvent) => e.preventDefault()}
                   onclick={() => applyCellBg(sw.color)}
                 ></button>
               ))}
+            </div>
+            <div class="bb-layer-sep"></div>
+            <div class="bb-dd-custom">
+              <input
+                type="color"
+                value={pickerHexValue(fillHexForPicker(tableState.bg))}
+                title="Custom color"
+                onmousedown={(e: MouseEvent) => e.stopPropagation()}
+                onchange={(e: Event) =>
+                  applyCellBg((e.target as HTMLInputElement).value)
+                }
+              ></input>
+              <input
+                type="text"
+                class="bb-dd-hex"
+                placeholder="#rrggbb"
+                maxlength={7}
+                spellcheck={false}
+                aria-label="Custom cell fill hex"
+                onmousedown={(e: MouseEvent) => e.stopPropagation()}
+                onkeydown={(e: KeyboardEvent) => {
+                  if (e.key !== "Enter") return;
+                  const input = e.target as HTMLInputElement;
+                  if (isHexColor(input.value)) {
+                    applyCellBg(input.value.trim().toLowerCase());
+                  }
+                }}
+              ></input>
             </div>
           </div>
 

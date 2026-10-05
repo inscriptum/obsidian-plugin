@@ -74,23 +74,11 @@ export function getTableMenuState(state: EditorState): TableMenuState {
 }
 
 /**
- * "Cell fill" palette — same colors as in the prototype.
- * We store a semi-transparent fill (rgba) from the design in the PM backgroundColor attribute,
- * so the cell looks like the mockup rather than a solid color.
+ * The design fills of the unified palette store a semi-transparent rgba in
+ * the PM backgroundColor attribute, so the cell looks like the mockup
+ * rather than a solid color; every other color (extended palette, custom
+ * hex) is stored as-is.
  */
-export const TABLE_FILLS: Array<{
-  id: string;
-  label: string;
-  css: string;
-  /** Palette key (hex) — for determining the active swatch. */
-  color: string | null;
-}> = [
-  { id: "none", label: "No fill", css: "none", color: null },
-  { id: "violet", label: "Purple fill", css: "violet", color: "#b3a3f7" },
-  { id: "green", label: "Green fill", css: "green", color: "#4ade80" },
-  { id: "yellow", label: "Yellow fill", css: "yellow", color: "#f59e0b" },
-  { id: "red", label: "Red fill", css: "red", color: "#f87171" },
-];
 
 /** Palette hex → semi-transparent fill from the prototype. */
 export const TABLE_BG_RGBA: Record<string, string> = {
