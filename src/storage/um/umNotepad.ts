@@ -1,5 +1,9 @@
 import type { JSONContent } from "../../texto/core/@types";
 import {
+  ensureCellTrailingParagraphJSON,
+  hasCellTrailingImage,
+} from "../../texto/extensions/table/helpers/cellTrailingParagraph";
+import {
   assetExtension,
   assetPathForId,
   collectReferencedAssetIds,
@@ -91,6 +95,16 @@ export class UmNotepad {
       prepared = migrated.doc;
       this.data.notes.set(id, prepared);
       descriptor.schemaVersion = migrated.toVersion;
+      this.dirtyNotes.add(id);
+    }
+
+    // Cell trailing invariant (image-in-cell task): externally produced
+    // pages can carry a cell ending on an image — no caret place below it,
+    // the next keystroke would replace the image. Repair on read, like the
+    // title-page header normalization above; persists on the next save.
+    if (hasCellTrailingImage(prepared)) {
+      prepared = ensureCellTrailingParagraphJSON(prepared);
+      this.data.notes.set(id, prepared);
       this.dirtyNotes.add(id);
     }
 

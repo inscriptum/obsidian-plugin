@@ -216,11 +216,16 @@ describe("image inside table cells (schema)", () => {
     editor.destroy();
   });
 
-  it("cell-trailing plugin restores a paragraph in a cell ending with an image", () => {
-    // Initial doc: cell holds ONLY an image (schema-valid, but the caret
-    // has nowhere to go below it). Loaded docs are not normalized at read
-    // time — the plugin must repair it on the next document edit.
-    const editor = editorWithDoc([cellWithImage("tableCell")]);
+  it("edit-time repair is scoped to the changed ranges", () => {
+    // Initial doc: cell holds ONLY an image — a pre-existing violation (as
+    // an external/imported doc could carry). The edit-time plugin scans
+    // only the cells touched by the edit: an unrelated edit elsewhere must
+    // NOT repair it (read-time normalization is responsible for those —
+    // parseNoteDoc and UmNotepad.prepareNote).
+    const editor = editorWithDoc([
+      cellWithImage("tableCell"),
+      { type: "paragraph", content: [{ type: "text", text: "anchor" }] },
+    ]);
 
     const cellChildren = (): string[] => {
       const names: string[] = [];
@@ -235,11 +240,119 @@ describe("image inside table cells (schema)", () => {
     };
     expect(cellChildren()).toEqual(["image"]);
 
-    // Any document-changing transaction triggers the repair.
     editor.commands.setTextSelection(1);
     editor.commands.insertContent({ type: "horizontalRule" });
 
+    expect(cellChildren()).toEqual(["image"]);
+    editor.destroy();
+  });
+
+  it("edit-time repair fires when the edit itself creates the violation", () => {
+    // Cell [image, paragraph]: deleting the trailing paragraph leaves the
+    // image as the last block — the repair restores a caret place in the
+    // same flush.
+    const editor = editorWithDoc([
+      {
+        type: "table",
+        content: [
+          {
+            type: "tableRow",
+            content: [
+              {
+                type: "tableCell",
+                content: [imageJson(), { type: "paragraph" }],
+              },
+            ],
+          },
+        ],
+      },
+    ]);
+
+    const cellChildren = (): string[] => {
+      const names: string[] = [];
+      editor.state.doc.descendants((node) => {
+        if (node.type.name === "tableCell") {
+          node.forEach((child) => names.push(child.type.name));
+          return false;
+        }
+        return true;
+      });
+      return names;
+    };
     expect(cellChildren()).toEqual(["image", "paragraph"]);
+
+    // Select the paragraph after the image and delete it.
+    let paraFrom = -1;
+    let paraTo = -1;
+    let imageSeen = false;
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "image") {
+        imageSeen = true;
+        return true;
+      }
+      if (imageSeen && node.type.name === "paragraph" && paraFrom < 0) {
+        paraFrom = pos;
+        paraTo = pos + node.nodeSize;
+        return false;
+      }
+      return true;
+    });
+    expect(paraFrom).toBeGreaterThan(0);
+    editor.view.dispatch(
+      editor.state.tr.delete(paraFrom, paraTo).scrollIntoView(),
+    );
+    expect(cellChildren()).toEqual(["image", "paragraph"]);
+    editor.destroy();
+  });
+
+  it("one transaction touching several cells repairs them all", () => {
+    const editor = editorWithDoc([{ type: "paragraph" }]);
+
+    // A table where BOTH cells end on an image, swapped in with a single
+    // ReplaceStep (the paste-over-selection shape).
+    // Build the violating table with the EDITOR's schema instance — nodes
+    // from another schema instance are silently dropped by ReplaceStep.
+    const es = editor.state.schema;
+    const violating = es.nodeFromJSON({
+      type: "table",
+      content: [
+        {
+          type: "tableRow",
+          content: [
+            { type: "tableCell", content: [imageJson()] },
+            { type: "tableCell", content: [imageJson()] },
+          ],
+        },
+      ],
+    });
+    // Replace the whole top-level paragraph (closed range) with the table.
+    let paraFrom = -1;
+    let paraTo = -1;
+    editor.state.doc.forEach((node, offset) => {
+      if (node.type.name === "paragraph") {
+        paraFrom = offset;
+        paraTo = offset + node.nodeSize;
+      }
+    });
+    expect(paraFrom).toBeGreaterThan(0);
+    const tr = editor.state.tr;
+    tr.replaceWith(paraFrom, paraTo, [violating]);
+    editor.view.dispatch(tr);
+
+    const cells: string[][] = [];
+    editor.state.doc.descendants((node) => {
+      if (node.type.name === "tableCell") {
+        const kids: string[] = [];
+        node.forEach((child) => kids.push(child.type.name));
+        cells.push(kids);
+        return false;
+      }
+      return true;
+    });
+    expect(cells).toEqual([
+      ["image", "paragraph"],
+      ["image", "paragraph"],
+    ]);
     editor.destroy();
   });
 
