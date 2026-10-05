@@ -9,7 +9,11 @@ import {
   TEXT_COLORS,
   type BubbleMenuState,
 } from "./bubbleMenuState";
-import { isHexColor, pickerHexValue } from "./tableMenuState";
+import {
+  getTableMenuState,
+  isHexColor,
+  pickerHexValue,
+} from "./tableMenuState";
 import { bubbleIconNodes } from "./icons.svgnode";
 
 type OpenLayer = "styles" | "link" | null;
@@ -261,6 +265,19 @@ export const BubbleMenuBarElement = litView.element({
   const applyColor = (color: string | null) => {
     const e = props.editor;
     if (color == null) {
+      // "Default color" inside a table cell must reset the CELL's text
+      // color too: the cell-level dataColor keeps painting the text after
+      // the mark is unset, and with a single cell selected there is no
+      // other control for it (the cells bubble needs 2+ cells).
+      const ts = getTableMenuState(e.state);
+      if (ts.inTable && ts.textColor != null) {
+        e.chain()
+          .focus()
+          .unsetColor()
+          .setCellsAttribute("dataColor", null as unknown as string)
+          .run();
+        return;
+      }
       e.chain().focus().unsetColor().run();
     } else {
       e.chain().focus().setColor(color).run();

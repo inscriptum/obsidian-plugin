@@ -447,6 +447,82 @@ test.describe("table toolbar dock + cells bubble", () => {
     expect(cellColor).toBe("rgb(96, 165, 250)");
   });
 
+  test("text bubble Default color resets a single colored cell", async ({
+    page,
+  }) => {
+    await mountNotepadWithTable(page);
+    // Color both cells' text via the cells bubble (yellow).
+    await selectCells(page, 2, 3);
+    await page.locator(`${CELLS_BAR} [data-tbl="color"]`).click();
+    const cellsLayer = page
+      .locator(".bubble-menu-bar:has(.bubble-menu-cells-bar)")
+      .locator(".bubble-menu-layer--table-color");
+    await expect(cellsLayer).toBeVisible();
+    await cellsLayer.locator(".bb-dd-swatches .bb-sw").nth(3).click();
+    await page.waitForTimeout(200);
+
+    // Now select the TEXT in A2 — the text bubble is the only cell-text
+    // control for a single cell — and hit "Default color".
+    const index0 = await editorWith(page, "A2");
+    await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      let from = 0;
+      let to = 0;
+      editor.state.doc.descendants((node, pos) => {
+        if (!to && node.isText && node.text === "A2") {
+          from = pos;
+          to = pos + node.nodeSize;
+        }
+        return !to;
+      });
+      editor.chain().focus().setTextSelection({ from, to }).run();
+    }, index0);
+    await page.waitForTimeout(450);
+    await page
+      .locator('.bubble-menu-bar:visible button[data-tip="Styles & color"]')
+      .first()
+      .click();
+    const styles = page.locator(
+      ".bubble-menu-bar:visible .bubble-menu-layer--styles",
+    );
+    await expect(styles).toBeVisible();
+    await styles.locator(".bb-dd-swatches .bb-sw").first().click();
+    await page.waitForTimeout(200);
+
+    const index = await editorWith(page, "A1");
+    const attrs = await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      const out: Array<Record<string, unknown>> = [];
+      editor.state.doc.descendants((node) => {
+        if (node.type.spec.tableRole === "cell") {
+          out.push({ ...node.attrs });
+        }
+        return true;
+      });
+      return out;
+    }, index);
+    // A2's cell-level text color is gone (single-cell reset works)…
+    expect(attrs[0].dataColor).toBe(null);
+    // …the untouched neighbour keeps its color…
+    expect(attrs[1].dataColor).toBe("#f59e0b");
+    // …and no color is left on the text itself (the historical
+    // removeEmptyTextStyle is a no-op, so an empty textStyle mark may stay —
+    // it must carry no color).
+    const markColors = await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      const found: Array<string | null | undefined> = [];
+      editor.state.doc.descendants((node) => {
+        if (node.isText && node.text === "A2") {
+          const style = node.marks.find((m) => m.type.name === "textStyle");
+          found.push(style?.attrs.color as string | null | undefined);
+        }
+        return true;
+      });
+      return found;
+    }, index);
+    expect(markColors).not.toContain("#f59e0b");
+  });
+
   test("cells bubble applies underline and clear formatting to all selected cells", async ({
     page,
   }) => {

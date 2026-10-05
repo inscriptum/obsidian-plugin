@@ -5,6 +5,7 @@ import {
   bordersToStyle,
   type CellBorders,
 } from "../../helpers/borders";
+import { safeColorValue } from "../../helpers/safeStyle";
 
 export interface TableHeaderOptions {
   HTMLAttributes: AnyRecord;
@@ -63,11 +64,15 @@ export const TableHeader = Node.create<TableHeaderOptions>({
 
           // The picked color is applied as-is — one rendering path for
           // every color (owner decision: no theme-adaptive shades). Inline
-          // !important because the base cell color is !important.
-          return {
-            ["data-color"]: attributes.dataColor,
-            style: `color: ${attributes.dataColor} !important`,
-          };
+          // !important because the base cell color is !important. Stored
+          // attrs are untrusted: only well-formed colors reach the style.
+          const color = safeColorValue(attributes.dataColor);
+          return color
+            ? {
+                ["data-color"]: attributes.dataColor,
+                style: `color: ${color} !important`,
+              }
+            : { ["data-color"]: attributes.dataColor };
         },
         parseHTML: (element) => {
           const dataColor = element.dataset["color"];
@@ -81,12 +86,18 @@ export const TableHeader = Node.create<TableHeaderOptions>({
           dataColor: string | null;
           backgroundColor: string | null;
         }) => {
-          if (!attributes.backgroundColor) {
+          // Stored attrs are untrusted (see the dataColor guard): only
+          // well-formed colors reach the inline style.
+          const color =
+            attributes.backgroundColor == null
+              ? null
+              : safeColorValue(attributes.backgroundColor);
+          if (!color) {
             return {};
           }
 
           return {
-            style: `background-color: ${attributes.backgroundColor} !important`,
+            style: `background-color: ${color} !important`,
           };
         },
         parseHTML: (element) => {
