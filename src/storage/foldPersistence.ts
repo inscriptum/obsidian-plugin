@@ -1,11 +1,13 @@
 import type { Editor } from "../texto/core";
 import {
   getFoldedHeadingPositions,
+  headingFoldingKey,
   restoreFoldedHeadings,
 } from "../texto/extensions/heading/folding";
 import {
   getFoldedTaskPositions,
   restoreFoldedTasks,
+  taskFoldingKey,
 } from "../texto/extensions/task-item-folding";
 
 /** Device-local persistence for in-document fold state (heading + task
@@ -103,6 +105,16 @@ export function createFoldPersistence(
     kind: FoldKind,
     storageName: string,
   ): void {
+    // Folding can be disabled per editor (mobile first iteration): its
+    // plugin is absent, so the positions read as an empty list — writing
+    // that would WIPE folds saved from a desktop session. No plugin state,
+    // no folds to persist: sync is a no-op for that kind.
+    const pluginState =
+      kind === "heading"
+        ? headingFoldingKey.getState(editor.state)
+        : taskFoldingKey.getState(editor.state);
+    if (pluginState == null) return;
+
     const positions = (
       editor.storage[storageName] as { positions?: number[] } | undefined
     )?.positions;

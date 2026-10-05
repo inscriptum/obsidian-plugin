@@ -202,4 +202,34 @@ describe("createFoldPersistence", () => {
     persistence.restore(fixture.editor);
     expect(app.loadLocalStorage).toHaveBeenCalled();
   });
+
+  it("never wipes stored folds from an editor whose folding plugin is off (mobile)", () => {
+    const app = mockApp();
+    const scope = "docs/book.um/01HZPAGE";
+    const key = foldStorageKey("heading", scope);
+    // A fold saved from a desktop session…
+    app.saved.set(key, { folds: [21] });
+    const persistence = createFoldPersistence(app, () => scope);
+
+    // …then the page is edited on mobile, where the folding plugins are
+    // disabled: the absent plugin state reads as "no folds", and a naive
+    // sync would clear the desktop's saved value. It must be a no-op.
+    const el = document.createElement("div");
+    document.body.appendChild(el);
+    let mobileEditor: Editor | null = new Editor({
+      element: el,
+      content: testContent(),
+      extensions: getExtensions({}, { isMobileView: true }),
+      autofocus: "start",
+    });
+    try {
+      persistence.sync(mobileEditor);
+      expect(app.saved.get(key)).toMatchObject({ folds: [21] });
+      expect(app.saveLocalStorage).not.toHaveBeenCalled();
+    } finally {
+      mobileEditor?.destroy();
+      mobileEditor = null;
+      el.remove();
+    }
+  });
 });

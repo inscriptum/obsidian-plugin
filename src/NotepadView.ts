@@ -45,6 +45,8 @@ import {
   imageOnSetViewPropsContainer,
 } from "./notepad/imageTools";
 import type { ImageToolContext } from "./tools/image";
+import { createKeyboardTracking } from "./tools/keyboardTracking";
+import { setupScrollShadows, syncScrollShadow } from "./components/toolbar/scrollShadow";
 import { elTag } from "./tags";
 import { NoteElement } from "./components/note/note.element";
 import { ToolbarElement } from "./components/toolbar/toolbar.element";
@@ -77,6 +79,16 @@ const NAV_WIDTH = 300;
 const AUTOSAVE_DELAY = 500;
 /** Coalescing window for vault "modify" events (mirrors NoteView). */
 const EXTERNAL_CHANGE_DEBOUNCE = 300;
+
+/** Phone: holding a collapsed row this long lifts it into a reorder drag
+ *  (design S6). Shorter than the iOS long-press callout (~500ms) so the
+ *  drag wins the race. */
+const LONG_PRESS_MS = 350;
+/** Phone: slop a finger may wander while holding the long-press before it
+ *  counts as a scroll and the press is abandoned. */
+const LONG_PRESS_SLOP_PX = 10;
+/** Phone: drag auto-scroll kicks in this close to the scroller's edge. */
+const DRAG_EDGE_PX = 72;
 
 /** True while a forwarded `editor.commands` dispatch is in flight (see
  *  handleEditorShortcut). */
@@ -221,6 +233,13 @@ interface SectionHandle {
   /** The table controls bar docked into the toolbar while the focus is in
    *  this section's table (mirrors NoteView); null until the editor exists. */
   tableBubbleEl: HTMLElement | null;
+  /** Phone only: the (former) bubble menus handed to the bottom toolbar as
+   *  selection bars — text / table / media (see ToolbarElement props). */
+  mobileBars: {
+    text: HTMLElement;
+    table: HTMLElement;
+    media: HTMLElement;
+  } | null;
   /** Device-local persistence of this page's in-document fold state
    *  (headings + task items), created lazily — see foldPersistence.ts. */
   folds: FoldPersistence | null;
@@ -295,12 +314,41 @@ export class NotepadView extends FileView {
     startX: number;
     startY: number;
     active: boolean;
+    /** Phone long-press origin: a release before the 6px activation opens
+     *  the page sheet instead of being a plain click. */
+    phone?: boolean;
     /** Esc-canceled: the pointer is still down; its release must only
      *  swallow the fold toggle the release click would fire. */
     canceled?: boolean;
   } | null = null;
   private dropLineEl: HTMLElement | null = null;
-  private suppressGutterToggle = false;
+  private suppressFoldToggle = false;
+
+  /** Phone long-press on a collapsed row: the pending lift (timer + start
+   *  point), armed by onRowPointerDown, discharged by beginRowDrag or
+   *  canceled by movement / early release / pointercancel. */
+  private longPress: {
+    timer: number;
+    id: string;
+    x: number;
+    y: number;
+  } | null = null;
+  /** Last pointer Y of the active drag — drives the edge auto-scroll loop. */
+  private dragPointerY = 0;
+  private dragAutoScrollFrame: number | null = null;
+
+  // ── Phone: page sheet (⋯ menu), move mode ──
+  private sheetEl: HTMLElement | null = null;
+  private sheetScrimEl: HTMLElement | null = null;
+  /** Page being repositioned via the sheet's "Move…" path: the row is
+   *  lifted and the next tap on another row inserts after it. */
+  private moveModeId: string | null = null;
+  private moveChipEl: HTMLElement | null = null;
+
+  // ── Mobile chrome (keyboard tracking, toolbar scroll shadows) ──
+  private keyboardTracking: ReturnType<typeof createKeyboardTracking> | null =
+    null;
+  private scrollShadowCleanup: (() => void) | null = null;
 
   private dirty = false;
   private saveTimer: number | null = null;
@@ -451,6 +499,43 @@ export class NotepadView extends FileView {
       true,
     );
 
+    if (Platform.isMobile) {
+      // The soft keyboard drives the bottom toolbar's visibility (phones).
+      this.keyboardTracking = createKeyboardTracking(this.contentEl);
+      // Fade edges of the horizontally scrolling toolbar / selection bars.
+      this.scrollShadowCleanup = setupScrollShadows(this.contentEl);
+    }
+
+    if (Platform.isPhone) {
+      // Drawer entry is the page sheet's "All pages" item (design principle
+      // 01: no floating ☰) — the scrim doubles as the tap-away dismissor.
+      const scrim = this.contentEl.createDiv("notepad-nav-scrim");
+      scrim.addEventListener("click", () =>
+        this.setNavOpen(false, { animate: true }),
+      );
+      // Horizontal table scrolls (design S8): the first scroll retires the
+      // hint; every scroll refreshes the edge fades.
+      this.scrollerEl.addEventListener("scroll", (event) => {
+        const wrapper = (event.target as HTMLElement | null)?.closest?.(
+          ".table-wrapper",
+        );
+        if (wrapper) this.onTableWrapperScrolled(wrapper);
+      }, true);
+      // Rotations resize the page column — table fades must re-measure.
+      this.registerDomEvent(window, "resize", () => {
+        for (const handle of this.sections.values())
+          this.syncPhoneTableWrappers(handle);
+      });
+      // Move mode ("Move…" in the page sheet): a tap on another row lands
+      // the lifted page after it. Capture phase — the tap must not reach
+      // the row's own fold toggle.
+      this.sectionsEl.addEventListener(
+        "click",
+        (event) => this.onMoveModeClick(event),
+        true,
+      );
+    }
+
     // The boot decision must see the real view width; the observer's
     // initial callback re-runs it after the view is laid out (a 0-width
     // container at onOpen would measure wrong).
@@ -496,6 +581,12 @@ export class NotepadView extends FileView {
     await this.flushSave("close");
     this.navResize?.disconnect();
     this.navResize = null;
+    this.keyboardTracking?.dispose();
+    this.keyboardTracking = null;
+    this.scrollShadowCleanup?.();
+    this.scrollShadowCleanup = null;
+    this.closeSheet();
+    this.exitMoveMode();
     this.destroyAllSections();
     this.contentEl.empty();
     this.notepad?.destroy();
@@ -549,6 +640,9 @@ export class NotepadView extends FileView {
 
   private render(): void {
     if (!this.notepad || !this.sectionsEl) return;
+    // The rebuild orphans both overlays' targets.
+    this.closeSheet();
+    this.exitMoveMode();
     // Keep unsaved editor content before tearing the sections down.
     for (const handle of this.sections.values()) {
       this.flushSectionToNotepad(handle);
@@ -603,7 +697,9 @@ export class NotepadView extends FileView {
     // Left margin: the fold chevron for foldable pages. The page order
     // number lives on the right edge instead (folded: the title line's end;
     // expanded: the page's bottom-right corner) — CSS positions it against
-    // the section root.
+    // the section root. On phones the margin doubles as the page header
+    // (fold left, ⋯ right — design S2); the drawer/search entry lives in
+    // the ⋯ sheet, so no floating ☰ exists there.
     const margin = root.createDiv("notepad-section-margin");
     const orderLabel = root.createDiv("notepad-section-order");
     if (order > 0) orderLabel.setText(String(order));
@@ -613,16 +709,30 @@ export class NotepadView extends FileView {
       gutter.appendChild(chevronSvg());
       // Click toggles the fold; a pointer drag reorders the page.
       gutter.addEventListener("click", () => {
-        if (this.suppressGutterToggle) {
-          this.suppressGutterToggle = false;
+        if (this.suppressFoldToggle) {
+          this.suppressFoldToggle = false;
           return;
         }
         this.toggleSection(id);
       });
-      gutter.addEventListener("pointerdown", (event) =>
-        this.onGutterPointerDown(event, id),
-      );
+      if (!Platform.isPhone) {
+        // Desktop drags from the gutter; phones lift the row with a
+        // long-press anywhere on it (design S6) — a touch drag from the
+        // gutter would fight the scroller's own gesture.
+        gutter.addEventListener("pointerdown", (event) =>
+          this.onGutterPointerDown(event, id),
+        );
+      }
       margin.appendChild(gutter);
+      if (Platform.isPhone) {
+        // The ⋯ opens the page sheet (design S3): navigation at the top,
+        // then the page actions, delete last (red, confirm + undo).
+        const menuBtn = createEl("button", { cls: "notepad-section-menubtn" });
+        menuBtn.setAttribute("aria-label", "Page menu");
+        setIcon(menuBtn, "more-horizontal");
+        menuBtn.addEventListener("click", () => this.openPageSheet(id));
+        margin.appendChild(menuBtn);
+      }
     }
 
     const body = root.createDiv("notepad-section-body");
@@ -668,6 +778,7 @@ export class NotepadView extends FileView {
       editorRef: { current: null },
       bubbleEls: [],
       tableBubbleEl: null,
+      mobileBars: null,
       folds: null,
       morphAnim: null,
       morphFade: null,
@@ -745,9 +856,26 @@ export class NotepadView extends FileView {
       // LLLL already embeds the time, so a composed format would double it.
       metaEl.setAttr("title", momentFormat(modifiedAt, "YYYY-MM-DD HH:mm:ss"));
     }
-    row.addEventListener("click", () =>
-      this.toggleSection(handle.id, { expand: true }),
-    );
+    row.addEventListener("click", () => {
+      if (this.suppressFoldToggle) {
+        this.suppressFoldToggle = false;
+        return;
+      }
+      this.toggleSection(handle.id, { expand: true });
+    });
+    if (Platform.isPhone) {
+      // The phone's row gesture (design S3 + S6 unified): holding the row
+      // for LONG_PRESS_MS discharges into whichever the finger does next —
+      // moving reorders (lift + drop line), releasing without moving opens
+      // the page sheet. A plain quick tap stays an expand.
+      row.addEventListener("pointerdown", (event) =>
+        this.onRowPointerDown(event, handle.id),
+      );
+      // Kill the iOS long-press callout / selection, which would otherwise
+      // race the hold (some WebViews fire contextmenu despite the CSS
+      // -webkit-touch-callout: none).
+      row.addEventListener("contextmenu", (event) => event.preventDefault());
+    }
   }
 
   /** Rough word count of the page's stored JSON (text nodes only) — the
@@ -1192,6 +1320,9 @@ export class NotepadView extends FileView {
   }
 
   private destroyAllSections(): void {
+    // Both overlays reference section handles — none survive the teardown.
+    this.closeSheet();
+    this.exitMoveMode();
     for (const handle of this.sections.values()) {
       for (const el of handle.bubbleEls) el.remove();
       handle.noteEl?.remove();
@@ -1247,8 +1378,14 @@ export class NotepadView extends FileView {
       },
       onTransaction: () => {
         // In-document fold persistence (headings + task items). Fold toggles
-        // carry no doc change, so this never dirties the container.
-        if (!isMobile) this.syncSectionFolds(handle);
+        // carry no doc change, so this never dirties the container. Runs on
+        // mobile too (the design's persist toggle); foldPersistence itself
+        // no-ops while the folding plugins are absent, so a mobile edit can
+        // never wipe folds saved from a desktop session.
+        this.syncSectionFolds(handle);
+        // Edits can add/remove tables or change their widths — refresh the
+        // phone scroll state (edge fades + hint) along with the doc.
+        if (Platform.isPhone) this.syncPhoneTableWrappers(handle);
       },
       extensions: getExtensions(
         this.buildExtensionHooks(notepad, editorRef, ctx),
@@ -1273,7 +1410,9 @@ export class NotepadView extends FileView {
 
     editor.on("focus", () => {
       this.focusedEditorValue = editor;
-      if (!isMobile) this.ensureToolbar(editor);
+      // The toolbar follows the focused page on mobile too (phones show it
+      // only while the keyboard is up — CSS hides the host otherwise).
+      this.ensureToolbar(editor);
       this.updateNavActive();
     });
 
@@ -1287,24 +1426,69 @@ export class NotepadView extends FileView {
       }),
     );
 
-    if (!isMobile) {
+    if (isMobile) {
+      // Phone/tablet: the (former) bubble menus render inside the bottom
+      // toolbar and swap in on selection (see ToolbarElement) — no floating
+      // tippy popups, no desktop fold restore (folding is desktop-only).
+      this.createMobileBubbleBars(editor, handle);
+    } else {
       // Bubble menus first: the toolbar build below docks this section's
       // table bar (handle.tableBubbleEl, created here). Building the toolbar
       // first left tableBar undefined, and with a single expanded page
       // nothing ever re-binds it — the table menu never appeared.
       this.createBubbleMenus(editor, handle);
-      // The toolbar is always visible: bind it to the most recently
-      // expanded page right away (focus re-binds it later). The handle is
-      // passed explicitly: handle.editor is only assigned after this call
-      // returns, so the editor-based lookup in rebuildToolbar finds nothing.
-      this.ensureToolbar(editor, handle);
       // Restore heading/task folds saved for this page (desktop only —
       // folding is disabled on mobile; mirrors NoteView's device-local
       // fold persistence).
       this.sectionFolds(handle).restore(editor);
     }
+    // The toolbar is always visible (desktop) or keyboard-driven (phones):
+    // bind it to the most recently expanded page right away (focus re-binds
+    // it later). The handle is passed explicitly: handle.editor is only
+    // assigned after this call returns, so the editor-based lookup in
+    // rebuildToolbar finds nothing.
+    this.ensureToolbar(editor, handle);
+    if (Platform.isPhone) {
+      // The page is painted: sync the horizontal-scroll state of its tables
+      // (edge fades + the scroll hint, design S8). A second pass after the
+      // late layout settles (fonts, table colwidths) — the rAF-only pass
+      // ran before the wrappers knew their real scrollWidth.
+      window.requestAnimationFrame(() => this.syncPhoneTableWrappers(handle));
+      window.setTimeout(() => this.syncPhoneTableWrappers(handle), 1200);
+    }
     NotepadView.onEditorCreated?.(editor);
     return editor;
+  }
+
+  /** Phone/tablet selection bars: the text, table and media menus become
+   *  toolbar props (rendered inside .mobile-sel-bar containers, see
+   *  ToolbarElement). No bubbleMenuPlugin is registered — visibility is the
+   *  toolbar's own mode computation. Mirrors NoteView's mobile wiring. */
+  private createMobileBubbleBars(
+    editor: Editor,
+    handle: SectionHandle,
+  ): void {
+    const textBar = makeBubbleMenuBarElement();
+    const tableBar = makeTableBubbleMenuElement();
+    const mediaBar = makeMediaBubbleMenuElement();
+    textBar.addClass("bubble-menu-bar-host");
+    tableBar.addClass("table-bubble-menu-bar-host");
+    mediaBar.addClass("bubble-menu-bar-host");
+    handle.bubbleEls = [textBar, tableBar, mediaBar];
+    handle.tableBubbleEl = tableBar;
+    handle.mobileBars = { text: textBar, table: tableBar, media: mediaBar };
+    textBar.props.editor = editor;
+    tableBar.props.editor = editor;
+    mediaBar.props.editor = editor;
+    // Required prop of the media menu (open/delete actions route through
+    // the app); without it the element's generator never starts.
+    mediaBar.props.app = this.app;
+    // The media menu element's own editor-event subscription can go stale
+    // across toolbar re-renders, leaving the bar frozen on its initial
+    // state. Pulse it on every selection update: the generator re-reads
+    // the editor state on each render pass (same as NoteView).
+    editor.on("selectionUpdate", () => mediaBar.next());
+    editor.on("update", () => mediaBar.next());
   }
 
   /** Device-local fold persistence for a page, created lazily. The scope is
@@ -1431,14 +1615,23 @@ export class NotepadView extends FileView {
     toolbarEl.addClass("notepad-toolbar");
     toolbarEl.setAttribute("data-ignore-swipe", "true");
     toolbarEl.props.editor = editor;
-    // The section owning this editor provides the table controls docked into
-    // the toolbar while the focus is inside a table (mirrors NoteView). At
-    // mount time handle.editor is not yet assigned (it lands in expandSection
-    // after createEditorForSection returns), so the owner is passed
-    // explicitly; later callers resolve it by editor.
+    // The section owning this editor provides the selection bars docked into
+    // the toolbar. Mobile: the text/table/media selection bars swap the
+    // toolbar row (ToolbarElement mode). Desktop: only the table controls
+    // dock while the focus is inside a table. At mount time handle.editor is
+    // not yet assigned (it lands in expandSection after
+    // createEditorForSection returns), so the owner is passed explicitly;
+    // later callers resolve it by editor.
     const ownerHandle =
       owner ?? [...this.sections.values()].find((h) => h.editor === editor);
-    toolbarEl.props.tableBar = ownerHandle?.tableBubbleEl ?? undefined;
+    const bars = ownerHandle?.mobileBars;
+    if (bars) {
+      toolbarEl.props.selectionBar = bars.text;
+      toolbarEl.props.tableSelectionBar = bars.table;
+      toolbarEl.props.mediaSelectionBar = bars.media;
+    } else {
+      toolbarEl.props.tableBar = ownerHandle?.tableBubbleEl ?? undefined;
+    }
     this.toolbarEl = toolbarEl;
     this.toolbarHost.appendChild(toolbarEl);
   }
@@ -1658,7 +1851,12 @@ export class NotepadView extends FileView {
         item.addClass("is-unsupported");
       }
       if (this.isNavActive(descriptor.id)) item.addClass("is-active");
-      item.addEventListener("click", () => this.jumpToPage(descriptor.id));
+      item.addEventListener("click", () => {
+        // Phone drawer overlays the content — a jump must retire it.
+        if (Platform.isPhone && this.navOpen)
+          this.setNavOpen(false, { animate: true });
+        this.jumpToPage(descriptor.id);
+      });
     }
     this.navTitles = this.navTitleSignature();
   }
@@ -1761,6 +1959,7 @@ export class NotepadView extends FileView {
     };
     window.addEventListener("pointermove", this.onDragPointerMove);
     window.addEventListener("pointerup", this.onDragPointerUp);
+    window.addEventListener("pointercancel", this.onDragPointerCancel);
     // Capture phase: while the drag holds the pointer it owns the
     // interaction, so Escape must not reach the focused page's editor
     // (ProseMirror reactions, bubble menu) first.
@@ -1771,6 +1970,7 @@ export class NotepadView extends FileView {
     if (!this.drag) return;
     const handle = this.sections.get(this.drag.id);
     if (!handle) return;
+    this.dragPointerY = event.clientY;
 
     if (!this.drag.active) {
       const moved = Math.hypot(
@@ -1781,6 +1981,7 @@ export class NotepadView extends FileView {
       this.drag.active = true;
       handle.root.addClass("is-dragging");
       this.dropLineEl = this.sectionsEl?.createDiv("notepad-drop-line") ?? null;
+      this.startDragAutoScroll();
     }
     this.updateDropLine(event.clientY);
   };
@@ -1788,7 +1989,9 @@ export class NotepadView extends FileView {
   private onDragPointerUp = (event: PointerEvent): void => {
     window.removeEventListener("pointermove", this.onDragPointerMove);
     window.removeEventListener("pointerup", this.onDragPointerUp);
+    window.removeEventListener("pointercancel", this.onDragPointerCancel);
     window.removeEventListener("keydown", this.onDragKeyDown, true);
+    this.stopDragAutoScroll();
     const drag = this.drag;
     this.drag = null;
     this.dropLineEl?.remove();
@@ -1803,17 +2006,29 @@ export class NotepadView extends FileView {
       // exactly here covers a release long after Esc — and the listener
       // pair is gone the moment the release lands, so a later ordinary
       // gutter click toggles as usual.
-      this.suppressGutterToggle = true;
+      this.suppressFoldToggle = true;
       window.setTimeout(() => {
-        this.suppressGutterToggle = false;
+        this.suppressFoldToggle = false;
       }, 0);
       return;
     }
-    if (!drag.active) return; // plain click — the gutter click toggles
+    if (!drag.active) {
+      // Phone long-press released in place: the page sheet (design S3).
+      // The swallow covers the release click, which would otherwise fold
+      // the row right under the opening sheet.
+      if (drag.phone) {
+        this.suppressFoldToggle = true;
+        window.setTimeout(() => {
+          this.suppressFoldToggle = false;
+        }, 0);
+        this.openPageSheet(drag.id);
+      }
+      return; // desktop plain click — the gutter click toggles
+    }
     // Swallow the click that follows a completed drag.
-    this.suppressGutterToggle = true;
+    this.suppressFoldToggle = true;
     window.setTimeout(() => {
-      this.suppressGutterToggle = false;
+      this.suppressFoldToggle = false;
     }, 0);
 
     const dropIndex = this.computeDropIndex(event.clientY, drag.id);
@@ -1831,6 +2046,39 @@ export class NotepadView extends FileView {
     this.cancelDrag();
   };
 
+  // ── Drag auto-scroll (design S6: drag to the screen's edge) ──
+
+  private startDragAutoScroll(): void {
+    if (this.dragAutoScrollFrame != null) return;
+    const step = () => {
+      this.dragAutoScrollFrame = null;
+      const scroller = this.scrollerEl;
+      if (!scroller || !this.drag?.active) return;
+      const rect = scroller.getBoundingClientRect();
+      let delta = 0;
+      if (this.dragPointerY < rect.top + DRAG_EDGE_PX) {
+        delta = -Math.ceil((rect.top + DRAG_EDGE_PX - this.dragPointerY) / 6);
+      } else if (this.dragPointerY > rect.bottom - DRAG_EDGE_PX) {
+        delta = Math.ceil(
+          (this.dragPointerY - (rect.bottom - DRAG_EDGE_PX)) / 6,
+        );
+      }
+      if (delta !== 0) {
+        scroller.scrollTop += delta;
+        this.updateDropLine(this.dragPointerY);
+      }
+      this.dragAutoScrollFrame = window.requestAnimationFrame(step);
+    };
+    this.dragAutoScrollFrame = window.requestAnimationFrame(step);
+  }
+
+  private stopDragAutoScroll(): void {
+    if (this.dragAutoScrollFrame != null) {
+      window.cancelAnimationFrame(this.dragAutoScrollFrame);
+      this.dragAutoScrollFrame = null;
+    }
+  }
+
   /** Esc during a drag (even before the 6px activation): discard the move
    *  entirely. The pointer is still down — the eventual release must not
    *  reorder, nor toggle the fold the release click would otherwise fire.
@@ -1843,11 +2091,101 @@ export class NotepadView extends FileView {
     drag.canceled = true;
     window.removeEventListener("pointermove", this.onDragPointerMove);
     window.removeEventListener("keydown", this.onDragKeyDown, true);
+    window.removeEventListener("pointercancel", this.onDragPointerCancel);
+    this.stopDragAutoScroll();
     const handle = this.sections.get(drag.id);
     handle?.root.removeClass("is-dragging");
     this.dropLineEl?.remove();
     this.dropLineEl = null;
   }
+
+  // ── Phone row gesture (design S3 + S6): long-press → drag or sheet ──
+
+  private onRowPointerDown(event: PointerEvent, id: string): void {
+    // Replaces any pending press: one finger, one gesture.
+    this.abortLongPress();
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const x = event.clientX;
+    const y = event.clientY;
+    window.addEventListener("pointermove", this.onLongPressMove);
+    window.addEventListener("pointerup", this.onLongPressUp);
+    window.addEventListener("pointercancel", this.onLongPressCancel);
+    const timer = window.setTimeout(() => {
+      this.longPress = null;
+      this.clearLongPressListeners();
+      this.beginPhonePress(event.pointerId, id, x, y);
+    }, LONG_PRESS_MS);
+    this.longPress = { timer, id, x, y };
+  }
+
+  private onLongPressMove = (event: PointerEvent): void => {
+    const press = this.longPress;
+    if (!press) return;
+    if (
+      Math.hypot(event.clientX - press.x, event.clientY - press.y) >
+      LONG_PRESS_SLOP_PX
+    ) {
+      // The hold turned into a scroll.
+      this.abortLongPress();
+    }
+  };
+
+  private onLongPressUp = (): void => this.abortLongPress();
+  private onLongPressCancel = (): void => this.abortLongPress();
+
+  private clearLongPressListeners(): void {
+    window.removeEventListener("pointermove", this.onLongPressMove);
+    window.removeEventListener("pointerup", this.onLongPressUp);
+    window.removeEventListener("pointercancel", this.onLongPressCancel);
+  }
+
+  /** Discard the pending hold (early release, scroll, another press). */
+  private abortLongPress(): void {
+    if (this.longPress == null) return;
+    window.clearTimeout(this.longPress.timer);
+    this.longPress = null;
+    this.clearLongPressListeners();
+  }
+
+  /** The hold registered: the drag state exists, but the row does not lift
+   *  until the finger actually moves (onDragPointerMove activates at 6px).
+   *  A release while still unmoved opens the page sheet — the design's
+   *  long-press menu entry (S3). */
+  private beginPhonePress(
+    pointerId: number,
+    id: string,
+    x: number,
+    y: number,
+  ): void {
+    if (!this.sections.has(id) || this.drag != null) return;
+    if ("vibrate" in navigator) navigator.vibrate(15);
+    this.drag = {
+      id,
+      pointerId,
+      startX: x,
+      startY: y,
+      active: false,
+      phone: true,
+    };
+    window.addEventListener("pointermove", this.onDragPointerMove);
+    window.addEventListener("pointerup", this.onDragPointerUp);
+    window.addEventListener("pointercancel", this.onDragPointerCancel);
+    window.addEventListener("keydown", this.onDragKeyDown, true);
+  }
+
+  private onDragPointerCancel = (): void => {
+    // A scroll/system gesture took the pointer mid-drag: discard cleanly —
+    // a pointerup may never follow (the desktop gutter drag leaks its
+    // listeners in exactly this case; the phone path cannot afford that).
+    if (this.drag?.active) {
+      this.cancelDrag();
+      return;
+    }
+    this.drag = null;
+    window.removeEventListener("pointermove", this.onDragPointerMove);
+    window.removeEventListener("pointerup", this.onDragPointerUp);
+    window.removeEventListener("keydown", this.onDragKeyDown, true);
+  };
 
   /** The title page's note id (order 0) — excluded from drag geometry. */
   private titleSectionId(): string | null {
@@ -2203,6 +2541,191 @@ export class NotepadView extends FileView {
         tippyOptions: { placement: "top", offset: [0, 8] },
       }),
     );
+  }
+
+  // ── Phone: page sheet (⋯ menu, design S3), move mode (S6) ──
+
+  /** The bottom sheet for one page: navigation on top ("All pages", "Find
+   *  in document"), then the page actions, delete last (red). Entered from
+   *  the ⋯ of a page header or a long-press on a collapsed row. */
+  private openPageSheet(id: string): void {
+    if (!Platform.isPhone) return;
+    const notepad = this.notepad;
+    const descriptor = notepad?.note(id);
+    if (!notepad || !descriptor) return;
+    // A sheet over an open keyboard fights it for the bottom of the screen.
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    this.closeSheet();
+
+    const scrim = this.contentEl.createDiv("notepad-sheet-scrim");
+    scrim.addEventListener("click", () => this.closeSheet());
+    const sheet = this.contentEl.createDiv("notepad-sheet");
+    this.sheetScrimEl = scrim;
+    this.sheetEl = sheet;
+
+    sheet.createDiv("notepad-sheet-grab");
+    const head = sheet.createDiv("notepad-sheet-head");
+    const title = (descriptor.title ?? "").trim();
+    const titleEl = head.createDiv("notepad-sheet-title");
+    if (title) titleEl.setText(title);
+    else {
+      titleEl.addClass("is-empty");
+      titleEl.setText("Untitled");
+    }
+    const words = this.countNoteWords(id);
+    const meta: string[] = [];
+    const modifiedAt = descriptor.modifiedAt ?? this.file?.stat.mtime;
+    if (modifiedAt != null) meta.push(momentFormat(modifiedAt, "L LT"));
+    meta.push(words === 0 ? "Empty" : words === 1 ? "1 word" : `${words} words`);
+    head.createDiv("notepad-sheet-meta").setText(meta.join(" · "));
+
+    const addRow = (
+      icon: string,
+      label: string,
+      onClick: () => void,
+      cls?: string,
+    ): HTMLElement => {
+      const row = createEl("button", {
+        cls: cls ? `notepad-sheet-row ${cls}` : "notepad-sheet-row",
+      });
+      setIcon(row, icon);
+      row.createSpan({ text: label });
+      row.addEventListener("click", () => {
+        this.closeSheet();
+        onClick();
+      });
+      sheet.appendChild(row);
+      return row;
+    };
+    const addDivider = () => sheet.createDiv("notepad-sheet-divider");
+
+    addRow("list", "All pages", () =>
+      this.setNavOpen(true, { animate: true }),
+    );
+    addRow("search", "Find in document", () => this.openNotepadSearch());
+    addDivider();
+    addRow("plus", "Add page below", () => this.addNoteAfter(id));
+    if (notepad.isNoteOpenable(id)) {
+      addRow("copy", "Duplicate", () => this.duplicateNote(id));
+      addRow("arrow-up-down", "Move…", () => this.enterMoveMode(id));
+    }
+    addRow(
+      notepad.isExpanded(id) ? "chevron-down" : "chevron-up",
+      notepad.isExpanded(id) ? "Collapse page" : "Expand page",
+      () => this.toggleSection(id),
+    );
+    if (notepad.isNoteOpenable(id) && descriptor.order !== 0) {
+      addDivider();
+      addRow("trash-2", "Delete", () => this.deleteNote(id), "is-danger");
+    }
+
+    window.addEventListener("keydown", (this.sheetKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.closeSheet();
+      }
+    }), true);
+  }
+
+  private sheetKeyDown: ((event: KeyboardEvent) => void) | null = null;
+
+  private closeSheet(): void {
+    if (this.sheetKeyDown != null) {
+      window.removeEventListener("keydown", this.sheetKeyDown, true);
+      this.sheetKeyDown = null;
+    }
+    this.sheetEl?.remove();
+    this.sheetEl = null;
+    this.sheetScrimEl?.remove();
+    this.sheetScrimEl = null;
+  }
+
+  /** The "Move…" fallback (design S6): the row lifts and a chip names the
+   *  mode; the next tap on another row lands the page after it. Tapping the
+   *  lifted row, the chip, or Esc cancels. */
+  private enterMoveMode(id: string): void {
+    const descriptor = this.notepad?.note(id);
+    if (!descriptor || descriptor.order === 0) return;
+    if (!this.notepad?.isNoteOpenable(id)) return;
+    this.exitMoveMode();
+    this.moveModeId = id;
+    this.sections.get(id)?.root.addClass("is-dragging");
+    const chip = this.contentEl.createDiv("notepad-move-chip");
+    chip.setText("Move page · tap the destination");
+    chip.addEventListener("click", () => this.exitMoveMode());
+    this.moveChipEl = chip;
+    window.addEventListener("keydown", (this.moveModeKeyDown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        this.exitMoveMode();
+      }
+    }), true);
+  }
+
+  private moveModeKeyDown: ((event: KeyboardEvent) => void) | null = null;
+
+  private exitMoveMode(): void {
+    if (this.moveModeKeyDown != null) {
+      window.removeEventListener("keydown", this.moveModeKeyDown, true);
+      this.moveModeKeyDown = null;
+    }
+    this.moveChipEl?.remove();
+    this.moveChipEl = null;
+    if (this.moveModeId != null) {
+      this.sections.get(this.moveModeId)?.root.removeClass("is-dragging");
+      this.moveModeId = null;
+    }
+  }
+
+  /** Capture-phase click handler (armed in onOpen): while move mode is on,
+   *  a tap on a page row inserts the lifted page after it and swallows the
+   *  tap so no fold/expand fires underneath. */
+  private onMoveModeClick(event: MouseEvent): void {
+    if (this.moveModeId == null) return;
+    const sectionEl = (event.target as HTMLElement | null)?.closest?.(
+      ".notepad-section",
+    );
+    if (!sectionEl) return;
+    event.preventDefault();
+    event.stopPropagation();
+    let tappedId: string | null = null;
+    for (const [id, handle] of this.sections) {
+      if (handle.root === sectionEl) {
+        tappedId = id;
+        break;
+      }
+    }
+    if (tappedId == null) return;
+    const movingId = this.moveModeId;
+    this.exitMoveMode();
+    if (tappedId === movingId) return; // tap on the lifted row — cancel
+    const index = this.notepad?.notes().findIndex((n) => n.id === tappedId);
+    if (index == null || index < 0) return;
+    if (this.notepad?.moveNote(movingId, index + 1)) {
+      this.render();
+      void this.flushSave("move-page");
+    }
+  }
+
+  // ── Phone: horizontal table scroll state (design S8) ──
+
+  private onTableWrapperScrolled(wrapper: Element): void {
+    wrapper.classList.add("has-scrolled");
+    const el = wrapper.instanceOf(HTMLElement) ? wrapper : null;
+    if (el) syncScrollShadow(el);
+  }
+
+  /** Refresh the edge-fade state of every table on a page (called once the
+   *  page is painted and on window resizes). */
+  private syncPhoneTableWrappers(handle: SectionHandle): void {
+    if (!handle.body.isConnected) return;
+    for (const wrapper of handle.body.querySelectorAll<HTMLElement>(
+      ".table-wrapper",
+    )) {
+      syncScrollShadow(wrapper);
+    }
   }
 
   // ── Notes ──
