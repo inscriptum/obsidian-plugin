@@ -176,17 +176,19 @@
 /* Inside a table cell the layout layers resolve against the cell, not the
    editor: cqw still points at the editor container, so the full-bleed rule
    above would push the image past the cell borders. A fixed-width host is
-   capped to the cell box, and "full" means the full width of the cell
-   (no full-bleed margins, default corner radius — the cell has edges). */
-th .texto-extension-image-host,
-td .texto-extension-image-host {
+   capped to the cell box, and "full" means the full inner width of the
+   cell — edge to edge: the cell's horizontal padding is negated the same
+   way the top-level full-bleed negates the editor indent (the padding
+   value is published by the table styles as --inscriptum-cell-pad-x). */
+th .texto-extension-image-host:not(.texto-image-layout-full),
+td .texto-extension-image-host:not(.texto-image-layout-full) {
   max-width: 100%;
 }
 
 th .texto-extension-image-host.texto-image-layout-full,
 td .texto-extension-image-host.texto-image-layout-full {
-  width: 100%;
-  margin-inline: 0;
+  width: calc(100% + var(--inscriptum-cell-pad-x, 0px) * 2);
+  margin-inline: calc(-1 * var(--inscriptum-cell-pad-x, 0px));
 
   & .image {
     border-radius: 4px;

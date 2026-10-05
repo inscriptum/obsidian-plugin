@@ -89,7 +89,7 @@ test.describe("images in table cells", () => {
       ],
     });
 
-  test("full-width image inside a cell is capped to the cell, not the editor", async ({
+  test("full-width image inside a cell spans the cell edge to edge", async ({
     page,
   }) => {
     await openHarness(page);
@@ -98,12 +98,22 @@ test.describe("images in table cells", () => {
     const host = page.locator(`${EDITOR} td .texto-extension-image-host`);
     await expect(host).toHaveClass(/texto-image-layout-full/);
 
-    const widths = await host.evaluate((el) => ({
-      host: el.getBoundingClientRect().width,
-      cell: (el.closest("td") as HTMLElement).getBoundingClientRect().width,
-      editor: (el.closest(".texto-editor") as HTMLElement).clientWidth,
-    }));
-    expect(widths.host).toBeLessThanOrEqual(widths.cell + 0.5);
+    const widths = await host.evaluate((el) => {
+      const cell = el.closest("td") as HTMLElement;
+      const cellStyle = window.getComputedStyle(cell);
+      return {
+        host: el.getBoundingClientRect().width,
+        // inner width including the cell's horizontal padding (excludes
+        // the 1px borders) — what "full width of the cell" means
+        cellInner: cell.clientWidth,
+        padX: parseFloat(cellStyle.paddingLeft),
+        editor: (el.closest(".texto-editor") as HTMLElement).clientWidth,
+      };
+    });
+    // Edge to edge: the host spans the whole cell box (padding included),
+    // not the padded content box — no insets at either side.
+    expect(Math.abs(widths.host - widths.cellInner)).toBeLessThanOrEqual(1);
+    expect(widths.padX).toBeGreaterThan(0);
     // The 100cqw full-bleed of the top level would spill past the 300px cell
     // and span the whole editor; inside the cell it must not.
     expect(widths.host).toBeLessThan(widths.editor * 0.8);
