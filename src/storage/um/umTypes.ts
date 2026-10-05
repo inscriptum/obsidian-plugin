@@ -14,8 +14,12 @@ export const UM_SCHEMA_TITLE = "title";
  *  a title node is not required (9.2). */
 export const UM_SCHEMA_PLAIN = "plain";
 /** Current version of every schema family this editor reads/writes (8.6.1).
- *  Raised only for breaking changes; additive changes keep the value. */
-export const UM_SCHEMA_VERSION = 1;
+ *  Raised only for breaking changes; additive changes keep the value.
+ *  v2: table cells accept an image node — the content-expression shape
+ *  changed (editorSchemas.test pins it). v1 documents stay valid; older
+ *  editors degrade a v2 page to "unsupported" instead of failing to parse
+ *  it (image-in-cell is unparseable for them). */
+export const UM_SCHEMA_VERSION = 2;
 /** Manifest entry point inside the archive (section 5). */
 export const MANIFEST_PATH = "manifest.json";
 /** Recommended location of note documents (section 8.2). */

@@ -51,7 +51,10 @@
 .ProseMirror .table-wrapper table th {
   border: 1px solid var(--inscriptum-table-border) !important;
   min-width: 1em;
-  padding: 10px 12px;
+  /* The horizontal value is public: the image extension negates it for
+     full-width images inside a cell (see texto/extensions/image/style.css). */
+  --inscriptum-cell-pad-x: 12px;
+  padding: 10px var(--inscriptum-cell-pad-x);
   vertical-align: top;
   box-sizing: border-box;
   position: relative;

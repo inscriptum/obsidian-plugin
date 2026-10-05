@@ -75,8 +75,7 @@ export function interpretSchema(
 
 /**
  * Migration chains: family → fromVersion → transform to fromVersion + 1.
- * v1 is the first version of both families, so every chain starts empty;
- * a breaking change to a family registers its transform (see
+ * A breaking change to a family registers its transform (see
  * registerMigration) and bumps UM_SCHEMA_VERSION.
  */
 const MIGRATIONS: Record<
@@ -86,6 +85,13 @@ const MIGRATIONS: Record<
   [UM_SCHEMA_TITLE]: {},
   [UM_SCHEMA_PLAIN]: {},
 };
+
+// v1 → v2 (table cells accept an image node): purely additive, every v1
+// document is already a valid v2 document — the bump only marks the new
+// shape so older editors degrade the page to "unsupported" (8.6.2) instead
+// of failing to parse it.
+registerMigration(UM_SCHEMA_TITLE, 1, (doc) => doc);
+registerMigration(UM_SCHEMA_PLAIN, 1, (doc) => doc);
 
 /** Register the v(n) → v(n+1) transform of a family (8.6.3): a
  *  deterministic JSON→JSON migration. Called from version-bump commits. */

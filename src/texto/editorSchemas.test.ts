@@ -31,8 +31,8 @@ const NOTE_NODES = [
   "orderedList:listItem+",
   "paragraph:inline*",
   "table:tableRow+",
-  "tableCell:block+",
-  "tableHeader:block+",
+  "tableCell:(block | image)+",
+  "tableHeader:(block | image)+",
   "tableRow:(tableCell | tableHeader)*",
   "taskItem:paragraph block*",
   "taskList:taskItem+",
@@ -64,13 +64,13 @@ describe("editor profiles", () => {
     }
   });
 
-  it("note profile (plain .note, v1) — title mandatory", () => {
+  it("note profile (plain .note, unversioned) — title mandatory", () => {
     expect(canonicalShape("note")).toBe(
       `top=noteDoc\nnodes=${NOTE_NODES.join(",")}\nmarks=${MARKS}`,
     );
   });
 
-  it("title profile (title-v1) — header nodes, summary mandatory", () => {
+  it("title profile (title-v2) — header nodes, summary mandatory", () => {
     expect(canonicalShape("title")).toBe(
       `top=noteDoc\nnodes=${[
         ...NOTE_NODES.filter((n) => !n.startsWith("noteDoc:")),
@@ -82,7 +82,7 @@ describe("editor profiles", () => {
     );
   });
 
-  it("plain profile (plain-v1) — title optional (legacy pages parse)", () => {
+  it("plain profile (plain-v2) — title optional (legacy pages parse)", () => {
     expect(canonicalShape("plain")).toBe(
       `top=noteDoc\nnodes=${[
         ...NOTE_NODES.filter((n) => !n.startsWith("noteDoc:")),

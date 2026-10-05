@@ -8,17 +8,16 @@ import {
   migrateNoteDoc,
   runMigrationChain,
 } from "./umSchemas";
-import {
-  UM_SCHEMA_PLAIN,
-  UM_SCHEMA_TITLE,
-  UM_SCHEMA_VERSION,
-} from "./umTypes";
+import { UM_SCHEMA_PLAIN, UM_SCHEMA_TITLE, UM_SCHEMA_VERSION } from "./umTypes";
 
 function titleDoc(title = ""): JSONContent {
   return {
     type: "noteDoc",
     content: [
-      { type: "noteTitle", content: title ? [{ type: "text", text: title }] : [] },
+      {
+        type: "noteTitle",
+        content: title ? [{ type: "text", text: title }] : [],
+      },
       { type: "noteSummary" },
       { type: "paragraph" },
     ],
@@ -65,7 +64,9 @@ describe("interpretSchema (8.6.2)", () => {
   });
 
   it("treats a newer version of a known family as unsupported", () => {
-    expect(interpretSchema({ order: 0, schema: "title", schemaVersion: 99 })).toEqual({
+    expect(
+      interpretSchema({ order: 0, schema: "title", schemaVersion: 99 }),
+    ).toEqual({
       kind: "unsupported",
       family: "title",
       version: 99,
@@ -73,12 +74,16 @@ describe("interpretSchema (8.6.2)", () => {
   });
 
   it("treats an unknown family exactly like a newer version", () => {
-    expect(interpretSchema({ order: 1, schema: "mindmap", schemaVersion: 1 })).toEqual({
+    expect(
+      interpretSchema({ order: 1, schema: "mindmap", schemaVersion: 1 }),
+    ).toEqual({
       kind: "unsupported",
       family: "mindmap",
       version: 1,
     });
-    expect(interpretSchema({ order: 1, schema: "mindmap", schemaVersion: 42 })).toEqual({
+    expect(
+      interpretSchema({ order: 1, schema: "mindmap", schemaVersion: 42 }),
+    ).toEqual({
       kind: "unsupported",
       family: "mindmap",
       version: 42,
@@ -86,7 +91,9 @@ describe("interpretSchema (8.6.2)", () => {
   });
 
   it("opens known families at the current version", () => {
-    expect(interpretSchema({ order: 0, schema: "title", schemaVersion: 1 })).toEqual({
+    expect(
+      interpretSchema({ order: 0, schema: "title", schemaVersion: 1 }),
+    ).toEqual({
       kind: "openable",
       family: "title",
       version: 1,
@@ -125,14 +132,21 @@ describe("migrations (8.6.3)", () => {
     expect(result.doc).toBe(original);
   });
 
-  it("reports missing chain entries as failure, current-version docs as ok", () => {
-    // v1 is current: nothing to migrate, and fromVersion >= current is
-    // rejected as a misuse.
+  it("migrates v1 docs to the current version; current-version docs are rejected as misuse", () => {
     const doc = titleDoc();
+    // v1 → current runs the registered (identity) chain: the cell-schema
+    // bump is additive, the document itself does not change.
     expect(migrateNoteDoc("title", 1, doc)).toEqual({
+      ok: true,
+      doc,
+      toVersion: UM_SCHEMA_VERSION,
+    });
+    // current version: nothing to migrate, fromVersion >= current is
+    // rejected as a misuse.
+    expect(migrateNoteDoc("title", UM_SCHEMA_VERSION, doc)).toEqual({
       ok: false,
       doc,
-      toVersion: 1,
+      toVersion: UM_SCHEMA_VERSION,
     });
   });
 });
@@ -234,6 +248,67 @@ describe("UmNotepad schema handling", () => {
     ]);
   });
 
+  it("repairs a .um page cell ending on an image on read (persists on save)", () => {
+    // Externally produced page: a plain page whose first cell ends on an
+    // image — no caret place below it. The read-time repair must fix it
+    // before the page reaches the editor (PR #3 review, P1).
+    const cellImageDoc: JSONContent = {
+      type: "noteDoc",
+      content: [
+        {
+          type: "table",
+          content: [
+            {
+              type: "tableRow",
+              content: [
+                {
+                  type: "tableCell",
+                  content: [
+                    {
+                      type: "image",
+                      attrs: {
+                        key: "k1",
+                        data: { id: "asset-1", size: "9", filename: "p.png" },
+                      },
+                    },
+                  ],
+                },
+                { type: "tableCell", content: [{ type: "paragraph" }] },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const bytes = zipContainer(
+      {
+        format: "um",
+        version: 1,
+        type: "notepad",
+        notes: [
+          { id: "a", path: "notes/a.json", order: 0 },
+          { id: "b", path: "notes/b.json", order: 1 },
+        ],
+      },
+      { "notes/a.json": titleDoc("Cover"), "notes/b.json": cellImageDoc },
+    );
+
+    const nb = UmNotepad.fromBytes(bytes);
+    const doc = nb.noteContent("b");
+    const cell = doc?.content?.[0]?.content?.[0]?.content?.[0];
+    expect(cell?.content?.map((n) => n.type)).toEqual(["image", "paragraph"]);
+
+    // The repair marks the page dirty: the next save persists it.
+    const saved = JSON.parse(
+      DEC.decode(unzipSync(nb.serialize())["notes/b.json"]),
+    ) as JSONContent;
+    const savedCell = saved.content?.[0]?.content?.[0]?.content?.[0];
+    expect(savedCell?.content?.map((n) => n.type)).toEqual([
+      "image",
+      "paragraph",
+    ]);
+  });
+
   it("openable title page gets a normalized header; plain pages stay content-only", () => {
     const nb = UmNotepad.empty();
     nb.addNote(undefined, "Cover");
@@ -283,7 +358,9 @@ describe("UmNotepad schema handling", () => {
   });
 
   it("derives plain titles from the first line and mirrors title-page headers", () => {
-    expect(noteDisplayTitle(paragraphDoc("From text"), "plain")).toBe("From text");
+    expect(noteDisplayTitle(paragraphDoc("From text"), "plain")).toBe(
+      "From text",
+    );
     expect(noteDisplayTitle(headingDoc("From heading"), "plain")).toBe(
       "From heading",
     );

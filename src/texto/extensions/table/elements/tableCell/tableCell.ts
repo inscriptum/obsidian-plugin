@@ -21,7 +21,9 @@ export const TableCell = Node.create<TableCellOptions>({
     };
   },
 
-  content: "block+",
+  // image allowed: a cell can hold a picture as its block content
+  // (schema-shape change → UM_SCHEMA_VERSION 2, see editorSchemas.test).
+  content: "(block | image)+",
 
   addAttributes() {
     const initWidth = this.options.initWidth;
