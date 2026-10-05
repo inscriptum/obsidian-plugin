@@ -4,7 +4,7 @@ import { p, table } from "./fixtures/docs";
 /**
  * Table menus on desktop: the table controls dock into the note toolbar
  * while the focus is inside a table (no floating table bubble menu), and a
- * floating bubble with text formatting (bold / italic / fill & color)
+ * floating bubble with text formatting (bold / italic / text color)
  * appears only for a multi-cell selection — applied to every selected cell.
  * The notepad harness mounts the real NotepadView (toolbar + bubble menus).
  */
@@ -32,24 +32,26 @@ async function editorWith(page: Page, marker: string): Promise<number> {
 
 async function mountNotepadWithTable(page: Page): Promise<void> {
   await page.goto("/tests/e2e/harness/index.html");
-  await page.waitForFunction(
-    () =>
-      Boolean((window as unknown as { __e2eNotepad?: unknown }).__e2eNotepad),
+  await page.waitForFunction(() =>
+    Boolean((window as unknown as { __e2eNotepad?: unknown }).__e2eNotepad),
   );
-  await page.evaluate((pages) => window.__e2eNotepad.mount(pages), [
-    {
-      id: "table-page",
-      paragraphs: 0,
-      doc: [
-        p("Table page"),
-        table([
-          ["A1", "B1"],
-          ["A2", "B2"],
-        ]),
-        p("after"),
-      ] as unknown[],
-    },
-  ]);
+  await page.evaluate(
+    (pages) => window.__e2eNotepad.mount(pages),
+    [
+      {
+        id: "table-page",
+        paragraphs: 0,
+        doc: [
+          p("Table page"),
+          table([
+            ["A1", "B1"],
+            ["A2", "B2"],
+          ]),
+          p("after"),
+        ] as unknown[],
+      },
+    ],
+  );
   await page.waitForTimeout(150);
 }
 
@@ -197,9 +199,8 @@ test.describe("table toolbar dock + cells bubble", () => {
     // toolbar — the table menu never appeared. The multi-page mount above
     // masks this: its click re-binds the toolbar across editors.
     await page.goto("/tests/e2e/harness/index.html");
-    await page.waitForFunction(
-      () =>
-        Boolean((window as unknown as { __e2eNotepad?: unknown }).__e2eNotepad),
+    await page.waitForFunction(() =>
+      Boolean((window as unknown as { __e2eNotepad?: unknown }).__e2eNotepad),
     );
     await page.evaluate(
       ({ pages, opts }) => window.__e2eNotepad.mount(pages, opts),
@@ -275,10 +276,14 @@ test.describe("table toolbar dock + cells bubble", () => {
       .locator(".bubble-menu-bar:has(.bubble-menu-cells-bar)")
       .locator(".bubble-menu-layer--table-color");
     await expect(layer).toBeVisible();
-    // The layer has two rows: cell fills, then text colors. The yellow text
-    // swatch is the 4th of the second row (none/violet/green/yellow/red).
-    const textRow = layer.locator(".bb-sw-row").last();
-    await textRow.locator(".bb-sw").nth(3).click();
+    // Composition: text color only — cell fill moved to the table panel —
+    // and the palette is the unified one: 12 swatches + a custom row.
+    await expect(layer.locator(".bb-layer-label")).toHaveText(["Text color"]);
+    const grid = layer.locator(".bb-dd-swatches");
+    await expect(grid.locator(".bb-sw")).toHaveCount(12);
+    await expect(layer.locator(".bb-dd-custom input")).toHaveCount(2);
+    // The yellow swatch (none/violet/green/yellow/…).
+    await grid.locator(".bb-sw").nth(3).click();
 
     const index = await editorWith(page, "A1");
     const attrs = await page.evaluate((i) => {
@@ -294,6 +299,228 @@ test.describe("table toolbar dock + cells bubble", () => {
     }, index);
     expect(attrs[0].dataColor).toBe("#f59e0b");
     expect(attrs[1].dataColor).toBe("#f59e0b");
+
+    // One rendering path for every color: the design palette paints inline
+    // too (no per-color CSS rules anymore).
+    const cellColor = await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      const td = editor.view.dom.querySelector("td");
+      return td ? window.getComputedStyle(td).color : null;
+    }, index);
+    expect(cellColor).toBe("rgb(245, 158, 11)");
+  });
+
+  test("cells bubble custom color row applies any hex to all selected cells", async ({
+    page,
+  }) => {
+    await mountNotepadWithTable(page);
+    await selectCells(page, 2, 3);
+
+    await page.locator(`${CELLS_BAR} [data-tbl="color"]`).click();
+    const layer = page
+      .locator(".bubble-menu-bar:has(.bubble-menu-cells-bar)")
+      .locator(".bubble-menu-layer--table-color");
+    await expect(layer).toBeVisible();
+
+    const hex = layer.locator(".bb-dd-custom .bb-dd-hex");
+    await hex.click();
+    await hex.fill("#12ab34");
+    await hex.press("Enter");
+    await page.waitForTimeout(200);
+
+    const index = await editorWith(page, "A1");
+    const colors = await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      const out: string[] = [];
+      editor.state.doc.descendants((node) => {
+        if (node.type.spec.tableRole === "cell") {
+          out.push(String(node.attrs.dataColor));
+        }
+        return true;
+      });
+      return out;
+    }, index);
+    expect(colors[0]).toBe("#12ab34");
+    expect(colors[1]).toBe("#12ab34");
+  });
+
+  test("table toolbar color layer: cell fill only, paint-bucket button", async ({
+    page,
+  }) => {
+    await mountNotepadWithTable(page);
+    const cellA2 = page.locator(".texto-editor td", { hasText: "A2" });
+    await clickInsideNotepadText(page, cellA2.locator("p"), "A2");
+    await expect(page.locator(".note-toolbar__table-bar")).toBeVisible();
+
+    // The panel's color button is the paint bucket (an svg icon), not the
+    // "Aa" glyph — that one belongs to the text/cells bubbles now.
+    const colorBtn = page.locator(
+      '.note-toolbar__table-bar [data-tbl="color"]',
+    );
+    await expect(colorBtn.locator("svg")).toHaveCount(1);
+
+    await colorBtn.click();
+    const layer = page.locator(
+      ".note-toolbar__table-bar .bubble-menu-layer--table-color",
+    );
+    await expect(layer).toBeVisible();
+    // Composition: cell fill only — no text-color row — and the palette is
+    // the unified one: 12 swatches + the custom row.
+    await expect(layer.locator(".bb-layer-label")).toHaveText(["Cell fill"]);
+    await expect(layer.locator(".bb-dd-swatches .bb-sw")).toHaveCount(12);
+    await expect(layer.locator(".bb-dd-custom input")).toHaveCount(2);
+    // Applying a fill still targets the current cell (violet swatch).
+    await layer.locator(".bb-sw").nth(1).click();
+    const index = await editorWith(page, "A1");
+    const attrs = await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      const out: Array<Record<string, unknown>> = [];
+      editor.state.doc.descendants((node) => {
+        if (node.type.spec.tableRole === "cell") {
+          out.push({ ...node.attrs });
+        }
+        return true;
+      });
+      return out;
+    }, index);
+    expect(attrs[0].backgroundColor).toBe("rgba(179, 163, 247, .16)");
+  });
+
+  test("table toolbar custom fill applies any hex to the current cell", async ({
+    page,
+  }) => {
+    await mountNotepadWithTable(page);
+    const cellA2 = page.locator(".texto-editor td", { hasText: "A2" });
+    await clickInsideNotepadText(page, cellA2.locator("p"), "A2");
+    await expect(page.locator(".note-toolbar__table-bar")).toBeVisible();
+
+    await page.locator('.note-toolbar__table-bar [data-tbl="color"]').click();
+    const layer = page.locator(
+      ".note-toolbar__table-bar .bubble-menu-layer--table-color",
+    );
+    await expect(layer).toBeVisible();
+
+    const hex = layer.locator(".bb-dd-custom .bb-dd-hex");
+    await hex.click();
+    await hex.fill("#0ea5e9");
+    await hex.press("Enter");
+    await page.waitForTimeout(200);
+
+    const index = await editorWith(page, "A1");
+    const attrs = await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      const out: Array<Record<string, unknown>> = [];
+      editor.state.doc.descendants((node) => {
+        if (node.type.spec.tableRole === "cell") {
+          out.push({ ...node.attrs });
+        }
+        return true;
+      });
+      return out;
+    }, index);
+    expect(attrs[0].backgroundColor).toBe("#0ea5e9");
+  });
+
+  test("extended palette colors render on cell text (inline style)", async ({
+    page,
+  }) => {
+    await mountNotepadWithTable(page);
+    await selectCells(page, 2, 3);
+
+    // Pick the BLUE text color (extended palette — no legacy CSS rule).
+    await page.locator(`${CELLS_BAR} [data-tbl="color"]`).click();
+    const layer = page
+      .locator(".bubble-menu-bar:has(.bubble-menu-cells-bar)")
+      .locator(".bubble-menu-layer--table-color");
+    await expect(layer).toBeVisible();
+    await layer.locator(".bb-dd-swatches .bb-sw").nth(6).click();
+    await page.waitForTimeout(200);
+
+    const index = await editorWith(page, "A2");
+    const cellColor = await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      const dom = editor.view.dom;
+      const td = dom.querySelector("td");
+      return td ? window.getComputedStyle(td).color : null;
+    }, index);
+    // #60a5fa → rgb(96, 165, 250): the attr must actually paint the text.
+    expect(cellColor).toBe("rgb(96, 165, 250)");
+  });
+
+  test("text bubble Default color resets a single colored cell", async ({
+    page,
+  }) => {
+    await mountNotepadWithTable(page);
+    // Color both cells' text via the cells bubble (yellow).
+    await selectCells(page, 2, 3);
+    await page.locator(`${CELLS_BAR} [data-tbl="color"]`).click();
+    const cellsLayer = page
+      .locator(".bubble-menu-bar:has(.bubble-menu-cells-bar)")
+      .locator(".bubble-menu-layer--table-color");
+    await expect(cellsLayer).toBeVisible();
+    await cellsLayer.locator(".bb-dd-swatches .bb-sw").nth(3).click();
+    await page.waitForTimeout(200);
+
+    // Now select the TEXT in A2 — the text bubble is the only cell-text
+    // control for a single cell — and hit "Default color".
+    const index0 = await editorWith(page, "A2");
+    await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      let from = 0;
+      let to = 0;
+      editor.state.doc.descendants((node, pos) => {
+        if (!to && node.isText && node.text === "A2") {
+          from = pos;
+          to = pos + node.nodeSize;
+        }
+        return !to;
+      });
+      editor.chain().focus().setTextSelection({ from, to }).run();
+    }, index0);
+    await page.waitForTimeout(450);
+    await page
+      .locator('.bubble-menu-bar:visible button[data-tip="Styles & color"]')
+      .first()
+      .click();
+    const styles = page.locator(
+      ".bubble-menu-bar:visible .bubble-menu-layer--styles",
+    );
+    await expect(styles).toBeVisible();
+    await styles.locator(".bb-dd-swatches .bb-sw").first().click();
+    await page.waitForTimeout(200);
+
+    const index = await editorWith(page, "A1");
+    const attrs = await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      const out: Array<Record<string, unknown>> = [];
+      editor.state.doc.descendants((node) => {
+        if (node.type.spec.tableRole === "cell") {
+          out.push({ ...node.attrs });
+        }
+        return true;
+      });
+      return out;
+    }, index);
+    // A2's cell-level text color is gone (single-cell reset works)…
+    expect(attrs[0].dataColor).toBe(null);
+    // …the untouched neighbour keeps its color…
+    expect(attrs[1].dataColor).toBe("#f59e0b");
+    // …and no color is left on the text itself (the historical
+    // removeEmptyTextStyle is a no-op, so an empty textStyle mark may stay —
+    // it must carry no color).
+    const markColors = await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      const found: Array<string | null | undefined> = [];
+      editor.state.doc.descendants((node) => {
+        if (node.isText && node.text === "A2") {
+          const style = node.marks.find((m) => m.type.name === "textStyle");
+          found.push(style?.attrs.color as string | null | undefined);
+        }
+        return true;
+      });
+      return found;
+    }, index);
+    expect(markColors).not.toContain("#f59e0b");
   });
 
   test("cells bubble applies underline and clear formatting to all selected cells", async ({
@@ -339,9 +566,9 @@ test.describe("table toolbar dock + cells bubble", () => {
         .locator(".bubble-menu-bar:has(.bubble-menu-cells-bar)")
         .locator(".bubble-menu-layer--link"),
     ).toBeVisible();
-    await expect(
-      page.locator(".bubble-menu-link-input"),
-    ).toHaveValue("https://example.com");
+    await expect(page.locator(".bubble-menu-link-input")).toHaveValue(
+      "https://example.com",
+    );
     await page
       .locator(".bubble-menu-bar:has(.bubble-menu-cells-bar)")
       .locator(".bb-del")
@@ -395,9 +622,7 @@ test.describe("table toolbar dock + cells bubble", () => {
     await clickInsideNotepadText(page, cellA2.locator("p"), "A2");
 
     // Open the borders layer from the docked table bar.
-    await page
-      .locator('.note-toolbar__table-bar [data-tbl="borders"]')
-      .click();
+    await page.locator('.note-toolbar__table-bar [data-tbl="borders"]').click();
     const layer = page.locator(".bubble-menu-layer--table-borders");
     await expect(layer).toBeVisible();
 
@@ -422,9 +647,9 @@ test.describe("table toolbar dock + cells bubble", () => {
           return true;
         });
         out.domDataBorders =
-          editor.view.dom.querySelector("table[data-borders]")?.getAttribute(
-            "data-borders",
-          ) ?? null;
+          editor.view.dom
+            .querySelector("table[data-borders]")
+            ?.getAttribute("data-borders") ?? null;
         return out;
       }, editorIndex);
 
@@ -462,9 +687,7 @@ test.describe("table toolbar dock + cells bubble", () => {
     const cellA2 = page.locator(".texto-editor td", { hasText: "A2" });
     await clickInsideNotepadText(page, cellA2.locator("p"), "A2");
 
-    await page
-      .locator('.note-toolbar__table-bar [data-tbl="borders"]')
-      .click();
+    await page.locator('.note-toolbar__table-bar [data-tbl="borders"]').click();
     const layer = page.locator(".bubble-menu-layer--table-borders");
     await expect(layer).toBeVisible();
 
@@ -510,9 +733,7 @@ test.describe("table toolbar dock + cells bubble", () => {
     const cellA2 = page.locator(".texto-editor td", { hasText: "A2" });
     await clickInsideNotepadText(page, cellA2.locator("p"), "A2");
 
-    await page
-      .locator('.note-toolbar__table-bar [data-tbl="borders"]')
-      .click();
+    await page.locator('.note-toolbar__table-bar [data-tbl="borders"]').click();
     const layer = page.locator(".bubble-menu-layer--table-borders");
     await expect(layer).toBeVisible();
 
@@ -525,17 +746,13 @@ test.describe("table toolbar dock + cells bubble", () => {
     await colorPanel.locator('.bb-sw[title="Blue"]').click();
     await page.waitForTimeout(120);
     // …then the custom picker: fill() sets value and fires input+change.
-    await layer
-      .locator('button[aria-label="Border color"]')
-      .click();
-    await page.locator('.bubble-menu-layer--table-borders input[type="color"]').fill(
-      "#123456",
-    );
+    await layer.locator('button[aria-label="Border color"]').click();
+    await page
+      .locator('.bubble-menu-layer--table-borders input[type="color"]')
+      .fill("#123456");
     await page.waitForTimeout(150);
     // Dropdown closes after a pick; reopen is unnecessary — apply a side.
-    const shown = await layer.evaluate((el) =>
-      el.classList.contains("show"),
-    );
+    const shown = await layer.evaluate((el) => el.classList.contains("show"));
     if (!shown) {
       await page
         .locator('.note-toolbar__table-bar [data-tbl="borders"]')
@@ -570,9 +787,7 @@ test.describe("table toolbar dock + cells bubble", () => {
     const cellA2 = page.locator(".texto-editor td", { hasText: "A2" });
     await clickInsideNotepadText(page, cellA2.locator("p"), "A2");
 
-    await page
-      .locator('.note-toolbar__table-bar [data-tbl="borders"]')
-      .click();
+    await page.locator('.note-toolbar__table-bar [data-tbl="borders"]').click();
     const layer = page.locator(".bubble-menu-layer--table-borders");
     await expect(layer).toBeVisible();
     await layer.locator('[data-tip="Top border"]').click();
@@ -595,5 +810,54 @@ test.describe("table toolbar dock + cells bubble", () => {
     });
     // Untouched neighbours stay on the default grid.
     expect(attrs.find((c) => c.text === "B2")?.borders).toBe(null);
+  });
+
+  test("docked panel layers open downwards, never into the app chrome", async ({
+    page,
+  }) => {
+    await mountNotepadWithTable(page);
+    const cellA2 = page.locator(".texto-editor td", { hasText: "A2" });
+    await clickInsideNotepadText(page, cellA2.locator("p"), "A2");
+    await expect(page.locator(".note-toolbar__table-bar")).toBeVisible();
+
+    // Simulate the real app chrome: the docked toolbar sits right below the
+    // app tab strip, so the space "above" the bar is wide enough for the
+    // (short) color layer — the direction logic flips it up there, and in
+    // the real app that region is occupied by the app chrome (the layer is
+    // invisible). The docked panel must always open DOWNWARDS.
+    await page.evaluate(() => {
+      const app = document.getElementById("app");
+      if (app) app.style.marginTop = "90px";
+    });
+    await page.waitForTimeout(100);
+
+    await page.locator('.note-toolbar__table-bar [data-tbl="color"]').click();
+    const layer = page.locator(
+      ".note-toolbar__table-bar .bubble-menu-layer--table-color",
+    );
+    await expect(layer).toBeVisible();
+    // Let the direction rAF and the open transition settle before measuring.
+    await page.waitForTimeout(250);
+
+    const geo = await page.evaluate(() => {
+      const layer = document.querySelector(
+        ".note-toolbar__table-bar .bubble-menu-layer--table-color",
+      );
+      const bar = document.querySelector(
+        ".note-toolbar__table-bar .bubble-menu-bar",
+      );
+      const lr = layer!.getBoundingClientRect();
+      const br = bar!.getBoundingClientRect();
+      return {
+        layerTop: lr.top,
+        layerBottom: lr.bottom,
+        barTop: br.top,
+        barBottom: br.bottom,
+        vh: window.innerHeight,
+      };
+    });
+    // Below the bar (never up into the tab strip) and fully on screen.
+    expect(geo.layerTop).toBeGreaterThanOrEqual(geo.barBottom - 1);
+    expect(geo.layerBottom).toBeLessThanOrEqual(geo.vh + 1);
   });
 });

@@ -9,6 +9,11 @@ import {
   TEXT_COLORS,
   type BubbleMenuState,
 } from "./bubbleMenuState";
+import {
+  getTableMenuState,
+  isHexColor,
+  pickerHexValue,
+} from "./tableMenuState";
 import { bubbleIconNodes } from "./icons.svgnode";
 
 type OpenLayer = "styles" | "link" | null;
@@ -260,6 +265,19 @@ export const BubbleMenuBarElement = litView.element({
   const applyColor = (color: string | null) => {
     const e = props.editor;
     if (color == null) {
+      // "Default color" inside a table cell must reset the CELL's text
+      // color too: the cell-level dataColor keeps painting the text after
+      // the mark is unset, and with a single cell selected there is no
+      // other control for it (the cells bubble needs 2+ cells).
+      const ts = getTableMenuState(e.state);
+      if (ts.inTable && ts.textColor != null) {
+        e.chain()
+          .focus()
+          .unsetColor()
+          .setCellsAttribute("dataColor", null as unknown as string)
+          .run();
+        return;
+      }
       e.chain().focus().unsetColor().run();
     } else {
       e.chain().focus().setColor(color).run();
@@ -533,19 +551,52 @@ export const BubbleMenuBarElement = litView.element({
 
             <div class="bb-layer-sep"></div>
             <div class="bb-layer-label">Text color</div>
-            <div class="bb-sw-row">
+            {/* Unified palette (borders/fill picker): 12 swatches + the
+               custom row. Swatch colors are inline styles — one source of
+               truth (TEXT_COLORS), no per-color CSS classes. */}
+            <div class="bb-dd-swatches">
               {TEXT_COLORS.map((sw) => (
                 <button
                   class={cls(
                     "bb-sw",
-                    `bb-sw--${sw.css}`,
+                    sw.color == null && "bb-sw--none",
                     (sw.color ?? null) === state.color && "is-active",
                   )}
+                  style={sw.color ? `background: ${sw.color}` : undefined}
                   aria-label={sw.label}
+                  title={sw.label}
                   onmousedown={(e: MouseEvent) => e.preventDefault()}
                   onclick={() => applyColor(sw.color)}
                 ></button>
               ))}
+            </div>
+            <div class="bb-layer-sep"></div>
+            <div class="bb-dd-custom">
+              <input
+                type="color"
+                value={pickerHexValue(state.color)}
+                title="Custom color"
+                onmousedown={(e: MouseEvent) => e.stopPropagation()}
+                onchange={(e: Event) =>
+                  applyColor((e.target as HTMLInputElement).value)
+                }
+              ></input>
+              <input
+                type="text"
+                class="bb-dd-hex"
+                placeholder="#rrggbb"
+                maxlength={7}
+                spellcheck={false}
+                aria-label="Custom text color hex"
+                onmousedown={(e: MouseEvent) => e.stopPropagation()}
+                onkeydown={(e: KeyboardEvent) => {
+                  if (e.key !== "Enter") return;
+                  const input = e.target as HTMLInputElement;
+                  if (isHexColor(input.value)) {
+                    applyColor(input.value.trim().toLowerCase());
+                  }
+                }}
+              ></input>
             </div>
           </div>
 

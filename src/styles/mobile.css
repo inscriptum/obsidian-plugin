@@ -304,7 +304,7 @@
   display: none;
 }
 
-/* Layers ("Styles & color", "Fill & color", table "Cell fill & text color")
+/* Layers ("Styles & color", table "Cell fill", cells "Text color")
    are NOT floating popups on mobile. The desktop layer is absolutely
    positioned above the bar — on a phone that geometry is fragile: it depends
    on the bar's on-screen position, which shifts with the soft keyboard, and a
@@ -403,6 +403,14 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
+}
+/* Swatch grids (the unified text-color palette): scale the fixed 18px
+   tracks with the 32px touch targets, or the circles overlap. */
+.note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  .bb-dd-swatches {
+  grid-template-columns: repeat(6, 32px);
 }
 .note-view-container.is-mobile
   .mobile-sel-bar
@@ -617,5 +625,9 @@
      handle centered on the border. */
   width: 8px;
   margin-left: -4px;
-  background: color-mix(in srgb, var(--interactive-accent, #7c6af7) 50%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--interactive-accent, #7c6af7) 50%,
+    transparent
+  );
 }

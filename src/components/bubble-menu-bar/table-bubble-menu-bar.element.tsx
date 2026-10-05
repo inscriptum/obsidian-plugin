@@ -11,22 +11,33 @@ import {
   BORDER_STYLES,
   BORDER_WIDTHS,
   isHexColor,
-  TABLE_FILLS,
+  pickerHexValue,
+  TABLE_BG_RGBA,
   type TableMenuState,
 } from "./tableMenuState";
+import { TEXT_COLORS } from "./bubbleMenuState";
 import type {
   BorderPen,
   BorderSideName,
 } from "../../texto/extensions/table/helpers/borders";
 import type { BubbleIconName } from "../icons/iconSprite";
-import { TEXT_COLORS } from "./bubbleMenuState";
 import { bubbleIconNodes } from "./icons.svgnode";
 
-  type OpenLayer = "table-color" | "table-borders" | null;
-  type PenSelect = "style" | "width" | "color" | null;
+type OpenLayer = "table-color" | "table-borders" | null;
+type PenSelect = "style" | "width" | "color" | null;
 
 const cls = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");
+
+/** The backgroundColor attr value as a picker-able hex: solid hexes pass
+ *  through, the design fills (rgba) map back to their palette key, anything
+ *  else (no fill) yields null → pickerHexValue's neutral fallback. */
+function fillHexForPicker(bg: string | null): string | null {
+  if (!bg) return null;
+  if (/^#[0-9a-f]{6}$/i.test(bg)) return bg;
+  const design = Object.entries(TABLE_BG_RGBA).find(([, rgba]) => rgba === bg);
+  return design ? design[0] : null;
+}
 
 export const TableBubbleMenuElement = litView.element({
   props: {
@@ -70,6 +81,15 @@ export const TableBubbleMenuElement = litView.element({
       if (!bar) return;
       const layer = bar.querySelector<HTMLElement>(layerSel);
       if (!layer) return;
+      // Docked into the note toolbar the bar sits right below the app tab
+      // strip: the "space above" is phantom (a layer opened there is
+      // clipped by the window edge). After the fill/color split the color
+      // layer became short enough to fit that phantom space and flipped up
+      // off-screen — a docked panel must always open DOWNWARDS.
+      if (root.closest(".note-toolbar__table-bar")) {
+        bar.classList.add("layer-open-down");
+        return;
+      }
       const barRect = bar.getBoundingClientRect();
       const layerHeight = layer.offsetHeight;
       const gap = 9;
@@ -133,16 +153,28 @@ export const TableBubbleMenuElement = litView.element({
         e.chain().focus().removeTableBorders().run();
         break;
       case "all":
-        e.chain().focus().applyTableBorders({ ...pen }).run();
+        e.chain()
+          .focus()
+          .applyTableBorders({ ...pen })
+          .run();
         break;
       case "box":
-        e.chain().focus().setBordersBox({ ...pen }).run();
+        e.chain()
+          .focus()
+          .setBordersBox({ ...pen })
+          .run();
         break;
       case "insideH":
-        e.chain().focus().setBordersInside({ ...pen }, "horizontal").run();
+        e.chain()
+          .focus()
+          .setBordersInside({ ...pen }, "horizontal")
+          .run();
         break;
       case "insideV":
-        e.chain().focus().setBordersInside({ ...pen }, "vertical").run();
+        e.chain()
+          .focus()
+          .setBordersInside({ ...pen }, "vertical")
+          .run();
         break;
     }
   };
@@ -150,7 +182,11 @@ export const TableBubbleMenuElement = litView.element({
   /** Side buttons toggle: the command removes the side when every targeted
      cell already carries the pen (the Word dialog's edge-click behavior). */
   const applyBorderSide = (side: BorderSideName) => {
-    props.editor.chain().focus().toggleCellsBorders({ ...pen }, [side]).run();
+    props.editor
+      .chain()
+      .focus()
+      .toggleCellsBorders({ ...pen }, [side])
+      .run();
   };
 
   const togglePenSelect = (which: PenSelect) => {
@@ -229,14 +265,6 @@ export const TableBubbleMenuElement = litView.element({
         "backgroundColor",
         bgHexToAttr(color) ?? (null as unknown as string),
       )
-      .run();
-  };
-
-  const applyCellTextColor = (color: string | null) => {
-    props.editor
-      .chain()
-      .focus()
-      .setCellsAttribute("dataColor", color ?? (null as unknown as string))
       .run();
   };
 
@@ -443,11 +471,11 @@ export const TableBubbleMenuElement = litView.element({
             <button
               class={cls("bb-btn", openLayer === "table-color" && "is-active")}
               data-tbl="color"
-              data-tip="Fill & color"
+              data-tip="Cell fill"
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={toggleTableColorLayer}
             >
-              <span class="bb-aa">Aa</span>
+              {bubbleIconNodes.paintBucket()}
             </button>
             <button
               class={cls(
@@ -481,40 +509,57 @@ export const TableBubbleMenuElement = litView.element({
               openLayer === "table-color" && "show",
             )}
             role="dialog"
-            aria-label="Cell fill & text color"
+            aria-label="Cell fill"
           >
             <span class="bb-layer-caret"></span>
             <div class="bb-layer-label">Cell fill</div>
-            <div class="bb-sw-row">
-              {TABLE_FILLS.map((sw) => (
+            {/* Unified palette (same source as the text-color layers): the
+               design fills stay semi-transparent (bgHexToAttr), the extended
+               colors apply as-is; the custom row adds any hex. */}
+            <div class="bb-dd-swatches">
+              {TEXT_COLORS.map((sw) => (
                 <button
                   class={cls(
                     "bb-sw",
-                    `bb-sw--${sw.css}`,
+                    sw.color == null && "bb-sw--none",
                     (sw.color == null ? null : bgHexToAttr(sw.color)) ===
                       tableState.bg && "is-active",
                   )}
-                  aria-label={sw.label}
+                  style={sw.color ? `background: ${sw.color}` : undefined}
+                  aria-label={sw.color == null ? "No fill" : sw.label}
+                  title={sw.color == null ? "No fill" : sw.label}
                   onmousedown={(e: MouseEvent) => e.preventDefault()}
                   onclick={() => applyCellBg(sw.color)}
                 ></button>
               ))}
             </div>
             <div class="bb-layer-sep"></div>
-            <div class="bb-layer-label">Text color</div>
-            <div class="bb-sw-row">
-              {TEXT_COLORS.map((sw) => (
-                <button
-                  class={cls(
-                    "bb-sw",
-                    `bb-sw--${sw.css}`,
-                    (sw.color ?? null) === tableState.textColor && "is-active",
-                  )}
-                  aria-label={sw.label}
-                  onmousedown={(e: MouseEvent) => e.preventDefault()}
-                  onclick={() => applyCellTextColor(sw.color)}
-                ></button>
-              ))}
+            <div class="bb-dd-custom">
+              <input
+                type="color"
+                value={pickerHexValue(fillHexForPicker(tableState.bg))}
+                title="Custom color"
+                onmousedown={(e: MouseEvent) => e.stopPropagation()}
+                onchange={(e: Event) =>
+                  applyCellBg((e.target as HTMLInputElement).value)
+                }
+              ></input>
+              <input
+                type="text"
+                class="bb-dd-hex"
+                placeholder="#rrggbb"
+                maxlength={7}
+                spellcheck={false}
+                aria-label="Custom cell fill hex"
+                onmousedown={(e: MouseEvent) => e.stopPropagation()}
+                onkeydown={(e: KeyboardEvent) => {
+                  if (e.key !== "Enter") return;
+                  const input = e.target as HTMLInputElement;
+                  if (isHexColor(input.value)) {
+                    applyCellBg(input.value.trim().toLowerCase());
+                  }
+                }}
+              ></input>
             </div>
           </div>
 
@@ -533,19 +578,31 @@ export const TableBubbleMenuElement = litView.element({
             <div class="bb-bd-pen-row">
               <span class="bb-sel-wrap">
                 <button
-                  class={cls("bb-btn", "bb-sel", openSelect === "style" && "is-open")}
+                  class={cls(
+                    "bb-btn",
+                    "bb-sel",
+                    openSelect === "style" && "is-open",
+                  )}
                   aria-label="Line style"
                   onmousedown={(e: MouseEvent) => e.preventDefault()}
                   onclick={() => togglePenSelect("style")}
                 >
-                  {bubbleIconNodes[BORDER_STYLES.find((s) => s.id === pen.style)!.icon]()}
-                  <span class="bb-sel-chev">{bubbleIconNodes.chevronDown()}</span>
+                  {bubbleIconNodes[
+                    BORDER_STYLES.find((s) => s.id === pen.style)!.icon
+                  ]()}
+                  <span class="bb-sel-chev">
+                    {bubbleIconNodes.chevronDown()}
+                  </span>
                 </button>
                 {openSelect === "style" ? (
                   <div class="bb-dd" role="listbox" aria-label="Line style">
                     {BORDER_STYLES.map((st) => (
                       <button
-                        class={cls("bb-btn", "bb-dd-it", pen.style === st.id && "is-active")}
+                        class={cls(
+                          "bb-btn",
+                          "bb-dd-it",
+                          pen.style === st.id && "is-active",
+                        )}
                         role="option"
                         onmousedown={(e: MouseEvent) => e.preventDefault()}
                         onclick={() => choosePen({ style: st.id })}
@@ -553,7 +610,9 @@ export const TableBubbleMenuElement = litView.element({
                         {bubbleIconNodes[st.icon]()}
                         <span class="bb-dd-label">{st.label}</span>
                         {pen.style === st.id ? (
-                          <span class="bb-dd-tick">{bubbleIconNodes.check()}</span>
+                          <span class="bb-dd-tick">
+                            {bubbleIconNodes.check()}
+                          </span>
                         ) : null}
                       </button>
                     ))}
@@ -562,7 +621,11 @@ export const TableBubbleMenuElement = litView.element({
               </span>
               <span class="bb-sel-wrap">
                 <button
-                  class={cls("bb-btn", "bb-sel", openSelect === "width" && "is-open")}
+                  class={cls(
+                    "bb-btn",
+                    "bb-sel",
+                    openSelect === "width" && "is-open",
+                  )}
                   aria-label="Stroke weight"
                   onmousedown={(e: MouseEvent) => e.preventDefault()}
                   onclick={() => togglePenSelect("width")}
@@ -575,15 +638,22 @@ export const TableBubbleMenuElement = litView.element({
                     )}px`}
                   ></span>
                   <span class="bb-dd-label">
-                    {BORDER_WIDTHS.find((w) => w.value === pen.width)?.label ?? pen.width}
+                    {BORDER_WIDTHS.find((w) => w.value === pen.width)?.label ??
+                      pen.width}
                   </span>
-                  <span class="bb-sel-chev">{bubbleIconNodes.chevronDown()}</span>
+                  <span class="bb-sel-chev">
+                    {bubbleIconNodes.chevronDown()}
+                  </span>
                 </button>
                 {openSelect === "width" ? (
                   <div class="bb-dd" role="listbox" aria-label="Stroke weight">
                     {BORDER_WIDTHS.map((w) => (
                       <button
-                        class={cls("bb-btn", "bb-dd-it", pen.width === w.value && "is-active")}
+                        class={cls(
+                          "bb-btn",
+                          "bb-dd-it",
+                          pen.width === w.value && "is-active",
+                        )}
                         role="option"
                         onmousedown={(e: MouseEvent) => e.preventDefault()}
                         onclick={() => choosePen({ width: w.value })}
@@ -597,7 +667,9 @@ export const TableBubbleMenuElement = litView.element({
                         ></span>
                         <span class="bb-dd-label">{w.label}</span>
                         {pen.width === w.value ? (
-                          <span class="bb-dd-tick">{bubbleIconNodes.check()}</span>
+                          <span class="bb-dd-tick">
+                            {bubbleIconNodes.check()}
+                          </span>
                         ) : null}
                       </button>
                     ))}
@@ -606,7 +678,11 @@ export const TableBubbleMenuElement = litView.element({
               </span>
               <span class="bb-sel-wrap">
                 <button
-                  class={cls("bb-btn", "bb-sel", openSelect === "color" && "is-open")}
+                  class={cls(
+                    "bb-btn",
+                    "bb-sel",
+                    openSelect === "color" && "is-open",
+                  )}
                   aria-label="Border color"
                   onmousedown={(e: MouseEvent) => e.preventDefault()}
                   onclick={() => togglePenSelect("color")}
@@ -615,13 +691,17 @@ export const TableBubbleMenuElement = litView.element({
                     class={cls(
                       "bb-sel-dot",
                       colorEntry
-                        ? `bb-sw--${colorEntry.css}`
+                        ? null
                         : customColor
                           ? null
                           : "bb-sel-dot--auto",
                     )}
                     style={
-                      customColor ? `background: ${pen.color}` : undefined
+                      colorEntry
+                        ? `background: ${colorEntry.color}`
+                        : customColor
+                          ? `background: ${pen.color}`
+                          : undefined
                     }
                   ></span>
                   <span class="bb-dd-label">
@@ -631,7 +711,9 @@ export const TableBubbleMenuElement = litView.element({
                         ? pen.color!.toUpperCase()
                         : "Auto"}
                   </span>
-                  <span class="bb-sel-chev">{bubbleIconNodes.chevronDown()}</span>
+                  <span class="bb-sel-chev">
+                    {bubbleIconNodes.chevronDown()}
+                  </span>
                 </button>
                 {openSelect === "color" ? (
                   <div class="bb-dd" role="dialog" aria-label="Border color">
@@ -644,7 +726,9 @@ export const TableBubbleMenuElement = litView.element({
                             (pen.color ?? null) === (sw.color ?? null) &&
                               "is-active",
                           )}
-                          style={sw.color ? `background: ${sw.color}` : undefined}
+                          style={
+                            sw.color ? `background: ${sw.color}` : undefined
+                          }
                           aria-label={sw.label}
                           title={sw.label}
                           onmousedown={(e: MouseEvent) => e.preventDefault()}
@@ -656,11 +740,7 @@ export const TableBubbleMenuElement = litView.element({
                     <div class="bb-dd-custom">
                       <input
                         type="color"
-                        value={
-                          /^#[0-9a-f]{6}$/i.test(pen.color ?? "")
-                            ? (pen.color as string)
-                            : "#b3a3f7"
-                        }
+                        value={pickerHexValue(pen.color)}
                         title="Custom color"
                         onmousedown={(e: MouseEvent) => e.stopPropagation()}
                         onchange={(e: Event) =>
@@ -680,7 +760,9 @@ export const TableBubbleMenuElement = litView.element({
                           if (e.key !== "Enter") return;
                           const input = e.target as HTMLInputElement;
                           if (isHexColor(input.value)) {
-                            choosePen({ color: input.value.trim().toLowerCase() });
+                            choosePen({
+                              color: input.value.trim().toLowerCase(),
+                            });
                           }
                         }}
                       ></input>

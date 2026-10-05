@@ -6,9 +6,9 @@ import { CellSelection } from "prosemirror-tables";
 import { elTag } from "../../tags";
 import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
 import {
-  bgHexToAttr,
   getTableMenuState,
-  TABLE_FILLS,
+  isHexColor,
+  pickerHexValue,
 } from "./tableMenuState";
 import { getBubbleMenuState, TEXT_COLORS } from "./bubbleMenuState";
 import { bubbleIconNodes } from "./icons.svgnode";
@@ -18,23 +18,18 @@ type OpenLayer = "table-color" | "link" | null;
 const cls = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");
 
-type MarkAction =
-  | "bold"
-  | "italic"
-  | "underline"
-  | "strike"
-  | "code"
-  | "mark";
+type MarkAction = "bold" | "italic" | "underline" | "strike" | "code" | "mark";
 
 /**
  * Floating bubble menu for a multi-cell table selection (CellSelection over
  * 2+ cells). Mirrors the text-selection formatting row — bold, italic,
- * underline, strike, inline code, highlight, fill & color, link, clear
+ * underline, strike, inline code, highlight, text color, link, clear
  * formatting — applied to every selected cell: mark commands walk
- * selection.ranges (one range per cell) and cell colors go through
- * setCellsAttribute. Structural table actions live in the toolbar
- * (see ToolbarElement.tableBar); block styles are deliberately absent —
- * they are not text formatting and must not touch cell structure.
+ * selection.ranges (one range per cell), text color goes through
+ * setCellsAttribute("dataColor"). Structural table actions and cell fill
+ * live in the toolbar (see ToolbarElement.tableBar / the table panel);
+ * block styles are deliberately absent — they are not text formatting and
+ * must not touch cell structure.
  */
 export const TableCellsBubbleMenuElement = litView.element({
   props: {
@@ -136,17 +131,6 @@ export const TableCellsBubbleMenuElement = litView.element({
         e.chain().focus().toggleHighlight().run();
         break;
     }
-  };
-
-  const applyCellBg = (color: string | null) => {
-    props.editor
-      .chain()
-      .focus()
-      .setCellsAttribute(
-        "backgroundColor",
-        bgHexToAttr(color) ?? (null as unknown as string),
-      )
-      .run();
   };
 
   const applyCellTextColor = (color: string | null) => {
@@ -320,7 +304,9 @@ export const TableCellsBubbleMenuElement = litView.element({
   try {
     while (true) {
       const state = getBubbleMenuState(props.editor);
-      const tableState = getTableMenuState(props.editor.state);
+      // Only the text color is still relevant here — cell fill moved to the
+      // table panel (data-tbl="color" button of the docked bar).
+      const textColor = getTableMenuState(props.editor.state).textColor;
       props = yield (
         <div class="bubble-menu-bar">
           <div class="bubble-menu-cells-bar show">
@@ -381,7 +367,7 @@ export const TableCellsBubbleMenuElement = litView.element({
             <button
               class={cls("bb-btn", openLayer === "table-color" && "is-active")}
               data-tbl="color"
-              data-tip="Fill & color"
+              data-tip="Text color"
               onmousedown={(e: MouseEvent) => e.preventDefault()}
               onclick={toggleTableColorLayer}
             >
@@ -420,40 +406,56 @@ export const TableCellsBubbleMenuElement = litView.element({
               openLayer === "table-color" && "show",
             )}
             role="dialog"
-            aria-label="Cell fill & text color"
+            aria-label="Text color"
           >
             <span class="bb-layer-caret"></span>
-            <div class="bb-layer-label">Cell fill</div>
-            <div class="bb-sw-row">
-              {TABLE_FILLS.map((sw) => (
-                <button
-                  class={cls(
-                    "bb-sw",
-                    `bb-sw--${sw.css}`,
-                    (sw.color == null ? null : bgHexToAttr(sw.color)) ===
-                      tableState.bg && "is-active",
-                  )}
-                  aria-label={sw.label}
-                  onmousedown={(e: MouseEvent) => e.preventDefault()}
-                  onclick={() => applyCellBg(sw.color)}
-                ></button>
-              ))}
-            </div>
-            <div class="bb-layer-sep"></div>
             <div class="bb-layer-label">Text color</div>
-            <div class="bb-sw-row">
+            {/* Unified palette (borders/fill picker): 12 swatches + the
+               custom row. Swatch colors are inline styles — one source of
+               truth (TEXT_COLORS), no per-color CSS classes. */}
+            <div class="bb-dd-swatches">
               {TEXT_COLORS.map((sw) => (
                 <button
                   class={cls(
                     "bb-sw",
-                    `bb-sw--${sw.css}`,
-                    (sw.color ?? null) === tableState.textColor && "is-active",
+                    sw.color == null && "bb-sw--none",
+                    (sw.color ?? null) === textColor && "is-active",
                   )}
+                  style={sw.color ? `background: ${sw.color}` : undefined}
                   aria-label={sw.label}
+                  title={sw.label}
                   onmousedown={(e: MouseEvent) => e.preventDefault()}
                   onclick={() => applyCellTextColor(sw.color)}
                 ></button>
               ))}
+            </div>
+            <div class="bb-layer-sep"></div>
+            <div class="bb-dd-custom">
+              <input
+                type="color"
+                value={pickerHexValue(textColor)}
+                title="Custom color"
+                onmousedown={(e: MouseEvent) => e.stopPropagation()}
+                onchange={(e: Event) =>
+                  applyCellTextColor((e.target as HTMLInputElement).value)
+                }
+              ></input>
+              <input
+                type="text"
+                class="bb-dd-hex"
+                placeholder="#rrggbb"
+                maxlength={7}
+                spellcheck={false}
+                aria-label="Custom text color hex"
+                onmousedown={(e: MouseEvent) => e.stopPropagation()}
+                onkeydown={(e: KeyboardEvent) => {
+                  if (e.key !== "Enter") return;
+                  const input = e.target as HTMLInputElement;
+                  if (isHexColor(input.value)) {
+                    applyCellTextColor(input.value.trim().toLowerCase());
+                  }
+                }}
+              ></input>
             </div>
           </div>
 

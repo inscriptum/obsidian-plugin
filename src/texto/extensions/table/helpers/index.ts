@@ -6,3 +6,4 @@ export * from "./deleteTableWhenAllCellsSelected";
 export * from "./getTableNodeTypes";
 export * from "./isCellSelection";
 export * from "./findTableAnchor";
+export * from "./safeStyle";
