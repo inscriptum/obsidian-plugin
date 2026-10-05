@@ -1224,7 +1224,9 @@ button.notepad-section-control:focus {
 
 .notepad-view-container.is-phone button.notepad-nav-toggle {
   visibility: hidden;
-  top: 8px;
+  /* The app draws under the status bar; clear it (28px) or the inset,
+     whichever is larger. */
+  top: max(28px, calc(env(safe-area-inset-top, 0px) + 8px));
   right: 8px;
   width: 44px;
   height: 44px;
@@ -1297,6 +1299,7 @@ button.notepad-section-control:focus {
 }
 
 .notepad-view-container.is-phone .notepad-search-btn {
+  flex: 0 0 auto;
   width: 44px;
   height: 44px;
 }

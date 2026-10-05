@@ -1994,6 +1994,7 @@ export class NotepadView extends FileView {
   };
 
   private onDragPointerUp = (event: PointerEvent): void => {
+    window.removeEventListener("touchmove", this.onDragTouchMove);
     window.removeEventListener("pointermove", this.onDragPointerMove);
     window.removeEventListener("pointerup", this.onDragPointerUp);
     window.removeEventListener("pointercancel", this.onDragPointerCancel);
@@ -2097,6 +2098,7 @@ export class NotepadView extends FileView {
     const drag = this.drag;
     if (!drag) return;
     drag.canceled = true;
+    window.removeEventListener("touchmove", this.onDragTouchMove);
     window.removeEventListener("pointermove", this.onDragPointerMove);
     window.removeEventListener("keydown", this.onDragKeyDown, true);
     window.removeEventListener("pointercancel", this.onDragPointerCancel);
@@ -2176,11 +2178,24 @@ export class NotepadView extends FileView {
       phone: true,
       touch: true,
     };
+    // The first finger movement after the hold reads as a scroll intent —
+    // the browser fires pointercancel and steals the drag (table cells hit
+    // the same trap; see handleTouchStart.ts). While a phone drag holds the
+    // pointer, scrolling is exactly what must NOT happen.
+    window.addEventListener("touchmove", this.onDragTouchMove, {
+      passive: false,
+    });
     window.addEventListener("pointermove", this.onDragPointerMove);
     window.addEventListener("pointerup", this.onDragPointerUp);
     window.addEventListener("pointercancel", this.onDragPointerCancel);
     window.addEventListener("keydown", this.onDragKeyDown, true);
   }
+
+  /** Blocks scroll-driven gesture takeover for the lifetime of a phone
+   *  drag (armed in beginPhonePress, released with the drag). */
+  private onDragTouchMove = (event: TouchEvent): void => {
+    if (this.drag?.phone) event.preventDefault();
+  };
 
   private onDragPointerCancel = (): void => {
     // A scroll/system gesture took the pointer mid-drag: discard cleanly —
@@ -2191,6 +2206,7 @@ export class NotepadView extends FileView {
       return;
     }
     this.drag = null;
+    window.removeEventListener("touchmove", this.onDragTouchMove);
     window.removeEventListener("pointermove", this.onDragPointerMove);
     window.removeEventListener("pointerup", this.onDragPointerUp);
     window.removeEventListener("keydown", this.onDragKeyDown, true);
@@ -2635,14 +2651,38 @@ export class NotepadView extends FileView {
         this.closeSheet();
       }
     }), true);
+    // The opening long-press ends ON the sheet: the browser synthesizes a
+    // click at the release point, which would fire whatever sits under the
+    // finger — page content or the scrim (worst case through the scrim's
+    // own handler). Swallow only OUTSIDE the sheet for a beat: a tap on a
+    // sheet row within that window is a genuine fast interaction.
+    this.sheetSwallow = (event) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest?.(".notepad-sheet")) return;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+    document.addEventListener("click", this.sheetSwallow, {
+      capture: true,
+    });
+    const swallow = this.sheetSwallow;
+    window.setTimeout(
+      () => document.removeEventListener("click", swallow, true),
+      450,
+    );
   }
 
   private sheetKeyDown: ((event: KeyboardEvent) => void) | null = null;
+  private sheetSwallow: ((event: Event) => void) | null = null;
 
   private closeSheet(): void {
     if (this.sheetKeyDown != null) {
       window.removeEventListener("keydown", this.sheetKeyDown, true);
       this.sheetKeyDown = null;
+    }
+    if (this.sheetSwallow != null) {
+      document.removeEventListener("click", this.sheetSwallow, true);
+      this.sheetSwallow = null;
     }
     this.sheetEl?.remove();
     this.sheetEl = null;
