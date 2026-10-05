@@ -107,14 +107,24 @@ describe("getBubbleMenuState", () => {
 });
 
 describe("TEXT_COLORS", () => {
-  it("has the five design swatches", () => {
+  it("unified palette: default reset + the extended 11 colors, no dups", () => {
     expect(TEXT_COLORS.map((c) => c.id)).toEqual([
       "none",
       "violet",
       "green",
       "yellow",
       "red",
+      "orange",
+      "blue",
+      "teal",
+      "pink",
+      "gray",
+      "white",
+      "black",
     ]);
     expect(TEXT_COLORS[0].color).toBe(null);
+    const hexes = TEXT_COLORS.slice(1).map((c) => c.color);
+    expect(new Set(hexes).size).toBe(hexes.length);
+    for (const hex of hexes) expect(hex).toMatch(/^#[0-9a-f]{6}$/);
   });
 });

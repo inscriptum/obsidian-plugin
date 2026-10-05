@@ -161,3 +161,20 @@ export const BORDER_COLORS: Array<{
 export function isHexColor(value: string): boolean {
   return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(value.trim());
 }
+
+/** Value for the native color input of a custom picker row: the current
+ *  color expanded to 6-digit hex (the native input rejects #rgb), or the
+ *  palette's violet as a neutral fallback when the current color is not a
+ *  hex at all (null / theme default). */
+export function pickerHexValue(color: string | null): string {
+  const six = /^#([0-9a-f]{6})$/i.exec(color ?? "");
+  if (six?.[1]) {
+    return `#${six[1]}`;
+  }
+  const three = /^#([0-9a-f]{3})$/i.exec(color ?? "");
+  if (three?.[1]) {
+    const [r, g, b] = three[1];
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+  return "#b3a3f7";
+}

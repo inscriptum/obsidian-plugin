@@ -5,7 +5,11 @@ import { Editor, posToDOMRect } from "../../texto/core";
 import { CellSelection } from "prosemirror-tables";
 import { elTag } from "../../tags";
 import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
-import { getTableMenuState } from "./tableMenuState";
+import {
+  getTableMenuState,
+  isHexColor,
+  pickerHexValue,
+} from "./tableMenuState";
 import { getBubbleMenuState, TEXT_COLORS } from "./bubbleMenuState";
 import { bubbleIconNodes } from "./icons.svgnode";
 
@@ -14,13 +18,7 @@ type OpenLayer = "table-color" | "link" | null;
 const cls = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");
 
-type MarkAction =
-  | "bold"
-  | "italic"
-  | "underline"
-  | "strike"
-  | "code"
-  | "mark";
+type MarkAction = "bold" | "italic" | "underline" | "strike" | "code" | "mark";
 
 /**
  * Floating bubble menu for a multi-cell table selection (CellSelection over
@@ -412,19 +410,52 @@ export const TableCellsBubbleMenuElement = litView.element({
           >
             <span class="bb-layer-caret"></span>
             <div class="bb-layer-label">Text color</div>
-            <div class="bb-sw-row">
+            {/* Unified palette (borders/fill picker): 12 swatches + the
+               custom row. Swatch colors are inline styles — one source of
+               truth (TEXT_COLORS), no per-color CSS classes. */}
+            <div class="bb-dd-swatches">
               {TEXT_COLORS.map((sw) => (
                 <button
                   class={cls(
                     "bb-sw",
-                    `bb-sw--${sw.css}`,
+                    sw.color == null && "bb-sw--none",
                     (sw.color ?? null) === textColor && "is-active",
                   )}
+                  style={sw.color ? `background: ${sw.color}` : undefined}
                   aria-label={sw.label}
+                  title={sw.label}
                   onmousedown={(e: MouseEvent) => e.preventDefault()}
                   onclick={() => applyCellTextColor(sw.color)}
                 ></button>
               ))}
+            </div>
+            <div class="bb-layer-sep"></div>
+            <div class="bb-dd-custom">
+              <input
+                type="color"
+                value={pickerHexValue(textColor)}
+                title="Custom color"
+                onmousedown={(e: MouseEvent) => e.stopPropagation()}
+                onchange={(e: Event) =>
+                  applyCellTextColor((e.target as HTMLInputElement).value)
+                }
+              ></input>
+              <input
+                type="text"
+                class="bb-dd-hex"
+                placeholder="#rrggbb"
+                maxlength={7}
+                spellcheck={false}
+                aria-label="Custom text color hex"
+                onmousedown={(e: MouseEvent) => e.stopPropagation()}
+                onkeydown={(e: KeyboardEvent) => {
+                  if (e.key !== "Enter") return;
+                  const input = e.target as HTMLInputElement;
+                  if (isHexColor(input.value)) {
+                    applyCellTextColor(input.value.trim().toLowerCase());
+                  }
+                }}
+              ></input>
             </div>
           </div>
 

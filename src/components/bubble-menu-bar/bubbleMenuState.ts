@@ -1,4 +1,5 @@
 import type { Editor } from "../../texto/core";
+import { BORDER_COLORS } from "./tableMenuState";
 
 export interface BubbleMenuState {
   /** Inline marks */
@@ -29,13 +30,12 @@ export interface TextColorSwatch {
   color: string | null;
 }
 
-/** "Text color" palette — same as in the bubble-menu-prototype.html prototype. */
+/** "Text color" palette — unified with the borders/fill picker (the extended
+ *  11-color palette); "Default color" resets. The Aa layers in both bubbles
+ *  also carry a custom color row (native picker + hex) below this grid. */
 export const TEXT_COLORS: TextColorSwatch[] = [
   { id: "none", label: "Default color", css: "none", color: null },
-  { id: "violet", label: "Purple", css: "violet", color: "#b3a3f7" },
-  { id: "green", label: "Green", css: "green", color: "#4ade80" },
-  { id: "yellow", label: "Yellow", css: "yellow", color: "#f59e0b" },
-  { id: "red", label: "Red", css: "red", color: "#f87171" },
+  ...BORDER_COLORS.filter((c) => c.color != null),
 ];
 
 /**
