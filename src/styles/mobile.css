@@ -816,3 +816,130 @@
   width: 20px;
   height: 20px;
 }
+
+/* ─── 7. Table borders layer ────────────────────────────────────────────
+   The borders layer renders inside .mobile-sel-bar .bubble-menu-bar, so the
+   generic flattener already gives its buttons 44px targets. What breaks on
+   a phone: the pen selects are squeezed to 44px width (the "Auto"/"1 pt"
+   labels overflow), the preset row wraps wherever it likes (8 + 2 with the
+   separator stranded mid-row), and the pen dropdowns anchor BELOW their
+   selects — off the screen, since the layer is docked at the bottom. */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders {
+  padding-bottom: 2px;
+  /* The pen dropdowns anchor ABOVE their selects — outside this short
+     layer's box. The generic docked-layer scroll (max-height + overflow-y,
+     for the tall color layers) would clip them; this layer's own content
+     never overflows, so let children stick out. */
+  max-height: none;
+  overflow-y: visible;
+}
+
+/* Pen selects: auto width (the flattener's 44px box clips the labels). */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel {
+  width: auto;
+  height: 40px;
+  padding: 0 12px;
+  gap: 8px;
+  border-radius: 10px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-sel > svg,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-sel > svg {
+  width: 18px;
+  height: 18px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-sel .bb-dd-label,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-sel .bb-dd-label {
+  font-size: 14px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-sel-dot,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-sel-dot {
+  width: 13px;
+  height: 13px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-widthbar,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-widthbar {
+  width: 16px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-pen-row,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-pen-row {
+  gap: 8px;
+  padding: 6px 10px 4px;
+}
+
+/* Preset groups: the table-wide presets and the selected cells' sides each
+   take a whole row — the vertical hairline between them becomes the row
+   divider (flex-basis 100% forces the wrap exactly there). */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-row,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-row {
+  gap: 4px;
+  padding: 4px 10px 10px;
+  justify-content: space-between;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-row .bubble-menu-sep,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-row .bubble-menu-sep {
+  flex-basis: 100%;
+  width: auto;
+  height: 1px;
+  margin: 6px 2px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-row button.bb-bd svg,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-row button.bb-bd svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Pen dropdowns open UPWARD (the layer sits at the screen bottom) and cap
+   their height so every item stays reachable. */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd {
+  top: auto;
+  bottom: calc(100% + 6px);
+  max-height: 42vh;
+  overflow-y: auto;
+  max-width: calc(100vw - 20px);
+}
+/* The color select is the row's last — anchor its panel to the right edge,
+   or the swatch grid pokes past the screen. */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-pen-row .bb-sel-wrap:last-child .bb-dd,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-pen-row .bb-sel-wrap:last-child .bb-dd {
+  left: auto;
+  right: 0;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-it,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-it {
+  min-height: 40px;
+  padding: 6px 10px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-it .bb-dd-label,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-it .bb-dd-label {
+  font-size: 14px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-it svg,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-it svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Color dropdown: swatch grid scales with the 32px touch targets (the same
+   treatment as the text palette — 18px tracks would overlap). */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-swatches,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-swatches {
+  grid-template-columns: repeat(6, 32px);
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd .bb-sw,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd .bb-sw {
+  width: 32px;
+  height: 32px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-custom input[type="color"],
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-custom input[type="color"] {
+  width: 28px;
+  height: 28px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-hex,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-hex {
+  height: 38px;
+  font-size: 14px;
+}
