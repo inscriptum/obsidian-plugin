@@ -1326,6 +1326,10 @@ button.notepad-section-control:focus {
   right: 10px;
   bottom: 10px;
   z-index: 60; /* over the toolbar host (50) if the keyboard lingers */
+  /* Short screens (landscape, small phones): content taller than the view
+     must scroll INSIDE the sheet — the top rows have to stay reachable. */
+  max-height: calc(100% - 20px);
+  overflow-y: auto;
   /* The extra clearance keeps the last row (Delete) above Obsidian's
      floating bottom nav pill (.mobile-navbar ≈ 52px + margins). */
   padding: 8px 8px calc(10px + env(safe-area-inset-bottom, 0px) + 80px);

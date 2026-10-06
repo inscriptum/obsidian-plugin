@@ -510,15 +510,27 @@ function startLongPressCellSelection(
     viewDom.removeEventListener("pointercancel", onUp);
     body.classList.remove(CELL_SELECTING_CLASS);
 
+    let lastX = event.clientX;
     let lastY = event.clientY;
-    const scroller = findScrollParent(
-      startCell.instanceOf(HTMLElement) ? startCell : null,
-    );
+    // startCell comes from target.closest("td, th") of THIS document — no
+    // cross-realm caveat, so plain parameter passing beats the Obsidian
+    // .instanceOf polyfill (whose absence would throw mid-gesture and kill
+    // the scroll emulation silently).
+    const scroller = findScrollParent(startCell);
+    // The table wrapper scrolls the columns: cells own their touches
+    // (touch-action: none), so a horizontal swipe reveals off-screen
+    // columns only through this emulation. Natural direction: the content
+    // follows the finger.
+    const wrapper = findScrollParentX(startCell);
 
     const scrollMove = (e: PointerEvent) => {
+      if (wrapper) {
+        wrapper.scrollLeft -= e.clientX - lastX;
+      }
       if (scroller) {
         scroller.scrollTop -= e.clientY - lastY;
       }
+      lastX = e.clientX;
       lastY = e.clientY;
     };
     const scrollEnd = () => {
@@ -558,6 +570,24 @@ function startLongPressCellSelection(
   // cellDragFreeze.cancelPendingCellGesture).
   setPendingCellGestureCancel(cleanup);
   return true;
+}
+
+/**
+ * The nearest ancestor of the cell that scrolls HORIZONTALLY (the
+ * .table-wrapper on a phone: columns wider than the screen).
+ */
+function findScrollParentX(startCell: HTMLElement | null): HTMLElement | null {
+  let el = startCell?.parentElement ?? null;
+  while (el && el !== document.body) {
+    if (el.scrollWidth > el.clientWidth + 1) {
+      const overflow = getComputedStyle(el).overflowX;
+      if (overflow === "auto" || overflow === "scroll") {
+        return el;
+      }
+    }
+    el = el.parentElement;
+  }
+  return null;
 }
 
 /**

@@ -1974,7 +1974,7 @@ export class NotepadView extends FileView {
   }
 
   private onDragPointerMove = (event: PointerEvent): void => {
-    if (!this.drag) return;
+    if (!this.drag || event.pointerId !== this.drag.pointerId) return;
     const handle = this.sections.get(this.drag.id);
     if (!handle) return;
     this.dragPointerY = event.clientY;
@@ -1994,6 +1994,8 @@ export class NotepadView extends FileView {
   };
 
   private onDragPointerUp = (event: PointerEvent): void => {
+    // A second finger lifting must not finish the first finger's drag.
+    if (this.drag && event.pointerId !== this.drag.pointerId) return;
     window.removeEventListener("touchmove", this.onDragTouchMove);
     window.removeEventListener("pointermove", this.onDragPointerMove);
     window.removeEventListener("pointerup", this.onDragPointerUp);
@@ -2029,7 +2031,7 @@ export class NotepadView extends FileView {
         window.setTimeout(() => {
           this.suppressFoldToggle = false;
         }, 0);
-        this.openPageSheet(drag.id);
+        this.openPageSheet(drag.id, { swallowReleaseClick: true });
       }
       return; // desktop plain click — the gutter click toggles
     }
@@ -2197,19 +2199,23 @@ export class NotepadView extends FileView {
     if (this.drag?.phone) event.preventDefault();
   };
 
-  private onDragPointerCancel = (): void => {
-    // A scroll/system gesture took the pointer mid-drag: discard cleanly —
-    // a pointerup may never follow (the desktop gutter drag leaks its
-    // listeners in exactly this case; the phone path cannot afford that).
-    if (this.drag?.active) {
-      this.cancelDrag();
-      return;
-    }
+  private onDragPointerCancel = (event: PointerEvent): void => {
+    const drag = this.drag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    // The canceled pointer is GONE — unlike an Esc-cancel (whose pointer is
+    // still down and whose release click needs swallowing) this is a full
+    // teardown: no listener may outlive it, or a stale drag blocks later
+    // row holds and an unrelated pointerup finishes a dead interaction.
     this.drag = null;
     window.removeEventListener("touchmove", this.onDragTouchMove);
     window.removeEventListener("pointermove", this.onDragPointerMove);
     window.removeEventListener("pointerup", this.onDragPointerUp);
+    window.removeEventListener("pointercancel", this.onDragPointerCancel);
     window.removeEventListener("keydown", this.onDragKeyDown, true);
+    this.stopDragAutoScroll();
+    this.sections.get(drag.id)?.root.removeClass("is-dragging");
+    this.dropLineEl?.remove();
+    this.dropLineEl = null;
   };
 
   /** The title page's note id (order 0) — excluded from drag geometry. */
@@ -2572,8 +2578,10 @@ export class NotepadView extends FileView {
 
   /** The bottom sheet for one page: navigation on top ("All pages", "Find
    *  in document"), then the page actions, delete last (red). Entered from
-   *  the ⋯ of a page header or a long-press on a collapsed row. */
-  private openPageSheet(id: string): void {
+   *  the ⋯ of a page header or a long-press on a collapsed row. The
+   *  long-press entry swallows the release click that would otherwise land
+   *  on the sheet; the ⋯ entry needs no such guard. */
+  private openPageSheet(id: string, opts?: { swallowReleaseClick?: boolean }): void {
     if (!Platform.isPhone) return;
     const notepad = this.notepad;
     const descriptor = notepad?.note(id);
@@ -2655,21 +2663,24 @@ export class NotepadView extends FileView {
     // click at the release point, which would fire whatever sits under the
     // finger — page content or the scrim (worst case through the scrim's
     // own handler). Swallow only OUTSIDE the sheet for a beat: a tap on a
-    // sheet row within that window is a genuine fast interaction.
-    this.sheetSwallow = (event) => {
-      const target = event.target as HTMLElement | null;
-      if (target?.closest?.(".notepad-sheet")) return;
-      event.preventDefault();
-      event.stopPropagation();
-    };
-    document.addEventListener("click", this.sheetSwallow, {
-      capture: true,
-    });
-    const swallow = this.sheetSwallow;
-    window.setTimeout(
-      () => document.removeEventListener("click", swallow, true),
-      450,
-    );
+    // sheet row within that window is a genuine fast interaction. The ⋯
+    // entry has no stray release click — quick scrim taps must close it.
+    if (opts?.swallowReleaseClick) {
+      this.sheetSwallow = (event) => {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest?.(".notepad-sheet")) return;
+        event.preventDefault();
+        event.stopPropagation();
+      };
+      document.addEventListener("click", this.sheetSwallow, {
+        capture: true,
+      });
+      const swallow = this.sheetSwallow;
+      window.setTimeout(
+        () => document.removeEventListener("click", swallow, true),
+        450,
+      );
+    }
   }
 
   private sheetKeyDown: ((event: KeyboardEvent) => void) | null = null;
@@ -2729,12 +2740,14 @@ export class NotepadView extends FileView {
   }
 
   /** Capture-phase click handler (armed in onOpen): while move mode is on,
-   *  a tap on a collapsed row inserts the lifted page after it and swallows
-   *  the tap so no fold/expand fires underneath. */
+   *  a tap on a page row inserts the lifted page after it and swallows the
+   *  tap so no fold/expand fires underneath. Expanded pages are legitimate
+   *  destinations too — above all the always-expanded title page, the only
+   *  way to reach the top slot. */
   private onMoveModeClick(event: MouseEvent): void {
     if (this.moveModeId == null) return;
     const sectionEl = (event.target as HTMLElement | null)?.closest?.(
-      ".notepad-section:not(.is-expanded)",
+      ".notepad-section",
     );
     if (!sectionEl) return;
     event.preventDefault();
