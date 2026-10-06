@@ -9,34 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Notepad (.um): a phone layout — pages and rows run the full screen width with hairline separators and 16px text; page actions live in a ⋯ sheet (All pages, Find in document, add / duplicate / move / collapse / delete) opened from the page header or a long-press on a row; the pages drawer becomes an overlay (min(86vw, 340px)) with a scrim and 44px rows; the .note bottom toolbar (52px targets, docked selection bars, keyboard-driven visibility) now serves notepad pages; reordering works by long-press drag (haptic lift, accent drop line, edge auto-scroll) with a "Move…" tap-the-destination fallback from the sheet; document search docks as a full-width bar; tables scroll horizontally full-bleed with edge fades; the table borders menu adapts to the phone (pen selects, grouped presets, upward-opening dropdowns); heading/task fold persistence is no longer disabled on mobile. Desktop layout is untouched; tablets keep the shared mobile rules.
-- Images inside table cells: insert (toolbar button, paste, command) with the caret in a cell and the picture lands in that cell. Inside a table the layout layers resolve against the cell — "full width" spans the cell, not the editor — and the resize handles take the cell width as their 100%. Cells keep a trailing paragraph so the caret always has a place below the picture. Documents with pictures in cells are schema v2 for notepads (older plugin versions show such pages with a "newer version" notice instead of breaking).
-- Tables: border drawing, MS Word style — pick a pen (line style, weight, color) and apply it with whole-table presets (none / all / outer / inside horizontal / inside vertical) or to the selected cell's sides. Borders are stored in the note and survive reopen, sync, paste and website export.
-- Tables: the table controls now dock into the note toolbar while the caret is inside a table (desktop, like on mobile), and selecting several cells opens a bubble with the full text-formatting row applied to every selected cell.
-- Tables: "Fill & color" is split by purpose — the table panel now holds only the cell fill (paint-bucket button), and the multi-cell bubble holds only the text color. Fill is cell management, text color is text formatting.
-- Notepad: folded page rows show when the page was last updated — "date · word count", with the exact timestamp on hover.
-- New document type: notepad (`.um`) — a single file that holds an ordered list of pages, edited one under another like one document. Pages can be added, duplicated, deleted (with confirmation and undo), renamed inline and reordered by drag & drop; each page can be collapsed, and its expanded/collapsed state is remembered.
-- The first page is the notepad's title page — a fixed cover (title + summary) that can't be deleted, moved or renamed. Other pages don't need a title: their display title comes from the first line.
-- Notepad navigation drawer (☰): lists all pages and jumps to the clicked one (smooth scrolling).
-- Notebook-wide search (`Cmd/Ctrl+F`): finds across all pages, including collapsed ones, and jumps to the match.
-- Images added inside a notepad are packed into the `.um` file itself, so the notepad is self-contained; other attachments stay as regular vault files.
-- Pages created in a newer version of the plugin open with a "created in a newer version" notice instead of an editor and are preserved untouched on save.
-- "New notepad" command and a Type selector (Note/Notepad) in the "New inscriptum" modal.
-- Notepad: Esc cancels a page drag — releasing the mouse afterwards reorders nothing and toggles nothing.
+- New document type: notepad (`.um`) — one file, many pages, edited one under another like a single document. Pages can be added, duplicated, deleted (with undo), renamed and reordered by drag & drop; each page can be collapsed, and the notepad remembers which. A "New notepad" command and a Note/Notepad selector in the "New inscriptum" dialog.
+- The first page of a notepad is its cover — title and summary, fixed in place. Other pages need no titles: they are named by their first line.
+- Notepad: the pages drawer (☰) jumps to any page, and `Cmd/Ctrl+F` searches the whole notepad, collapsed pages included.
+- Notepad: images are packed into the `.um` file itself, so a notepad stays self-contained.
+- Notepad: folded pages show when they were last updated — "date · word count", with the exact time on hover.
+- Notepad on phones: pages run the full screen width, page actions live in a ⋯ menu (or a long-press on a row), the pages drawer slides over the screen, and rows reorder by long-press drag — `Esc` cancels, "Move…" in the menu is the tap-friendly fallback. Desktop is unchanged; tablets follow the phone rules.
+- Tables: borders, MS Word style — pick a pen (line style, weight, color) and apply it to the whole table or to the sides of the selected cells. Borders are saved with the note and survive reopen, sync, paste and website export.
+- Tables: images inside cells — insert or paste with the caret in a cell, and the picture lands in that cell; its width is then measured against the cell, not the editor.
+- Tables: the table controls move into the note toolbar while the caret is inside a table, and selecting several cells opens the usual text-formatting menu for all of them.
+- Tables: "Fill & color" is split by purpose — the table panel now holds the cell fill, and the multi-cell menu holds the text color.
+- Pages created by a newer version of the plugin open with a notice instead of an editor and are preserved untouched on save.
 
 ### Fixed
 
-- Floating drag-handle: appears when hovering the gutter left of a block (not only over the block itself) and hides on any document change until hovered again.
-- Tables: a multi-cell selection could crash the editor — fixed.
-- Notepad: expanding a page no longer makes its content jump down a few pixels after the unfold.
-- Links with formatted text (bold, italic, code, highlight, color, …) now open on click — previously only plain-text links did.
-- Notepad: the drag & drop line marked the wrong spot in scrolled documents — the dropped page now lands exactly on the boundary the line marks.
-- Saving a `.um` container can no longer clobber its own manifest or note documents: asset descriptors naming a protected archive path (e.g. a hand-edited registry) are skipped at write time instead of overwriting the required entries.
-- Assets are no longer garbage-collected while a notepad has a page this editor cannot interpret (newer version, unknown family, failed migration): the page is preserved verbatim, so its media stays in the archive even if its references use a shape this editor does not know.
-- Opening a `.um` file is size-guarded against zip bombs: archives over a compressed-size cap are rejected before being read into memory, and decompression is bounded by a cap on the total inflated size — a hostile `.um` fails cleanly with a "too large" error instead of exhausting memory.
-- Notepad saves no longer lose edits made while a save is in flight.
-- Image layouts in notepads are scoped to their page: "full width" no longer spans the whole window, and wrap-layout images no longer float into the following pages.
-- Toggling the plugin off/on without an app restart no longer breaks images/attachments.
+- The block drag handle appears when hovering the empty area left of a block (not only over the block itself) and hides while the document changes, until the mouse moves again.
+- Selecting several table cells no longer crashes the editor.
+- Links wrapped in formatting (bold, color, code, …) now open on click — only plain-text links did.
+- Notepad: unfolding a page no longer nudges its content down a few pixels, and the drag line now marks the exact spot the page will land in scrolled documents.
+- Notepad: image layouts are scoped to their page — "full width" no longer spans the whole window, wrapped images no longer float into the next page, and edits made while a save is in flight are no longer lost.
+- Saving a notepad can no longer damage its own contents, and media used by pages this version cannot read stays in the file.
+- Opening an oversized `.um` file fails cleanly with a "too large" error instead of exhausting memory.
+- Toggling the plugin off and on no longer breaks images and attachments.
 
 ## [0.9.0] - 2026-09-18
 

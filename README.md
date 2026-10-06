@@ -8,6 +8,8 @@
 
 Inscriptum lets you create and edit rich documents without having to write Markdown.
 
+Work in single notes or in notepads — one file that keeps many related pages together.
+
 Write structured documents with headings, lists, todo items, tables, images, links, code blocks, and more — using a familiar visual editor.
 
 Your documents stay **local and under your control**. No cloud storage, no account, and no lock-in.
@@ -19,15 +21,19 @@ The Obsidian plugin brings Inscriptum to your Obsidian vault, allowing you to us
 ## Features
 
 * WYSIWYG rich text editing
-* Headings and structured documents
-* Todo lists and regular lists
+* Notepads (`.um`): many pages in one file, with a cover page, a pages drawer and notebook-wide search
+* Headings and structured documents, with foldable sections
+* Todo lists and regular lists, including nested subtasks
 * Blockquotes
-* Tables with cell selection and styling
-* Images
+* Tables: cell selection, cell fill, Word-style borders and images inside cells
+* Images: resizing, text wrap layouts and click-to-zoom
 * Links and automatic URL/email linking
 * Code blocks with syntax highlighting
 * Switchable syntax highlighting themes
 * Bubble menu for quick formatting
+* In-note search
+* Export a note as a self-contained static website
+* Works on desktop, phones and tablets
 
 ## Local-first
 
