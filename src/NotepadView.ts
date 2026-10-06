@@ -2897,17 +2897,46 @@ export class NotepadView extends FileView {
   private onTableWrapperScrolled(wrapper: Element): void {
     wrapper.classList.add("has-scrolled");
     const el = wrapper.instanceOf(HTMLElement) ? wrapper : null;
-    if (el) syncScrollShadow(el);
+    if (el) this.syncWrapperScrollState([el]);
   }
 
   /** Refresh the edge-fade state of every table on a page (called once the
    *  page is painted and on window resizes). */
   private syncPhoneTableWrappers(handle: SectionHandle): void {
     if (!handle.body.isConnected) return;
-    for (const wrapper of handle.body.querySelectorAll<HTMLElement>(
-      ".table-wrapper",
-    )) {
-      syncScrollShadow(wrapper);
+    this.syncWrapperScrollState([
+      ...handle.body.querySelectorAll<HTMLElement>(".table-wrapper"),
+    ]);
+  }
+
+  /** Sync the visual scroll-state classes of table wrappers. The wrappers
+   *  live INSIDE the ProseMirror editable DOM: an attribute write here is
+   *  seen by PM's DOMObserver, which reads it as a foreign DOM change and
+   *  resets a freshly dispatched TextoCellSelection to a caret (reproduced
+   *  on-device: the multi-cell selection died ~18ms after dispatch, exactly
+   *  at the sync's rAF). The writes never touch the document, so they run
+   *  with the observer suspended — the same stop/takeRecords/start pattern
+   *  PM itself uses around its own DOM writes. */
+  private syncWrapperScrollState(wrappers: HTMLElement[]): void {
+    if (wrappers.length === 0) return;
+    const view = this.focusedEditor?.view ?? null;
+    const domObserver = (
+      view as unknown as {
+        domObserver?: { stop(): void; start(): void };
+      } | null
+    )?.domObserver;
+    const write = () => {
+      for (const wrapper of wrappers) syncScrollShadow(wrapper);
+    };
+    if (domObserver) {
+      domObserver.stop();
+      try {
+        write();
+      } finally {
+        domObserver.start();
+      }
+    } else {
+      write();
     }
   }
 
