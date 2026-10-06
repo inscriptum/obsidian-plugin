@@ -1509,24 +1509,5 @@ button.notepad-sheet-row.is-danger svg {
   );
 }
 
-/* The scroll hint lives until the first horizontal scroll (has-scrolled is
-   set by the view's delegated scroll listener and never removed). */
-.notepad-view-container.is-phone
-  .ProseMirror
-  .table-wrapper.can-scroll-right:not(.has-scrolled)::after {
-  content: "Table is wider than the screen — scroll sideways";
-  position: absolute;
-  left: 10px;
-  bottom: 6px;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  padding: 3px 10px;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--background-primary) 88%, transparent);
-  color: var(--text-faint);
-  font-size: 12px;
-  white-space: nowrap;
-  pointer-events: none;
-}
+/* No scroll hint: the right edge fade alone signals the continuation
+   (owner's call — the hint chip was rejected). */

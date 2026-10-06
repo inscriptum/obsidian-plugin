@@ -2895,7 +2895,6 @@ export class NotepadView extends FileView {
   // ── Phone: horizontal table scroll state (design S8) ──
 
   private onTableWrapperScrolled(wrapper: Element): void {
-    wrapper.classList.add("has-scrolled");
     const el = wrapper.instanceOf(HTMLElement) ? wrapper : null;
     if (el) this.syncWrapperScrollState([el]);
   }
