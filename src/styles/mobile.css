@@ -890,6 +890,53 @@
   height: 20px;
 }
 
+/* Ink: the generic flattener recolors these buttons to var(--text-muted)
+   and its touch-stuck :hover flips them to var(--text-normal) — on the
+   dark layer that reads as "washed out" icons and controls that look
+   toggled on. Restore the layer's own palette (the desktop values). */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-bd,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-bd,
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel {
+  color: #a9abb6;
+  background: transparent;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel {
+  color: #c9cad3;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel.is-open,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel.is-open {
+  color: #e6e6ee;
+  background: #23232a;
+}
+/* Pointer devices keep the desktop hover; touch gets a brief :active press
+   instead — a one-shot action must not look toggled on. */
+@media (hover: hover) {
+  .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-bd:hover,
+  .notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-bd:hover,
+  .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel:hover,
+  .notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel:hover {
+    color: #e6e6ee;
+    background: #23232a;
+  }
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-bd:active,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-bd:active,
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel:active,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel:active {
+  color: #e6e6ee;
+  background: #2c2c34;
+}
+
+/* The preset-group divider: mute it to the layer's own hairline (the first
+   divider's #26262e) — the generic var(--background-modifier-border) is a
+   bright light-theme line that shouts on the dark panel. */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-row .bubble-menu-sep,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-row .bubble-menu-sep {
+  background: #26262e;
+}
+
 /* Pen dropdowns open UPWARD (the layer sits at the screen bottom) and cap
    their height so every item stays reachable. */
 .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd,
