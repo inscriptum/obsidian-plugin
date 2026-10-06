@@ -1325,6 +1325,8 @@ button.notepad-section-control:focus {
   left: 10px;
   right: 10px;
   bottom: 10px;
+  /* Live drag offset (set by the swipe-down gesture in NotepadView). */
+  transform: translateY(var(--sheet-drag-y, 0px));
   z-index: 60; /* over the toolbar host (50) if the keyboard lingers */
   /* Short screens (landscape, small phones): content taller than the view
      must scroll INSIDE the sheet — the top rows have to stay reachable. */
@@ -1375,10 +1377,12 @@ button.notepad-section-control:focus {
 button.notepad-sheet-row {
   display: flex;
   align-items: center;
+  /* Design .mrow is left-aligned; Obsidian's button base centers — beat it. */
+  justify-content: flex-start;
   gap: 13px;
   width: 100%;
   min-height: 44px;
-  padding: 10px 12px;
+  padding: 11px 12px;
   border: none;
   border-radius: 12px;
   background: transparent;

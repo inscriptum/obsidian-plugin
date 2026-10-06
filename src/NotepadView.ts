@@ -2597,6 +2597,10 @@ export class NotepadView extends FileView {
     this.sheetEl = sheet;
 
     sheet.createDiv("notepad-sheet-grab");
+    // Bottom-sheet contract: swipe DOWN dismisses (the grab handle is the
+    // affordance, the whole sheet is the target); a small drag springs
+    // back. Armed per open, torn down with the sheet.
+    sheet.addEventListener("pointerdown", this.onSheetDragStart);
     const head = sheet.createDiv("notepad-sheet-head");
     const title = (descriptor.title ?? "").trim();
     const titleEl = head.createDiv("notepad-sheet-title");
@@ -2610,6 +2614,7 @@ export class NotepadView extends FileView {
     const modifiedAt = descriptor.modifiedAt ?? this.file?.stat.mtime;
     if (modifiedAt != null) meta.push(momentFormat(modifiedAt, "L LT"));
     meta.push(words === 0 ? "Empty" : words === 1 ? "1 word" : `${words} words`);
+    if (descriptor.order > 0) meta.push(`page ${descriptor.order}`);
     head.createDiv("notepad-sheet-meta").setText(meta.join(" · "));
 
     const addRow = (
@@ -2695,10 +2700,122 @@ export class NotepadView extends FileView {
       document.removeEventListener("click", this.sheetSwallow, true);
       this.sheetSwallow = null;
     }
+    if (this.sheetDrag != null) {
+      // The drag lives on window listeners; the sheet is going away —
+      // release them, or a mid-drag close (Esc) leaves them dangling.
+      this.clearSheetDragListeners();
+      this.sheetDrag = null;
+    }
     this.sheetEl?.remove();
     this.sheetEl = null;
     this.sheetScrimEl?.remove();
     this.sheetScrimEl = null;
+  }
+
+  // ── Sheet swipe-down dismiss (bottom-sheet contract) ──
+
+  private sheetDrag: {
+    pointerId: number;
+    startX: number;
+    startY: number;
+    dy: number;
+    active: boolean;
+    sheet: HTMLElement;
+  } | null = null;
+
+  /** Past this downward travel a release dismisses; below it springs back. */
+  private static readonly SHEET_DISMISS_PX = 96;
+
+  private onSheetDragStart = (event: PointerEvent): void => {
+    if (this.sheetDrag || !this.sheetEl) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    // Scrolled sheet content owns a downward gesture (there is something
+    // above to reveal); dismissal starts only from the top.
+    if (this.sheetEl.scrollTop > 0) return;
+    this.sheetDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      dy: 0,
+      active: false,
+      sheet: this.sheetEl,
+    };
+    window.addEventListener("pointermove", this.onSheetDragMove);
+    window.addEventListener("pointerup", this.onSheetDragEnd);
+    window.addEventListener("pointercancel", this.onSheetDragEnd);
+    window.addEventListener("touchmove", this.onSheetDragTouchMove, {
+      passive: false,
+    });
+  };
+
+  /** Keeps the gesture away from native scrolling while the sheet is being
+   *  dragged (the pointerup of a dragged touch must not click a row). */
+  private onSheetDragTouchMove = (event: TouchEvent): void => {
+    if (this.sheetDrag?.active) event.preventDefault();
+  };
+
+  private onSheetDragMove = (event: PointerEvent): void => {
+    const drag = this.sheetDrag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const dy = event.clientY - drag.startY;
+    const dx = event.clientX - drag.startX;
+    if (!drag.active) {
+      if (dy > 10 && Math.abs(dy) > Math.abs(dx)) {
+        drag.active = true;
+      } else if (Math.abs(dx) > 10 || dy < -10) {
+        // Horizontal or upward: a scroll/caret gesture, not a dismissal.
+        this.clearSheetDragListeners();
+        this.sheetDrag = null;
+        return;
+      } else {
+        return;
+      }
+    }
+    drag.dy = Math.max(dy, 0);
+    drag.sheet.setCssProps({ "--sheet-drag-y": `${drag.dy}px` });
+  };
+
+  private onSheetDragEnd = (event: PointerEvent): void => {
+    const drag = this.sheetDrag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    this.clearSheetDragListeners();
+    this.sheetDrag = null;
+    if (!drag.active) return;
+    const dismiss =
+      event.type === "pointerup" && drag.dy > NotepadView.SHEET_DISMISS_PX;
+    if (dismiss) {
+      // Slide the sheet out the way the finger pushed it, then close. The
+      // hard timeout covers frozen WAAPI (hidden pane) — same as the fold
+      // morph's guard.
+      const anim = drag.sheet.animate(
+        [
+          { transform: `translateY(${drag.dy}px)`, opacity: "1" },
+          { transform: "translateY(100%)", opacity: "0.4" },
+        ],
+        { duration: 150, easing: "ease-in", fill: "forwards" },
+      );
+      anim.finished
+        .then(() => this.closeSheet())
+        .catch(() => this.closeSheet());
+      window.setTimeout(() => this.closeSheet(), 400);
+    } else {
+      // Spring back to rest.
+      drag.sheet.setCssProps({ "--sheet-drag-y": "" });
+      drag.sheet.animate(
+        [
+          { transform: `translateY(${drag.dy}px)` },
+          { transform: "translateY(0px)" },
+        ],
+        { duration: 180, easing: "ease-out" },
+      );
+    }
+  };
+
+  private clearSheetDragListeners(): void {
+    window.removeEventListener("pointermove", this.onSheetDragMove);
+    window.removeEventListener("pointerup", this.onSheetDragEnd);
+    window.removeEventListener("pointercancel", this.onSheetDragEnd);
+    window.removeEventListener("touchmove", this.onSheetDragTouchMove);
   }
 
   /** The "Move…" fallback (design S6): the row lifts and a chip names the
