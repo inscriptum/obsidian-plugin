@@ -975,3 +975,539 @@ button.notepad-section-control:focus {
   background-color: var(--background-modifier-hover);
   box-shadow: none;
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   PHONE (.is-phone) — the .um notepad one-hand layout.
+   Design project: issues/.um-mobile-view (notepad-mobile-design.html);
+   on conflict the exported design wins. Four principles, restated for
+   code: (01) the view has no permanent chrome of its own — the drawer
+   and the document search are items of the page sheet; (02) no gutters,
+   no cards — pages run the full screen width, separated by hairlines,
+   text 16px from the edge; (03) explicit touch affordances — the page
+   header carries fold + ⋯, rows answer long-press, every target ≥44px;
+   (04) Obsidian tokens only; accent = interactive-accent. Desktop rules
+   above stay untouched — this whole branch is additive and phone-gated.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Viewport-fallback keyboards (desktop mobile emulation, browsers without
+   Capacitor) overlay the view — mirror the .note container and pad it away
+   while the keyboard is up. Real devices resize the view themselves. */
+.notepad-view-container.is-mobile.is-keyboard-open {
+  padding-bottom: var(--keyboard-offset, 0);
+}
+
+/* ── Column: full width, under Obsidian's floating shell controls ── */
+
+.notepad-view-container.is-phone .notepad-sections {
+  max-width: none;
+  margin: 0;
+  /* The phone shell headers are fixed OVER the view (same reservation the
+     .note editor makes in mobile.css); the bottom inset keeps the last row
+     off the home indicator. */
+  padding: calc(var(--header-height, 40px) + var(--view-header-height, 44px) + 12px)
+    0 calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+.notepad-view-container.is-phone .notepad-section {
+  padding-left: 0; /* the 74px desktop gutter column is gone */
+}
+
+/* ── Section margin → page header (design S2: fold left, ⋯ right) ── */
+
+.notepad-view-container.is-phone .notepad-section-margin {
+  position: static;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: auto;
+  /* design .pbar: 4px 10px 0 6px */
+  padding: 4px 10px 0 6px;
+}
+
+.notepad-view-container.is-phone .notepad-section.is-unsupported
+  .notepad-section-margin {
+  display: none; /* no gutter, no ⋯ — an unsupported page has no header */
+}
+
+/* A folded row keeps the margin only as its chevron, floating over the
+   row's left edge (design .prow-chev): the ⋯ hides — the sheet enters via
+   the row long-press. */
+.notepad-view-container.is-phone
+  .notepad-section:not(.is-expanded)
+  .notepad-section-margin {
+  position: absolute;
+  top: 15px;
+  left: 0;
+  width: 44px; /* the tap zone */
+  padding: 0;
+  justify-content: flex-start; /* the 32px control hugs the edge */
+}
+
+.notepad-view-container.is-phone
+  .notepad-section:not(.is-expanded)
+  .notepad-section-menubtn {
+  display: none;
+}
+
+/* Header buttons: 44×40 taps (design .pbar-btn), 20px glyphs. */
+.notepad-view-container.is-phone .notepad-section-gutter,
+.notepad-view-container.is-phone .notepad-section-menubtn {
+  width: 44px;
+  height: 40px;
+}
+
+.notepad-view-container.is-phone .notepad-section-gutter svg,
+.notepad-view-container.is-phone .notepad-section-menubtn svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.5;
+}
+
+/* The ⋯ opens the page sheet (design S3). Bare-button reset — the same
+   treatment every notepad button needs against Obsidian's button base. */
+.notepad-view-container.is-phone button.notepad-section-menubtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  box-shadow: none;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.notepad-view-container.is-phone button.notepad-section-menubtn:hover,
+.notepad-view-container.is-phone button.notepad-section-menubtn:focus {
+  color: var(--text-normal);
+  background: transparent;
+  box-shadow: none;
+}
+
+/* The folded row's chevron is a compact TOC glyph (design .prow-chev:
+   ~16px, stroke 1.8, faint) inside the same 44px tap zone. */
+.notepad-view-container.is-phone
+  .notepad-section:not(.is-expanded)
+  .notepad-section-gutter {
+  width: 32px; /* spec S1: chevron control 32px in a 44px tap zone */
+  height: 44px;
+}
+
+.notepad-view-container.is-phone
+  .notepad-section:not(.is-expanded)
+  .notepad-section-gutter
+  svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.8;
+}
+
+/* ── Collapsed row: the compact TOC line (design S1) ──
+   Full width, no rules between rows; the title column clears the floating
+   chevron (26px + 6px, per the design); the meta line clears the order
+   number hanging at its right end. */
+.notepad-view-container.is-phone .notepad-section-collapsed {
+  padding: 8px 16px 10px 32px;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.notepad-view-container.is-phone
+  .notepad-section-collapsed:not(.is-static):active {
+  background: var(--background-modifier-hover);
+}
+
+.notepad-view-container.is-phone .notepad-section-meta {
+  padding-right: 40px;
+}
+
+.notepad-view-container.is-phone
+  .notepad-section:not(.is-expanded)
+  .notepad-section-order {
+  right: 16px;
+  bottom: 12px;
+}
+
+.notepad-view-container.is-phone
+  .notepad-section.is-expanded
+  .notepad-section-order {
+  right: 12px;
+  bottom: 10px;
+}
+
+/* ── Expanded page: a quiet full-width sheet between hairlines (S2) ──
+   No card frame, no radius — the hairlines above and below are the whole
+   chrome. The hover sharpening is a pointer idiom; the phone keeps the
+   plain border color. */
+.notepad-view-container.is-phone
+  .notepad-section.is-expanded
+  .notepad-section-body {
+  border: none;
+  border-top: 1px solid var(--background-modifier-border);
+  border-bottom: 1px solid var(--background-modifier-border);
+  border-radius: 0;
+}
+
+.notepad-view-container.is-phone
+  .notepad-sections
+  > .notepad-section:first-child
+  .notepad-section-body {
+  border-top: none;
+}
+
+.notepad-view-container.is-phone .notepad-section .notepad-section-body:hover {
+  border-color: var(--background-modifier-border);
+}
+
+/* ── Editor inset: text 16px from the edge (principle 02) ── */
+
+.notepad-view-container.is-phone .texto-editor {
+  padding: 2px 16px 18px;
+}
+
+/* The cover reads as a document title on the phone (design .cover-title). */
+.notepad-view-container.is-phone
+  .notepad-section.is-title
+  .ProseMirror
+  > h1:first-child {
+  font-size: 30px;
+}
+
+/* The title page's field labels hang into the desktop's left margin —
+   there is no margin on the phone. */
+.notepad-view-container.is-phone [data-label]:after {
+  display: none;
+}
+
+/* The hover-only page chip is replaced by the page sheet. */
+.notepad-view-container.is-phone .notepad-section-controls {
+  display: none;
+}
+
+/* "Add note": the dashed target is always on — hover does not exist. */
+.notepad-view-container.is-phone button.notepad-add-note {
+  min-height: 44px;
+  border-color: color-mix(in srgb, var(--ins-accent) 40%, transparent);
+}
+
+/* ── Pages drawer (design S4): overlay min(86vw, 340px) + scrim ──
+   Entry is the sheet's "All pages" item — the floating ☰ is gone (the
+   toggle hides with the closed drawer instead of poking out of it), and
+   the ✕ sits INSIDE the drawer header, not at the screen edge. */
+.notepad-view-container.is-phone .notepad-nav {
+  top: 0;
+  width: min(86vw, 340px);
+  padding-top: 50px;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  border-radius: 0 18px 18px 0;
+}
+
+.notepad-view-container.is-phone .notepad-nav-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 14; /* one step under the drawer (15) */
+  background: rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s;
+}
+
+.notepad-view-container.is-phone.notepad-nav-open .notepad-nav-scrim {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.notepad-view-container.is-phone button.notepad-nav-toggle {
+  visibility: hidden;
+  /* The app draws under the status bar; clear it (28px) or the inset,
+     whichever is larger. */
+  top: max(28px, calc(env(safe-area-inset-top, 0px) + 8px));
+  right: 8px;
+  width: 44px;
+  height: 44px;
+}
+
+.notepad-view-container.is-phone
+  .notepad-nav.is-open
+  button.notepad-nav-toggle {
+  visibility: visible;
+}
+
+.notepad-view-container.is-phone button.notepad-nav-toggle svg {
+  top: 10px;
+  left: 10px;
+  width: 24px;
+  height: 24px;
+  stroke-width: 1.5px;
+}
+
+/* 44px rows (design .dr-row), mono numbers. */
+.notepad-view-container.is-phone .notepad-nav-item {
+  align-items: center;
+  height: 44px;
+  margin: 1px 4px;
+  padding: 0 8px;
+  border-radius: 8px;
+}
+
+.notepad-view-container.is-phone .notepad-nav-numb {
+  width: 30px;
+  padding-right: 6px;
+  font-size: 11.5px;
+}
+
+.notepad-view-container.is-phone .notepad-nav-header {
+  padding: 0;
+  font-size: 15px;
+  line-height: 1.4;
+}
+
+/* ── Document search (design S7): docked bar under the shell buttons ──
+   The desktop floating pill becomes a full-width hairline-bottomed bar;
+   from the scroller it does not depend. */
+
+.notepad-view-container.is-phone .notepad-search {
+  top: calc(var(--header-height, 40px) + var(--view-header-height, 44px));
+  right: 0;
+  left: 0;
+  gap: 4px;
+  padding: 6px 10px;
+  border-right: none;
+  border-bottom: 1px solid var(--background-modifier-border);
+  border-left: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.notepad-view-container.is-phone .notepad-search-input {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  height: 36px;
+  padding: 4px 10px;
+  font-size: 16px;
+}
+
+.notepad-view-container.is-phone .notepad-search-count {
+  min-width: 52px;
+  font-size: 13px;
+}
+
+.notepad-view-container.is-phone .notepad-search-btn {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+}
+
+.notepad-view-container.is-phone .notepad-search-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ── Page sheet (design S3): the ⋯ menu ──
+   A bottom sheet on secondary background; radii and shadow only here —
+   pages themselves stay square (principle 04). */
+
+.notepad-sheet-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 59;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.notepad-sheet {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  /* Live drag offset (set by the swipe-down gesture in NotepadView). */
+  transform: translateY(var(--sheet-drag-y, 0px));
+  z-index: 60; /* over the toolbar host (50) if the keyboard lingers */
+  /* Short screens (landscape, small phones): content taller than the view
+     must scroll INSIDE the sheet — the top rows have to stay reachable. */
+  max-height: calc(100% - 20px);
+  overflow-y: auto;
+  /* The extra clearance keeps the last row (Delete) above Obsidian's
+     floating bottom nav pill (.mobile-navbar ≈ 52px + margins). */
+  padding: 8px 8px calc(10px + env(safe-area-inset-bottom, 0px) + 80px);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 20px;
+  background: var(--background-secondary);
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.25);
+}
+
+.notepad-sheet-grab {
+  width: 36px;
+  height: 4px;
+  margin: 4px auto 8px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--text-normal) 22%, transparent);
+}
+
+.notepad-sheet-head {
+  padding: 4px 12px 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.notepad-sheet-title {
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 650;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.notepad-sheet-title.is-empty {
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+.notepad-sheet-meta {
+  margin-top: 3px;
+  color: var(--text-faint);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+button.notepad-sheet-row {
+  display: flex;
+  align-items: center;
+  /* Design .mrow is left-aligned; Obsidian's button base centers — beat it. */
+  justify-content: flex-start;
+  gap: 13px;
+  width: 100%;
+  min-height: 44px;
+  padding: 11px 12px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+  color: var(--text-normal);
+  font-size: 15.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.notepad-sheet-row + button.notepad-sheet-row {
+  margin-top: 1px;
+}
+
+button.notepad-sheet-row svg {
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+button.notepad-sheet-row:active {
+  background: var(--background-modifier-hover);
+}
+
+button.notepad-sheet-row.is-danger,
+button.notepad-sheet-row.is-danger svg {
+  color: var(--text-error);
+}
+
+.notepad-sheet-divider {
+  height: 1px;
+  margin: 6px 10px;
+  background: var(--background-modifier-border);
+}
+
+/* ── Move mode (design S6): the lifted row + the status chip ──
+   The desktop drag fades the row; the phone lifts it into a card. The
+   accent drop line itself is shared with the desktop (see
+   .notepad-drop-line above). */
+
+.notepad-view-container.is-phone .notepad-section.is-dragging {
+  opacity: 1;
+}
+
+.notepad-view-container.is-phone
+  .notepad-section.is-dragging
+  .notepad-section-collapsed {
+  margin: 0 10px;
+  padding: 10px 14px 10px 32px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 13px;
+  background: var(--background-primary);
+  box-shadow: 0 14px 34px -10px rgba(0, 0, 0, 0.35);
+  transform: scale(1.02);
+}
+
+.notepad-move-chip {
+  position: absolute;
+  top: calc(var(--header-height, 40px) + var(--view-header-height, 44px) + 8px);
+  left: 50%;
+  z-index: 18;
+  padding: 4px 11px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 999px;
+  background: var(--background-secondary);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+/* ── Tables inside a page (design S8): full-bleed horizontal scroll ── */
+
+.notepad-view-container.is-phone .ProseMirror .table-wrapper {
+  margin: 14px -16px 18px;
+  /* The desktop pair (width: max-content + max-width: 100%) would either
+     pin the wrapper to the editor's content box (killing the right-side
+     bleed) or let it grow as wide as the table itself (no scroller at
+     all). On the phone the wrapper is the full-bleed viewport-width box
+     and only its CONTENT scrolls. */
+  width: auto;
+  max-width: none;
+}
+
+/* Edge fades track the can-scroll-* classes (synced from NotepadView via
+   the toolbar scroll-shadow helper). */
+.notepad-view-container.is-phone
+  .ProseMirror
+  .table-wrapper.can-scroll-right:not(.can-scroll-left) {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    #000 calc(100% - 28px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent 100%);
+}
+
+.notepad-view-container.is-phone
+  .ProseMirror
+  .table-wrapper.can-scroll-left:not(.can-scroll-right) {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px);
+  mask-image: linear-gradient(to right, transparent 0, #000 28px);
+}
+
+.notepad-view-container.is-phone
+  .ProseMirror
+  .table-wrapper.can-scroll-left.can-scroll-right {
+  -webkit-mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 28px calc(100% - 28px),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to right,
+    transparent 0,
+    #000 28px calc(100% - 28px),
+    transparent 100%
+  );
+}
+
+/* No scroll hint: the right edge fade alone signals the continuation
+   (owner's call — the hint chip was rejected). */

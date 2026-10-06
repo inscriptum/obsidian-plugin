@@ -15,12 +15,17 @@
    references them via <use>, so the icon scales with the outer <svg>'s
    CSS size (its viewBox is "0 0 16 16" — see itemIcon.svgnode.tsx).
    Desktop shows it at 16px; on mobile we bump it for easier tapping. ─── */
-.note-view-container.is-mobile .texto-extension-task-item-host .custom-icon {
+.note-view-container.is-mobile .texto-extension-task-item-host .custom-icon,
+.notepad-view-container.is-mobile .texto-extension-task-item-host .custom-icon {
   width: 22px;
   height: 22px;
 }
 
 .note-view-container.is-mobile
+  .texto-extension-task-item-host
+  .custom-icon
+  svg,
+.notepad-view-container.is-mobile
   .texto-extension-task-item-host
   .custom-icon
   svg {
@@ -34,6 +39,11 @@
    we need ~3px so the checkbox center meets the text line center
    (~0.5 * 1.8 * 15.5px ≈ 14px). */
 .note-view-container.is-mobile
+  .ProseMirror
+  ul[data-type="taskList"]
+  .texto-extension-task-item-host
+  > label,
+.notepad-view-container.is-mobile
   .ProseMirror
   ul[data-type="taskList"]
   .texto-extension-task-item-host
@@ -142,7 +152,8 @@
 }
 
 /* The toolbar fills the width, blends into the bar and scrolls horizontally. */
-.note-view-container.is-mobile .note-toolbar {
+.note-view-container.is-mobile .note-toolbar,
+.notepad-view-container.is-mobile .note-toolbar {
   position: static;
   width: 100%;
   height: 52px;
@@ -167,34 +178,48 @@
   .bubble-menu-bar__row,
   .bubble-menu-table-bar,
   .bubble-menu-media-bar
+),
+.notepad-view-container.is-mobile
+:is(
+  .note-toolbar,
+  .bubble-menu-bar__row,
+  .bubble-menu-table-bar,
+  .bubble-menu-media-bar
 ) {
   overscroll-behavior-x: contain;
   touch-action: pan-x;
 }
-.note-view-container.is-mobile .note-toolbar::-webkit-scrollbar {
+.note-view-container.is-mobile .note-toolbar::-webkit-scrollbar,
+.notepad-view-container.is-mobile .note-toolbar::-webkit-scrollbar {
   display: none;
 }
 
 /* Suppress the native iOS selection callout while keeping the selection. */
 .note-view-container.is-mobile .texto-editor,
-.note-view-container.is-mobile .ProseMirror {
+.note-view-container.is-mobile .ProseMirror,
+.notepad-view-container.is-mobile .texto-editor,
+.notepad-view-container.is-mobile .ProseMirror {
   -webkit-touch-callout: none;
 }
 
 /* Swap visibility between the default toolbar and the selection bars. */
-.note-view-container.is-mobile .note-toolbar.is-hidden {
+.note-view-container.is-mobile .note-toolbar.is-hidden,
+.notepad-view-container.is-mobile .note-toolbar.is-hidden {
   display: none;
 }
-.note-view-container.is-mobile .mobile-sel-bar {
+.note-view-container.is-mobile .mobile-sel-bar,
+.notepad-view-container.is-mobile .mobile-sel-bar {
   display: none;
 }
-.note-view-container.is-mobile .mobile-sel-bar.is-active {
+.note-view-container.is-mobile .mobile-sel-bar.is-active,
+.notepad-view-container.is-mobile .mobile-sel-bar.is-active {
   display: block;
 }
 
 /* Toolbar buttons look like native menu actions: large touch target, 24px
    icon, muted color, no raised/hover background. */
-.note-view-container.is-mobile .note-toolbar .note-toolbar__btn {
+.note-view-container.is-mobile .note-toolbar .note-toolbar__btn,
+.notepad-view-container.is-mobile .note-toolbar .note-toolbar__btn {
   width: 52px;
   height: 52px;
   flex: 0 0 auto;
@@ -203,16 +228,20 @@
   box-shadow: none;
   color: var(--text-muted);
 }
-.note-view-container.is-mobile .note-toolbar .note-toolbar__btn:hover {
+.note-view-container.is-mobile .note-toolbar .note-toolbar__btn:hover,
+.notepad-view-container.is-mobile .note-toolbar .note-toolbar__btn:hover {
   background: transparent;
   color: var(--text-normal);
 }
-.note-view-container.is-mobile .note-toolbar .note-toolbar__btn.is-active {
+.note-view-container.is-mobile .note-toolbar .note-toolbar__btn.is-active,
+.notepad-view-container.is-mobile .note-toolbar .note-toolbar__btn.is-active {
   background: transparent;
   color: var(--interactive-accent);
 }
 .note-view-container.is-mobile .note-toolbar .note-toolbar__icon,
-.note-view-container.is-mobile .note-toolbar .note-toolbar__btn svg {
+.note-view-container.is-mobile .note-toolbar .note-toolbar__btn svg,
+.notepad-view-container.is-mobile .note-toolbar .note-toolbar__icon,
+.notepad-view-container.is-mobile .note-toolbar .note-toolbar__btn svg {
   width: 24px;
   height: 24px;
 }
@@ -221,7 +250,10 @@
    and the "Saved · N w." status are dropped. */
 .note-view-container.is-mobile .note-toolbar__sep,
 .note-view-container.is-mobile .note-toolbar__spacer,
-.note-view-container.is-mobile .note-toolbar__meta {
+.note-view-container.is-mobile .note-toolbar__meta,
+.notepad-view-container.is-mobile .note-toolbar__sep,
+.notepad-view-container.is-mobile .note-toolbar__spacer,
+.notepad-view-container.is-mobile .note-toolbar__meta {
   display: none;
 }
 
@@ -237,7 +269,8 @@
   display: flex;
   flex-direction: column;
 }
-.note-view-container.is-mobile .note-toolbar-host.is-link-open .tb-link-layer {
+.note-view-container.is-mobile .note-toolbar-host.is-link-open .tb-link-layer,
+.notepad-view-container.is-mobile .notepad-toolbar.is-link-open .tb-link-layer {
   position: static;
   order: -1;
   width: 100%;
@@ -247,11 +280,13 @@
   box-shadow: none;
   background: transparent;
 }
-.note-view-container.is-mobile .note-toolbar-host.is-link-open .tb-link-input {
+.note-view-container.is-mobile .note-toolbar-host.is-link-open .tb-link-input,
+.notepad-view-container.is-mobile .notepad-toolbar.is-link-open .tb-link-input {
   padding: 9px 11px;
   font-size: 15px;
 }
-.note-view-container.is-mobile .note-toolbar-host.is-link-open .tb-link-go {
+.note-view-container.is-mobile .note-toolbar-host.is-link-open .tb-link-go,
+.notepad-view-container.is-mobile .notepad-toolbar.is-link-open .tb-link-go {
   width: 44px;
   height: 44px;
   border-radius: var(--radius-m);
@@ -260,13 +295,15 @@
   .note-toolbar-host.is-link-open
   .tb-link-go
   .tb-link-icon,
-.note-view-container.is-mobile .note-toolbar-host.is-link-open .tb-link-go svg {
+.note-view-container.is-mobile .note-toolbar-host.is-link-open .tb-link-go svg,
+.notepad-view-container.is-mobile .notepad-toolbar.is-link-open .tb-link-go svg {
   width: 20px;
   height: 20px;
 }
 
 /* Selection bars (bubble menu) inside the toolbar: full width, scrollable. */
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar {
   background: transparent;
   border: none;
   border-radius: 0;
@@ -280,7 +317,10 @@
 }
 .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar__row,
 .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-table-bar,
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-media-bar {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-media-bar,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar__row,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-table-bar,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-media-bar {
   flex-wrap: nowrap;
   overflow-x: auto;
   scrollbar-width: none;
@@ -294,13 +334,24 @@
   .bubble-menu-table-bar::-webkit-scrollbar,
 .note-view-container.is-mobile
   .mobile-sel-bar
+  .bubble-menu-media-bar::-webkit-scrollbar,
+.notepad-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar__row::-webkit-scrollbar,
+.notepad-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-table-bar::-webkit-scrollbar,
+.notepad-view-container.is-mobile
+  .mobile-sel-bar
   .bubble-menu-media-bar::-webkit-scrollbar {
   display: none;
 }
 
 /* No pointer-to-selection caret inside a docked bar. */
 .note-view-container.is-mobile .bubble-menu-bar .bb-caret,
-.note-view-container.is-mobile .bubble-menu-layer .bb-layer-caret {
+.note-view-container.is-mobile .bubble-menu-layer .bb-layer-caret,
+.notepad-view-container.is-mobile .bubble-menu-bar .bb-caret,
+.notepad-view-container.is-mobile .bubble-menu-layer .bb-layer-caret {
   display: none;
 }
 
@@ -312,7 +363,8 @@
    strand the popup anywhere on the screen. Instead the layer DOCKS as a full
    width row directly above the actions inside the same toolbar: static
    position, no absolute math, nothing can float away. */
-.note-view-container.is-mobile .bubble-menu-layer {
+.note-view-container.is-mobile .bubble-menu-layer,
+.notepad-view-container.is-mobile .bubble-menu-layer {
   position: static;
   min-width: 0;
   width: 100%;
@@ -334,18 +386,24 @@
 .note-view-container.is-mobile
   .bubble-menu-bar.layer-open-down
   .bubble-menu-layer,
-.note-view-container.is-mobile .bubble-menu-layer.show {
+.note-view-container.is-mobile .bubble-menu-layer.show,
+.notepad-view-container.is-mobile
+  .bubble-menu-bar.layer-open-down
+  .bubble-menu-layer,
+.notepad-view-container.is-mobile .bubble-menu-layer.show {
   transform: none;
 }
 /* The hidden layer must not keep its row space in the docked bar. */
-.note-view-container.is-mobile .bubble-menu-layer:not(.show) {
+.note-view-container.is-mobile .bubble-menu-layer:not(.show),
+.notepad-view-container.is-mobile .bubble-menu-layer:not(.show) {
   display: none;
 }
 
 /* On short mobile viewports a docked layer can be taller than the visible
    area above the toolbar. Cap it and make it scroll so every swatch stays
    reachable. Desktop keeps the natural (unbounded) height. */
-.note-view-container.is-mobile .bubble-menu-layer {
+.note-view-container.is-mobile .bubble-menu-layer,
+.notepad-view-container.is-mobile .bubble-menu-layer {
   max-height: calc(100vh - 120px);
   overflow-y: auto;
 }
@@ -363,6 +421,10 @@
 .note-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
+  button:not(.bb-sw, .bb-go, .bb-mi),
+.notepad-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
   button:not(.bb-sw, .bb-go, .bb-mi) {
   width: 44px;
   height: 44px;
@@ -374,11 +436,19 @@
 .note-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
+  button:not(.bb-sw, .bb-go, .bb-mi):hover,
+.notepad-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
   button:not(.bb-sw, .bb-go, .bb-mi):hover {
   background: transparent;
   color: var(--text-normal);
 }
 .note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  button:not(.bb-sw, .bb-go, .bb-mi).is-active,
+.notepad-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
   button:not(.bb-sw, .bb-go, .bb-mi).is-active {
@@ -387,6 +457,11 @@
   color: var(--interactive-accent);
 }
 .note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  button:not(.bb-sw, .bb-go, .bb-mi)
+  svg,
+.notepad-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
   button:not(.bb-sw, .bb-go, .bb-mi)
@@ -399,7 +474,8 @@
    fidelity inside the layer row; the row has enough padding for a tap. */
 /* Swatches: keep the round shape and colors, but scale the touch target up
    from the desktop 18px (still round — border-radius 50%). */
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-sw {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-sw,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-sw {
   width: 32px;
   height: 32px;
   border-radius: 50%;
@@ -409,10 +485,18 @@
 .note-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
+  .bb-dd-swatches,
+.notepad-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
   .bb-dd-swatches {
   grid-template-columns: repeat(6, 32px);
 }
 .note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  .bb-sw.is-active,
+.notepad-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
   .bb-sw.is-active {
@@ -424,17 +508,24 @@
    desktop rules in bubble-menu.css (this selector out-specifies them, so a
    color/font-size here would flatten .bb-mi--h1/--h2/--h3 and .is-active).
    The layer panel is a dark surface; the desktop palette already targets it. */
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-mi {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-mi,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-mi {
   justify-content: flex-start;
   width: 100%;
   min-height: 44px;
   padding: 4px 10px;
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-mi svg {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-mi svg,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-mi svg {
   width: 20px;
   height: 20px;
 }
 .note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  .bb-mi
+  .bb-tick,
+.notepad-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
   .bb-mi
@@ -447,14 +538,25 @@
   .bubble-menu-bar
   .bb-mi
   .bb-tick
+  svg,
+.notepad-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  .bb-mi
+  .bb-tick
   svg {
   width: 16px;
   height: 16px;
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-sep {
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-sep,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-sep {
   background: var(--background-modifier-border);
 }
 .note-view-container.is-mobile
+  .mobile-sel-bar
+  .bubble-menu-bar
+  .bb-btn[data-tip]::after,
+.notepad-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
   .bb-btn[data-tip]::after {
@@ -465,7 +567,8 @@
    touch devices (phones, tablets) — they have no such keys. The TSX already
    skips the footer in a mobile context; this CSS guard also covers a stale
    host that was mounted before its container got .is-mobile. */
-.note-view-container.is-mobile .bubble-menu-bar .bb-link-foot {
+.note-view-container.is-mobile .bubble-menu-bar .bb-link-foot,
+.notepad-view-container.is-mobile .bubble-menu-bar .bb-link-foot {
   display: none;
 }
 
@@ -497,6 +600,13 @@
   .bubble-menu-bar__row,
   .bubble-menu-table-bar,
   .bubble-menu-media-bar
+).can-scroll-right:not(.can-scroll-left),
+.notepad-view-container.is-mobile
+:is(
+  .note-toolbar,
+  .bubble-menu-bar__row,
+  .bubble-menu-table-bar,
+  .bubble-menu-media-bar
 ).can-scroll-right:not(.can-scroll-left) {
   -webkit-mask-image: linear-gradient(
     to right,
@@ -515,11 +625,25 @@
     .bubble-menu-bar__row,
     .bubble-menu-table-bar,
     .bubble-menu-media-bar
+  ).can-scroll-left:not(.can-scroll-right),
+.notepad-view-container.is-mobile
+  :is(
+    .note-toolbar,
+    .bubble-menu-bar__row,
+    .bubble-menu-table-bar,
+    .bubble-menu-media-bar
   ).can-scroll-left:not(.can-scroll-right) {
   -webkit-mask-image: linear-gradient(to right, transparent 0, #000 28px);
   mask-image: linear-gradient(to right, transparent 0, #000 28px);
 }
 .note-view-container.is-mobile
+  :is(
+    .note-toolbar,
+    .bubble-menu-bar__row,
+    .bubble-menu-table-bar,
+    .bubble-menu-media-bar
+  ).can-scroll-left.can-scroll-right,
+.notepad-view-container.is-mobile
   :is(
     .note-toolbar,
     .bubble-menu-bar__row,
@@ -551,7 +675,8 @@
    touch trap in the cell corner). Its container (.texto-table__overlay_overlay-circle)
    is display:none'd entirely, so touches pass through to the cell below
    (long-press selection / resize handle). Desktop keeps the circle drag. */
-.note-view-container.is-mobile .texto-table__overlay_overlay-circle {
+.note-view-container.is-mobile .texto-table__overlay_overlay-circle,
+.notepad-view-container.is-mobile .texto-table__overlay_overlay-circle {
   display: none;
 }
 
@@ -561,7 +686,8 @@
    inside the scroll area instead of extending it (the desktop wrapper has
    padding-right: 0, and a protruding absolute element would widen the
    scrollable overflow, acting as if the table grew). */
-.note-view-container.is-mobile .ProseMirror .table-wrapper {
+.note-view-container.is-mobile .ProseMirror .table-wrapper,
+.notepad-view-container.is-mobile .ProseMirror .table-wrapper {
   padding-right: 26px;
 }
 
@@ -572,7 +698,8 @@
    least 48px wide (columnResizing enforces cellMinWidth: 25; for narrower
    columns the border tap may pick the neighbor's handle — acceptable on the
    smallest columns, the line stays visible to correct the aim). */
-.note-view-container.is-mobile .texto-table__resize-handle {
+.note-view-container.is-mobile .texto-table__resize-handle,
+.notepad-view-container.is-mobile .texto-table__resize-handle {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -599,7 +726,9 @@
    long-press cell-selection drag right after activation. Scrolling that
    starts on a cell is emulated manually in handleTouchStart.ts. */
 .note-view-container.is-mobile .ProseMirror .table-wrapper table td,
-.note-view-container.is-mobile .ProseMirror .table-wrapper table th {
+.note-view-container.is-mobile .ProseMirror .table-wrapper table th,
+.notepad-view-container.is-mobile .ProseMirror .table-wrapper table td,
+.notepad-view-container.is-mobile .ProseMirror .table-wrapper table th {
   touch-action: none;
 }
 
@@ -607,11 +736,13 @@
    NOTE: z-index is set on the overlay, not on the circle itself — the circle
    lives inside the overlay's stacking context, so its own z-index cannot
    compete with the handle outside of it. */
-.note-view-container.is-mobile .texto-table__overlay {
+.note-view-container.is-mobile .texto-table__overlay,
+.notepad-view-container.is-mobile .texto-table__overlay {
   z-index: 4;
 }
 
-.note-view-container.is-mobile .texto-table__resize-handle::before {
+.note-view-container.is-mobile .texto-table__resize-handle::before,
+.notepad-view-container.is-mobile .texto-table__resize-handle::before {
   content: "";
   position: absolute;
   top: 0;
@@ -630,4 +761,232 @@
     var(--interactive-accent, #7c6af7) 50%,
     transparent
   );
+}
+
+/* ─── 6. Notepad (.um) mobile host ──────────────────────────────────────
+   The notepad wraps its ToolbarElement in a plain .notepad-toolbar-host
+   div (the note view carries the host class on the element itself), so the
+   bottom-docking rules target the host div, and the link-layer re-docking
+   targets .notepad-toolbar (the element that owns is-link-open here).
+   Everything else — 52px buttons, selection bars, docked layers, fades,
+   table touch rules — comes from the shared rules above, now extended to
+   this container. */
+.notepad-view-container.is-mobile .notepad-toolbar-host {
+  order: 2;
+  position: static;
+  flex-shrink: 0;
+  z-index: 50;
+  background: var(--background-primary);
+  border-top: 1px solid var(--background-modifier-border);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.notepad-view-container.is-mobile.is-keyboard-open .notepad-toolbar-host {
+  padding-bottom: 0;
+}
+
+/* Phones: the bar exists only while the keyboard is up (same contract as
+   the .note view). Tablets keep it visible. */
+.notepad-view-container.is-mobile.is-phone:not(.is-keyboard-open)
+  .notepad-toolbar-host {
+  display: none;
+}
+
+.notepad-view-container.is-mobile .notepad-toolbar.is-link-open {
+  display: flex;
+  flex-direction: column;
+}
+.notepad-view-container.is-mobile .notepad-toolbar.is-link-open .tb-link-input {
+  padding: 9px 11px;
+  font-size: 15px;
+}
+.notepad-view-container.is-mobile .notepad-toolbar.is-link-open .tb-link-go {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-m);
+}
+.notepad-view-container.is-mobile
+  .notepad-toolbar.is-link-open
+  .tb-link-go
+  .tb-link-icon,
+.notepad-view-container.is-mobile
+  .notepad-toolbar.is-link-open
+  .tb-link-go
+  svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ─── 7. Table borders layer ────────────────────────────────────────────
+   The borders layer renders inside .mobile-sel-bar .bubble-menu-bar, so the
+   generic flattener already gives its buttons 44px targets. What breaks on
+   a phone: the pen selects are squeezed to 44px width (the "Auto"/"1 pt"
+   labels overflow), the preset row wraps wherever it likes (8 + 2 with the
+   separator stranded mid-row), and the pen dropdowns anchor BELOW their
+   selects — off the screen, since the layer is docked at the bottom. */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders {
+  padding-bottom: 2px;
+  /* The pen dropdowns anchor ABOVE their selects — outside this short
+     layer's box. The generic docked-layer scroll (max-height + overflow-y,
+     for the tall color layers) would clip them; this layer's own content
+     never overflows, so let children stick out. */
+  max-height: none;
+  overflow-y: visible;
+}
+
+/* Pen selects: auto width (the flattener's 44px box clips the labels). */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel {
+  width: auto;
+  height: 40px;
+  padding: 0 12px;
+  gap: 8px;
+  border-radius: 10px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-sel > svg,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-sel > svg {
+  width: 18px;
+  height: 18px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-sel .bb-dd-label,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-sel .bb-dd-label {
+  font-size: 14px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-sel-dot,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-sel-dot {
+  width: 13px;
+  height: 13px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-widthbar,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-widthbar {
+  width: 16px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-pen-row,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-pen-row {
+  gap: 8px;
+  padding: 6px 10px 4px;
+}
+
+/* Preset groups: the table-wide presets and the selected cells' sides each
+   take a whole row — the vertical hairline between them becomes the row
+   divider (flex-basis 100% forces the wrap exactly there). */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-row,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-row {
+  gap: 4px;
+  padding: 4px 10px 10px;
+  justify-content: space-between;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-row .bubble-menu-sep,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-row .bubble-menu-sep {
+  flex-basis: 100%;
+  width: auto;
+  height: 1px;
+  margin: 6px 2px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-row button.bb-bd svg,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-row button.bb-bd svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* Ink: the generic flattener recolors these buttons to var(--text-muted)
+   and its touch-stuck :hover flips them to var(--text-normal) — on the
+   dark layer that reads as "washed out" icons and controls that look
+   toggled on. Restore the layer's own palette (the desktop values). */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-bd,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-bd,
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel {
+  color: #a9abb6;
+  background: transparent;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel {
+  color: #c9cad3;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel.is-open,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel.is-open {
+  color: #e6e6ee;
+  background: #23232a;
+}
+/* Pointer devices keep the desktop hover; touch gets a brief :active press
+   instead — a one-shot action must not look toggled on. */
+@media (hover: hover) {
+  .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-bd:hover,
+  .notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-bd:hover,
+  .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel:hover,
+  .notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel:hover {
+    color: #e6e6ee;
+    background: #23232a;
+  }
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-bd:active,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-bd:active,
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel:active,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders button.bb-sel:active {
+  color: #e6e6ee;
+  background: #2c2c34;
+}
+
+/* The preset-group divider: mute it to the layer's own hairline (the first
+   divider's #26262e) — the generic var(--background-modifier-border) is a
+   bright light-theme line that shouts on the dark panel. */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-row .bubble-menu-sep,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-row .bubble-menu-sep {
+  background: #26262e;
+}
+
+/* Pen dropdowns open UPWARD (the layer sits at the screen bottom) and cap
+   their height so every item stays reachable. */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd {
+  top: auto;
+  bottom: calc(100% + 6px);
+  max-height: 42vh;
+  overflow-y: auto;
+  max-width: calc(100vw - 20px);
+}
+/* The color select is the row's last — anchor its panel to the right edge,
+   or the swatch grid pokes past the screen. */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-pen-row .bb-sel-wrap:last-child .bb-dd,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-bd-pen-row .bb-sel-wrap:last-child .bb-dd {
+  left: auto;
+  right: 0;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-it,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-it {
+  min-height: 40px;
+  padding: 6px 10px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-it .bb-dd-label,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-it .bb-dd-label {
+  font-size: 14px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-it svg,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-it svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Color dropdown: swatch grid scales with the 32px touch targets (the same
+   treatment as the text palette — 18px tracks would overlap). */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-swatches,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-swatches {
+  grid-template-columns: repeat(6, 32px);
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd .bb-sw,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd .bb-sw {
+  width: 32px;
+  height: 32px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-custom input[type="color"],
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-custom input[type="color"] {
+  width: 28px;
+  height: 28px;
+}
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-hex,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-hex {
+  height: 38px;
+  font-size: 14px;
 }
