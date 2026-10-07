@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Mermaid diagrams: a "Diagram" button in the toolbar inserts a diagram block that renders as an SVG image in the current theme (and re-renders on light/dark switch). The pencil button (or double-click) opens an inline source editor over the diagram — typing shows live syntax errors, "Save" (or Ctrl/Cmd+Enter) compiles the diagram, "Cancel" (or Esc, or clicking outside) discards the draft. The diagram source is saved with the note and survives reopen, copy/paste and website export; a published page embeds the compiled SVG. Diagrams render only when they scroll into view, so large notes open fast.
+
 ## [0.10.0] - 2026-10-06
 
 ### Added
