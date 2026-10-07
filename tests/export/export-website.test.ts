@@ -152,8 +152,8 @@ describe("postProcessForExport", () => {
   const resolveTarget = (vaultPath: string) =>
     files.has(vaultPath) ? vaultPath.split("/").pop()! : null;
 
-  it("converts images to figures with data-align and explicit widths", () => {
-    const result = postProcessForExport(html, resolveTarget);
+  it("converts images to figures with data-align and explicit widths", async () => {
+    const result = await postProcessForExport(html, resolveTarget);
 
     expect(result.images).toEqual(["img/a.png", "img/b.png"]);
     expect(result.missing).toEqual(["img/missing.png"]);
@@ -178,8 +178,8 @@ describe("postProcessForExport", () => {
     expect(figures[2]).not.toContain("style=");
   });
 
-  it("reuses one file for repeated images and drops unavailable ones", () => {
-    const result = postProcessForExport(html, resolveTarget);
+  it("reuses one file for repeated images and drops unavailable ones", async () => {
+    const result = await postProcessForExport(html, resolveTarget);
 
     // both a.png occurrences reference the same single exported file
     expect(result.html.match(/images\/a\.png/g)).toHaveLength(2);
@@ -189,21 +189,22 @@ describe("postProcessForExport", () => {
     expect(result.html).toContain("<p>after</p>");
   });
 
-  it("keeps documents without media untouched", () => {
-    const result = postProcessForExport("<p>text</p>", resolveTarget);
+  it("keeps documents without media untouched", async () => {
+    const result = await postProcessForExport("<p>text</p>", resolveTarget);
     expect(result).toEqual({
       html: "<p>text</p>",
       images: [],
       missing: [],
       removedAttachments: 0,
+      droppedDiagrams: 0,
     });
   });
 });
 
 describe("postProcessForExport: code blocks and checkboxes", () => {
-  it("wraps code blocks with the language label and a copy button", () => {
+  it("wraps code blocks with the language label and a copy button", async () => {
     const html = `<pre><code autocomplete="off" class="language-js language-javascript"><div class="l">var a;</div></code></pre>`;
-    const result = postProcessForExport(html, () => null);
+    const result = await postProcessForExport(html, () => null);
 
     expect(result.html).toContain('<div class="hljs-codeblock">');
     // canonical display name, as the editor's picker shows it
@@ -215,17 +216,17 @@ describe("postProcessForExport: code blocks and checkboxes", () => {
     expect(result.html).toContain('<div class="l">var a;</div>');
   });
 
-  it("falls back to 'auto' and marks soft-wrapped blocks", () => {
+  it("falls back to 'auto' and marks soft-wrapped blocks", async () => {
     const html = `<pre><code class="" wrap="true"><div class="l">x</div></code></pre>`;
-    const result = postProcessForExport(html, () => null);
+    const result = await postProcessForExport(html, () => null);
 
     expect(result.html).toContain(">auto</span>");
     expect(result.html).toContain('class="hljs-codeblock is-wrapped"');
   });
 
-  it("disables task checkboxes", () => {
+  it("disables task checkboxes", async () => {
     const html = `<ul data-type="taskList"><li data-type="taskItem" data-checked="true"><label><input type="checkbox" checked="checked"><span></span></label><div><p>done</p></div></li></ul>`;
-    const result = postProcessForExport(html, () => null);
+    const result = await postProcessForExport(html, () => null);
 
     expect(result.html).toContain('type="checkbox" checked="checked" disabled=""');
   });
@@ -242,6 +243,33 @@ describe("postProcessForExport: code blocks and checkboxes", () => {
 
     expect(html).toContain("hljs-codeblock__btn--copy");
     expect(html).toContain("clipboard");
+  });
+});
+
+
+describe("postProcessForExport: mermaid diagrams", () => {
+  const MERMAID_HTML =
+    '<texto-extension-mermaid data-code="graph TD"></texto-extension-mermaid>';
+  const SVG =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path d="M0 0"/></svg>';
+
+  it("compiles diagrams to static figures via the render callback", async () => {
+    const result = await postProcessForExport(MERMAID_HTML, () => null, async () => SVG);
+    expect(result.html).toContain('<figure class="mermaid-figure"');
+    expect(result.html).toContain("<svg");
+    expect(result.droppedDiagrams).toBe(0);
+  });
+
+  it("drops diagrams when rendering fails, markup is bad, or no callback", async () => {
+    const failed = await postProcessForExport(MERMAID_HTML, () => null, async () => null);
+    expect(failed.droppedDiagrams).toBe(1);
+    expect(failed.html).not.toContain("texto-extension-mermaid");
+
+    const badMarkup = await postProcessForExport(MERMAID_HTML, () => null, async () => "<div>not svg</div>");
+    expect(badMarkup.droppedDiagrams).toBe(1);
+
+    const noCallback = await postProcessForExport(MERMAID_HTML, () => null);
+    expect(noCallback.droppedDiagrams).toBe(1);
   });
 });
 
@@ -306,9 +334,9 @@ describe("export serialization", () => {
     expect(html).not.toContain("texto-extension");
   });
 
-  it("maps the serialized fixture in one pass", () => {
+  it("maps the serialized fixture in one pass", async () => {
     const html = generateHTML(FIXTURES.rich, getExportExtensions());
-    const result = postProcessForExport(html, () => null);
+    const result = await postProcessForExport(html, () => null);
     expect(result.images).toEqual([]);
   });
 });

@@ -10,6 +10,7 @@
 @import "../texto/extensions/code-block-hljs/style.css";
 @import "../texto/extensions/attachment/style.css";
 @import "../texto/extensions/image/style.css";
+@import "../texto/extensions/mermaid/style.css";
 @import "../texto/extensions/table/style.css";
 @import "../texto/extensions/task-item/style.css";
 

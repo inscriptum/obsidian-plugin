@@ -1,0 +1,177 @@
+/* ═══════════════════════════════════════════════════════════════
+   texto-extension-mermaid — base styles (library defaults)
+   Dual-face atom block: SVG view face + inline source editor face.
+   ProseMirror adds .ProseMirror-selectednode when the block is selected.
+   ═══════════════════════════════════════════════════════════════ */
+
+.texto-extension-mermaid-host {
+  display: block;
+  margin: 0.5em 0;
+}
+
+.texto-extension-mermaid-host .mermaid-view {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  min-height: 48px;
+  padding: 12px;
+  border: 1px solid var(--background-modifier-border, #ddd);
+  border-radius: 8px;
+  background: var(--background-primary, #fff);
+}
+
+.texto-extension-mermaid-host .mermaid-view__svg svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.texto-extension-mermaid-host .mermaid-view__message {
+  display: none;
+  color: var(--text-error, #e93147);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.texto-extension-mermaid-host.is-error .mermaid-view__message {
+  display: block;
+}
+
+.texto-extension-mermaid-host.is-error .mermaid-view__svg {
+  display: none;
+}
+
+.texto-extension-mermaid-host .mermaid-view__loading {
+  display: none;
+  color: var(--text-muted, #999);
+  font-size: 12px;
+}
+
+.texto-extension-mermaid-host.is-loading .mermaid-view__loading {
+  display: block;
+}
+
+/* Edit affordance: small chip docked top-right. Hover-revealed on pointer
+   devices, always visible on touch (no hover) and hidden in read-only. */
+.texto-extension-mermaid-host .mermaid-view__edit {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted, #999);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.texto-extension-mermaid-host .mermaid-view__edit svg {
+  width: 16px;
+  height: 16px;
+}
+
+.texto-extension-mermaid-host:hover .mermaid-view__edit,
+.texto-extension-mermaid-host .mermaid-view__edit:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .texto-extension-mermaid-host .mermaid-view__edit {
+    opacity: 1;
+  }
+}
+
+.texto-extension-mermaid-host.is-readonly .mermaid-view__edit {
+  display: none;
+}
+
+/* Source editor face. */
+.texto-extension-mermaid-host .mermaid-editor {
+  display: none;
+  flex-direction: column;
+  border: 1px solid var(--background-modifier-border, #ddd);
+  border-radius: 8px;
+  background: var(--background-primary, #fff);
+  overflow: hidden;
+}
+
+.texto-extension-mermaid-host.is-editing .mermaid-view {
+  display: none;
+}
+
+.texto-extension-mermaid-host.is-editing .mermaid-editor {
+  display: flex;
+}
+
+.texto-extension-mermaid-host .mermaid-editor__input {
+  width: 100%;
+  min-height: 140px;
+  padding: 10px 12px;
+  border: none;
+  outline: none;
+  resize: vertical;
+  background: transparent;
+  color: var(--text-normal, #222);
+  font-family: var(--font-monospace, ui-monospace, monospace);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow-x: auto;
+}
+
+.texto-extension-mermaid-host .mermaid-editor__status {
+  display: none;
+  padding: 0 12px 8px;
+  color: var(--text-error, #e93147);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.texto-extension-mermaid-host.has-status .mermaid-editor__status {
+  display: block;
+}
+
+.texto-extension-mermaid-host .mermaid-editor__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--background-modifier-border, #eee);
+}
+
+.texto-extension-mermaid-host .mermaid-editor__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border: 1px solid var(--background-modifier-border, #ddd);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted, #666);
+  cursor: pointer;
+}
+
+.texto-extension-mermaid-host .mermaid-editor__btn--save {
+  color: var(--text-success, #08b94e);
+}
+
+.texto-extension-mermaid-host .mermaid-editor__btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Selected block outline follows the theme accent (as the image node). */
+.texto-extension-mermaid-host.ProseMirror-selectednode .mermaid-view {
+  border-color: var(--color-accent, #5a9eff);
+}

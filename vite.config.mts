@@ -44,7 +44,9 @@ export default defineConfig(({ mode }) => ({
     outDir: "dist",
     emptyOutDir: true,
     sourcemap: true,
-    minify: false,
+    // Mermaid (~1.3 MB min) is inlined into the single-file build, so global
+    // minification is required to keep main.js shippable (task mermaid-diagrams).
+    minify: true,
   },
   css: {
     transformer: "lightningcss",

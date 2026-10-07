@@ -4,22 +4,30 @@
  *    with a relative `images/<file>` source;
  *  - `<texto-extension-attachment>` → dropped (an attachment is a vault
  *    binary — a published page cannot link into the vault);
+ *  - `<texto-extension-mermaid>` → `<figure class="mermaid-figure">` with
+ *    the diagram compiled to a standalone SVG via the `renderDiagram`
+ *    callback; dropped when the compile fails or no callback is given;
  *  - `<pre><code>` (code blocks) → wrapped into `.hljs-codeblock` with the
  *    language label and a copy button, mirroring the editor's controls
  *    (see code-block-hljs/style.css and codeBlockSelectLang.element.tsx);
  *  - task checkboxes → `disabled` (a published page is read-only).
  *
- * The function is a pure DOM transformation; resolving a vault path to an
- * export file name is delegated to the `resolveTarget` callback so the
+ * The function is a pure (async) DOM transformation; resolving a vault path
+ * to an export file name is delegated to the `resolveTarget` callback so the
  * caller owns existence checks and file naming (dedupe happens there too).
  */
 
 import { aliasToLanguage } from "../texto/extensions/code-block-hljs/utils/hljs";
+import { parseSvgElement } from "../texto/extensions/mermaid/mermaidApi";
 
 /** Resolves an image node's `data.id` (vault path) to the file name it will
  *  have inside the export's `images/` folder, or null when the source file
  *  is unavailable and the figure must be dropped. */
 export type ResolveImageTarget = (vaultPath: string) => string | null;
+
+/** Compiles mermaid source to a standalone SVG string, or null when the
+ *  source is invalid / rendering failed (the figure is then dropped). */
+export type RenderDiagram = (code: string) => Promise<string | null>;
 
 export interface PostProcessResult {
   html: string;
@@ -31,10 +39,13 @@ export interface PostProcessResult {
   missing: string[];
   /** How many attachment blocks were removed. */
   removedAttachments: number;
+  /** How many mermaid diagrams were dropped (render failed or unavailable). */
+  droppedDiagrams: number;
 }
 
 const IMAGE_TAG = "texto-extension-image";
 const ATTACHMENT_TAG = "texto-extension-attachment";
+const MERMAID_TAG = "texto-extension-mermaid";
 
 const LANGUAGE_CLASS_PREFIX = "language-";
 
@@ -161,10 +172,11 @@ function wrapCodeBlock(parsed: Document, pre: Element): void {
   block.appendChild(actions);
 }
 
-export function postProcessForExport(
+export async function postProcessForExport(
   html: string,
   resolveTarget: ResolveImageTarget,
-): PostProcessResult {
+  renderDiagram?: RenderDiagram,
+): Promise<PostProcessResult> {
   const parsed = new DOMParser().parseFromString(html, "text/html");
 
   const images: string[] = [];
@@ -209,6 +221,28 @@ export function postProcessForExport(
     removedAttachments += 1;
   }
 
+  let droppedDiagrams = 0;
+  for (const el of Array.from(
+    parsed.body.querySelectorAll<HTMLElement>(MERMAID_TAG),
+  )) {
+    const code = el.dataset["code"] ?? "";
+    const svgRoot =
+      renderDiagram != null && code !== ""
+        ? await renderDiagram(code)
+            .then((svg) => (svg == null ? null : parseSvgElement(svg)))
+            .catch(() => null)
+        : null;
+    if (svgRoot == null) {
+      el.remove();
+      droppedDiagrams += 1;
+      continue;
+    }
+    const figure = parsed.createElement("figure");
+    figure.className = "mermaid-figure";
+    figure.appendChild(parsed.importNode(svgRoot, true));
+    el.replaceWith(figure);
+  }
+
   for (const pre of Array.from(parsed.body.querySelectorAll("pre"))) {
     wrapCodeBlock(parsed, pre);
   }
@@ -220,5 +254,11 @@ export function postProcessForExport(
     input.setAttribute("disabled", "");
   }
 
-  return { html: parsed.body.innerHTML, images, missing, removedAttachments };
+  return {
+    html: parsed.body.innerHTML,
+    images,
+    missing,
+    removedAttachments,
+    droppedDiagrams,
+  };
 }
