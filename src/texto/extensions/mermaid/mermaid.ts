@@ -9,7 +9,7 @@ import {
   parseSvgElement,
   renderMermaid,
 } from "./mermaidApi";
-import { isLightThemeNow, onThemeChange } from "./theme";
+import { onThemeChange } from "./theme";
 import { mermaidElement } from "./view/mermaid.element";
 
 export const VIEW_TAG = elTag("texto-extension-mermaid");
@@ -103,6 +103,7 @@ export const Mermaid = Node.create<MermaidOptions>({
 
       let lastCode = node.attrs.code ?? "";
       let editing = false;
+      let committing = false;
       let dirty = true;
       let visible = false;
       let renderToken = 0;
@@ -208,12 +209,17 @@ export const Mermaid = Node.create<MermaidOptions>({
 
       // Save = one compile attempt; on failure the error lands in the status
       // line and the draft stays open. On success the SVG is painted at once,
-      // then the source is stored — a single undoable document step.
+      // then the source is stored — a single undoable document step. The
+      // committing guard blocks double-saves; the editing re-check after the
+      // await means a Cancel/click-outside during the compile wins.
       const commitDraft = async (draft: string) => {
-        if (!editing) return;
+        if (!editing || committing) return;
+        committing = true;
         setStatus(null);
         try {
           const svg = await renderMermaid(draft);
+          if (!editing) return;
+          renderToken += 1; // invalidate any in-flight view render (theme flip)
           if (!mountSvg(svg)) {
             setStatus("The rendered diagram markup was not well-formed.");
             return;
@@ -241,7 +247,9 @@ export const Mermaid = Node.create<MermaidOptions>({
           );
           setEditMode(false);
         } catch (error) {
-          setStatus(mermaidErrorMessage(error));
+          if (editing) setStatus(mermaidErrorMessage(error));
+        } finally {
+          committing = false;
         }
       };
 

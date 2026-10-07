@@ -106,8 +106,18 @@ export const mermaidElement = litView.element({
             onkeydown={onKeydown}
             onblur={onBlur}
           ></textarea>
-          <div class="mermaid-editor__status"></div>
-          <div class="mermaid-editor__actions">
+          {/* The non-textarea chrome must not become the focus target: a
+              mousedown there would blur the textarea and the blur handler
+              would cancel the draft. preventDefault keeps the focus in the
+              textarea (caret placement inside the textarea stays native). */}
+          <div
+            class="mermaid-editor__status"
+            onmousedown={preventFocusSteal}
+          ></div>
+          <div
+            class="mermaid-editor__actions"
+            onmousedown={preventFocusSteal}
+          >
             <button
               class="mermaid-editor__btn mermaid-editor__btn--save"
               type="button"

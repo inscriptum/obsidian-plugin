@@ -21,12 +21,17 @@ export function isLightThemeNow(): boolean {
   return isLightTheme();
 }
 
-/** Subscribe to app theme flips; returns an unsubscribe function. */
+/** Subscribe to app theme flips; returns an unsubscribe function.
+ *  Fires only on an actual light/dark flip — body classes change for other
+ *  reasons too (mobile scroll chrome), and a mermaid re-render is expensive. */
 export function onThemeChange(listener: ThemeListener): () => void {
   listeners.add(listener);
   if (observer == null) {
+    let lastLight = isLightTheme();
     observer = new MutationObserver(() => {
       const light = isLightTheme();
+      if (light === lastLight) return;
+      lastLight = light;
       for (const fn of listeners) fn(light);
     });
     observer.observe(document.body, {

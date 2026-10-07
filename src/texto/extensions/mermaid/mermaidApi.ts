@@ -65,5 +65,22 @@ export function parseSvgElement(svg: string): Element | null {
   const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
   if (parsed.querySelector("parsererror") != null) return null;
   const root = parsed.documentElement;
-  return root != null && root.nodeName.toLowerCase() === "svg" ? root : null;
+  if (root == null || root.nodeName.toLowerCase() !== "svg") return null;
+  // Defense in depth: mermaid sanitizes its output (securityLevel "strict"),
+  // but the mount path must not trust that blindly — strip active content.
+  for (const script of Array.from(root.querySelectorAll("script"))) {
+    script.remove();
+  }
+  for (const el of Array.from(root.querySelectorAll("*"))) {
+    for (const attr of Array.from(el.attributes)) {
+      const name = attr.name.toLowerCase();
+      const value = attr.value.trim().toLowerCase();
+      const isHandler = name.startsWith("on");
+      const isJsUrl =
+        (name === "href" || name === "xlink:href") &&
+        value.startsWith("javascript:");
+      if (isHandler || isJsUrl) el.removeAttribute(attr.name);
+    }
+  }
+  return root;
 }
