@@ -95,18 +95,9 @@ export const mermaidElement = litView.element({
     }
   };
 
-  // Click outside the block (focus left the whole editor face) = cancel —
-  // the draft is discarded, the saved diagram stays. The zero-delay check
-  // lets focus land on the Save/Cancel buttons first (their mousedown
-  // already prevents the blur, this is the belt to its suspenders).
-  const onBlur = () => {
-    window.setTimeout(() => {
-      const active = document.activeElement;
-      if (active == null || !host.contains(active)) {
-        params.onCancel?.();
-      }
-    }, 0);
-  };
+  // Editing is a PERSISTENT state: the face stays open until an explicit
+  // Save or Cancel (Esc), wherever the focus went. No blur-cancel — a click
+  // outside the block or a focus move must not discard the draft.
 
   while (true) {
     params = yield (
@@ -131,7 +122,6 @@ export const mermaidElement = litView.element({
               autocomplete="off"
               oninput={onInput}
               onkeydown={onKeydown}
-              onblur={onBlur}
               onscroll={syncScroll}
             ></textarea></code></pre>
             <div

@@ -264,7 +264,7 @@ export const Mermaid = Node.create<MermaidOptions>({
       // line and the draft stays open. On success the SVG is painted at once,
       // then the source is stored — a single undoable document step. The
       // committing guard blocks double-saves; the editing re-check after the
-      // await means a Cancel/click-outside during the compile wins.
+      // await means an explicit Cancel during the compile wins.
       const commitDraft = async (draft: string) => {
         if (!editing || committing) return;
         committing = true;
