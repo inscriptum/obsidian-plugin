@@ -13,7 +13,9 @@ export const mermaidGrammar = (hljs: {
   aliases: ["mermaid"],
   case_insensitive: true,
   contains: [
-    hljs.COMMENT(/%%/, /$/),
+    /* Directives and frontmatter MUST precede the comment rule: both start
+       with `%%`/`---`, and hljs picks the first rule matching at a position —
+       a later comment rule would swallow `%%{...}%%` and `---` fences. */
     {
       className: "meta",
       begin: /%%\{/,
@@ -32,6 +34,7 @@ export const mermaidGrammar = (hljs: {
         { className: "string", begin: /:\s*/, end: /$/, excludeBegin: true },
       ],
     },
+    hljs.COMMENT(/%%/, /$/),
     {
       className: "keyword",
       begin:
@@ -59,9 +62,11 @@ export const mermaidGrammar = (hljs: {
       ],
     },
     { className: "string", begin: /note\s+(?:left|right|top|bottom)\s+of\s+[A-Za-z0-9_]+/i },
-    { className: "title", begin: /\b[A-Za-z0-9_]+\b/ },
-    { className: "string", begin: /".*?"/ },
+    /* numbers before title: the title rule's character class would otherwise
+       match bare digit runs and style them as identifiers */
     { className: "number", begin: /\b\d+([:.]\d+)?\b/ },
+    { className: "title", begin: /\b[A-Za-z_][A-Za-z0-9_]*\b/ },
+    { className: "string", begin: /".*?"/ },
     { className: "punctuation", begin: /[:;#{}[\]()]/ },
   ],
 });

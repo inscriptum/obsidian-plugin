@@ -1,7 +1,7 @@
 import { p } from "@web-companions/gfc";
 import { litView } from "@web-companions/lit";
 
-import { highlightMermaidLine } from "../mermaidHighlight";
+import { highlightMermaidLines } from "../mermaidHighlight";
 import { mermaidIconNodes } from "./mermaidIcons.svgnode";
 
 /**
@@ -41,24 +41,19 @@ export const mermaidElement = litView.element({
 
   /** Mirror the draft into the backdrop rows (one .l row per line, matching
    *  the code block's line-number structure). Only the rows container is
-   *  replaced — the lit-managed textarea beside it stays put. Each row is
-   *  hljs-highlighted (mermaid grammar); the highlighted HTML is parsed with
-   *  DOMParser (never innerHTML) — hljs HTML-escapes the source and emits
-   *  <span class="hljs-*"> wrappers only, so row metrics — and the caret
-   *  overlay alignment — are unchanged. */
+   *  replaced — the lit-managed textarea beside it stays put. Lines are
+   *  hljs-highlighted via highlightMermaidLines (frontmatter-aware, escaped
+   *  plain-text fallback); hljs emits spans only, so row metrics — and the
+   *  caret overlay alignment — are unchanged. */
   const syncBacklight = () => {
     const t = textarea();
     const rowsHost = host.querySelector(".mermaid-editor__rows");
     if (t == null || rowsHost == null) return;
-    const html = t.value
-      .split("\n")
-      .map((line) => {
-        const content =
-          line.trim() === ""
-            ? // empty rows keep their line height via a zero-width space
-              "\u200b"
-            : highlightMermaidLine(line);
-        return `<div class="l">${content}</div>`;
+    const lines = t.value.split("\n");
+    const html = highlightMermaidLines(lines)
+      .map((content, i) => {
+        const body = content === "" ? "\u200b" : content; // keep empty rows' height
+        return `<div class="l">${body}</div>`;
       })
       .join("");
     const parsed = new DOMParser().parseFromString(html, "text/html");
