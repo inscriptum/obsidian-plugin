@@ -121,7 +121,13 @@
   display: contents;
 }
 
-.texto-extension-mermaid-host .mermaid-editor__input {
+.texto-extension-mermaid-host .mermaid-editor__input,
+/* Obsidian's form-field state rules (textarea:not(:disabled):hover/:focus →
+   form-field background) out-specific the base (0,2,0) selector and paint
+   the overlay white — keep it transparent in every state (0,3,0 wins). */
+.texto-extension-mermaid-host .mermaid-editor__input:hover,
+.texto-extension-mermaid-host .mermaid-editor__input:focus,
+.texto-extension-mermaid-host .mermaid-editor__input:focus-visible {
   position: absolute;
   /* mirrors the code element's box inside the pre: pre padding 20/0/10 +
      code padding 16/0/10 vertically, code margin 0 10px 0 50px horizontally
