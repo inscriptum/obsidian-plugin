@@ -130,6 +130,21 @@ describe("mermaid node", () => {
     expect(parseSvgElement("<<definitely not xml")).toBeNull();
   });
 
+  it("parseSvgElement falls back to HTML parsing for XML-hostile entities", () => {
+    // `&nbsp;` is not a valid XML entity (mermaid labels emit it) — the XML
+    // parse fails; the HTML fallback must still produce the svg element.
+    const hostile =
+      '<svg xmlns="http://www.w3.org/2000/svg"><text>a&nbsp;b</text></svg>';
+    const el = parseSvgElement(hostile);
+    expect(el?.nodeName.toLowerCase()).toBe("svg");
+    // active content is stripped in the fallback path too
+    const dirty = parseSvgElement(
+      '<svg xmlns="http://www.w3.org/2000/svg" onload="x()"><script>alert(1)</script><text>&nbsp;</text></svg>',
+    );
+    expect(dirty?.querySelector("script")).toBeNull();
+    expect(dirty?.querySelector("[onload]")).toBeNull();
+  });
+
   it("insertMermaid inserts a block with the example source", () => {
     // Command shape check without a full editor: the bound command builds
     // an insertContent step against this.name.

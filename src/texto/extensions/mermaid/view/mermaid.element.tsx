@@ -1,6 +1,7 @@
 import { p } from "@web-companions/gfc";
 import { litView } from "@web-companions/lit";
 
+import { highlightMermaidLines } from "../mermaidHighlight";
 import { mermaidIconNodes } from "./mermaidIcons.svgnode";
 
 /**
@@ -40,19 +41,23 @@ export const mermaidElement = litView.element({
 
   /** Mirror the draft into the backdrop rows (one .l row per line, matching
    *  the code block's line-number structure). Only the rows container is
-   *  replaced — the lit-managed textarea beside it stays put. */
+   *  replaced — the lit-managed textarea beside it stays put. Lines are
+   *  hljs-highlighted via highlightMermaidLines (frontmatter-aware, escaped
+   *  plain-text fallback); hljs emits spans only, so row metrics — and the
+   *  caret overlay alignment — are unchanged. */
   const syncBacklight = () => {
     const t = textarea();
     const rowsHost = host.querySelector(".mermaid-editor__rows");
     if (t == null || rowsHost == null) return;
-    const rows = t.value.split("\n").map((line) => {
-      const div = document.createElement("div");
-      div.className = "l";
-      // empty rows keep their line height via a zero-width space
-      div.textContent = line === "" ? "\u200b" : line;
-      return div;
-    });
-    rowsHost.replaceChildren(...rows);
+    const lines = t.value.split("\n");
+    const html = highlightMermaidLines(lines)
+      .map((content, i) => {
+        const body = content === "" ? "\u200b" : content; // keep empty rows' height
+        return `<div class="l">${body}</div>`;
+      })
+      .join("");
+    const parsed = new DOMParser().parseFromString(html, "text/html");
+    rowsHost.replaceChildren(...Array.from(parsed.body.children));
   };
 
   /** The textarea owns scrolling (invisible scrollbars); the backdrop
