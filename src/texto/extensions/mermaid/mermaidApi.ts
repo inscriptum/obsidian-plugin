@@ -62,10 +62,13 @@ export function mermaidErrorMessage(error: unknown): string {
  * never be handed to an HTML parsing context.
  */
 export function parseSvgElement(svg: string): Element | null {
-  const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
-  if (parsed.querySelector("parsererror") != null) return null;
-  const root = parsed.documentElement;
-  if (root == null || root.nodeName.toLowerCase() !== "svg") return null;
+  // Strict XML first — mermaid's output is XML when it can be. XML parsing
+  // fails on HTML-isms that survive mermaid's sanitizer (e.g. `&nbsp;` is
+  // not a valid XML entity), so fall back to the HTML parser and take the
+  // <svg> from it. The active-content strip below covers the relaxed path.
+  let root = parseXmlSvg(svg);
+  if (root == null) root = parseHtmlSvg(svg);
+  if (root == null) return null;
   // Defense in depth: mermaid sanitizes its output (securityLevel "strict"),
   // but the mount path must not trust that blindly — strip active content.
   for (const script of Array.from(root.querySelectorAll("script"))) {
@@ -83,4 +86,17 @@ export function parseSvgElement(svg: string): Element | null {
     }
   }
   return root;
+}
+
+function parseXmlSvg(svg: string): Element | null {
+  const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+  if (parsed.querySelector("parsererror") != null) return null;
+  const root = parsed.documentElement;
+  if (root == null || root.nodeName.toLowerCase() !== "svg") return null;
+  return root;
+}
+
+function parseHtmlSvg(svg: string): Element | null {
+  const parsed = new DOMParser().parseFromString(svg, "text/html");
+  return parsed.querySelector("svg");
 }
