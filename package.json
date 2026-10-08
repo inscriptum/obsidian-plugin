@@ -32,7 +32,6 @@
     "highlight.js": "11.11.1",
     "linkifyjs": "4.3.3",
     "lit-html": "2.8.0",
-    "lowlight-mermaid": "^0.0.0",
     "mermaid": "^11.17.2",
     "prosemirror-commands": "1.7.1",
     "prosemirror-dropcursor": "1.8.3",

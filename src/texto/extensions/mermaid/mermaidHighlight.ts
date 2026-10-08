@@ -1,9 +1,9 @@
 /**
  * Mermaid syntax highlighting for the editor's backdrop rows.
  *
- * The grammar is a tiny regex-based highlight.js definition from
- * lowlight-mermaid (MPL-2.0, zero dependencies, pinned exact version) — it
- * registers into the same highlight.js core instance the code blocks use.
+ * The grammar is the local mermaidGrammar (vendored regex-based highlight.js
+ * definition — see mermaidGrammar.ts); it registers into the same
+ * highlight.js core instance the code blocks use.
  *
  * Highlighting is per line: mermaid has no multi-line constructs (%%
  * comments and quoted strings are single-line), so splitting the source into
@@ -11,7 +11,7 @@
  * tokens. Cost measured: ~0.06 ms per 10-line source.
  */
 import hljs from "../code-block-hljs/utils/hljs";
-import { mermaidGrammar } from "lowlight-mermaid";
+import { mermaidGrammar } from "./mermaidGrammar";
 
 let registered = false;
 
