@@ -51,45 +51,38 @@
   display: block;
 }
 
-/* Edit affordance: small chip docked top-right. Hover-revealed on pointer
-   devices, always visible on touch (no hover) and hidden in read-only. */
-.texto-extension-mermaid-host .mermaid-view__edit {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-muted, #999);
-  cursor: pointer;
-  opacity: 0;
-  transition: opacity 120ms ease;
+/* Edit affordance lives in the media bubble menu ("Edit diagram" pencil),
+   not on the block itself — the diagram looks like an image. */
+
+/* ── Layout (align / wrap) ────────────────────────────────────────────
+   Classes are applied to the host by the NodeView (syncLayoutClass):
+   left = default, center/right = margin auto, full = full-bleed,
+   wrap-left/right = float with text wrapping around the diagram.
+   Full-bleed mirrors the image node: 100cqw is the .texto-editor inline
+   size, the symmetric margin negates the editor content indent. */
+.texto-extension-mermaid-host.texto-mermaid-layout-full {
+  width: 100cqw;
+  margin-inline: calc((100% - 100cqw) / 2);
 }
 
-.texto-extension-mermaid-host .mermaid-view__edit svg {
-  width: 16px;
-  height: 16px;
+.texto-extension-mermaid-host.texto-mermaid-layout-center {
+  margin-inline: auto;
 }
 
-.texto-extension-mermaid-host:hover .mermaid-view__edit,
-.texto-extension-mermaid-host .mermaid-view__edit:focus-visible {
-  opacity: 1;
+.texto-extension-mermaid-host.texto-mermaid-layout-right {
+  margin-left: auto;
 }
 
-@media (hover: none) {
-  .texto-extension-mermaid-host .mermaid-view__edit {
-    opacity: 1;
-  }
+.texto-extension-mermaid-host.texto-mermaid-layout-wrap-left {
+  float: left;
+  width: 50%;
+  margin: 4px 16px 8px 0;
 }
 
-.texto-extension-mermaid-host.is-readonly .mermaid-view__edit {
-  display: none;
+.texto-extension-mermaid-host.texto-mermaid-layout-wrap-right {
+  float: right;
+  width: 50%;
+  margin: 4px 0 8px 16px;
 }
 
 /* Source editor face. */

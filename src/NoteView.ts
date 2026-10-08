@@ -7,6 +7,7 @@ import {
   Menu,
 } from "obsidian";
 import { CellSelection, isInTable } from "prosemirror-tables";
+import { NodeSelection } from "prosemirror-state";
 import { Editor, isTextSelection } from "./texto/core";
 import {
   readNote,
@@ -737,6 +738,16 @@ export class NoteView extends FileView {
                       this.isMousePressed
                     ) {
                       return false;
+                    }
+
+                    // A mermaid diagram with its inline editor open hides the
+                    // menu: the editor face replaces the diagram on the block.
+                    const sel = state.selection;
+                    if (sel instanceof NodeSelection) {
+                      const dom = editor.view.nodeDOM(sel.from) as
+                        | HTMLElement
+                        | null;
+                      if (dom?.classList?.contains("is-editing")) return false;
                     }
 
                     return isMediaNodeSelection(state);

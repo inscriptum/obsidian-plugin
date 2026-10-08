@@ -239,6 +239,8 @@ export async function postProcessForExport(
     }
     const figure = parsed.createElement("figure");
     figure.className = "mermaid-figure";
+    const align = el.dataset["align"];
+    if (align && align !== "left") figure.setAttribute("data-align", align);
     figure.appendChild(parsed.importNode(svgRoot, true));
     el.replaceWith(figure);
   }

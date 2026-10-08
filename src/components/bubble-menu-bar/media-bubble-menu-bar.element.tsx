@@ -9,10 +9,12 @@ import { getMediaMenuState, getSelectedMediaNode } from "./mediaMenuState";
 import { bubbleIconNodes } from "./icons.svgnode";
 import type { BubbleIconName } from "../icons/iconSprite";
 import {
+  editMermaidDiagram,
   openMediaFile,
   removeMediaNode,
   replaceMediaFile,
   setImageNodeLayout,
+  setMermaidNodeLayout,
 } from "../../tools/media";
 import type { ImageLayout } from "../../texto/extensions/image/image";
 
@@ -93,8 +95,11 @@ export const MediaBubbleMenuElement = litView.element({
   };
   const doReplace = () => replaceMediaFile(props.editor);
   const doDelete = () => removeMediaNode(props.editor, props.app);
-  const doSetLayout = (align: ImageLayout) =>
-    setImageNodeLayout(props.editor, align);
+  const doSetLayout = (align: string) => {
+    if (state.nodeType === "mermaid") setMermaidNodeLayout(props.editor, align);
+    else setImageNodeLayout(props.editor, align as ImageLayout);
+  };
+  const doEditDiagram = () => editMermaidDiagram(props.editor);
 
   // Layout (align/wrap) controls — image nodes with a file only.
   const imageLayouts: Array<{
@@ -125,38 +130,29 @@ export const MediaBubbleMenuElement = litView.element({
         : state.nodeType === "image"
           ? "Image"
           : "Attachment";
-      const showLayout = state.nodeType === "image" && state.hasFile;
+      const isMermaid = state.nodeType === "mermaid";
+      const showLayout = isMermaid || (state.nodeType === "image" && state.hasFile);
+      // Layout targets image nodes with a file, and mermaid diagrams.
+      const layouts: Array<{ align: string; icon: BubbleIconName; tip: string }> =
+        imageLayouts;
 
       props = yield (
         <div class="bubble-menu-bar">
           <div class="bubble-menu-media-bar show">
-            <button
-              class={cls(
-                "bb-btn",
-                "bb-media-name",
-                !state.hasFile && "is-disabled",
-              )}
-              onmousedown={(e: MouseEvent) => e.preventDefault()}
-              onclick={doOpen}
-            >
-              {bubbleIconNodes.file()}
-              <span class="bb-media-name__text">{name}</span>
-            </button>
-            <span class="bubble-menu-sep"></span>
-            <button
-              class="bb-btn"
-              data-tip="Replace"
-              onmousedown={(e: MouseEvent) => e.preventDefault()}
-              onclick={doReplace}
-            >
-              {bubbleIconNodes.replace()}
-            </button>
-            {/* NOTE: render '' (not false) when hidden — lit-html renders the
-                boolean false as visible text "false". */}
-            {showLayout ? (
+            {isMermaid ? (
               <>
+                {/* Mermaid diagram: edit opens the inline source editor over
+                    the diagram (the NodeView listens for the DOM event). */}
+                <button
+                  class="bb-btn"
+                  data-tip="Edit diagram"
+                  onmousedown={(e: MouseEvent) => e.preventDefault()}
+                  onclick={doEditDiagram}
+                >
+                  {bubbleIconNodes.pencil()}
+                </button>
                 <span class="bubble-menu-sep"></span>
-                {imageLayouts.map((layout) => (
+                {layouts.map((layout) => (
                   <button
                     class={cls(
                       "bb-btn",
@@ -171,7 +167,51 @@ export const MediaBubbleMenuElement = litView.element({
                 ))}
               </>
             ) : (
-              ""
+              <>
+                <button
+                  class={cls(
+                    "bb-btn",
+                    "bb-media-name",
+                    !state.hasFile && "is-disabled",
+                  )}
+                  onmousedown={(e: MouseEvent) => e.preventDefault()}
+                  onclick={doOpen}
+                >
+                  {bubbleIconNodes.file()}
+                  <span class="bb-media-name__text">{name}</span>
+                </button>
+                <span class="bubble-menu-sep"></span>
+                <button
+                  class="bb-btn"
+                  data-tip="Replace"
+                  onmousedown={(e: MouseEvent) => e.preventDefault()}
+                  onclick={doReplace}
+                >
+                  {bubbleIconNodes.replace()}
+                </button>
+                {/* NOTE: render '' (not false) when hidden — lit-html renders the
+                    boolean false as visible text "false". */}
+                {showLayout ? (
+                  <>
+                    <span class="bubble-menu-sep"></span>
+                    {layouts.map((layout) => (
+                      <button
+                        class={cls(
+                          "bb-btn",
+                          state.align === layout.align && "is-active",
+                        )}
+                        data-tip={layout.tip}
+                        onmousedown={(e: MouseEvent) => e.preventDefault()}
+                        onclick={() => doSetLayout(layout.align)}
+                      >
+                        {bubbleIconNodes[layout.icon]()}
+                      </button>
+                    ))}
+                  </>
+                ) : (
+                  ""
+                )}
+              </>
             )}
             <button
               class="bb-btn danger"

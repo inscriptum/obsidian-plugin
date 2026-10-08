@@ -113,6 +113,8 @@ const BUBBLE_ICON_PATHS: Record<string, string> = {
   imgFull: `<rect x="3" y="6" width="18" height="9" rx="1"/><path d="M3 19h18"/><path d="M7 10.5h10"/><path d="M9 8.5l-2 2 2 2"/><path d="M15 8.5l2 2-2 2"/>`,
   imgWrapLeft: `<rect x="3" y="4" width="9" height="7" rx="1"/><path d="M15 5.5h6"/><path d="M15 8h6"/><path d="M15 10.5h4"/><path d="M3 15h18"/><path d="M3 19h12"/>`,
   imgWrapRight: `<rect x="12" y="4" width="9" height="7" rx="1"/><path d="M3 5.5h6"/><path d="M3 8h6"/><path d="M5 10.5h4"/><path d="M3 15h18"/><path d="M9 19h12"/>`,
+  /* Diagram edit (pencil) — the mermaid media-bar "Edit diagram" button. Same shape as the toolbar pencil. */
+  pencil: `<path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"/><path d="M13.5 6.5l4 4"/>`,
 };
 
 export type ToolbarIconName = keyof typeof TOOLBAR_ICON_PATHS;

@@ -20,6 +20,8 @@ export const MermaidElement = mermaidElement(VIEW_TAG);
 export type MermaidOptionsAttrs = {
   /** Mermaid source of the diagram; the SVG is rendered from it, never stored. */
   code: string;
+  /** Visual layout of the block (mirrors the image node's align). */
+  align?: string | null;
 };
 
 export interface MermaidOptions {
@@ -28,12 +30,51 @@ export interface MermaidOptions {
 
 export type MermaidElementPublicProps = Omit<
   InstanceType<typeof MermaidElement>["props"],
-  | "onEdit"
   | "onSave"
   | "onCancel"
   | "onInput"
   | keyof ElementComponentProps<unknown>
 >;
+
+/** DOM event the media bubble menu dispatches on the host element to open
+ *  the inline source editor (see editMermaidDiagram in tools/media). */
+export const MERMAID_EDIT_EVENT = "texto-mermaid-edit";
+
+/** Visual layout of a diagram block (same set as ImageLayout). */
+export type MermaidLayout =
+  | "left"
+  | "center"
+  | "right"
+  | "full"
+  | "wrap-left"
+  | "wrap-right";
+
+export const MERMAID_LAYOUTS: MermaidLayout[] = [
+  "left",
+  "center",
+  "right",
+  "full",
+  "wrap-left",
+  "wrap-right",
+];
+
+function isMermaidLayout(value: unknown): value is MermaidLayout {
+  return (
+    typeof value === "string" &&
+    MERMAID_LAYOUTS.includes(value as MermaidLayout)
+  );
+}
+
+/** Applies the layout class to the host (left = default, no class) —
+ *  the NodeView dom does not receive rendered attrs automatically. */
+function syncLayoutClass(element: HTMLElement, align: unknown): void {
+  const layout = isMermaidLayout(align) ? align : "left";
+  for (const value of MERMAID_LAYOUTS) {
+    if (value !== "left") {
+      element.classList.toggle(`texto-mermaid-layout-${value}`, value === layout);
+    }
+  }
+}
 
 /** Debounce of the live parse hint while typing, ms. */
 const LIVE_PARSE_DEBOUNCE_MS = 300;
@@ -73,6 +114,13 @@ export const Mermaid = Node.create<MermaidOptions>({
           "data-code": attributes.code,
         }),
       },
+      align: {
+        default: "left",
+        parseHTML: (element: HTMLElement) => element.dataset["align"],
+        renderHTML: (attributes: MermaidOptionsAttrs) => ({
+          "data-align": attributes.align,
+        }),
+      },
     };
   },
 
@@ -108,6 +156,8 @@ export const Mermaid = Node.create<MermaidOptions>({
       let visible = false;
       let renderToken = 0;
       let parseTimer: number | null = null;
+
+      syncLayoutClass(element, node.attrs.align);
 
       const svgHost = () =>
         element.querySelector<HTMLElement>(".mermaid-view__svg");
@@ -270,10 +320,6 @@ export const Mermaid = Node.create<MermaidOptions>({
       };
 
       element.classList.toggle("is-readonly", !editor.isEditable);
-      element.props.onEdit = () => {
-        if (!editor.isEditable || editing) return;
-        setEditMode(true);
-      };
       element.props.onSave = (draft: string) => {
         void commitDraft(draft);
       };
@@ -284,16 +330,23 @@ export const Mermaid = Node.create<MermaidOptions>({
         scheduleParseHint(draft);
       };
 
+      // The media bubble menu's "Edit diagram" button asks this node view to
+      // open its inline editor via a DOM event on the host element.
+      const onEditEvent = () => {
+        if (!editor.isEditable || editing) return;
+        setEditMode(true);
+      };
+      element.addEventListener(MERMAID_EDIT_EVENT, onEditEvent);
+
       return {
         dom: element,
 
-        // The editor face and the edit button are component-controlled: PM
-        // must not react to their events. Everything else (clicks on the
-        // diagram, drag) stays with ProseMirror for NodeSelection.
+        // The editor face is component-controlled: PM must not react to its
+        // events. Everything else (clicks on the diagram, drag) stays with
+        // ProseMirror for NodeSelection.
         stopEvent: (event) => {
           const target = event.target as Element | null;
           if (target?.closest?.(".mermaid-editor")) return true;
-          if (target?.closest?.(".mermaid-view__edit")) return true;
           return false;
         },
 
@@ -307,6 +360,7 @@ export const Mermaid = Node.create<MermaidOptions>({
           }
 
           element.classList.toggle("is-readonly", !editor.isEditable);
+          syncLayoutClass(element, updatedNode.attrs.align);
 
           const code = updatedNode.attrs.code ?? "";
           if (code !== lastCode) {
@@ -322,6 +376,7 @@ export const Mermaid = Node.create<MermaidOptions>({
 
         destroy: () => {
           if (parseTimer != null) window.clearTimeout(parseTimer);
+          element.removeEventListener(MERMAID_EDIT_EVENT, onEditEvent);
           intersection?.disconnect();
           detachTheme?.();
         },

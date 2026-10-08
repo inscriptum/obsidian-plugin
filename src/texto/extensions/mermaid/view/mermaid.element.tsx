@@ -5,7 +5,9 @@ import { mermaidIconNodes } from "./mermaidIcons.svgnode";
 
 /**
  * Static dual-face chrome of a mermaid block: the SVG view and the inline
- * source editor.
+ * source editor. The view face carries no controls — editing is reached via
+ * the media bubble menu ("Edit diagram"), which asks the NodeView through the
+ * MERMAID_EDIT_EVENT; the NodeView flips the is-editing class.
  *
  * The generator template is rendered EXACTLY ONCE (same contract as
  * codeBlockSelectLang.element.tsx): mode switches, rendering and state live
@@ -16,7 +18,6 @@ import { mermaidIconNodes } from "./mermaidIcons.svgnode";
  */
 export const mermaidElement = litView.element({
   props: {
-    onEdit: p.opt<() => void>(),
     onSave: p.opt<(code: string) => void>(),
     onCancel: p.opt<() => void>(),
     onInput: p.opt<(code: string) => void>(),
@@ -31,12 +32,6 @@ export const mermaidElement = litView.element({
   // handler runs (the NodeView keeps the selection on the node).
   const preventFocusSteal = (event: Event) => event.preventDefault();
   const stopBubbling = (event: Event) => event.stopPropagation();
-
-  const requestEdit = (event: Event) => {
-    event.preventDefault();
-    event.stopPropagation();
-    params.onEdit?.();
-  };
 
   const requestSave = (event?: Event) => {
     event?.preventDefault();
@@ -86,16 +81,6 @@ export const mermaidElement = litView.element({
           <div class="mermaid-view__svg"></div>
           <div class="mermaid-view__message"></div>
           <div class="mermaid-view__loading">Rendering…</div>
-          <button
-            class="mermaid-view__edit"
-            type="button"
-            aria-label="Edit diagram"
-            title="Edit diagram"
-            onmousedown={preventFocusSteal}
-            onclick={requestEdit}
-          >
-            {mermaidIconNodes.pencil({})}
-          </button>
         </div>
         <div class="mermaid-editor" contentEditable={false}>
           <textarea

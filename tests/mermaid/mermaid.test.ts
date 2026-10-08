@@ -96,9 +96,29 @@ describe("mermaid node", () => {
     expect(el.getAttribute("data-code")).toBe(DEFAULT_MERMAID_SOURCE);
   });
 
-  it("defaults to an empty source", () => {
+  it("defaults to an empty source and left align", () => {
     const node = schema.nodes["mermaid"].create();
     expect(node.attrs["code"]).toBe("");
+    expect(node.attrs["align"]).toBe("left");
+  });
+
+  it("parses data-align from its static HTML tag", () => {
+    const wrapper = document.createElement("div");
+    wrapper.appendChild(document.createElement("h1"));
+    const el = document.createElement(HTML_TAG);
+    el.dataset["code"] = "graph TD";
+    el.dataset["align"] = "center";
+    wrapper.appendChild(el);
+    const doc = PMDOMParser.fromSchema(schema).parse(wrapper);
+    let align: unknown = null;
+    doc.descendants((n) => {
+      if (n.type.name === "mermaid") {
+        align = n.attrs["align"];
+        return false;
+      }
+      return true;
+    });
+    expect(align).toBe("center");
   });
 
   it("parseSvgElement accepts well-formed SVG and rejects everything else", () => {

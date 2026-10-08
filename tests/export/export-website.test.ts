@@ -260,6 +260,13 @@ describe("postProcessForExport: mermaid diagrams", () => {
     expect(result.droppedDiagrams).toBe(0);
   });
 
+  it("carries data-align onto the exported figure", async () => {
+    const html =
+      '<texto-extension-mermaid data-code="graph TD" data-align="center"></texto-extension-mermaid>';
+    const result = await postProcessForExport(html, () => null, async () => SVG);
+    expect(result.html).toContain('figure class="mermaid-figure" data-align="center"');
+  });
+
   it("drops diagrams when rendering fails, markup is bad, or no callback", async () => {
     const failed = await postProcessForExport(MERMAID_HTML, () => null, async () => null);
     expect(failed.droppedDiagrams).toBe(1);
