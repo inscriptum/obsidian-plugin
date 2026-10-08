@@ -106,10 +106,12 @@
 }
 
 .texto-extension-mermaid-host .mermaid-editor__code {
-  position: relative;
   min-height: 94px;
   cursor: text;
-  /* the textarea owns scrolling; the backdrop follows via scroll sync */
+  /* the textarea owns scrolling; the backdrop follows via scroll sync.
+     NOTE: deliberately NOT position:relative — the line-number ::before
+     anchors to the pre (position:relative from the code block styles), so
+     the numbers stay in the 50px gutter left of the code text. */
   overflow: hidden;
 }
 
@@ -121,12 +123,16 @@
 
 .texto-extension-mermaid-host .mermaid-editor__input {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  /* identical to the code element's padding: the caret line must sit
-     exactly on the backdrop line */
-  padding: 16px 0 10px;
+  /* mirrors the code element's box inside the pre: pre padding 20/0/10 +
+     code padding 16/0/10 vertically, code margin 0 10px 0 50px horizontally
+     — the caret line must sit exactly on the backdrop line */
+  top: 36px;
+  bottom: 20px;
+  left: 50px;
+  right: 10px;
+  width: auto;
+  height: auto;
+  padding: 0;
   margin: 0;
   border: 0;
   border-radius: 0;
