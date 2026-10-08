@@ -26,6 +26,7 @@ const NOTE_NODES = [
   "horizontalRule:null",
   "image:null",
   "listItem:paragraph block*",
+  "mermaid:null",
   "noteDoc:noteTitle (block | attachment | image)+",
   "noteTitle:inline*",
   "orderedList:listItem+",

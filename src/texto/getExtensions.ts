@@ -13,6 +13,7 @@ import {
   HljsCodeBlockRow,
   HljsMark,
 } from "./extensions/code-block-hljs";
+import { Mermaid } from "./extensions/mermaid";
 import { Table, TableCell, TableHeader, TableRow } from "./extensions/table";
 import { TaskList } from "./extensions/task-list";
 import { TaskItem } from "./extensions/task-item";
@@ -88,6 +89,7 @@ export function getExtensions(
     HljsCodeBlock,
     HljsCodeBlockRow,
     HljsMark,
+    Mermaid,
     Table.configure({
       resizable: true,
       isMobileView: options.isMobileView ?? false,

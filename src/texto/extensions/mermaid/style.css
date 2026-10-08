@@ -1,0 +1,200 @@
+/* ═══════════════════════════════════════════════════════════════
+   texto-extension-mermaid — base styles (library defaults)
+   Dual-face atom block: SVG view face + inline source editor face.
+   ProseMirror adds .ProseMirror-selectednode when the block is selected.
+   ═══════════════════════════════════════════════════════════════ */
+
+.texto-extension-mermaid-host {
+  display: block;
+  margin: 0.5em 0;
+}
+
+.texto-extension-mermaid-host .mermaid-view {
+  position: relative;
+  display: flex;
+  /* horizontal placement follows the align attr (see the layout section) */
+  min-height: 48px;
+  padding: 12px;
+  border: 1px solid var(--background-modifier-border, #ddd);
+  border-radius: 8px;
+  background: var(--background-primary, #fff);
+}
+
+.texto-extension-mermaid-host .mermaid-view__svg svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.texto-extension-mermaid-host .mermaid-view__message {
+  display: none;
+  color: var(--text-error, #e93147);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.texto-extension-mermaid-host.is-error .mermaid-view__message {
+  display: block;
+}
+
+.texto-extension-mermaid-host.is-error .mermaid-view__svg {
+  display: none;
+}
+
+.texto-extension-mermaid-host .mermaid-view__loading {
+  display: none;
+  color: var(--text-muted, #999);
+  font-size: 12px;
+}
+
+.texto-extension-mermaid-host.is-loading .mermaid-view__loading {
+  display: block;
+}
+
+/* Edit affordance lives in the media bubble menu ("Edit diagram" pencil),
+   not on the block itself — the diagram looks like an image. */
+
+/* ── Layout (align / wrap) ────────────────────────────────────────────
+   Classes are applied to the host by the NodeView (syncLayoutClass):
+   left = default, center/right = margin auto + flex justification,
+   full = full-bleed, wrap-left/right = float with text wrapping.
+   Full-bleed mirrors the image node: 100cqw is the .texto-editor inline
+   size, the symmetric margin negates the editor content indent. */
+.texto-extension-mermaid-host.texto-mermaid-layout-full {
+  width: 100cqw;
+  margin-inline: calc((100% - 100cqw) / 2);
+}
+
+/* full stretches the diagram across the host (as full-width images do) */
+.texto-extension-mermaid-host.texto-mermaid-layout-full .mermaid-view__svg {
+  width: 100%;
+}
+
+.texto-extension-mermaid-host.texto-mermaid-layout-full .mermaid-view__svg svg {
+  width: 100%;
+  height: auto;
+}
+
+.texto-extension-mermaid-host .mermaid-view {
+  justify-content: flex-start;
+}
+
+.texto-extension-mermaid-host.texto-mermaid-layout-center .mermaid-view {
+  justify-content: center;
+}
+
+.texto-extension-mermaid-host.texto-mermaid-layout-right .mermaid-view {
+  justify-content: flex-end;
+}
+
+.texto-extension-mermaid-host.texto-mermaid-layout-wrap-left {
+  float: left;
+  width: 50%;
+  margin: 4px 16px 8px 0;
+}
+
+.texto-extension-mermaid-host.texto-mermaid-layout-wrap-right {
+  float: right;
+  width: 50%;
+  margin: 4px 0 8px 16px;
+}
+
+/* ── Source editor face ───────────────────────────────────────────────
+   Reuses the code block component chrome (.hljs-codeblock): the frame,
+   font, line-number gutter and buttons come from code-block-hljs/style.css
+   — no chrome of our own. The textarea is a borderless transparent overlay
+   living INSIDE the code element: the code is position:relative, so
+   inset:0 covers its padding box and the textarea mirrors the code's
+   padding to keep the caret line exactly on the backdrop line. Native
+   textarea styling must stay fully reset or it paints its own frame. */
+.texto-extension-mermaid-host .mermaid-editor {
+  display: none;
+}
+
+.texto-extension-mermaid-host.is-editing .mermaid-view {
+  display: none;
+}
+
+.texto-extension-mermaid-host.is-editing .mermaid-editor {
+  display: block;
+}
+
+.texto-extension-mermaid-host .mermaid-editor__code {
+  min-height: 94px;
+  cursor: text;
+  /* the textarea owns scrolling; the backdrop follows via scroll sync.
+     NOTE: deliberately NOT position:relative — the line-number ::before
+     anchors to the pre (position:relative from the code block styles), so
+     the numbers stay in the 50px gutter left of the code text. */
+  overflow: hidden;
+}
+
+/* layout-transparent rows container: the rows behave as direct children
+   of the code element (line numbers anchor to the pre's gutter) */
+.texto-extension-mermaid-host .mermaid-editor__rows {
+  display: contents;
+}
+
+.texto-extension-mermaid-host .mermaid-editor__input,
+/* Obsidian's form-field state rules (textarea:not(:disabled):hover/:focus →
+   form-field background) out-specific the base (0,2,0) selector and paint
+   the overlay white — keep it transparent in every state (0,3,0 wins). */
+.texto-extension-mermaid-host .mermaid-editor__input:hover,
+.texto-extension-mermaid-host .mermaid-editor__input:focus,
+.texto-extension-mermaid-host .mermaid-editor__input:focus-visible {
+  position: absolute;
+  /* mirrors the code element's box inside the pre: pre padding 20/0/10 +
+     code padding 16/0/10 vertically, code margin 0 10px 0 50px horizontally
+     — the caret line must sit exactly on the backdrop line */
+  top: 36px;
+  bottom: 20px;
+  left: 50px;
+  right: 10px;
+  width: auto;
+  height: auto;
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  outline: none;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+  resize: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--text-normal, #222);
+  font-family: var(--texto-code-block__font-family, "JetBrains Mono", monospace);
+  font-size: var(--texto-code-block__font-size, 15px);
+  line-height: var(--texto-code-block__line-height, 20px);
+  font-variant-ligatures: normal;
+  white-space: pre;
+  overflow-wrap: normal;
+  overflow: auto;
+  scrollbar-width: none;
+}
+
+.texto-extension-mermaid-host .mermaid-editor__input::-webkit-scrollbar {
+  display: none;
+}
+
+.texto-extension-mermaid-host .mermaid-editor__status {
+  display: none;
+  margin: 0 10px 8px 50px;
+  color: var(--text-error, #e93147);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.texto-extension-mermaid-host.has-status .mermaid-editor__status {
+  display: block;
+}
+
+/* The static language label + action buttons reuse the code block's own
+   styles (.hljs-codeblock__controls/__actions/__btn); nothing to add here. */
+
+/* Selected block outline follows the theme accent (as the image node). */
+.texto-extension-mermaid-host.ProseMirror-selectednode .mermaid-view {
+  border-color: var(--color-accent, #5a9eff);
+}

@@ -1,0 +1,24 @@
+{
+  "type": "noteDoc",
+  "content": [
+    {
+      "type": "noteTitle",
+      "content": [
+        {
+          "type": "text",
+          "text": "mermaid-clean-check"
+        }
+      ]
+    },
+    {
+      "type": "mermaid",
+      "attrs": {
+        "code": "flowchart LR\n  Clean --> Test",
+        "align": "left"
+      }
+    },
+    {
+      "type": "paragraph"
+    }
+  ]
+}

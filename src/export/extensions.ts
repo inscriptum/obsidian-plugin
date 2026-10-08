@@ -8,6 +8,7 @@ import {
   HljsCodeBlockRow,
   HljsMark,
 } from "../texto/extensions/code-block-hljs";
+import { Mermaid } from "../texto/extensions/mermaid";
 import {
   Table,
   TableCell,
@@ -55,6 +56,7 @@ export function getExportExtensions(): Extensions {
     HljsCodeBlock.configure({ printContentAsHTML: true }),
     HljsCodeBlockRow,
     HljsMark,
+    Mermaid,
     Table,
     TableCell,
     TableHeader,

@@ -100,6 +100,12 @@ const GROUPS: ToolbarButton[][] = [
       icon: "code",
       action: (e) => e.chain().focus().toggleHljsCodeBlock().run(),
     },
+    {
+      activeKey: null,
+      label: "Diagram",
+      icon: "diagram",
+      action: (e) => e.chain().focus().insertMermaid().run(),
+    },
   ],
   // Group 4 — insert media
   [

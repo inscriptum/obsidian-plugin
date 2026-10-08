@@ -19,6 +19,7 @@ describe("schema contract", () => {
       "horizontalRule",
       "image",
       "attachment",
+      "mermaid",
       "hljsCodeBlock",
       "hljsCodeBlockRow",
       "table",

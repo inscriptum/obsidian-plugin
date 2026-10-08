@@ -5,6 +5,7 @@ import { generateHTML } from "../texto/core/helpers/generateHTML";
 import { extractNoteTitle } from "../storage/fileNaming";
 import { getExportExtensions } from "./extensions";
 import { postProcessForExport } from "./postprocess";
+import { renderMermaid } from "../texto/extensions/mermaid/mermaidApi";
 import { extractPreview } from "./preview";
 import { titleToSlug } from "./slug";
 import { buildPageHtml } from "./template";
@@ -81,6 +82,8 @@ export interface ExportWebsiteResult {
   missingImages: string[];
   /** Count of attachment blocks dropped from the page. */
   removedAttachments: number;
+  /** Count of mermaid diagrams dropped from the page (render failed). */
+  droppedDiagrams: number;
 }
 
 /**
@@ -107,7 +110,18 @@ export async function exportNoteAsWebsite(
   const contentHtml = generateHTML(doc, getExportExtensions());
 
   const resolveTarget = createImageNameResolver(app);
-  const mapped = postProcessForExport(contentHtml, resolveTarget);
+  const mapped = await postProcessForExport(
+    contentHtml,
+    resolveTarget,
+    // Diagrams compile at export time — the stored node keeps only the source.
+    async (code) => {
+      try {
+        return await renderMermaid(code);
+      } catch {
+        return null;
+      }
+    },
+  );
 
   const preview = extractPreview(doc);
   const previewName =
@@ -140,7 +154,11 @@ export async function exportNoteAsWebsite(
     }
   }
 
-  if (mapped.missing.length > 0 || mapped.removedAttachments > 0) {
+  if (
+    mapped.missing.length > 0 ||
+    mapped.removedAttachments > 0 ||
+    mapped.droppedDiagrams > 0
+  ) {
     const parts: string[] = [];
     if (mapped.missing.length > 0) {
       parts.push(
@@ -152,6 +170,11 @@ export async function exportNoteAsWebsite(
         `${mapped.removedAttachments} attachment${mapped.removedAttachments > 1 ? "s" : ""} skipped`,
       );
     }
+    if (mapped.droppedDiagrams > 0) {
+      parts.push(
+        `${mapped.droppedDiagrams} diagram${mapped.droppedDiagrams > 1 ? "s" : ""} failed to render`,
+      );
+    }
     new Notice(`Export finished with: ${parts.join(", ")}`, 8000);
   }
 
@@ -159,5 +182,6 @@ export async function exportNoteAsWebsite(
     folder,
     missingImages: mapped.missing,
     removedAttachments: mapped.removedAttachments,
+    droppedDiagrams: mapped.droppedDiagrams,
   };
 }

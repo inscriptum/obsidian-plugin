@@ -50,8 +50,32 @@ export function setImageNodeLayout(editor: Editor, align: ImageLayout): void {
   );
 }
 
+/** Set the layout (align/wrap) of the selected mermaid node (no explicit
+    width interplay — a diagram has no user width attr). */
+export function setMermaidNodeLayout(editor: Editor, align: string): void {
+  const sel = getSelectedMediaNode(editor.state);
+  if (!sel || sel.node.type.name !== "mermaid") return;
+
+  editor.view.dispatch(
+    editor.state.tr.setNodeMarkup(sel.pos, sel.node.type, {
+      ...(sel.node.attrs as Record<string, unknown>),
+      align,
+    }),
+  );
+}
+
+/** Ask the selected mermaid node's view to open its inline source editor.
+    The NodeView listens for this DOM event on its host element. */
+export function editMermaidDiagram(editor: Editor): void {
+  const sel = getSelectedMediaNode(editor.state);
+  if (!sel || sel.node.type.name !== "mermaid") return;
+  const dom = editor.view.nodeDOM(sel.pos) as HTMLElement | null;
+  dom?.dispatchEvent(new CustomEvent("texto-mermaid-edit"));
+}
+
 /** Remove the selected media node; image file cleanup goes through the
-    State plugin (meta), attachment cleanup deletes the file explicitly. */
+    State plugin (meta), attachment cleanup deletes the file explicitly.
+    A mermaid diagram has no file — plain delete. */
 export function removeMediaNode(editor: Editor, app: App): void {
   const sel = getSelectedMediaNode(editor.state);
   if (!sel) return;
@@ -71,6 +95,10 @@ export function removeMediaNode(editor: Editor, app: App): void {
         .setMeta(nodeStatePluginKey, action)
         .setMeta("addToHistory", false),
     );
+  } else if (node.type.name === "mermaid") {
+    // No file to clean up — a plain delete that stays in undo history,
+    // so a deleted diagram is restorable with Undo.
+    editor.view.dispatch(editor.state.tr.deleteRange(pos, to));
   } else {
     const data = node.attrs.data as { id?: string } | null | undefined;
     void deleteAttachmentFile(app, data?.id);

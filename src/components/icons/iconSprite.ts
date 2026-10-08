@@ -49,6 +49,11 @@ const TOOLBAR_ICON_PATHS = {
   copy: `<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15h-1a2 2 0 0 1 -2 -2v-8a2 2 0 0 1 2 -2h8a2 2 0 0 1 2 2v1"/>`,
   wrap: `<path d="M3 6h18"/><path d="M3 12h14a3 3 0 1 1 0 6h-4"/><path d="m15 16l-2 2l2 2"/><path d="M3 18h6"/>`,
   keyboardHide: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M2 5a2 2 0 0 1 2 -2h16a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2h-16a2 2 0 0 1 -2 -2l0 -8" /><path d="M6 7l0 .01" /><path d="M10 7l0 .01" /><path d="M14 7l0 .01" /><path d="M18 7l0 .01" /><path d="M6 11l0 .01" /><path d="M18 11l0 .01" /> <path d="M10 11l4 0" /><path d="M10 19l2 2l2 -2" />`,
+  /* Flowchart glyph: two boxes bussed down into one — the "Diagram" (mermaid) insert button. */
+  diagram: `<rect x="3" y="3" width="7" height="5" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="8.5" y="16" width="7" height="5" rx="1"/><path d="M6.5 8v3.5"/><path d="M17.5 8v3.5"/><path d="M6.5 11.5h11"/><path d="M12 11.5V16"/>`,
+  /* Pencil + x — used by the mermaid block chrome (edit / cancel). */
+  pencil: `<path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"/><path d="M13.5 6.5l4 4"/>`,
+  x: `<path d="M18 6l-12 12"/><path d="M6 6l12 12"/>`,
 } as const;
 
 /** Bubble-menu icons — paths from the Bubble-Menu-Prototype, Tabler outline
@@ -108,6 +113,8 @@ const BUBBLE_ICON_PATHS: Record<string, string> = {
   imgFull: `<rect x="3" y="6" width="18" height="9" rx="1"/><path d="M3 19h18"/><path d="M7 10.5h10"/><path d="M9 8.5l-2 2 2 2"/><path d="M15 8.5l2 2-2 2"/>`,
   imgWrapLeft: `<rect x="3" y="4" width="9" height="7" rx="1"/><path d="M15 5.5h6"/><path d="M15 8h6"/><path d="M15 10.5h4"/><path d="M3 15h18"/><path d="M3 19h12"/>`,
   imgWrapRight: `<rect x="12" y="4" width="9" height="7" rx="1"/><path d="M3 5.5h6"/><path d="M3 8h6"/><path d="M5 10.5h4"/><path d="M3 15h18"/><path d="M9 19h12"/>`,
+  /* Diagram edit (pencil) — the mermaid media-bar "Edit diagram" button. Same shape as the toolbar pencil. */
+  pencil: `<path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"/><path d="M13.5 6.5l4 4"/>`,
 };
 
 export type ToolbarIconName = keyof typeof TOOLBAR_ICON_PATHS;
