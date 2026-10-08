@@ -241,8 +241,14 @@ export const Mermaid = Node.create<MermaidOptions>({
         });
       }
 
+      // Each entry into the edit face opens a new editing session: an
+      // in-flight save from a previous session must not land after the user
+      // cancelled, re-opened and started typing a fresh draft.
+      let editSession = 0;
+
       const setEditMode = (on: boolean) => {
         editing = on;
+        if (on) editSession += 1;
         element.classList.toggle("is-editing", on);
         if (on) {
           const input = textarea();
@@ -263,15 +269,17 @@ export const Mermaid = Node.create<MermaidOptions>({
       // Save = one compile attempt; on failure the error lands in the status
       // line and the draft stays open. On success the SVG is painted at once,
       // then the source is stored — a single undoable document step. The
-      // committing guard blocks double-saves; the editing re-check after the
-      // await means an explicit Cancel during the compile wins.
+      // committing guard blocks double-saves; after the await the save only
+      // lands if the SAME editing session is still open (an explicit Cancel —
+      // or a Cancel + re-open with a fresh draft — during the compile wins).
       const commitDraft = async (draft: string) => {
         if (!editing || committing) return;
         committing = true;
+        const session = editSession;
         setStatus(null);
         try {
           const svg = await renderMermaid(draft);
-          if (!editing) return;
+          if (!editing || editSession !== session) return;
           renderToken += 1; // invalidate any in-flight view render (theme flip)
           if (!mountSvg(svg)) {
             setStatus("The rendered diagram markup was not well-formed.");

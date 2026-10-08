@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Mermaid diagrams: a "Diagram" button in the toolbar inserts a diagram block that renders as an SVG image in the current theme (and re-renders on light/dark switch). The pencil button (or double-click) opens an inline source editor over the diagram — typing shows live syntax errors, "Save" (or Ctrl/Cmd+Enter) compiles the diagram, "Cancel" (or Esc, or clicking outside) discards the draft. The diagram source is saved with the note and survives reopen, copy/paste and website export; a published page embeds the compiled SVG. Diagrams render only when they scroll into view, so large notes open fast.
+- Mermaid diagrams: a "Diagram" button in the toolbar inserts a diagram block that renders as an SVG image in the current theme (and re-renders on light/dark switch). Selecting a diagram opens the media menu with alignment and wrap controls, "Edit diagram" and "Delete". "Edit diagram" opens an inline source editor styled like code blocks (line numbers included) — typing shows live syntax errors, "Save" (or Ctrl/Cmd+Enter) compiles the diagram, "Cancel" (or Esc) discards the draft; the editor stays open until an explicit Save or Cancel, wherever the focus is. Deleting a diagram is undoable. The diagram source is saved with the note and survives reopen, copy/paste and website export; a published page embeds the compiled SVG with its alignment. Diagrams render only when they scroll into view, so large notes open fast.
 
 ## [0.10.0] - 2026-10-06
 

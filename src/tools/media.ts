@@ -96,9 +96,9 @@ export function removeMediaNode(editor: Editor, app: App): void {
         .setMeta("addToHistory", false),
     );
   } else if (node.type.name === "mermaid") {
-    editor.view.dispatch(
-      editor.state.tr.deleteRange(pos, to).setMeta("addToHistory", false),
-    );
+    // No file to clean up — a plain delete that stays in undo history,
+    // so a deleted diagram is restorable with Undo.
+    editor.view.dispatch(editor.state.tr.deleteRange(pos, to));
   } else {
     const data = node.attrs.data as { id?: string } | null | undefined;
     void deleteAttachmentFile(app, data?.id);

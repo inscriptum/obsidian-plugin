@@ -11,13 +11,10 @@
       ]
     },
     {
-      "type": "paragraph"
-    },
-    {
       "type": "mermaid",
       "attrs": {
-        "code": "flowchart TD\n  Clean --> Tested1",
-        "align": "center"
+        "code": "flowchart LR\n  Clean --> Test",
+        "align": "left"
       }
     },
     {

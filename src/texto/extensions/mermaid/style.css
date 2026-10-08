@@ -12,7 +12,7 @@
 .texto-extension-mermaid-host .mermaid-view {
   position: relative;
   display: flex;
-  justify-content: center;
+  /* horizontal placement follows the align attr (see the layout section) */
   min-height: 48px;
   padding: 12px;
   border: 1px solid var(--background-modifier-border, #ddd);
@@ -56,8 +56,8 @@
 
 /* ── Layout (align / wrap) ────────────────────────────────────────────
    Classes are applied to the host by the NodeView (syncLayoutClass):
-   left = default, center/right = margin auto, full = full-bleed,
-   wrap-left/right = float with text wrapping around the diagram.
+   left = default, center/right = margin auto + flex justification,
+   full = full-bleed, wrap-left/right = float with text wrapping.
    Full-bleed mirrors the image node: 100cqw is the .texto-editor inline
    size, the symmetric margin negates the editor content indent. */
 .texto-extension-mermaid-host.texto-mermaid-layout-full {
@@ -65,12 +65,26 @@
   margin-inline: calc((100% - 100cqw) / 2);
 }
 
-.texto-extension-mermaid-host.texto-mermaid-layout-center {
-  margin-inline: auto;
+/* full stretches the diagram across the host (as full-width images do) */
+.texto-extension-mermaid-host.texto-mermaid-layout-full .mermaid-view__svg {
+  width: 100%;
 }
 
-.texto-extension-mermaid-host.texto-mermaid-layout-right {
-  margin-left: auto;
+.texto-extension-mermaid-host.texto-mermaid-layout-full .mermaid-view__svg svg {
+  width: 100%;
+  height: auto;
+}
+
+.texto-extension-mermaid-host .mermaid-view {
+  justify-content: flex-start;
+}
+
+.texto-extension-mermaid-host.texto-mermaid-layout-center .mermaid-view {
+  justify-content: center;
+}
+
+.texto-extension-mermaid-host.texto-mermaid-layout-right .mermaid-view {
+  justify-content: flex-end;
 }
 
 .texto-extension-mermaid-host.texto-mermaid-layout-wrap-left {
