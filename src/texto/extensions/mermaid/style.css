@@ -85,14 +85,16 @@
   margin: 4px 0 8px 16px;
 }
 
-/* Source editor face. */
+/* ── Source editor face ───────────────────────────────────────────────
+   Reuses the code block component chrome (.hljs-codeblock): the frame,
+   font, line-number gutter and buttons come from code-block-hljs/style.css
+   — no chrome of our own. The textarea is a borderless transparent overlay
+   living INSIDE the code element: the code is position:relative, so
+   inset:0 covers its padding box and the textarea mirrors the code's
+   padding to keep the caret line exactly on the backdrop line. Native
+   textarea styling must stay fully reset or it paints its own frame. */
 .texto-extension-mermaid-host .mermaid-editor {
   display: none;
-  flex-direction: column;
-  border: 1px solid var(--background-modifier-border, #ddd);
-  border-radius: 8px;
-  background: var(--background-primary, #fff);
-  overflow: hidden;
 }
 
 .texto-extension-mermaid-host.is-editing .mermaid-view {
@@ -100,29 +102,59 @@
 }
 
 .texto-extension-mermaid-host.is-editing .mermaid-editor {
-  display: flex;
+  display: block;
+}
+
+.texto-extension-mermaid-host .mermaid-editor__code {
+  position: relative;
+  min-height: 94px;
+  cursor: text;
+  /* the textarea owns scrolling; the backdrop follows via scroll sync */
+  overflow: hidden;
+}
+
+/* layout-transparent rows container: the rows behave as direct children
+   of the code element (line numbers anchor to the pre's gutter) */
+.texto-extension-mermaid-host .mermaid-editor__rows {
+  display: contents;
 }
 
 .texto-extension-mermaid-host .mermaid-editor__input {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  min-height: 140px;
-  padding: 10px 12px;
-  border: none;
+  height: 100%;
+  /* identical to the code element's padding: the caret line must sit
+     exactly on the backdrop line */
+  padding: 16px 0 10px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
   outline: none;
-  resize: vertical;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+  resize: none;
   background: transparent;
-  color: var(--text-normal, #222);
-  font-family: var(--font-monospace, ui-monospace, monospace);
-  font-size: 13px;
-  line-height: 1.5;
+  color: transparent;
+  caret-color: var(--text-normal, #222);
+  font-family: var(--texto-code-block__font-family, "JetBrains Mono", monospace);
+  font-size: var(--texto-code-block__font-size, 15px);
+  line-height: var(--texto-code-block__line-height, 20px);
+  font-variant-ligatures: normal;
   white-space: pre;
   overflow-wrap: normal;
-  overflow-x: auto;
+  overflow: auto;
+  scrollbar-width: none;
+}
+
+.texto-extension-mermaid-host .mermaid-editor__input::-webkit-scrollbar {
+  display: none;
 }
 
 .texto-extension-mermaid-host .mermaid-editor__status {
   display: none;
-  padding: 0 12px 8px;
+  margin: 0 10px 8px 50px;
   color: var(--text-error, #e93147);
   font-size: 12px;
   white-space: pre-wrap;
@@ -133,36 +165,8 @@
   display: block;
 }
 
-.texto-extension-mermaid-host .mermaid-editor__actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
-  padding: 6px 8px;
-  border-top: 1px solid var(--background-modifier-border, #eee);
-}
-
-.texto-extension-mermaid-host .mermaid-editor__btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 1px solid var(--background-modifier-border, #ddd);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--text-muted, #666);
-  cursor: pointer;
-}
-
-.texto-extension-mermaid-host .mermaid-editor__btn--save {
-  color: var(--text-success, #08b94e);
-}
-
-.texto-extension-mermaid-host .mermaid-editor__btn svg {
-  width: 16px;
-  height: 16px;
-}
+/* The static language label + action buttons reuse the code block's own
+   styles (.hljs-codeblock__controls/__actions/__btn); nothing to add here. */
 
 /* Selected block outline follows the theme accent (as the image node). */
 .texto-extension-mermaid-host.ProseMirror-selectednode .mermaid-view {

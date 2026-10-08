@@ -249,6 +249,9 @@ export const Mermaid = Node.create<MermaidOptions>({
           if (input != null) {
             input.value = lastCode;
             setStatus(null);
+            // The element's input handler mirrors the draft into the code
+            // block backdrop rows.
+            input.dispatchEvent(new Event("input", { bubbles: true }));
             input.focus();
           }
         } else if (editor.isEditable) {
