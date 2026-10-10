@@ -8,6 +8,7 @@ import {
 } from "../storage/attachments";
 import type {
   AttachmentOptions,
+  AttachmentViewNodeState,
 } from "../texto/extensions/attachment/attachment";
 import { AttachFileModal } from "../ui/attachFileModal";
 
@@ -30,7 +31,9 @@ export type AttachChoiceDialog = (options: {
  *  - outside the vault on desktop → honest copy-vs-external-link dialog;
  *  - path unavailable (mobile pickers) → copy into the vault silently.
  * The file itself is only ever written by the copy branch — attach never
- * deletes or renames anything (rule-open-file-safety).
+ * deletes or renames anything (rule-open-file-safety). While the dialog is
+ * open the chip is left untouched: nothing transient is persisted, so a
+ * crash mid-dialog cannot strand a fake "loading" block in the document.
  */
 export async function attachSelectedFile(
   app: App,
@@ -41,15 +44,6 @@ export async function attachSelectedFile(
   choose: AttachChoiceDialog | null = null,
 ): Promise<void> {
   if (!file) return;
-  update({
-    state: {
-      fileStatus: "loading",
-      text: file.name,
-      subtext: "",
-      preparedData: undefined,
-    },
-    data: undefined,
-  });
 
   let resolved: ResolvedPickedFile | null;
   try {
@@ -89,6 +83,7 @@ export async function attachSelectedFile(
       filename: resolved.filename,
       sizeLabel: formatFileSize(file.size),
       onCopy: () => {
+        update(loadingState(file.name));
         void copyIntoVault(app, noteFile, file, update);
       },
       onExternal: () => {
@@ -112,7 +107,24 @@ export async function attachSelectedFile(
     return;
   }
 
+  // Mobile (picker hides the path) or path unknown — copy into the vault.
+  update(loadingState(file.name));
   await copyIntoVault(app, noteFile, file, update);
+}
+
+function loadingState(filename: string): {
+  state: AttachmentViewNodeState;
+  data: undefined;
+} {
+  return {
+    state: {
+      fileStatus: "loading",
+      text: filename,
+      subtext: "",
+      preparedData: undefined,
+    },
+    data: undefined,
+  };
 }
 
 /** The existing copy-next-to-note path (buildUniquePath + createBinary). */
@@ -172,10 +184,14 @@ export function openAttachmentFile(
 
   const shell = getElectronShell();
   if (shell?.openPath) {
-    // Resolves with an empty string on success, an error message otherwise.
-    void shell.openPath(id).then((result) => {
-      if (result) new Notice(`Cannot open file: ${id}`);
-    });
+    // Resolves with an empty string on success, an error message otherwise;
+    // a rejection (should not happen) is noticed, never unhandled.
+    void shell
+      .openPath(id)
+      .then((result) => {
+        if (result) new Notice(`Cannot open file: ${id}`);
+      })
+      .catch(() => new Notice(`Cannot open file: ${id}`));
     return;
   }
   openWithObsidian(app, id);

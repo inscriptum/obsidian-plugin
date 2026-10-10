@@ -135,35 +135,36 @@ function onFileSelected(
 ) {
   const { options, key, editor, node } = context;
 
+  // The link-or-copy dialog can stay open across unrelated edits; after a
+  // whole-doc replacement a mapped position may point at a different node —
+  // never rewrite that node's markup.
+  const dispatchAttrs = (
+    attrs: Omit<AttachmentOptions["attributes"], "key">,
+  ) => {
+    const position = keyToPos.get(key);
+    if (position == null) return;
+    const target = editor.view.state.doc.nodeAt(position.pos);
+    if (target?.type !== node.type) return;
+    editor.view.dispatch(
+      editor.view.state.tr
+        .setNodeMarkup(position.pos, node.type, attrs)
+        .setMeta("addToHistory", false),
+    );
+  };
+
   if (isFunction(options.hooks?.onFileSelected)) {
     void options.hooks.onFileSelected(
       selectedFile,
-      (updatedAttrs) => {
-        const position = keyToPos.get(key);
-
-        if (position != null) {
-          editor.view.dispatch(
-            editor.view.state.tr
-              .setNodeMarkup(position.pos, node.type, updatedAttrs)
-              .setMeta("addToHistory", false),
-          );
-        }
-      },
+      dispatchAttrs,
       () => {
         // Dismiss path (e.g. the link-or-copy dialog was cancelled): put the
         // attrs back as they were when the picker opened — placeholder for a
-        // fresh block, the previous file for a replace.
-        const position = keyToPos.get(key);
-        if (position != null) {
-          editor.view.dispatch(
-            editor.view.state.tr
-              .setNodeMarkup(position.pos, node.type, {
-                state: node.attrs.state ?? null,
-                data: node.attrs.data,
-              })
-              .setMeta("addToHistory", false),
-          );
-        }
+        // fresh block, the previous file for a replace — and drop the
+        // prepared file so the picker does not re-trigger.
+        dispatchAttrs({
+          state: { ...node.attrs.state, preparedData: undefined },
+          data: node.attrs.data,
+        });
       },
     );
   }

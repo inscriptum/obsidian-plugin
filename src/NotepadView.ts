@@ -1544,10 +1544,9 @@ export class NotepadView extends FileView {
           handleAddImgContainer({ ...node.attrs, key }, editorRef, notepad);
         },
         onRemove: () => {
-          // Packed assets are garbage-collected at save time; external
-          // attachment files are removed via their explicit delete button
-          // (attachment.onDeleteFile), not on node removal — matching the
-          // plain-note policy of not touching files on undo/cut.
+          // Packed assets are garbage-collected at save time. Attachment
+          // nodes are links: removing a node (undo, cut, media menu) never
+          // touches the linked file — see the link-or-copy policy.
         },
       },
       image: {

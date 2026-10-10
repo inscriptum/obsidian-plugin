@@ -30,6 +30,7 @@ function makeApp({
 }: { vaultFiles?: Record<string, unknown>; basePath?: string } = {}) {
   const created: string[] = [];
   const openWithDefaultApp = vi.fn();
+  const trashFile = vi.fn();
   const app = {
     vault: {
       getAbstractFileByPath: (p: string) => vaultFiles[p] ?? null,
@@ -42,10 +43,10 @@ function makeApp({
         getResourcePath: (p: string) => `app://x/${p}`,
       },
     },
-    fileManager: { trashFile: vi.fn() },
+    fileManager: { trashFile },
     openWithDefaultApp,
   } as unknown as App & { openWithDefaultApp: ReturnType<typeof vi.fn> };
-  return { app, created, openWithDefaultApp };
+  return { app, created, openWithDefaultApp, trashFile };
 }
 
 type UpdateAttrs = {
@@ -67,7 +68,7 @@ describe("attachSelectedFile", () => {
   const cancel = vi.fn();
 
   it("links a file already in the vault without copying and without a dialog", async () => {
-    const { app, created } = makeApp({
+    const { app, created, trashFile } = makeApp({
       vaultFiles: { "docs/report.pdf": {} },
     });
     const { update, calls } = makeUpdate();
@@ -84,6 +85,7 @@ describe("attachSelectedFile", () => {
 
     expect(choose).not.toHaveBeenCalled();
     expect(created).toEqual([]);
+    expect(trashFile).not.toHaveBeenCalled();
     const last = calls.at(-1)!;
     expect(last.data).toEqual({
       id: "docs/report.pdf",
@@ -94,8 +96,28 @@ describe("attachSelectedFile", () => {
     expect(last.state?.fileStatus).toBe("attached");
   });
 
+  it("leaves the chip untouched while the dialog is open", async () => {
+    const { app, trashFile } = makeApp();
+    const { update, calls } = makeUpdate();
+    const choose = vi.fn();
+
+    await attachSelectedFile(
+      app,
+      makeNote(),
+      pickedFile("/outside/report.pdf"),
+      update,
+      cancel,
+      choose,
+    );
+
+    // No loading state is written before the choice: a crash mid-dialog
+    // cannot strand a fake "loading" block in the saved document.
+    expect(calls).toEqual([]);
+    expect(trashFile).not.toHaveBeenCalled();
+  });
+
   it("offers the dialog for an external file; external link stores the absolute path with mode", async () => {
-    const { app, created } = makeApp();
+    const { app, created, trashFile } = makeApp();
     const { update, calls } = makeUpdate();
     const choose = vi.fn();
 
@@ -124,10 +146,11 @@ describe("attachSelectedFile", () => {
       mode: "external",
     });
     expect(last.state?.subtext).toBe("/outside/report.pdf");
+    expect(trashFile).not.toHaveBeenCalled();
   });
 
   it("dialog copy choice stores a copy next to the note and links internally", async () => {
-    const { app, created } = makeApp();
+    const { app, created, trashFile } = makeApp();
     const { update, calls } = makeUpdate();
     const choose = vi.fn();
 
@@ -146,10 +169,12 @@ describe("attachSelectedFile", () => {
     expect(last.data).toMatchObject({ id: "report.pdf", filename: "report.pdf" });
     expect(last.data?.["mode"]).toBeUndefined();
     expect(last.state?.fileStatus).toBe("attached");
+    // The copy writes a new file; it never removes or trashes anything.
+    expect(trashFile).not.toHaveBeenCalled();
   });
 
   it("dialog dismiss calls cancel (chip restore), attaching nothing", async () => {
-    const { app, created } = makeApp();
+    const { app, created, trashFile } = makeApp();
     const { update } = makeUpdate();
     const choose = vi.fn();
 
@@ -165,6 +190,7 @@ describe("attachSelectedFile", () => {
 
     expect(cancel).toHaveBeenCalledTimes(1);
     expect(created).toEqual([]);
+    expect(trashFile).not.toHaveBeenCalled();
   });
 
   it("copies silently when the picker hides the path (mobile fallback)", async () => {
