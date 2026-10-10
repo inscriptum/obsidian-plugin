@@ -107,6 +107,37 @@
   font-size: var(--font-ui-smaller);
 }
 
+/* Attach-file choice dialog (see src/ui/attachFileModal.ts): same compact
+   stack as the conflict dialog — file line + two choices + a hint stating
+   the portability trade-off. */
+.modal.inscriptum-attach-file-modal {
+  height: auto;
+  max-height: 90vh;
+  align-self: center;
+  margin: auto;
+}
+
+.modal.inscriptum-attach-file-modal .modal-content {
+  padding-bottom: var(--size-4-4);
+}
+
+.modal.inscriptum-attach-file-modal .inscriptum-attach-file-setting {
+  border: none;
+  padding: 0;
+}
+
+.modal.inscriptum-attach-file-modal
+  .inscriptum-attach-file-setting
+  .setting-item-control {
+  justify-content: flex-end;
+}
+
+.modal.inscriptum-attach-file-modal .inscriptum-attach-file-hint {
+  margin: var(--size-4-2) 0 0;
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+}
+
 /* Unreadable-note error state (see NoteView.renderUnreadableFileState):
    shown instead of the editor when the file could not be parsed, so the
    empty editor can never autosave over the real content. */

@@ -48,7 +48,32 @@ export class TFile {
 }
 
 export class Notice {
-  constructor(_message: string) {}
+  static messages: string[] = [];
+  constructor(message: string) {
+    Notice.messages.push(message);
+  }
+}
+
+/** Minimal stub of the Modal base for components imported by tool code. */
+export class Modal {
+  app: unknown;
+  modalEl: HTMLElement = createDiv();
+  titleEl: HTMLElement = createDiv();
+  contentEl: HTMLElement = createDiv();
+  constructor(_app?: unknown) {}
+  open(): void {}
+  close(): void {}
+}
+
+/** Minimal stub of Setting — chainable, buttons are discarded. */
+export class Setting {
+  constructor(_container?: unknown) {}
+  addButton(_cb: (btn: unknown) => unknown): Setting {
+    return this;
+  }
+  setClass(_cls: string): Setting {
+    return this;
+  }
 }
 
 export const Platform = {

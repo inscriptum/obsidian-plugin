@@ -136,17 +136,36 @@ function onFileSelected(
   const { options, key, editor, node } = context;
 
   if (isFunction(options.hooks?.onFileSelected)) {
-    void options.hooks.onFileSelected(selectedFile, (updatedAttrs) => {
-      const position = keyToPos.get(key);
+    void options.hooks.onFileSelected(
+      selectedFile,
+      (updatedAttrs) => {
+        const position = keyToPos.get(key);
 
-      if (position != null) {
-        editor.view.dispatch(
-          editor.view.state.tr
-            .setNodeMarkup(position.pos, node.type, updatedAttrs)
-            .setMeta("addToHistory", false),
-        );
-      }
-    });
+        if (position != null) {
+          editor.view.dispatch(
+            editor.view.state.tr
+              .setNodeMarkup(position.pos, node.type, updatedAttrs)
+              .setMeta("addToHistory", false),
+          );
+        }
+      },
+      () => {
+        // Dismiss path (e.g. the link-or-copy dialog was cancelled): put the
+        // attrs back as they were when the picker opened — placeholder for a
+        // fresh block, the previous file for a replace.
+        const position = keyToPos.get(key);
+        if (position != null) {
+          editor.view.dispatch(
+            editor.view.state.tr
+              .setNodeMarkup(position.pos, node.type, {
+                state: node.attrs.state ?? null,
+                data: node.attrs.data,
+              })
+              .setMeta("addToHistory", false),
+          );
+        }
+      },
+    );
   }
 }
 
@@ -167,6 +186,11 @@ function prepareViewState(
       ...viewState,
       fileStatus: "attached",
       text: attrs.data.filename ?? attrs.data.id,
+      // External links show the absolute path on the chip — the only place
+      // the user can see which file the link points to; it also survives
+      // reopen (state is transient, data is not).
+      subtext:
+        attrs.data.mode === "external" ? attrs.data.id : viewState.subtext,
     };
   }
 

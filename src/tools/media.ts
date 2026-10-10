@@ -4,15 +4,13 @@ import type { Editor } from "../texto/core";
 import { getSelectedMediaNode } from "../components/bubble-menu-bar/mediaMenuState";
 import { nodeStatePluginKey } from "../texto/extensions/state";
 import type { ImageLayout } from "../texto/extensions/image/image";
-import { deleteAttachmentFile } from "../storage/attachments";
+import { openAttachmentFile } from "./attachment";
 
 /** Open the selected media file with the OS default app. */
 export function openMediaFile(app: App, node: ProseMirrorNode): void {
-  const data = node.attrs.data as { id?: string } | null | undefined;
-  const id = data?.id;
-  if (!id) return;
-  (app as { openWithDefaultApp?: (path: string) => void }).openWithDefaultApp?.(
-    id,
+  openAttachmentFile(
+    app,
+    node.attrs.data as { id?: string | null; mode?: string | null } | null,
   );
 }
 
@@ -74,9 +72,10 @@ export function editMermaidDiagram(editor: Editor): void {
 }
 
 /** Remove the selected media node; image file cleanup goes through the
-    State plugin (meta), attachment cleanup deletes the file explicitly.
-    A mermaid diagram has no file — plain delete. */
-export function removeMediaNode(editor: Editor, app: App): void {
+    State plugin (meta). An attachment node is a link — deleting it never
+    touches the file (in vault or external). A mermaid diagram has no
+    file — plain delete. */
+export function removeMediaNode(editor: Editor): void {
   const sel = getSelectedMediaNode(editor.state);
   if (!sel) return;
   const { node, pos } = sel;
@@ -100,8 +99,8 @@ export function removeMediaNode(editor: Editor, app: App): void {
     // so a deleted diagram is restorable with Undo.
     editor.view.dispatch(editor.state.tr.deleteRange(pos, to));
   } else {
-    const data = node.attrs.data as { id?: string } | null | undefined;
-    void deleteAttachmentFile(app, data?.id);
+    // Attachment: unlink only — the linked file (vault or external) is
+    // never deleted; an in-vault copy left behind is an accepted orphan.
     editor.view.dispatch(
       editor.state.tr.deleteRange(pos, to).setMeta("addToHistory", false),
     );

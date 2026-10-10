@@ -1,5 +1,37 @@
-import { describe, it, expect } from "vitest";
-import { buildUniquePath, getExtension } from "./attachments";
+import { describe, it, expect, vi } from "vitest";
+import type { App } from "obsidian";
+import {
+  buildUniquePath,
+  getExtension,
+  getPickedFilePath,
+  getVaultBasePath,
+  relativeToVault,
+  resolvePickedFile,
+} from "./attachments";
+
+function fileWithPath(path: string, name = "a.txt", size = 123): File {
+  const file = new File(["x"], name);
+  Object.defineProperty(file, "size", { value: size });
+  Object.defineProperty(file, "path", { value: path });
+  return file;
+}
+
+function makeApp({
+  vaultFiles = {},
+  basePath = "/vault",
+  withBasePath = true,
+}: { vaultFiles?: Record<string, unknown>; basePath?: string; withBasePath?: boolean } = {}) {
+  const adapter: Record<string, unknown> = {
+    getResourcePath: (p: string) => `app://x/${p}`,
+  };
+  if (withBasePath) adapter.getBasePath = () => basePath;
+  return {
+    vault: {
+      getAbstractFileByPath: (p: string) => vaultFiles[p] ?? null,
+      adapter,
+    },
+  } as unknown as App;
+}
 
 describe("attachments", () => {
   describe("getExtension", () => {
@@ -51,6 +83,108 @@ describe("attachments", () => {
       expect(
         buildUniquePath("notes", "README", "", (p) => existing.has(p)),
       ).toBe("notes/README-1");
+    });
+  });
+
+  describe("getPickedFilePath", () => {
+    it("reads the Electron file.path", () => {
+      expect(getPickedFilePath(fileWithPath("/docs/a.txt"))).toBe("/docs/a.txt");
+    });
+
+    it("returns null without any path source", () => {
+      expect(getPickedFilePath(new File(["x"], "a.txt"))).toBeNull();
+    });
+
+    it("falls back to webUtils.getPathForFile", () => {
+      const file = new File(["x"], "a.txt");
+      const getPathForFile = vi.fn(() => "/docs/via-webutils.txt");
+      const prev = window.require;
+      (window as { require?: unknown }).require = () => ({
+        webUtils: { getPathForFile },
+      });
+      try {
+        expect(getPickedFilePath(file)).toBe("/docs/via-webutils.txt");
+        expect(getPathForFile).toHaveBeenCalledWith(file);
+      } finally {
+        (window as { require?: unknown }).require = prev;
+      }
+    });
+  });
+
+  describe("getVaultBasePath", () => {
+    it("returns the adapter base path", () => {
+      expect(getVaultBasePath(makeApp({ basePath: "/v" }))).toBe("/v");
+    });
+
+    it("returns null without a desktop adapter", () => {
+      expect(getVaultBasePath(makeApp({ withBasePath: false }))).toBeNull();
+    });
+  });
+
+  describe("relativeToVault", () => {
+    it("resolves a path inside the vault", () => {
+      expect(relativeToVault("/vault", "/vault/docs/a.pdf")).toBe("docs/a.pdf");
+    });
+
+    it("normalizes windows separators", () => {
+      expect(relativeToVault("C:\\vault", "C:\\vault\\docs\\a.pdf")).toBe(
+        "docs/a.pdf",
+      );
+    });
+
+    it("is case-insensitive on the base prefix", () => {
+      expect(relativeToVault("/Vault", "/vault/docs/a.pdf")).toBe("docs/a.pdf");
+    });
+
+    it("rejects sibling folders with a shared prefix", () => {
+      expect(relativeToVault("/vault", "/vault2/a.pdf")).toBeNull();
+    });
+
+    it("rejects paths outside the vault", () => {
+      expect(relativeToVault("/vault", "/docs/a.pdf")).toBeNull();
+      expect(relativeToVault("/vault", "/vault")).toBeNull();
+    });
+  });
+
+  describe("resolvePickedFile", () => {
+    it("classifies a file already in the vault as internal", () => {
+      const app = makeApp({ vaultFiles: { "docs/a.txt": { path: "docs/a.txt" } } });
+      expect(resolvePickedFile(app, fileWithPath("/vault/docs/a.txt"))).toEqual({
+        kind: "internal",
+        id: "docs/a.txt",
+        src: "app://x/docs/a.txt",
+        filename: "a.txt",
+        size: "123",
+      });
+    });
+
+    it("classifies a file outside the vault as external", () => {
+      expect(
+        resolvePickedFile(makeApp(), fileWithPath("/docs/a.txt")),
+      ).toEqual({
+        kind: "external",
+        absPath: "/docs/a.txt",
+        filename: "a.txt",
+        size: "123",
+      });
+    });
+
+    it("treats an in-base path missing from the vault index as external", () => {
+      expect(
+        resolvePickedFile(
+          makeApp({ vaultFiles: {} }),
+          fileWithPath("/vault/ghost.txt", "ghost.txt"),
+        ),
+      ).toEqual({
+        kind: "external",
+        absPath: "/vault/ghost.txt",
+        filename: "ghost.txt",
+        size: "123",
+      });
+    });
+
+    it("returns null when the picker hides the path", () => {
+      expect(resolvePickedFile(makeApp(), new File(["x"], "a.txt"))).toBeNull();
     });
   });
 });

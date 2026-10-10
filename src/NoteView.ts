@@ -22,10 +22,11 @@ import { FileChangedModal } from "./ui/FileChangedModal";
 import { NOTE_ICON_NAME } from "./components/icons/iconSprite";
 import { BUILD_TAG, TAG_VERSION } from "./tags";
 import { getDesiredFileName } from "./storage/fileNaming";
+import { deleteAttachmentFile } from "./storage/attachments";
 import {
-  saveAttachmentFile,
-  deleteAttachmentFile,
-} from "./storage/attachments";
+  attachSelectedFile,
+  openAttachmentFile,
+} from "./tools/attachment";
 import { getExtensions, type ExtensionHooks } from "./texto/getExtensions";
 import {
   createFoldPersistence,
@@ -1322,48 +1323,11 @@ export class NoteView extends FileView {
           imageOnSetViewProps(props, update, ctx),
       },
       attachment: {
-        onFileSelected: async (file, update) => {
-          if (!file) return;
-          update({
-            state: {
-              fileStatus: "loading",
-              text: "Loading…",
-              subtext: "",
-              preparedData: undefined,
-            },
-            data: undefined,
-          });
-          try {
-            const saved = await saveAttachmentFile(app, noteFile, file);
-            update({
-              state: {
-                fileStatus: "attached",
-                src: saved.src,
-                text: saved.filename,
-                subtext: "",
-                preparedData: undefined,
-              },
-              data: {
-                id: saved.id,
-                size: saved.size,
-                filename: saved.filename,
-              },
-            });
-          } catch (err) {
-            update({
-              state: {
-                fileStatus: "none",
-                text: String(err),
-                preparedData: undefined,
-              },
-            });
-          }
+        onFileSelected: (file, update, cancel) => {
+          void attachSelectedFile(app, noteFile, file, update, cancel);
         },
-        onDeleteFile: (attrs) => {
-          void deleteAttachmentFile(app, attrs.data?.id);
-        },
-        onRemove: (attrs) => {
-          void deleteAttachmentFile(app, attrs.data?.id);
+        onClick: (attrs) => {
+          openAttachmentFile(app, attrs.data);
         },
       },
     };
