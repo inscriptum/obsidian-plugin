@@ -144,6 +144,13 @@ describe("attachments", () => {
       expect(relativeToVault("/vault", "/docs/a.pdf")).toBeNull();
       expect(relativeToVault("/vault", "/vault")).toBeNull();
     });
+
+    it("matches NFD picked paths against an NFC vault root", () => {
+      // "ё" — NFC U+0451 vs NFD е + U+0308; macOS pickers are inconsistent
+      const nfdPath = "/vault/е\u0308-файл.txt".normalize("NFD");
+      expect(nfdPath).not.toBe(nfdPath.normalize("NFC"));
+      expect(relativeToVault("/vault", nfdPath)).toBe("ё-файл.txt");
+    });
   });
 
   describe("resolvePickedFile", () => {
@@ -156,6 +163,38 @@ describe("attachments", () => {
         filename: "a.txt",
         size: "123",
       });
+    });
+
+    it("resolves an NFD picked path to the index's NFC id", () => {
+      const nfcRel = "docs/ё-файл.txt";
+      const nfdRel = nfcRel.normalize("NFD");
+      expect(nfdRel).not.toBe(nfcRel);
+      // the index knows the file only under its NFC form; the exact and
+      // NFD lookups miss
+      const app = makeApp({ vaultFiles: { [nfcRel]: { path: nfcRel } } });
+      expect(
+        resolvePickedFile(app, fileWithPath(`/vault/${nfdRel}`, "ё-файл.txt")),
+      ).toEqual({
+        kind: "internal",
+        id: nfcRel,
+        src: `app://x/${nfcRel}`,
+        filename: "ё-файл.txt",
+        size: "123",
+      });
+    });
+
+    it("falls back to a normalized index scan when both direct forms miss", () => {
+      const nfcRel = "docs/ё-файл.txt";
+      const nfdRel = nfcRel.normalize("NFD");
+      // getAbstractFileByPath understands nothing; only the file list matches
+      const app = makeApp({ vaultFiles: { [nfcRel]: { path: nfcRel } } });
+      (app.vault.getAbstractFileByPath as ReturnType<typeof vi.fn>) =
+        vi.fn(() => null);
+      (app.vault as { getFiles?: unknown }).getFiles = () =>
+        [{ path: nfcRel }];
+      expect(
+        resolvePickedFile(app, fileWithPath(`/vault/${nfdRel}`, "ё-файл.txt")),
+      ).toMatchObject({ kind: "internal", id: nfcRel });
     });
 
     it("classifies a file outside the vault as external", () => {

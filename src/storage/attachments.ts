@@ -154,8 +154,15 @@ export function relativeToVault(
   basePath: string,
   absPath: string,
 ): string | null {
+  // macOS pickers are not consistent about Unicode form (NFD vs NFC) —
+  // "ё" in "Ещё" is one code point in NFC and two in NFD. Normalize both
+  // sides before comparing, or such names never match the vault root.
   const norm = (p: string) =>
-    p.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
+    p
+      .normalize("NFC")
+      .replace(/\\/g, "/")
+      .replace(/\/+/g, "/")
+      .replace(/\/$/, "");
   const base = norm(basePath);
   const full = norm(absPath);
   // Prefix compare is case-insensitive: Windows paths are case-insensitive
@@ -163,6 +170,30 @@ export function relativeToVault(
   // a false "inside" is guarded by the vault index check in resolvePickedFile.
   if (!full.toLowerCase().startsWith(`${base.toLowerCase()}/`)) return null;
   return full.slice(base.length + 1);
+}
+
+/**
+ * Vault id for a vault-relative picked path, tolerant to Unicode-form
+ * mismatches between what the OS picker handed us and the vault index:
+ * exact hit first, then the NFC/NFD forms, then a normalized scan over the
+ * index — the returned id is always in the index's own form, so every later
+ * getAbstractFileByPath/getResourcePath lookup works.
+ */
+function resolveVaultId(app: App, relPath: string): string | null {
+  if (app.vault.getAbstractFileByPath(relPath)) return relPath;
+  for (const form of new Set([relPath.normalize("NFC"), relPath.normalize("NFD")])) {
+    if (form !== relPath && app.vault.getAbstractFileByPath(form)) return form;
+  }
+  const target = relPath.normalize("NFC").toLowerCase();
+  let found: string | null = null;
+  (app.vault.getFiles?.() ?? []).some((f) => {
+    if (f.path.normalize("NFC").toLowerCase() === target) {
+      found = f.path;
+      return true;
+    }
+    return false;
+  });
+  return found;
 }
 
 /**
@@ -182,11 +213,12 @@ export function resolvePickedFile(
   const size = String(file.size);
   const basePath = getVaultBasePath(app);
   const relPath = basePath ? relativeToVault(basePath, absPath) : null;
-  if (relPath && app.vault.getAbstractFileByPath(relPath)) {
+  const id = relPath ? resolveVaultId(app, relPath) : null;
+  if (id) {
     return {
       kind: "internal",
-      id: relPath,
-      src: app.vault.adapter.getResourcePath(relPath),
+      id,
+      src: app.vault.adapter.getResourcePath(id),
       filename,
       size,
     };
