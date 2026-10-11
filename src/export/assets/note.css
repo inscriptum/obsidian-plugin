@@ -182,3 +182,22 @@ article figure[data-align="wrap-right"] {
   width: 50%;
   margin: 4px 0 8px 16px;
 }
+
+/* 5. Mermaid diagrams are exported as <img src="images/diagram-N.svg">
+      (not inline SVG): the img keeps the SVG's natural size instead of
+      the raster-figure 320px block, and data-align centers / right-aligns
+      / full-bleeds it like any image figure. */
+
+article figure.mermaid-figure img {
+  width: auto;
+  max-width: 100%;
+  height: auto;
+}
+
+article figure.mermaid-figure[data-align="center"] img {
+  margin-inline: auto;
+}
+
+article figure.mermaid-figure[data-align="right"] img {
+  margin-left: auto;
+}

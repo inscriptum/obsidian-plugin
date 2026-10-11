@@ -9,6 +9,7 @@ import { taskFoldingKey } from "../texto/extensions/task-item-folding/taskFoldin
 import { NotepadView } from "../NotepadView";
 import { installIconSprite } from "../components/icons/iconSprite";
 import { UmNotepad } from "../storage/um/umNotepad";
+import { exportNotepadAsWebsite } from "../export/exportNotepadWebsite";
 import type { UmContainerData, UmNoteDescriptor } from "../storage/um/umTypes";
 import type { WorkspaceLeaf } from "obsidian";
 import {
@@ -477,3 +478,138 @@ g.__e2eNotepad = {
     return out;
   },
 };
+
+// ── Export E2E API (window.__e2eExport) ──────────────────────────────────
+// Runs the real notepad export pipeline (asset resolver → generateHTML →
+// postProcess → page template → adapter writes) in this browser — the only
+// place where the mermaid engine actually compiles a diagram (jsdom unit
+// tests stub the render callback). Files captured by the fake adapter come
+// back keyed by vault path, base64 (text is utf-8 encoded first, so the
+// payload stays JSON-safe).
+
+interface ExportUmWebsiteSpec {
+  title: string;
+  summary?: string;
+  /** Page bodies after the title page (schema plain). */
+  pages: JSONContent[];
+  /** Packed assets; image nodes reference them by `asset:<index>` in
+   *  attrs.data.id — rewritten to the generated ULIDs before export. */
+  assets?: Array<{ bytesB64: string; filename: string; mime?: string }>;
+}
+
+function b64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+function toB64(data: string | ArrayBuffer): string {
+  const bytes =
+    typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 1) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+/** Rewrites `asset:<index>` references onto the real generated asset ids. */
+function remapAssetRefs(node: JSONContent, assetIds: string[]): JSONContent {
+  const next: JSONContent = { ...node };
+  const data = node.attrs?.data as { id?: unknown } | undefined;
+  if (typeof data?.id === "string" && data.id.startsWith("asset:")) {
+    next.attrs = {
+      ...node.attrs,
+      data: { ...data, id: assetIds[Number(data.id.slice(6))] },
+    };
+  }
+  if (Array.isArray(node.content)) {
+    next.content = node.content.map((child) => remapAssetRefs(child, assetIds));
+  }
+  return next;
+}
+
+async function exportUmWebsite(spec: ExportUmWebsiteSpec): Promise<{
+  folder: string;
+  result: {
+    missingImages: string[];
+    removedAttachments: number;
+    droppedDiagrams: number;
+    skippedPages: number;
+  };
+  files: Record<string, string>;
+}> {
+  const notepad = UmNotepad.empty();
+  const titleDescriptor = notepad.addNote(undefined, spec.title);
+  notepad.setNoteContent(titleDescriptor.id, {
+    type: "noteDoc",
+    content: [
+      { type: "noteTitle", content: [{ type: "text", text: spec.title }] },
+      {
+        type: "noteSummary",
+        content: spec.summary ? [{ type: "text", text: spec.summary }] : [],
+      },
+      { type: "paragraph" },
+    ],
+  });
+
+  const assetIds: string[] = [];
+  for (const asset of spec.assets ?? []) {
+    const descriptor = notepad.addAsset(
+      b64ToBytes(asset.bytesB64),
+      asset.filename,
+      asset.mime,
+    );
+    assetIds.push(descriptor.id);
+  }
+
+  let prevId = titleDescriptor.id;
+  spec.pages.forEach((body, index) => {
+    const descriptor = notepad.addNote(prevId, `Page ${index + 1}`);
+    notepad.setNoteContent(descriptor.id, remapAssetRefs(body, assetIds));
+    prevId = descriptor.id;
+  });
+
+  const files = new Map<string, string | ArrayBuffer>();
+  const app = {
+    vault: {
+      createFolder: async () => {},
+      adapter: {
+        write: async (path: string, data: string) => {
+          files.set(path, data);
+        },
+        writeBinary: async (path: string, data: ArrayBuffer) => {
+          files.set(path, data);
+        },
+      },
+    },
+  };
+  const file = {
+    path: "e2e/export-target.um",
+    name: "export-target.um",
+    basename: "export-target",
+    stat: { ctime: 1700000000000, mtime: 1700000001000, size: 1 },
+  };
+  const result = await exportNotepadAsWebsite(
+    app as never,
+    file as never,
+    notepad,
+    "export",
+  );
+
+  const outFiles: Record<string, string> = {};
+  for (const [filePath, data] of files) {
+    outFiles[filePath] = toB64(data);
+  }
+  return {
+    folder: result.folder,
+    result: {
+      missingImages: result.missingImages,
+      removedAttachments: result.removedAttachments,
+      droppedDiagrams: result.droppedDiagrams,
+      skippedPages: result.skippedPages,
+    },
+    files: outFiles,
+  };
+}
+
+g.__e2eExport = { exportUmWebsite };

@@ -108,3 +108,11 @@ export abstract class ItemView {
   abstract onOpen(): Promise<void>;
   abstract onClose(): Promise<void>;
 }
+
+/** Normalizes a vault path: backslashes → slashes, collapses duplicates,
+ *  trims slashes (mirrors the real helper closely enough for tests). */
+export function normalizePath(path: string): string {
+  let cleaned = path.replace(/([\\/])+/g, "/").replace(/(^\/+|\/+$)/g, "");
+  if (cleaned === "/" || cleaned === "") cleaned = "/";
+  return cleaned;
+}

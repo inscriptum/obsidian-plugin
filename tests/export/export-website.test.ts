@@ -119,6 +119,35 @@ describe("extractPreview", () => {
     expect(description.endsWith("…")).toBe(true);
   });
 
+  it("prefers the noteSummary block (notepad title pages) for the description", () => {
+    const doc = {
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "Title" }] },
+        {
+          type: "noteSummary",
+          content: [{ type: "text", text: "Summary line" }],
+        },
+        { type: "paragraph", content: [{ type: "text", text: "First paragraph" }] },
+      ],
+    };
+
+    expect(extractPreview(doc).description).toBe("Summary line");
+  });
+
+  it("falls through an empty summary to the first paragraph", () => {
+    const doc = {
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle" },
+        { type: "noteSummary" },
+        { type: "paragraph", content: [{ type: "text", text: "First paragraph" }] },
+      ],
+    };
+
+    expect(extractPreview(doc).description).toBe("First paragraph");
+  });
+
   it("finds the first image node id", () => {
     const doc = {
       type: "noteDoc",
@@ -197,6 +226,7 @@ describe("postProcessForExport", () => {
       missing: [],
       removedAttachments: 0,
       droppedDiagrams: 0,
+      diagrams: [],
     });
   });
 });
@@ -238,7 +268,7 @@ describe("postProcessForExport: code blocks and checkboxes", () => {
       previewImageSrc: null,
       created: "2026-01-01T00:00:00.000Z",
       modified: "2026-01-01T00:00:00.000Z",
-      contentHtml: "",
+      sections: [""],
     });
 
     expect(html).toContain("hljs-codeblock__btn--copy");
@@ -253,11 +283,16 @@ describe("postProcessForExport: mermaid diagrams", () => {
   const SVG =
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path d="M0 0"/></svg>';
 
-  it("compiles diagrams to static figures via the render callback", async () => {
+  it("compiles diagrams to an SVG file referenced by <img>", async () => {
     const result = await postProcessForExport(MERMAID_HTML, () => null, async () => SVG);
-    expect(result.html).toContain('<figure class="mermaid-figure"');
-    expect(result.html).toContain("<svg");
     expect(result.droppedDiagrams).toBe(0);
+    expect(result.diagrams).toEqual([
+      { name: "diagram-1.svg", svg: expect.stringContaining("<svg") },
+    ]);
+    expect(result.html).toContain('<figure class="mermaid-figure">');
+    expect(result.html).toContain('src="images/diagram-1.svg"');
+    // no inline SVG markup on the page
+    expect(result.html).not.toContain("<svg");
   });
 
   it("carries data-align onto the exported figure", async () => {
@@ -267,9 +302,26 @@ describe("postProcessForExport: mermaid diagrams", () => {
     expect(result.html).toContain('figure class="mermaid-figure" data-align="center"');
   });
 
+  it("numbers diagrams through the caller's allocator (notepad-wide order)", async () => {
+    const two = `${MERMAID_HTML}${MERMAID_HTML}`;
+    const result = await postProcessForExport(
+      two,
+      () => null,
+      async () => SVG,
+      (seq) => `diagram-${seq + 10}.svg`,
+    );
+    expect(result.diagrams.map((d) => d.name)).toEqual([
+      "diagram-11.svg",
+      "diagram-12.svg",
+    ]);
+    expect(result.html).toContain('src="images/diagram-11.svg"');
+    expect(result.html).toContain('src="images/diagram-12.svg"');
+  });
+
   it("drops diagrams when rendering fails, markup is bad, or no callback", async () => {
     const failed = await postProcessForExport(MERMAID_HTML, () => null, async () => null);
     expect(failed.droppedDiagrams).toBe(1);
+    expect(failed.diagrams).toEqual([]);
     expect(failed.html).not.toContain("texto-extension-mermaid");
 
     const badMarkup = await postProcessForExport(MERMAID_HTML, () => null, async () => "<div>not svg</div>");
@@ -288,7 +340,7 @@ describe("buildPageHtml", () => {
       previewImageSrc: "images/cover.png",
       created: "2026-01-01T00:00:00.000Z",
       modified: "2026-01-02T00:00:00.000Z",
-      contentHtml: "<p>hello</p>",
+      sections: ["<p>hello</p>"],
     });
 
     expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
@@ -315,11 +367,27 @@ describe("buildPageHtml", () => {
       previewImageSrc: null,
       created: "2026-01-01T00:00:00.000Z",
       modified: "2026-01-01T00:00:00.000Z",
-      contentHtml: "",
+      sections: [""],
     });
 
     expect(html).not.toContain("og:image");
     expect(html).not.toContain("twitter:image");
+  });
+
+  it("wraps every section as its own <section> in order", () => {
+    const html = buildPageHtml({
+      title: "t",
+      description: "",
+      previewImageSrc: null,
+      created: "2026-01-01T00:00:00.000Z",
+      modified: "2026-01-01T00:00:00.000Z",
+      sections: ["<p>one</p>", "<p>two</p>"],
+    });
+
+    expect(
+      html.match(/<section>/g)?.length,
+    ).toBe(2);
+    expect(html.indexOf("<p>one</p>")).toBeLessThan(html.indexOf("<p>two</p>"));
   });
 });
 

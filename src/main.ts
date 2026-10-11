@@ -24,6 +24,7 @@ import {
 } from "./tools/isPressedCommand";
 import type { JSONContent } from "./texto/core/@types";
 import { exportNoteAsWebsite } from "./export/exportWebsite";
+import { exportNotepadAsWebsite } from "./export/exportNotepadWebsite";
 
 interface InscriptumSettings {
   /** Append one JSONL line per note save to .inscriptum-write-log.jsonl
@@ -99,6 +100,12 @@ export default class NotesPlugin extends Plugin {
       NoteView.onExportRequested = null;
     });
 
+    NotepadView.onExportRequested = (view) =>
+      void this.exportNotepadAsWebsite(view);
+    this.register(() => {
+      NotepadView.onExportRequested = null;
+    });
+
     this.addRibbonIcon(NOTE_ICON_NAME, "New inscriptum", () => {
       this.createNewNote();
     });
@@ -139,6 +146,18 @@ export default class NotesPlugin extends Plugin {
         const view = this.app.workspace.getActiveViewOfType(NoteView);
         if (!view) return false;
         if (!checking) void this.exportNoteAsWebsite(view);
+        return true;
+      },
+    });
+
+    this.addCommand({
+      id: "export-notepad-as-website",
+      name: "Export current notepad as website",
+      icon: "globe",
+      checkCallback: (checking) => {
+        const view = this.app.workspace.getActiveViewOfType(NotepadView);
+        if (!view) return false;
+        if (!checking) void this.exportNotepadAsWebsite(view);
         return true;
       },
     });
@@ -349,6 +368,34 @@ export default class NotesPlugin extends Plugin {
         `Export failed: ${err instanceof Error ? err.message : String(err)}`,
       );
       console.error("Website export failed:", err);
+    }
+  }
+
+  /** "Export as website" for a notepad: every page flows into one static
+   *  page (index.html + note.css + images), meta from the title page. */
+  private async exportNotepadAsWebsite(view: NotepadView): Promise<void> {
+    const file = view.file;
+    if (!file) return;
+
+    const notepad = view.getNotepadForExport();
+    if (notepad == null) {
+      new Notice("Nothing to export: the notepad could not be read.");
+      return;
+    }
+
+    try {
+      const result = await exportNotepadAsWebsite(
+        this.app,
+        file,
+        notepad,
+        this.settings.exportFolder,
+      );
+      new Notice(`Exported to ${result.folder}`);
+    } catch (err) {
+      new Notice(
+        `Export failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      console.error("Notepad website export failed:", err);
     }
   }
 

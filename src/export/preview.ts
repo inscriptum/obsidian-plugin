@@ -42,8 +42,8 @@ function findFirstNode(node: JSONContent, type: string): JSONContent | null {
 /**
  * Builds the preview metadata for the export page:
  *  - title from the noteTitle node;
- *  - description from the first paragraph (the blog used a dedicated
- *    summary block, the plugin has none);
+ *  - description from the noteSummary block when the document has one
+ *    (notepad title pages, spec 9.1), else the first paragraph;
  *  - preview image from the first image node.
  */
 export function extractPreview(doc: JSONContent): NotePreview {
@@ -52,7 +52,7 @@ export function extractPreview(doc: JSONContent): NotePreview {
   let description = "";
   for (const node of doc.content ?? []) {
     if (node.type === "noteTitle") continue;
-    if (node.type === "paragraph") {
+    if (node.type === "noteSummary" || node.type === "paragraph") {
       description = plainText(node).trim();
       if (description) break;
     }

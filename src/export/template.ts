@@ -3,7 +3,7 @@
  *
  * Ported from the inscriptum blog's publish template
  * (blog/src/components/draft/draft.service.ts, publishDraft): same body
- * structure (`article > section`) and meta set so an exported page can be
+ * structure (`article > section+`) and meta set so an exported page can be
  * dropped into that blog unchanged. Differences: the stylesheet is a local
  * relative `note.css` with fonts embedded (no inline style, no site
  * absolute paths) and there is no page script.
@@ -18,8 +18,9 @@ export interface ExportPageMeta {
   /** ISO timestamps (file birthtime / mtime). */
   created: string;
   modified: string;
-  /** Serialized article content, wrapped in its `<section>`. */
-  contentHtml: string;
+  /** Serialized article content, one `<section>` per entry — a flat note
+   *  has a single section, a notepad one per page in manifest order. */
+  sections: string[];
 }
 
 /**
@@ -67,6 +68,9 @@ export function buildPageHtml(meta: ExportPageMeta): string {
     ? `\n        <meta property="og:image" content="${meta.previewImageSrc}">
         <meta name="twitter:image" content="${meta.previewImageSrc}">`
     : "";
+  const sections = meta.sections
+    .map((html) => `      <section>\n        ${html}\n      </section>`)
+    .join("\n");
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -87,9 +91,7 @@ export function buildPageHtml(meta: ExportPageMeta): string {
   </head>
   <body>
     <article>
-      <section>
-        ${meta.contentHtml}
-      </section>
+${sections}
     </article>
     <script>${COPY_SCRIPT}</script>
   </body>

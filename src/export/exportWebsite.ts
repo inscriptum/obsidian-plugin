@@ -135,7 +135,7 @@ export async function exportNoteAsWebsite(
     previewImageSrc: previewName != null ? `images/${previewName}` : null,
     created: new Date(file.stat.ctime).toISOString(),
     modified: new Date(file.stat.mtime).toISOString(),
-    contentHtml: mapped.html,
+    sections: [mapped.html],
   });
 
   const folder = normalizePath(`${exportFolder}/${slug}`);
@@ -143,7 +143,7 @@ export async function exportNoteAsWebsite(
   await app.vault.adapter.write(`${folder}/index.html`, pageHtml);
   await app.vault.adapter.write(`${folder}/note.css`, noteCss);
 
-  if (mapped.images.length > 0) {
+  if (mapped.images.length > 0 || mapped.diagrams.length > 0) {
     const imagesFolder = `${folder}/images`;
     await ensureFolder(app, imagesFolder);
     for (const vaultPath of mapped.images) {
@@ -151,6 +151,12 @@ export async function exportNoteAsWebsite(
       if (name == null) continue;
       const data = await app.vault.adapter.readBinary(vaultPath);
       await app.vault.adapter.writeBinary(`${imagesFolder}/${name}`, data);
+    }
+    for (const diagram of mapped.diagrams) {
+      await app.vault.adapter.write(
+        `${imagesFolder}/${diagram.name}`,
+        diagram.svg,
+      );
     }
   }
 

@@ -1,5 +1,5 @@
 import type { Extensions } from "../texto/core/@types";
-import { NoteDoc } from "../texto/extensions/note-doc";
+import { NoteDoc, NoteSummary } from "../texto/extensions/note-doc";
 import { Link } from "../texto/extensions/link";
 import { Image } from "../texto/extensions/image";
 import { Attachment } from "../texto/extensions/attachment";
@@ -36,6 +36,17 @@ import { Underline } from "../texto/extensions/underline";
 import { Color } from "../texto/extensions/color";
 
 /**
+ * The export top node: one schema for both document families. The editor
+ * swaps its top node per profile (NoteDoc / TitleDoc / PlainDoc all share
+ * the "noteDoc" name); the export serializes every shape through this
+ * permissive one — .note (mandatory title), .um title pages (title +
+ * summary header) and .um plain pages (content only).
+ */
+const ExportDoc = NoteDoc.extend({
+  content: "noteTitle? noteSummary? (block | attachment | image)+",
+});
+
+/**
  * The schema subset used to serialize a stored note to HTML for export.
  *
  * Everything editing-only is left out (State, Cleanup, ListKeymap, History,
@@ -49,7 +60,8 @@ import { Color } from "../texto/extensions/color";
  */
 export function getExportExtensions(): Extensions {
   return [
-    NoteDoc,
+    ExportDoc,
+    NoteSummary,
     Link,
     Image,
     Attachment,
