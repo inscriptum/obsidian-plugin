@@ -132,8 +132,8 @@ describe("attachments", () => {
       );
     });
 
-    it("is case-insensitive on the base prefix", () => {
-      expect(relativeToVault("/Vault", "/vault/docs/a.pdf")).toBe("docs/a.pdf");
+    it("prefix compare is case-sensitive — a case-different root is outside", () => {
+      expect(relativeToVault("/Vault", "/vault/docs/a.pdf")).toBeNull();
     });
 
     it("rejects sibling folders with a shared prefix", () => {
@@ -195,6 +195,21 @@ describe("attachments", () => {
       expect(
         resolvePickedFile(app, fileWithPath(`/vault/${nfdRel}`, "ё-файл.txt")),
       ).toMatchObject({ kind: "internal", id: nfcRel });
+    });
+
+    it("does not silently relink a case-different outside path (case-sensitive FS)", () => {
+      // vault at /data/Vault holding "Report.pdf"; the user picked a file
+      // from /data/vault/ — a different directory there, and the vault
+      // index case-insensitively "matches" Report.pdf. Must stay external.
+      const app = makeApp({ vaultFiles: { "docs/Report.pdf": {} }, basePath: "/data/Vault" });
+      expect(
+        resolvePickedFile(app, fileWithPath("/data/vault/Report.pdf", "Report.pdf")),
+      ).toEqual({
+        kind: "external",
+        absPath: "/data/vault/Report.pdf",
+        filename: "Report.pdf",
+        size: "123",
+      });
     });
 
     it("classifies a file outside the vault as external", () => {

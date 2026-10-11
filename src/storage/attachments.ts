@@ -165,10 +165,12 @@ export function relativeToVault(
       .replace(/\/$/, "");
   const base = norm(basePath);
   const full = norm(absPath);
-  // Prefix compare is case-insensitive: Windows paths are case-insensitive
-  // and macOS vaults usually are; a false "outside" only loses the shortcut,
-  // a false "inside" is guarded by the vault index check in resolvePickedFile.
-  if (!full.toLowerCase().startsWith(`${base.toLowerCase()}/`)) return null;
+  // Case-SENSITIVE prefix compare: on a case-sensitive filesystem (Linux,
+  // Android) "/data/vault/x" and "/data/Vault/x" are different directories —
+  // a case-insensitive match here could classify an outside file as
+  // in-vault and silently link a different file. NFC normalization only
+  // unifies encoding form, never identity.
+  if (!full.startsWith(`${base}/`)) return null;
   return full.slice(base.length + 1);
 }
 
@@ -184,10 +186,12 @@ function resolveVaultId(app: App, relPath: string): string | null {
   for (const form of new Set([relPath.normalize("NFC"), relPath.normalize("NFD")])) {
     if (form !== relPath && app.vault.getAbstractFileByPath(form)) return form;
   }
-  const target = relPath.normalize("NFC").toLowerCase();
+  const target = relPath.normalize("NFC");
   let found: string | null = null;
   (app.vault.getFiles?.() ?? []).some((f) => {
-    if (f.path.normalize("NFC").toLowerCase() === target) {
+    // Case-sensitive: see relativeToVault — a case-insensitive scan could
+    // resolve a link to a different file's id.
+    if (f.path.normalize("NFC") === target) {
       found = f.path;
       return true;
     }
