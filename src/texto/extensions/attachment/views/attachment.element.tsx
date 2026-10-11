@@ -4,13 +4,11 @@ import { litView } from "@web-companions/lit";
 import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 
 import type { AttachmentOptions, AttachmentViewNodeState } from "../attachment";
-import { fileDeleteIconNode } from "./fileDeleteIcon.node";
 import { iconNode } from "../../../common/icon.svgnode";
 import { placeholderIconNode } from "./placeholderIcon.node";
 
 const PlaceholderIconNode = placeholderIconNode();
 const IconNode = iconNode();
-const FileDeleteIconNode = fileDeleteIconNode();
 
 export const attachmentElement = litView.element({
   props: {
@@ -18,8 +16,6 @@ export const attachmentElement = litView.element({
     state: p.req<AttachmentViewNodeState>(),
     onFileSelected: p.req<(selectedFile: File | null) => void>(),
     onClick: p.req<(event: MouseEvent) => void>(),
-    onRemove: p.req<(event: MouseEvent) => void>(),
-    onDeleteFile: p.req<(event: MouseEvent) => void>(),
   },
 })(function* (params) {
   const inputFileRef: Ref<HTMLInputElement> = createRef();
@@ -71,13 +67,6 @@ export const attachmentElement = litView.element({
               <span class="text">{params.state.text}</span>
               <span class="text">{params.state.subtext}</span>
             </div>
-            <button
-              class="delete-btn"
-              onclick={params.onDeleteFile}
-              data-test-id="attach-delete"
-            >
-              <FileDeleteIconNode />
-            </button>
           </div>
         );
       default:
@@ -91,13 +80,6 @@ export const attachmentElement = litView.element({
               <PlaceholderIconNode />
             </div>
             <span class="text">{params.state.text}</span>
-            <button
-              class="delete-btn"
-              onclick={params.onRemove}
-              data-test-id="attach-delete"
-            >
-              <FileDeleteIconNode />
-            </button>
           </div>
         );
     }

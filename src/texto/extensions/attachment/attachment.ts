@@ -23,13 +23,13 @@ export interface AttachmentOptionsHooks {
   onFileSelected?: (
     selectedFile: File | null,
     update: (attrs: Omit<AttachmentOptions["attributes"], "key">) => void,
+    /** Restore the attrs as they were when the picker opened (dismiss path). */
+    cancel: () => void,
   ) => void | Promise<void>;
-  onDeleteFile?: (attrs: AttachmentOptions["attributes"]) => void;
-  onRemove?: (attrs: AttachmentOptions["attributes"]) => void;
   onClick?: (attrs: AttachmentOptions["attributes"]) => void;
 }
 
-type HTMLAttributes = "id" | "size" | "filename";
+type HTMLAttributes = "id" | "size" | "filename" | "mode";
 
 export type AttachmentOptionsAttrs = {
   key: string;
@@ -88,11 +88,15 @@ export const Attachment = Node.create<AttachmentOptions>({
           id: element.dataset["id"], // 'data-id' is a main property, if it's undefined the attributes consider as invalid
           size: element.dataset["size"],
           filename: element.dataset["filename"],
+          // "external" — data.id is an absolute path outside the vault;
+          // absent — data.id is a vault-relative path (all existing notes).
+          mode: element.dataset["mode"],
         }),
         renderHTML: (attributes: AttachmentOptions["attributes"]) => ({
           [`data-id`]: attributes.data?.id,
           [`data-size`]: attributes.data?.size,
           [`data-filename`]: attributes.data?.filename,
+          [`data-mode`]: attributes.data?.mode,
         }),
       },
     };

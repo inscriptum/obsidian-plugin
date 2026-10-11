@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Attached files are now links, not silent copies. A file that already lives in the vault is attached as a link to it — no duplicate appears next to the note. A file from outside the vault (desktop) asks once: keep a portable copy next to the note, or link the original where it is (with an honest warning that such a link won't survive moving or syncing the file). On phones the copy is made without questions. Removing an attachment from a note never deletes the file itself.
+
 ### Added
 
 - Mermaid diagrams: a "Diagram" button in the toolbar inserts a diagram block that renders as an SVG image in the current theme (and re-renders on light/dark switch). Selecting a diagram opens the media menu with alignment and wrap controls, "Edit diagram" and "Delete". "Edit diagram" opens an inline source editor styled like code blocks (line numbers included) — typing shows live syntax errors, "Save" (or Ctrl/Cmd+Enter) compiles the diagram, "Cancel" (or Esc) discards the draft; the editor stays open until an explicit Save or Cancel, wherever the focus is. Deleting a diagram is undoable. The diagram source is saved with the note and survives reopen, copy/paste and website export; a published page embeds the compiled SVG with its alignment. Diagrams render only when they scroll into view, so large notes open fast.

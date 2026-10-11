@@ -94,7 +94,7 @@ export const MediaBubbleMenuElement = litView.element({
     if (sel) openMediaFile(props.app, sel.node);
   };
   const doReplace = () => replaceMediaFile(props.editor);
-  const doDelete = () => removeMediaNode(props.editor, props.app);
+  const doDelete = () => removeMediaNode(props.editor);
   const doSetLayout = (align: string) => {
     if (state.nodeType === "mermaid") setMermaidNodeLayout(props.editor, align);
     else setImageNodeLayout(props.editor, align as ImageLayout);

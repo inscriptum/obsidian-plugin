@@ -1,4 +1,5 @@
 import type { App, TFile } from "obsidian";
+import { Platform } from "obsidian";
 import { sanitizeFileName } from "./fileNaming";
 
 export interface SavedFile {
@@ -94,4 +95,137 @@ export async function deleteAttachmentFile(
     // respect user's deletion preference (system trash / Obsidian trash / permanent)
     await app.fileManager.trashFile(file);
   }
+}
+
+/** A picked file classified against the vault (see resolvePickedFile). */
+export type ResolvedPickedFile =
+  | {
+      /** Already inside the vault — attach as an internal link (no copy). */
+      kind: "internal";
+      id: string;
+      src: string;
+      filename: string;
+      size: string;
+    }
+  | {
+      /** Outside the vault — desktop offers copy vs external absolute path. */
+      kind: "external";
+      absPath: string;
+      filename: string;
+      size: string;
+    };
+
+/** Absolute path of a picked file, or null when the platform hides it. */
+export function getPickedFilePath(file: File): string | null {
+  const direct = (file as File & { path?: unknown }).path;
+  if (typeof direct === "string" && direct.length > 0) return direct;
+  // Electron ≥ 32 removed File.path — webUtils is the supported way.
+  const req = (window as { require?: (m: string) => unknown }).require;
+  if (Platform.isDesktop && typeof req === "function") {
+    try {
+      const webUtils = (
+        req("electron") as {
+          webUtils?: { getPathForFile?: (f: File) => string };
+        }
+      ).webUtils;
+      const path = webUtils?.getPathForFile?.(file);
+      if (typeof path === "string" && path.length > 0) return path;
+    } catch {
+      // no electron module in this renderer — fall through
+    }
+  }
+  return null;
+}
+
+/** Vault root as an absolute filesystem path, or null when unavailable. */
+export function getVaultBasePath(app: App): string | null {
+  const adapter = app.vault.adapter as { getBasePath?: () => string };
+  if (typeof adapter.getBasePath !== "function") return null;
+  try {
+    const base = adapter.getBasePath();
+    return base.length > 0 ? base : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Vault-relative part of an absolute path, or null when it lies outside the vault root. */
+export function relativeToVault(
+  basePath: string,
+  absPath: string,
+): string | null {
+  // macOS pickers are not consistent about Unicode form (NFD vs NFC) —
+  // "ё" in "Ещё" is one code point in NFC and two in NFD. Normalize both
+  // sides before comparing, or such names never match the vault root.
+  const norm = (p: string) =>
+    p
+      .normalize("NFC")
+      .replace(/\\/g, "/")
+      .replace(/\/+/g, "/")
+      .replace(/\/$/, "");
+  const base = norm(basePath);
+  const full = norm(absPath);
+  // Case-SENSITIVE prefix compare: on a case-sensitive filesystem (Linux,
+  // Android) "/data/vault/x" and "/data/Vault/x" are different directories —
+  // a case-insensitive match here could classify an outside file as
+  // in-vault and silently link a different file. NFC normalization only
+  // unifies encoding form, never identity.
+  if (!full.startsWith(`${base}/`)) return null;
+  return full.slice(base.length + 1);
+}
+
+/**
+ * Vault id for a vault-relative picked path, tolerant to Unicode-form
+ * mismatches between what the OS picker handed us and the vault index:
+ * exact hit first, then the NFC/NFD forms, then a normalized scan over the
+ * index — the returned id is always in the index's own form, so every later
+ * getAbstractFileByPath/getResourcePath lookup works.
+ */
+function resolveVaultId(app: App, relPath: string): string | null {
+  if (app.vault.getAbstractFileByPath(relPath)) return relPath;
+  for (const form of new Set([relPath.normalize("NFC"), relPath.normalize("NFD")])) {
+    if (form !== relPath && app.vault.getAbstractFileByPath(form)) return form;
+  }
+  const target = relPath.normalize("NFC");
+  let found: string | null = null;
+  (app.vault.getFiles?.() ?? []).some((f) => {
+    // Case-sensitive: see relativeToVault — a case-insensitive scan could
+    // resolve a link to a different file's id.
+    if (f.path.normalize("NFC") === target) {
+      found = f.path;
+      return true;
+    }
+    return false;
+  });
+  return found;
+}
+
+/**
+ * Classifies a picked file for the link-or-copy fork:
+ *  - already in the vault → internal link (id = vault-relative path), no copy;
+ *  - outside the vault → external absolute path;
+ *  - null — the absolute path is unavailable (mobile pickers): caller copies.
+ */
+export function resolvePickedFile(
+  app: App,
+  file: File,
+): ResolvedPickedFile | null {
+  const absPath = getPickedFilePath(file);
+  if (!absPath) return null;
+  const filename =
+    file.name || absPath.split(/[\\/]/).pop() || "attachment";
+  const size = String(file.size);
+  const basePath = getVaultBasePath(app);
+  const relPath = basePath ? relativeToVault(basePath, absPath) : null;
+  const id = relPath ? resolveVaultId(app, relPath) : null;
+  if (id) {
+    return {
+      kind: "internal",
+      id,
+      src: app.vault.adapter.getResourcePath(id),
+      filename,
+      size,
+    };
+  }
+  return { kind: "external", absPath, filename, size };
 }

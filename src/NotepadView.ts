@@ -37,9 +37,9 @@ import { UmError, UM_SCHEMA_TITLE } from "./storage/um/umTypes";
 import { FileChangedModal } from "./ui/FileChangedModal";
 import { ConfirmModal } from "./ui/ConfirmModal";
 import {
-  saveAttachmentFile,
-  deleteAttachmentFile,
-} from "./storage/attachments";
+  attachSelectedFile,
+  openAttachmentFile,
+} from "./tools/attachment";
 import {
   handleAddImgContainer,
   imageOnSetViewPropsContainer,
@@ -1544,10 +1544,9 @@ export class NotepadView extends FileView {
           handleAddImgContainer({ ...node.attrs, key }, editorRef, notepad);
         },
         onRemove: () => {
-          // Packed assets are garbage-collected at save time; external
-          // attachment files are removed via their explicit delete button
-          // (attachment.onDeleteFile), not on node removal — matching the
-          // plain-note policy of not touching files on undo/cut.
+          // Packed assets are garbage-collected at save time. Attachment
+          // nodes are links: removing a node (undo, cut, media menu) never
+          // touches the linked file — see the link-or-copy policy.
         },
       },
       image: {
@@ -1555,52 +1554,11 @@ export class NotepadView extends FileView {
           imageOnSetViewPropsContainer(props, update, ctx, notepad),
       },
       attachment: {
-        onFileSelected: async (file, update) => {
-          if (!file) return;
-          update({
-            state: {
-              fileStatus: "loading",
-              text: "Loading…",
-              subtext: "",
-              preparedData: undefined,
-            },
-            data: undefined,
-          });
-          try {
-            const saved = await saveAttachmentFile(
-              app,
-              this.file as TFile,
-              file,
-            );
-            update({
-              state: {
-                fileStatus: "attached",
-                src: saved.src,
-                text: saved.filename,
-                subtext: "",
-                preparedData: undefined,
-              },
-              data: {
-                id: saved.id,
-                size: saved.size,
-                filename: saved.filename,
-              },
-            });
-          } catch (err) {
-            update({
-              state: {
-                fileStatus: "none",
-                text: String(err),
-                preparedData: undefined,
-              },
-            });
-          }
+        onFileSelected: (file, update, cancel) => {
+          void attachSelectedFile(app, this.file as TFile, file, update, cancel);
         },
-        onDeleteFile: (attrs) => {
-          void deleteAttachmentFile(app, attrs.data?.id);
-        },
-        onRemove: (attrs) => {
-          void deleteAttachmentFile(app, attrs.data?.id);
+        onClick: (attrs) => {
+          openAttachmentFile(app, attrs.data);
         },
       },
     };
