@@ -1,4 +1,5 @@
 import { type Editor, isFunction } from "../../../core";
+import { NodeSelection } from "prosemirror-state";
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
 import {
@@ -8,6 +9,20 @@ import {
   keyToPos,
 } from "../attachment";
 import { createPositions } from "./createPositions";
+
+/**
+ * Per-element click gate state. A chip click must not open the file right
+ * away: the first click only selects (the media bubble menu follows), and a
+ * click on an ALREADY selected chip opens. The selection snapshot cannot be
+ * taken in the click handler — ProseMirror applies the mousedown selection
+ * before the click event fires — so a mousedown listener records the
+ * pre-selection state (our listener runs on the node view element, before
+ * ProseMirror's bubble-phase handler on the editor DOM).
+ */
+const clickGates = new WeakMap<
+  AttachmentElementType,
+  { wasSelected: boolean; read: (() => boolean) | null }
+>();
 
 /**
  * Set or update properties for AttachmentElement
@@ -48,6 +63,20 @@ export function setAttachmentViewProps(
   // Transactions in properties are running inside a callback function.
   // We don't know when their code will be run and which a node's position will be at that time.
   // So that, we will get the node's position by a unique key.
+  const existingGate = clickGates.get(element);
+  const gate = existingGate ?? { wasSelected: false, read: null };
+  if (!existingGate) {
+    clickGates.set(element, gate);
+    element.addEventListener("mousedown", () => {
+      gate.wasSelected = gate.read ? gate.read() : false;
+    });
+  }
+  gate.read = () => {
+    const pos = keyToPos.get(attrs.key)?.pos;
+    const sel = editor.state.selection;
+    return pos != null && sel instanceof NodeSelection && sel.from === pos;
+  };
+
   element.props = {
     options,
     state: prepareViewState(attrs, options),
@@ -102,7 +131,9 @@ export function setAttachmentViewProps(
       );
     },
     onClick: () => {
-      if (isFunction(options.hooks?.onClick)) {
+      // Open only on a click that found the chip already selected; a fresh
+      // click just selects the node and brings up the media bubble menu.
+      if (gate.wasSelected && isFunction(options.hooks?.onClick)) {
         options.hooks.onClick(attrs);
       }
     },
