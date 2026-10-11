@@ -60,6 +60,10 @@ export function setAttachmentViewProps(
   // Set init position
   keyToPos.set(attrs.key, createPositions(editor.state, startPos));
 
+  // Note: the chip has no delete button — removing an attachment goes
+  // through the media bubble menu's trash (removeMediaNode), which unlinks
+  // the node and never touches the linked file.
+
   // Transactions in properties are running inside a callback function.
   // We don't know when their code will be run and which a node's position will be at that time.
   // So that, we will get the node's position by a unique key.
@@ -80,45 +84,6 @@ export function setAttachmentViewProps(
   element.props = {
     options,
     state: prepareViewState(attrs, options),
-    onDeleteFile: (event: MouseEvent) => {
-      event.stopPropagation();
-      event.preventDefault();
-
-      if (isFunction(options.hooks?.onDeleteFile)) {
-        options.hooks.onDeleteFile(attrs);
-      }
-
-      const position = keyToPos.get(attrs.key);
-
-      if (position != null) {
-        editor.view.dispatch(
-          editor.view.state.tr //
-            .setNodeMarkup(position.pos, node.type, {})
-            .setMeta("addToHistory", false),
-        );
-      }
-    },
-    onRemove: (event: MouseEvent) => {
-      event.stopPropagation();
-      event.preventDefault();
-
-      if (isFunction(options.hooks?.onRemove)) {
-        options.hooks.onRemove(attrs);
-      }
-
-      const position = keyToPos.get(attrs.key);
-      if (position != null) {
-        // We want to keep keyToPos object only with existing Attachments.
-        // Delete information about nodes to be removed
-        keyToPos.delete(attrs.key);
-
-        editor.view.dispatch(
-          editor.view.state.tr //
-            .deleteRange(position.pos, position.pos + node.nodeSize)
-            .setMeta("addToHistory", false),
-        );
-      }
-    },
     onFileSelected: (selectedFile) => {
       onFileSelected(
         {

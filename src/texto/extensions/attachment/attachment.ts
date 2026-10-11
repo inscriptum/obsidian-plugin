@@ -26,8 +26,6 @@ export interface AttachmentOptionsHooks {
     /** Restore the attrs as they were when the picker opened (dismiss path). */
     cancel: () => void,
   ) => void | Promise<void>;
-  onDeleteFile?: (attrs: AttachmentOptions["attributes"]) => void;
-  onRemove?: (attrs: AttachmentOptions["attributes"]) => void;
   onClick?: (attrs: AttachmentOptions["attributes"]) => void;
 }
 
