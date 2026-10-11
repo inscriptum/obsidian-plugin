@@ -14,7 +14,10 @@ beforeAll(() => {
     this.classList.remove(cls);
   };
   // ProseMirror's mousedown handler resolves coordinates; jsdom has no layout
-  document.elementFromPoint ??= () => null;
+  const doc = document as unknown as {
+    elementFromPoint?: (x: number, y: number) => Element | null;
+  };
+  doc.elementFromPoint ??= () => null;
 });
 
 function contentWithAttachment(): Record<string, unknown> {
