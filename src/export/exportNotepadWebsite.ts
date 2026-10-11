@@ -16,10 +16,6 @@ import { titleToSlug } from "./slug";
 import { buildPageHtml } from "./template";
 import noteCss from "./assets/note.css?raw";
 
-/** The stylesheet written next to index.html (same file the .note export
- *  uses; re-exported so a caller needs only this module). */
-export { noteCss as EXPORT_NOTE_CSS };
-
 /**
  * Assigns export file names to container assets: same asset → same file,
  * different assets never collide (`image-<n>.<ext>`). Names are derived
@@ -170,8 +166,13 @@ export async function exportNotepadAsWebsite(
   }
 
   // Meta and preview from the title page (order 0): the summary line for
-  // the description, its first image for og:image.
-  const preview = titleDoc != null ? extractPreview(titleDoc) : null;
+  // the description, its first image for og:image. Only when the title
+  // page actually took part in the export — a document this editor cannot
+  // interpret must not contribute references (its images would never be
+  // written) or description text.
+  const titleOpenable = notepad.isNoteOpenable(titleDescriptor.id);
+  const preview =
+    titleOpenable && titleDoc != null ? extractPreview(titleDoc) : null;
   const previewName =
     preview?.previewImageId != null
       ? resolveTarget(preview.previewImageId)

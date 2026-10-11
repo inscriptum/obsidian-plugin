@@ -182,8 +182,8 @@ describe("exportNotepadAsWebsite", () => {
     expect(index).toContain('content="2023-11-14T22:13:20.000Z"');
     expect(index).toContain('content="2026-09-21T14:13:20.000Z"');
 
-    // note.css is written next to the page (its ?raw content is stubbed to
-    // "" under vitest — the real stylesheet ships via the vite build)
+    // note.css is written next to the page (vitest hands back "" for the
+    // ?raw import, so assert the write, not the content)
     expect(writes.has("export/Moj-bloknot/note.css")).toBe(true);
     const png = writes.get("export/Moj-bloknot/images/image-1.png");
     expect(Array.from(new Uint8Array(png as ArrayBuffer))).toEqual(
@@ -251,6 +251,44 @@ describe("exportNotepadAsWebsite", () => {
     // the unsupported page contributes no section; the rest still exports
     expect(html).not.toContain("From the future");
     expect(html).toContain("Page two");
+  });
+
+  it("does not emit title-page meta from a title page it cannot interpret", async () => {
+    const { notepad } = makeNotepad();
+    const asset = notepad.addAsset(
+      TEXT_ENCODER.encode("png-bytes"),
+      "pic.png",
+      "image/png",
+    );
+    // the title page is from a future version: unparseable content, but
+    // the manifest still carries its title and the archive the asset
+    notepad.setNoteContent(notepad.notes()[0]!.id, {
+      type: "noteDoc",
+      content: [
+        {
+          type: "image",
+          attrs: { data: { id: asset.id, filename: "pic.png" } },
+        },
+      ],
+    });
+    notepad.notes()[0]!.schema = "future-family";
+    notepad.notes()[0]!.schemaVersion = 999;
+
+    const { app, writes } = makeApp();
+    const result = await exportNotepadAsWebsite(
+      app as never,
+      makeFile(),
+      notepad,
+      "export",
+      { renderDiagram },
+    );
+
+    expect(result.skippedPages).toBe(1);
+    const html = writes.get("export/Moj-bloknot/index.html") as string;
+    // no og:image pointing at a file that was never written
+    expect(html).not.toContain("og:image");
+    expect(html).toContain("<title>Мой блокнот</title>"); // manifest title
+    expect(writes.has("export/Moj-bloknot/images/image-1.png")).toBe(false);
   });
 
   it("throws on an empty notepad", async () => {
