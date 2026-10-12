@@ -12,7 +12,10 @@
   --texto-image-container__outline-color: var(--color-accent, #5a9eff);
 }
 
-/* Fullscreen image lightbox (click-to-zoom) — plugin UI (src/ui/imageLightbox.ts) */
+/* Fullscreen image lightbox (click-to-zoom) — plugin UI (src/ui/imageLightbox.ts)
+   Closing model: Esc / ✕ / click on the background outside the object; the
+   object itself never closes, so it keeps a neutral cursor (zoom-out only
+   promises where a click really closes). */
 .inscriptum-image-lightbox {
   position: fixed;
   inset: 0;
@@ -32,6 +35,43 @@
     border: none;
     box-shadow: 0 8px 40px rgb(0 0 0 / 50%);
     user-select: none;
+    cursor: default;
+  }
+
+  & svg {
+    /* A cloned diagram, normalized to its viewBox size by openSvgLightbox —
+       the same max box scales it like a raster image. */
+    max-width: 95vw;
+    max-height: 92vh;
+    width: auto;
+    height: auto;
+    box-shadow: 0 8px 40px rgb(0 0 0 / 50%);
+    user-select: none;
+    cursor: default;
+  }
+
+  & .inscriptum-image-lightbox__close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: rgb(255 255 255 / 70%);
+    font-size: 26px;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover {
+      background: rgb(255 255 255 / 12%);
+      color: rgb(255 255 255 / 95%);
+    }
   }
 
   & .inscriptum-image-lightbox__caption {

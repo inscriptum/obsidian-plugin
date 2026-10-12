@@ -1,5 +1,6 @@
 import { isFunction, mergeAttributes, Node } from "../../core";
 import { elTag } from "../../../tags";
+import { openSvgLightbox } from "../../../ui/imageLightbox";
 import type { ElementComponentProps } from "@web-companions/gfc/@types";
 
 import { addCommands } from "./commands";
@@ -63,6 +64,24 @@ function isMermaidLayout(value: unknown): value is MermaidLayout {
     typeof value === "string" &&
     MERMAID_LAYOUTS.includes(value as MermaidLayout)
   );
+}
+
+/**
+ * The rendered view-face SVG behind a click on a mermaid block, or null:
+ * only a rendered diagram opens the lightbox — the inline editor face
+ * (is-editing), the loading and the render-error states never do.
+ */
+export function mermaidLightboxTarget(
+  host: HTMLElement,
+  target: EventTarget | null,
+): SVGSVGElement | null {
+  if (!(target instanceof Element)) return null;
+  if (host.classList.contains("is-editing")) return null;
+  if (host.classList.contains("is-error")) return null;
+  if (host.classList.contains("is-loading")) return null;
+  if (target.closest(".mermaid-editor") != null) return null;
+  if (target.closest(".mermaid-view") == null) return null;
+  return host.querySelector<SVGSVGElement>(".mermaid-view__svg svg");
 }
 
 /** Applies the layout class to the host (left = default, no class) —
@@ -349,6 +368,17 @@ export const Mermaid = Node.create<MermaidOptions>({
       };
       element.addEventListener(MERMAID_EDIT_EVENT, onEditEvent);
 
+      // Click-to-zoom: a rendered diagram opens the fullscreen lightbox, as
+      // on image nodes. Selection and the media menu keep working — they ride
+      // mousedown in ProseMirror; the click event itself stops here.
+      const onViewClick = (event: MouseEvent) => {
+        const svg = mermaidLightboxTarget(element, event.target);
+        if (svg == null) return;
+        event.stopPropagation();
+        openSvgLightbox(svg);
+      };
+      element.addEventListener("click", onViewClick);
+
       return {
         dom: element,
 
@@ -388,6 +418,7 @@ export const Mermaid = Node.create<MermaidOptions>({
         destroy: () => {
           if (parseTimer != null) window.clearTimeout(parseTimer);
           element.removeEventListener(MERMAID_EDIT_EVENT, onEditEvent);
+          element.removeEventListener("click", onViewClick);
           intersection?.disconnect();
           detachTheme?.();
         },

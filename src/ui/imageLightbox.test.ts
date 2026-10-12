@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { openImageLightbox, closeImageLightbox } from "./imageLightbox";
+import {
+  openImageLightbox,
+  openImageLightboxFromUrl,
+  openSvgLightbox,
+  closeImageLightbox,
+} from "./imageLightbox";
 
 const LIGHTBOX_CLASS = "inscriptum-image-lightbox";
+const SVG_NS = "http://www.w3.org/2000/svg";
 
 function makeApp(existing: string[], srcFor?: (id: string) => string) {
   return {
@@ -13,6 +19,14 @@ function makeApp(existing: string[], srcFor?: (id: string) => string) {
       },
     },
   } as never;
+}
+
+function makeSvg(attrs: Record<string, string> = {}): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  for (const [key, value] of Object.entries(attrs)) {
+    svg.setAttribute(key, value);
+  }
+  return svg;
 }
 
 describe("openImageLightbox", () => {
@@ -40,10 +54,29 @@ describe("openImageLightbox", () => {
     expect(document.querySelector(`.${LIGHTBOX_CLASS}`)).toBeNull();
   });
 
-  it("closes on click and removes the overlay", () => {
+  it("closes on a background click and removes the overlay", () => {
     openImageLightbox(makeApp(["img.png"]), "img.png");
     const overlay = document.querySelector(`.${LIGHTBOX_CLASS}`) as HTMLElement;
     overlay.click();
+    expect(document.querySelector(`.${LIGHTBOX_CLASS}`)).toBeNull();
+  });
+
+  it("does not close when the image itself is clicked", () => {
+    openImageLightbox(makeApp(["img.png"]), "img.png");
+    const overlay = document.querySelector(`.${LIGHTBOX_CLASS}`) as HTMLElement;
+    const img = overlay.querySelector("img");
+    img?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(document.querySelector(`.${LIGHTBOX_CLASS}`)).not.toBeNull();
+  });
+
+  it("closes via the close button", () => {
+    openImageLightbox(makeApp(["img.png"]), "img.png");
+    const overlay = document.querySelector(`.${LIGHTBOX_CLASS}`) as HTMLElement;
+    const btn = overlay.querySelector(
+      `.${LIGHTBOX_CLASS}__close`,
+    ) as HTMLButtonElement;
+    expect(btn).not.toBeNull();
+    btn.click();
     expect(document.querySelector(`.${LIGHTBOX_CLASS}`)).toBeNull();
   });
 
@@ -75,5 +108,85 @@ describe("openImageLightbox", () => {
       ),
     ).not.toThrow();
     expect(document.querySelector(`.${LIGHTBOX_CLASS}`)).toBeNull();
+  });
+});
+
+describe("openSvgLightbox", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  afterEach(() => {
+    closeImageLightbox();
+  });
+
+  it("clones the svg at its viewBox size without the inline style", () => {
+    const svg = makeSvg({
+      viewBox: "0 0 400 300",
+      style: "max-width: 320px;",
+    });
+    document.body.appendChild(svg);
+
+    openSvgLightbox(svg);
+
+    const overlay = document.querySelector(`.${LIGHTBOX_CLASS}`);
+    expect(overlay).not.toBeNull();
+    const clone = overlay?.querySelector("svg");
+    expect(clone).not.toBeNull();
+    expect(clone).not.toBe(svg);
+    expect(clone?.getAttribute("width")).toBe("400");
+    expect(clone?.getAttribute("height")).toBe("300");
+    expect(clone?.getAttribute("viewBox")).toBe("0 0 400 300");
+    expect(clone?.getAttribute("style")).toBeNull();
+    // the source node stays in place
+    expect(svg.isConnected).toBe(true);
+  });
+
+  it("opens without a caption (diagram lightbox is captionless)", () => {
+    openSvgLightbox(makeSvg({ viewBox: "0 0 10 10" }));
+    const overlay = document.querySelector(`.${LIGHTBOX_CLASS}`);
+    expect(
+      overlay?.querySelector(`.${LIGHTBOX_CLASS}__caption`),
+    ).toBeNull();
+  });
+
+  it("keeps the source attributes when no usable viewBox is present", () => {
+    const svg = makeSvg({ width: "120", height: "80" });
+    openSvgLightbox(svg);
+    const clone = document
+      .querySelector(`.${LIGHTBOX_CLASS}`)
+      ?.querySelector("svg");
+    expect(clone?.getAttribute("width")).toBe("120");
+    expect(clone?.getAttribute("height")).toBe("80");
+  });
+
+  it("closes on Escape like the image lightbox", () => {
+    openSvgLightbox(makeSvg({ viewBox: "0 0 10 10" }));
+    expect(document.querySelector(`.${LIGHTBOX_CLASS}`)).not.toBeNull();
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    expect(document.querySelector(`.${LIGHTBOX_CLASS}`)).toBeNull();
+  });
+});
+
+describe("url lightbox", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  afterEach(() => {
+    closeImageLightbox();
+  });
+
+  it("openImageLightboxFromUrl keeps the caption behavior", () => {
+    openImageLightboxFromUrl("blob:asset-1", "chart.png");
+    const overlay = document.querySelector(`.${LIGHTBOX_CLASS}`);
+    expect(overlay?.querySelector("img")?.getAttribute("src")).toBe(
+      "blob:asset-1",
+    );
+    expect(
+      overlay?.querySelector(`.${LIGHTBOX_CLASS}__caption`)?.textContent,
+    ).toBe("chart.png");
   });
 });
