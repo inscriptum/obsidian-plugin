@@ -85,9 +85,9 @@ test.describe("notepad website export", () => {
     // three exported pages → contents drawer with anchor entries; labels
     // mirror the pages' display titles (first line), untitled → "Page N"
     expect(index).toContain('<section id="page-1">');
-    expect(index).toContain('<a href="#page-1">E2E export</a>');
-    expect(index).toContain('<a href="#page-2">first page</a>');
-    expect(index).toContain('<a href="#page-3">Page 3</a>');
+    expect(index).toContain('<a href="#page-1" title="E2E export">E2E export</a>');
+    expect(index).toContain('<a href="#page-2" title="first page">first page</a>');
+    expect(index).toContain('<a href="#page-3" title="Page 3">Page 3</a>');
     expect(index).toContain('class="toc-toggle"');
 
     // the drawer actually toggles in a real browser: load the exported

@@ -422,10 +422,13 @@ describe("buildPageHtml", () => {
 
     expect(withToc).toContain('class="toc-toggle"');
     expect(withToc).toContain('class="toc-drawer"');
-    expect(withToc).toContain('<a href="#page-1">Cover</a>');
-    expect(withToc).toContain('<a href="#page-2">a &lt; b</a>');
-    expect(withToc).toContain("toc-drawer"); // the toggle script is emitted
+    expect(withToc).toContain('<a href="#page-1" title="Cover">Cover</a>');
+    expect(
+      withToc.match(/<a href="#page-2" title="a &lt; b">a &lt; b<\/a>/),
+    ).toBeTruthy();
+    // toggle script + drawer wiring are on the page
     expect(withToc.match(/<script>/g)?.length).toBe(2);
+    expect(withToc).toContain('aria-controls="toc-drawer"');
 
     const withoutToc = buildPageHtml({
       title: "t",

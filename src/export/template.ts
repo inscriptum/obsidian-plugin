@@ -119,13 +119,13 @@ export function buildPageHtml(meta: ExportPageMeta): string {
     .join("\n");
   const toc = meta.toc?.length
     ? `
-    <button class="toc-toggle" type="button" aria-label="Contents" aria-expanded="false" title="Contents">&#9776;</button>
-    <nav class="toc-drawer">
+    <button class="toc-toggle" type="button" aria-label="Contents" aria-controls="toc-drawer" aria-expanded="false" title="Contents">&#9776;</button>
+    <nav class="toc-drawer" id="toc-drawer" aria-label="Contents">
       <ol>
 ${meta.toc
   .map(
     (entry) =>
-      `        <li><a href="${entry.href}">${entry.label}</a></li>`,
+      `        <li><a href="${entry.href}" title="${entry.label}">${entry.label}</a></li>`,
   )
   .join("\n")}
       </ol>

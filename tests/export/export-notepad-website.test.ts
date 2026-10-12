@@ -307,8 +307,8 @@ describe("exportNotepadAsWebsite", () => {
     expect(html).toContain('<section id="page-1">');
     expect(html).toContain('<section id="page-2">');
     // drawer entries in order, labels from the pages' own titles
-    expect(html).toContain('<a href="#page-1">Мой блокнот</a>');
-    expect(html).toContain('<a href="#page-2">Page two</a>');
+    expect(html).toContain('<a href="#page-1" title="Мой блокнот">Мой блокнот</a>');
+    expect(html).toContain('<a href="#page-2" title="Page two">Page two</a>');
     expect(html.indexOf('href="#page-1"')).toBeLessThan(
       html.indexOf('href="#page-2"'),
     );
@@ -332,7 +332,7 @@ describe("exportNotepadAsWebsite", () => {
     );
 
     const html = writes.get("export/Moj-bloknot/index.html") as string;
-    expect(html).toContain('<a href="#page-2">A &amp; B &lt;c&gt;</a>');
+    expect(html).toContain('<a href="#page-2" title="A &amp; B &lt;c&gt;">A &amp; B &lt;c&gt;</a>');
   });
 
   it("labels pages without a first-line title by their number", async () => {
@@ -357,7 +357,7 @@ describe("exportNotepadAsWebsite", () => {
     );
 
     const html = writes.get("export/Moj-bloknot/index.html") as string;
-    expect(html).toContain('<a href="#page-2">Page 2</a>');
+    expect(html).toContain('<a href="#page-2" title="Page 2">Page 2</a>');
   });
 
   it("omits the drawer for a single-page notepad", async () => {

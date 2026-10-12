@@ -215,8 +215,10 @@ article figure.mermaid-figure[data-align="right"] img {
       anchor, a click on a link or Esc closes it (inline script from the
       page template). Hidden in print. */
 
-html {
-  scroll-behavior: smooth;
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 .toc-toggle {
@@ -248,9 +250,16 @@ html {
   background: #f6f6f6;
 }
 
+/* Open state: the toggle inverts while the drawer is out. */
+.toc-toggle.is-open {
+  background: #222;
+  border-color: #222;
+  color: #fff;
+}
+
 .toc-drawer {
   position: fixed;
-  top: 0;
+  top: 48px;
   left: 0;
   bottom: 0;
   z-index: 9;
@@ -288,6 +297,12 @@ html {
 
 .toc-drawer a:hover {
   background: #f6f6f6;
+}
+
+/* After an anchor jump the section's first line must not hide under the
+   fixed toggle on narrow viewports. */
+article section[id] {
+  scroll-margin-top: 56px;
 }
 
 @media print {
