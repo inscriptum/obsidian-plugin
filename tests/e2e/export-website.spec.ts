@@ -139,9 +139,11 @@ test.describe("notepad website export", () => {
     await expect(page.locator(".toc-drawer")).toHaveClass(/is-open/);
     await page.click('.toc-drawer a[href="#page-2"]');
     await expect(page.locator(".toc-drawer")).not.toHaveClass(/is-open/);
-    // Esc closes too
+    // Esc closes too, returning focus to the toggle (the focused link
+    // just disappeared)
     await page.click(".toc-toggle");
     await page.keyboard.press("Escape");
     await expect(page.locator(".toc-drawer")).not.toHaveClass(/is-open/);
+    await expect(page.locator(".toc-toggle")).toBeFocused();
   });
 });

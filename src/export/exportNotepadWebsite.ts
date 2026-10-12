@@ -4,7 +4,6 @@ import type { JSONContent } from "../texto/core/@types";
 import { generateHTML } from "../texto/core/helpers/generateHTML";
 import { extractNoteTitle } from "../storage/fileNaming";
 import type { UmNotepad } from "../storage/um/umNotepad";
-import { interpretSchema } from "../storage/um/umSchemas";
 import { readAssetDescriptors } from "../storage/um/umContainer";
 import { renderMermaid } from "../texto/extensions/mermaid/mermaidApi";
 import { getExportExtensions } from "./extensions";

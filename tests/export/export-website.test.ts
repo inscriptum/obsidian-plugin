@@ -8,7 +8,10 @@ import { getExportExtensions } from "../../src/export/extensions";
 import {
   createExportNameAllocator,
   createImageNameResolver,
+  exportNoteAsWebsite,
 } from "../../src/export/exportWebsite";
+import { TFile } from "../../src/__mocks__/obsidian";
+import { vi } from "vitest";
 import { generateHTML } from "../../src/texto/core/helpers/generateHTML";
 import { FIXTURES } from "../fixtures";
 
@@ -65,6 +68,52 @@ describe("createExportNameAllocator", () => {
     expect(allocator2.allocate("diagram-1", ".svg")).toBe("diagram-1.svg");
     const resolve2 = createImageNameResolver(app as never, allocator2);
     expect(resolve2("img/diagram-1.svg")).toBe("diagram-1-2.svg");
+  });
+});
+
+describe("exportNoteAsWebsite", () => {
+  it("escapes a hostile note title in the page meta (slug stays plain)", async () => {
+    const writes = new Map<string, string | ArrayBuffer>();
+    const app = {
+      vault: {
+        createFolder: vi.fn(async () => {}),
+        getAbstractFileByPath: vi.fn(() => null),
+        adapter: {
+          write: vi.fn(async (path: string, data: string) => {
+            writes.set(path, data);
+          }),
+          writeBinary: vi.fn(async () => {}),
+          readBinary: vi.fn(async () => new ArrayBuffer(0)),
+        },
+      },
+    };
+    const file = new TFile("Notes/x.note");
+    file.stat = { ctime: 1700000000000, mtime: 1700000001000, size: 1 };
+    const doc = {
+      type: "noteDoc",
+      content: [
+        {
+          type: "noteTitle",
+          content: [
+            { type: "text", text: "</title><script>alert(1)</script>" },
+          ],
+        },
+        { type: "paragraph", content: [{ type: "text", text: "Body" }] },
+      ],
+    };
+
+    const result = await exportNoteAsWebsite(
+      app as never,
+      file,
+      doc as never,
+      "export",
+    );
+
+    const html = writes.get(result.folder + "/index.html") as string;
+    expect(html).toContain(
+      "<title>&lt;/title&gt;&lt;script&gt;alert(1)&lt;/script&gt;</title>",
+    );
+    expect(html).not.toContain("<script>alert(1)");
   });
 });
 

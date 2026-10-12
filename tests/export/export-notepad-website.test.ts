@@ -471,6 +471,9 @@ describe("exportNotepadAsWebsite", () => {
       type: "noteDoc",
       content: [
         { type: "image", attrs: { data: { id: asset.id, filename: "pic.png" } } },
+        // the diagram forces the postProcess await — without it the race
+        // below never happens and the test proves nothing
+        { type: "mermaid", attrs: { code: "graph TD" } },
       ],
     });
 
