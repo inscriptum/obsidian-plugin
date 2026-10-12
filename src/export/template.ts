@@ -115,6 +115,57 @@ const TOC_SCRIPT = `(function () {
   });
 })();`;
 
+/**
+ * The figure lightbox for the published page (images and mermaid diagrams
+ * share the same `<figure><img>` markup, see postprocess.ts): a delegated
+ * click opens a fullscreen overlay with the enlarged object; the closing
+ * model mirrors the editor's lightbox — Esc, the corner ✕, or a click on the
+ * dark background outside the object (the object itself never closes). The
+ * capture-phase Esc handler stops propagation while the overlay is open, so
+ * the contents drawer below does not close with it. Zero dependencies,
+ * works from file://.
+ */
+const LIGHTBOX_SCRIPT = `(function () {
+  var overlay = null;
+  function close() {
+    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    overlay = null;
+  }
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape" || !overlay) return;
+    event.preventDefault();
+    event.stopPropagation();
+    close();
+  }, true);
+  document.addEventListener("click", function (event) {
+    var target = event.target;
+    if (!target || !target.closest) return;
+    var fig = target.closest("article figure");
+    if (!fig) return;
+    var img = fig.querySelector("img");
+    if (!img) return;
+    event.preventDefault();
+    close();
+    overlay = document.createElement("div");
+    overlay.className = "site-lightbox";
+    var closeButton = document.createElement("button");
+    closeButton.type = "button";
+    closeButton.className = "site-lightbox__close";
+    closeButton.setAttribute("aria-label", "Close");
+    closeButton.textContent = "\\u00d7";
+    closeButton.addEventListener("click", close);
+    overlay.appendChild(closeButton);
+    var enlarged = document.createElement("img");
+    enlarged.src = img.getAttribute("src");
+    enlarged.alt = img.getAttribute("alt") || "";
+    overlay.appendChild(enlarged);
+    overlay.addEventListener("click", function (event) {
+      if (event.target === overlay) close();
+    });
+    document.body.appendChild(overlay);
+  });
+})();`;
+
 export function buildPageHtml(meta: ExportPageMeta): string {
   const ogImage = meta.previewImageSrc
     ? `\n        <meta property="og:image" content="${meta.previewImageSrc}">
@@ -148,6 +199,13 @@ ${meta.toc
     ? `
     <script>${TOC_SCRIPT}</script>`
     : "";
+  // Pages without figures skip the lightbox script entirely. The check is a
+  // heuristic on the serialized markup (postprocess always emits lowercase
+  // "<figure>"; a false positive only ships a harmless no-op script).
+  const lightboxScript = meta.sections.some((html) => html.includes("<figure"))
+    ? `
+    <script>${LIGHTBOX_SCRIPT}</script>`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -170,7 +228,7 @@ ${meta.toc
     <article>
 ${sections}
     </article>
-    <script>${COPY_SCRIPT}</script>${tocScript}
+    <script>${COPY_SCRIPT}</script>${lightboxScript}${tocScript}
   </body>
 </html>
 `;
