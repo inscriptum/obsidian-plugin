@@ -282,6 +282,37 @@ describe("postProcessForExport: mermaid diagrams", () => {
     '<texto-extension-mermaid data-code="graph TD"></texto-extension-mermaid>';
   const SVG =
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2 2"><path d="M0 0"/></svg>';
+  const STRETCHY_SVG =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="100%" style="max-width: 2px;" viewBox="0 0 2 2"><path d="M0 0"/></svg>';
+
+  it("pins the natural size from the viewBox so the file keeps it", async () => {
+    // mermaid's useMaxWidth mode: width="100%" + only a max-width cap —
+    // the <img> would stretch the diagram over the column without this
+    const result = await postProcessForExport(
+      MERMAID_HTML,
+      () => null,
+      async () => STRETCHY_SVG,
+    );
+    expect(result.diagrams[0]?.svg).toContain('width="2"');
+    expect(result.diagrams[0]?.svg).toContain('height="2"');
+  });
+
+  it("leaves diagrams without a usable viewBox untouched", async () => {
+    const noViewBox = await postProcessForExport(
+      MERMAID_HTML,
+      () => null,
+      async () => '<svg xmlns="http://www.w3.org/2000/svg"><path d="M0 0"/></svg>',
+    );
+    expect(noViewBox.diagrams[0]?.svg).not.toContain('width="');
+    expect(noViewBox.diagrams[0]?.svg).not.toContain('height="');
+
+    const zeroViewBox = await postProcessForExport(
+      MERMAID_HTML,
+      () => null,
+      async () => '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 0 0"><path d="M0 0"/></svg>',
+    );
+    expect(zeroViewBox.diagrams[0]?.svg).not.toContain('width="');
+  });
 
   it("compiles diagrams to an SVG file referenced by <img>", async () => {
     const result = await postProcessForExport(MERMAID_HTML, () => null, async () => SVG);

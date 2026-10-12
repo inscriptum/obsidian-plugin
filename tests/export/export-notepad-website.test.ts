@@ -176,9 +176,10 @@ describe("exportNotepadAsWebsite", () => {
     expect(index).toContain(
       'figure class="mermaid-figure" data-align="center"',
     );
-    // no mermaid host on the page (the toggle's ☰/✕ glyphs are svg too)
+    // no mermaid host on the page; the only inline <svg> are the two
+    // toggle glyphs (menu + close)
     expect(index).not.toContain("texto-extension-mermaid");
-    expect(index).not.toContain("<figure class=\"mermaid-figure\"><svg");
+    expect(index.match(/<svg/g)?.length).toBe(2);
     // created from the .um file's ctime; modified from the manifest's
     // latest modifiedAt (1790000000000 → 2026-09-21), not the file mtime
     expect(index).toContain('content="2023-11-14T22:13:20.000Z"');

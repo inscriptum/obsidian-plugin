@@ -268,11 +268,16 @@ article figure.mermaid-figure[data-align="right"] img {
   transform: rotate(0deg);
 }
 
-.toc-toggle:hover,
-.toc-toggle:focus {
+.toc-toggle:hover {
   color: #222;
   background: transparent;
-  outline: none;
+}
+
+/* Keyboard users keep a visible ring; hover alone is not a focus cue. */
+.toc-toggle:focus-visible {
+  color: #222;
+  outline: 2px solid #bbb;
+  outline-offset: 2px;
 }
 
 .toc-drawer {
@@ -299,8 +304,8 @@ article figure.mermaid-figure[data-align="right"] img {
 }
 
 .toc-list {
-  margin: 0;
-  padding: 4px 10px 10px;
+  margin: 8px 0 0;
+  padding: 0 10px 10px;
   list-style: none;
 }
 
@@ -322,8 +327,10 @@ article figure.mermaid-figure[data-align="right"] img {
   background: rgba(0, 0, 0, 0.075);
 }
 
-/* The cover row is the notepad title — uppercase, like the editor's. */
-.toc-item:first-child .toc-header {
+/* The cover row is the notepad title — uppercase, like the editor's.
+   (The item anchor is always its <li>'s first child — select through the
+   list item.) */
+.toc-list li:first-child .toc-item .toc-header {
   text-transform: uppercase;
 }
 
