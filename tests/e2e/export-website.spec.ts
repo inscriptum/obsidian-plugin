@@ -85,16 +85,55 @@ test.describe("notepad website export", () => {
     // three exported pages → contents drawer with anchor entries; labels
     // mirror the pages' display titles (first line), untitled → "Untitled"
     expect(index).toContain('<section id="page-1">');
-    expect(index).toContain('<a class="toc-item" href="#page-1"');
+    expect(index).toContain('<a class="toc-item is-cover" href="#page-1"');
     expect(index).toContain('<span class="toc-header">E2E export</span>');
     expect(index).toContain('<span class="toc-header">first page</span>');
     expect(index).toContain('<a class="toc-item is-empty" href="#page-3"');
     expect(index).toContain("<span class=\"toc-header\">Untitled</span>");
     expect(index).toContain('class="icon-menu"');
 
-    // the drawer actually toggles in a real browser: load the exported
-    // page, click ☰, expect the drawer open; a link click closes it
-    await page.setContent(index);
+    // load the exported page with its real stylesheet and images served
+    // from the capture — the checks below then cover the rendered page,
+    // not just strings
+    await page.route("**/note.css", (route) =>
+      route.fulfill({
+        body: Buffer.from(
+          payload.files["export/E2E-export/note.css"],
+          "base64",
+        ),
+        contentType: "text/css",
+      }),
+    );
+    await page.route("**/images/**", (route) => {
+      // relative srcs resolve under the harness page's directory — match
+      // the captured file by path suffix, not by full pathname
+      const path = new URL(route.request().url()).pathname;
+      const suffix = path.slice(path.indexOf("/images/")); // /images/…
+      const key = Object.keys(payload.files).find((k) => k.endsWith(suffix));
+      if (key == null) return route.fulfill({ status: 404, body: "" });
+      return route.fulfill({
+        body: Buffer.from(payload.files[key], "base64"),
+        contentType: path.endsWith(".svg") ? "image/svg+xml" : "image/png",
+      });
+    });
+    await page.setContent(index, { waitUntil: "load" });
+
+    // the drawer carries the navigator styles, not bare markup
+    await expect(page.locator(".toc-drawer")).toHaveCSS(
+      "background-color",
+      "rgb(242, 243, 245)",
+    );
+    // the diagram displays for real: the <img> loaded its SVG file
+    await expect
+      .poll(() =>
+        page
+          .locator("figure.mermaid-figure img")
+          .evaluate((el: HTMLImageElement) => el.naturalWidth),
+      )
+      .toBeGreaterThan(0);
+
+    // the drawer actually toggles: click ☰, expect the drawer open; a
+    // link click closes it
     await expect(page.locator(".toc-drawer")).not.toHaveClass(/is-open/);
     await page.click(".toc-toggle");
     await expect(page.locator(".toc-drawer")).toHaveClass(/is-open/);

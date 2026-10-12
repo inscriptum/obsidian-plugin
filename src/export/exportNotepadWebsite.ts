@@ -4,6 +4,8 @@ import type { JSONContent } from "../texto/core/@types";
 import { generateHTML } from "../texto/core/helpers/generateHTML";
 import { extractNoteTitle } from "../storage/fileNaming";
 import type { UmNotepad } from "../storage/um/umNotepad";
+import { interpretSchema } from "../storage/um/umSchemas";
+import { readAssetDescriptors } from "../storage/um/umContainer";
 import { renderMermaid } from "../texto/extensions/mermaid/mermaidApi";
 import { getExportExtensions } from "./extensions";
 import {
@@ -14,40 +16,43 @@ import {
 import { extractPreview, escapeDescription } from "./preview";
 import { titleToSlug } from "./slug";
 import { buildPageHtml, type ExportTocEntry } from "./template";
+import { createExportNameAllocator } from "./exportWebsite";
 import noteCss from "./assets/note.css?raw";
 
 /**
  * Assigns export file names to container assets: same asset → same file,
  * different assets never collide (`image-<n>.<ext>`). Names are derived
  * from the asset registry order of first use — packed assets carry no
- * original file names, only an id and an extension. Returns null for
- * anything that is not a readable container asset (an external vault
- * link, an id absent from the manifest, or an archive missing the
- * binary) so those figures get dropped like missing images in the .note
- * export.
+ * original file names, only an id and an extension — and claimed in the
+ * shared allocator, so a diagram file can never take an image's name.
+ * Returns null for anything that is not a readable container asset (an
+ * external vault link, an id absent from the manifest, or an archive
+ * missing the binary) so those figures get dropped like missing images
+ * in the .note export.
  */
-export function createAssetNameResolver(notepad: UmNotepad) {
+export function createAssetNameResolver(
+  assetMeta: ReadonlyMap<string, { path: string }>,
+  assetBytes: ReadonlyMap<string, Uint8Array>,
+  allocator: ReturnType<typeof createExportNameAllocator>,
+) {
   const nameById = new Map<string, string>();
-  const usedNames = new Set<string>();
 
   return (assetId: string): string | null => {
     const assigned = nameById.get(assetId);
     if (assigned != null) return assigned;
 
-    const asset = notepad.asset(assetId);
-    const bytes = notepad.data.assets.get(assetId);
+    const asset = assetMeta.get(assetId);
+    const bytes = assetBytes.get(assetId);
     if (asset == null || bytes == null) return null;
 
     const dot = asset.path.lastIndexOf(".");
-    const ext = dot >= 0 ? asset.path.slice(dot + 1) : "bin";
+    const ext = dot >= 0 ? asset.path.slice(dot) : ".bin";
     let counter = 1;
-    let name = `image-${counter}.${ext}`;
-    while (usedNames.has(name)) {
+    let name = `image-${counter}${ext}`;
+    while (!allocator.claim(name)) {
       counter += 1;
-      name = `image-${counter}.${ext}`;
+      name = `image-${counter}${ext}`;
     }
-
-    usedNames.add(name);
     nameById.set(assetId, name);
     return name;
   };
@@ -116,6 +121,31 @@ export async function exportNotepadAsWebsite(
   }
   const titleDoc = notepad.noteContent(titleDescriptor.id);
 
+  // The model is live: a page deleted while a diagram is rendering (or any
+  // other edit + save in between awaits) GCs assets the export still
+  // references. Snapshot everything the export reads before the first
+  // await — pages, docs, openability, asset descriptors and bytes.
+  const snapshotPages = pages.map((descriptor) => ({ ...descriptor }));
+  const snapshotDocs = new Map<string, JSONContent | undefined>(
+    pages.map((descriptor) => [
+      descriptor.id,
+      notepad.noteContent(descriptor.id),
+    ]),
+  );
+  const snapshotOpenable = new Map<string, boolean>(
+    pages.map((descriptor) => [
+      descriptor.id,
+      notepad.isNoteOpenable(descriptor.id),
+    ]),
+  );
+  const snapshotAssetMeta = new Map(
+    readAssetDescriptors(notepad.data.manifest).map((asset) => [
+      asset.id,
+      asset,
+    ]),
+  );
+  const snapshotAssetBytes = new Map(notepad.data.assets);
+
   // The manifest title mirrors the title page's own title node (spec 8.4)
   // and is the only title source for a page this editor cannot parse.
   const title =
@@ -126,10 +156,17 @@ export async function exportNotepadAsWebsite(
   // dashes only — fall back to a neutral name.
   const slug = titleToSlug(title).replace(/^-+$/g, "") || "notepad";
 
-  const resolveTarget = createAssetNameResolver(notepad);
+  const allocator = createExportNameAllocator();
+  const resolveTarget = createAssetNameResolver(
+    snapshotAssetMeta,
+    snapshotAssetBytes,
+    allocator,
+  );
 
   const sections: string[] = [];
+  const sectionIds: string[] = [];
   const sectionLabels: string[] = [];
+  const sectionOrders: number[] = [];
   const diagrams: ExportDiagramFile[] = [];
   const missing = new Set<string>();
   const usedAssets = new Set<string>();
@@ -138,12 +175,12 @@ export async function exportNotepadAsWebsite(
   let skippedPages = 0;
   let diagramBase = 0;
 
-  for (const descriptor of pages) {
-    if (!notepad.isNoteOpenable(descriptor.id)) {
+  for (const descriptor of snapshotPages) {
+    if (snapshotOpenable.get(descriptor.id) !== true) {
       skippedPages += 1;
       continue;
     }
-    const doc = notepad.noteContent(descriptor.id);
+    const doc = snapshotDocs.get(descriptor.id);
     if (doc == null) {
       skippedPages += 1;
       continue;
@@ -151,16 +188,22 @@ export async function exportNotepadAsWebsite(
 
     const contentHtml = generateHTML(doc, getExportExtensions());
     // Diagram numbering is notepad-wide: each page continues the shared
-    // counter so two pages can never write the same images/diagram-N.svg.
+    // counter so two pages can never write the same images/diagram-N.svg;
+    // the allocator keeps the names collision-free against images.
     const mapped = await postProcessForExport(
       contentHtml,
       resolveTarget,
       renderDiagram,
-      (seq) => `diagram-${diagramBase + seq}.svg`,
+      (seq) => allocator.allocate(`diagram-${diagramBase + seq}`, ".svg"),
     );
     diagramBase += mapped.diagrams.length;
 
+    // Anchors and gutter numbers follow the page's manifest order, not the
+    // position among exported sections — a skipped page must not renumber
+    // the ones after it (shared links would drift).
     sections.push(mapped.html);
+    sectionIds.push(`page-${descriptor.order + 1}`);
+    sectionOrders.push(descriptor.order);
     // The contents label is the page's display title (the manifest mirror
     // of its first line); untitled pages fall back to their number.
     sectionLabels.push((descriptor.title ?? "").trim());
@@ -176,9 +219,11 @@ export async function exportNotepadAsWebsite(
   // page actually took part in the export — a document this editor cannot
   // interpret must not contribute references (its images would never be
   // written) or description text.
-  const titleOpenable = notepad.isNoteOpenable(titleDescriptor.id);
+  const titleOpenable = snapshotOpenable.get(titleDescriptor.id) === true;
   const preview =
-    titleOpenable && titleDoc != null ? extractPreview(titleDoc) : null;
+    titleOpenable && titleDoc != null
+      ? extractPreview(snapshotDocs.get(titleDescriptor.id)!)
+      : null;
   const previewName =
     preview?.previewImageId != null
       ? resolveTarget(preview.previewImageId)
@@ -186,7 +231,7 @@ export async function exportNotepadAsWebsite(
 
   // Page dates from the manifest's modifiedAt stamps; the .um file's
   // mtime when no page carries one — never the export time.
-  const modifiedStamp = pages.reduce(
+  const modifiedStamp = snapshotPages.reduce(
     (latest, descriptor) => Math.max(latest, descriptor.modifiedAt ?? 0),
     0,
   );
@@ -196,22 +241,24 @@ export async function exportNotepadAsWebsite(
   // none, like the editor) and labels from the page titles — "Untitled"
   // in the muted-italic style when a page has no first-line title. A
   // single-page export has nowhere to navigate — it stays clean.
-  const sectionIds = sections.map((_, index) => `page-${index + 1}`);
   const toc: ExportTocEntry[] | undefined =
     sections.length >= 2
       ? sections.map((_, index) => {
           const pageTitle = sectionLabels[index];
+          const order = sectionOrders[index];
           return {
             href: `#${sectionIds[index]}`,
             label: escapeDescription(pageTitle || "Untitled"),
-            num: index > 0 ? String(index) : "",
+            num: order > 0 ? String(order) : "",
             empty: pageTitle === "",
           };
         })
       : undefined;
 
   const pageHtml = buildPageHtml({
-    title,
+    // the plain title stays in the slug; the page meta gets the escaped
+    // form — a "</title><script>…" title must not add markup
+    title: escapeDescription(title),
     description: preview?.description ?? "",
     previewImageSrc: previewName != null ? `images/${previewName}` : null,
     created: new Date(file.stat.ctime).toISOString(),
@@ -233,7 +280,7 @@ export async function exportNotepadAsWebsite(
     await ensureFolder(app, imagesFolder);
     for (const assetId of usedAssets) {
       const name = resolveTarget(assetId);
-      const bytes = notepad.data.assets.get(assetId);
+      const bytes = snapshotAssetBytes.get(assetId);
       if (name == null || bytes == null) continue;
       // Uint8Array.prototype.buffer may be larger than the view — copy
       // exactly (same policy as umVault's writes).

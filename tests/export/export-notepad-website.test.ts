@@ -7,6 +7,15 @@ import {
   createAssetNameResolver,
   exportNotepadAsWebsite,
 } from "../../src/export/exportNotepadWebsite";
+import { createExportNameAllocator } from "../../src/export/exportWebsite";
+import { readAssetDescriptors } from "../../src/storage/um/umContainer";
+
+/** Asset descriptors snapshot, as the export builds it before awaiting. */
+function assetMeta(notepad: UmNotepad) {
+  return new Map(
+    readAssetDescriptors(notepad.data.manifest).map((a) => [a.id, a]),
+  );
+}
 
 const TEXT_ENCODER = new TextEncoder();
 
@@ -97,7 +106,11 @@ describe("createAssetNameResolver", () => {
     const a = notepad.addAsset(TEXT_ENCODER.encode("one"), "a.png", "image/png");
     const b = notepad.addAsset(TEXT_ENCODER.encode("two"), "b.png", "image/png");
 
-    const resolve = createAssetNameResolver(notepad);
+    const resolve = createAssetNameResolver(
+      assetMeta(notepad),
+      notepad.data.assets,
+      createExportNameAllocator(),
+    );
     expect(resolve(a.id)).toBe("image-1.png");
     expect(resolve(a.id)).toBe("image-1.png"); // same asset → same file
     expect(resolve(b.id)).toBe("image-2.png");
@@ -105,7 +118,11 @@ describe("createAssetNameResolver", () => {
 
   it("returns null for ids outside the asset registry and for descriptors without bytes", () => {
     const { notepad } = makeNotepad();
-    const resolve = createAssetNameResolver(notepad);
+    const resolve = createAssetNameResolver(
+      assetMeta(notepad),
+      notepad.data.assets,
+      createExportNameAllocator(),
+    );
 
     // never a container asset (an external vault link)
     expect(resolve("attachments/external.png")).toBeNull();
@@ -312,7 +329,7 @@ describe("exportNotepadAsWebsite", () => {
     // drawer entries in order, labels from the pages' own titles, cover
     // without a number, pages numbered like the editor's navigator
     expect(
-      html.match(/<a class="toc-item" href="#page-1" title="Мой блокнот"><span class="toc-numb"><\/span><span class="toc-header">Мой блокнот/),
+      html.match(/<a class="toc-item is-cover" href="#page-1" title="Мой блокнот"><span class="toc-numb"><\/span><span class="toc-header">Мой блокнот/),
     ).toBeTruthy();
     expect(
       html.match(/<a class="toc-item" href="#page-2" title="Page two"><span class="toc-numb">1<\/span><span class="toc-header">Page two/),
@@ -403,6 +420,137 @@ describe("exportNotepadAsWebsite", () => {
     expect(html).toContain('<section id="page-1">');
     expect(html).not.toContain("toc-toggle");
     expect(html).not.toContain("toc-drawer");
+  });
+
+  it("escapes the notepad title in the page meta (slug stays plain)", async () => {
+    const notepad = UmNotepad.empty();
+    const only = notepad.addNote(undefined, "</title><script>alert(1)</script>");
+    notepad.setNoteContent(only.id, {
+      type: "noteDoc",
+      content: [
+        {
+          type: "noteTitle",
+          content: [{ type: "text", text: "</title><script>alert(1)</script>" }],
+        },
+        { type: "noteSummary" },
+        { type: "paragraph" },
+      ],
+    });
+    const page = notepad.addNote(only.id, "Page two");
+    notepad.setNoteContent(page.id, plainPageDoc());
+
+    const { app, writes } = makeApp();
+    await exportNotepadAsWebsite(
+      app as never,
+      makeFile("Notes/x.um"),
+      notepad,
+      "export",
+      { renderDiagram },
+    );
+
+    const html = writes.get(
+      "export/--title--script-alert-1---script-/index.html",
+    ) as string;
+    expect(html).toBeTruthy();
+    // the title landed as text, not as markup
+    expect(html).toContain(
+      "<title>&lt;/title&gt;&lt;script&gt;alert(1)&lt;/script&gt;</title>",
+    );
+    expect(html).not.toContain("<script>alert(1)");
+  });
+
+  it("writes image bytes from the snapshot taken before rendering", async () => {
+    const { notepad } = makeNotepad();
+    const asset = notepad.addAsset(
+      TEXT_ENCODER.encode("png-bytes"),
+      "pic.png",
+      "image/png",
+    );
+    const page = notepad.notes().find((d) => d.order === 1)!;
+    notepad.setNoteContent(page.id, {
+      type: "noteDoc",
+      content: [
+        { type: "image", attrs: { data: { id: asset.id, filename: "pic.png" } } },
+      ],
+    });
+
+    // an edit+save racing the export (e.g. the page's deletion) GCs the
+    // asset while the diagram render is in flight — the bytes were
+    // snapshotted before the first await and must still be written
+    const racingRender = async () => {
+      notepad.data.assets.delete(asset.id);
+      return SVG;
+    };
+
+    const { app, writes } = makeApp();
+    await exportNotepadAsWebsite(
+      app as never,
+      makeFile(),
+      notepad,
+      "export",
+      { renderDiagram: racingRender },
+    );
+
+    const png = writes.get("export/Moj-bloknot/images/image-1.png");
+    expect(Array.from(new Uint8Array(png as ArrayBuffer))).toEqual(
+      Array.from(TEXT_ENCODER.encode("png-bytes")),
+    );
+  });
+
+  it("anchors by manifest order: a skipped page does not renumber the rest", async () => {
+    const { notepad } = makeNotepad();
+    // the cover is from the future: unparseable, skipped entirely
+    notepad.notes()[0]!.schema = "future-family";
+    notepad.notes()[0]!.schemaVersion = 999;
+
+    const page = notepad.notes().find((d) => d.order === 1)!;
+    notepad.setNoteContent(page.id, plainPageDoc());
+    // the last page starts with a diagram — no first-line title, so the
+    // manifest mirror stays empty ("Untitled" row)
+    const last = notepad.addNote(page.id, "");
+    notepad.setNoteContent(last.id, {
+      type: "noteDoc",
+      content: [{ type: "mermaid", attrs: { code: "graph TD" } }],
+    });
+
+    const { app, writes } = makeApp();
+    const result = await exportNotepadAsWebsite(
+      app as never,
+      makeFile(),
+      notepad,
+      "export",
+      { renderDiagram },
+    );
+
+    expect(result.skippedPages).toBe(1);
+    const html = writes.get("export/Moj-bloknot/index.html") as string;
+    // the surviving pages keep their manifest-order anchors (page-2,
+    // page-3) — not section positions (page-1, page-2): shared links
+    // cannot drift
+    expect(html).toContain('<section id="page-2">');
+    expect(html).toContain('<section id="page-3">');
+    expect(html).not.toContain('<section id="page-1">');
+    // gutter numbers are manifest orders, and no surviving row is
+    // mistaken for the cover (no is-cover → no uppercase)
+    expect(html).toContain('<a class="toc-item is-empty" href="#page-3"');
+    expect(html).toContain('<span class="toc-numb">1</span><span class="toc-header">Page two</span>');
+    expect(html).not.toContain("is-cover");
+  });
+
+  it("marks the cover row with is-cover", async () => {
+    const { notepad } = makeNotepad();
+    const { app, writes } = makeApp();
+    await exportNotepadAsWebsite(
+      app as never,
+      makeFile(),
+      notepad,
+      "export",
+      { renderDiagram },
+    );
+
+    const html = writes.get("export/Moj-bloknot/index.html") as string;
+    expect(html).toContain('class="toc-item is-cover" href="#page-1"');
+    expect(html).not.toContain('class="toc-item is-cover" href="#page-2"');
   });
 
   it("throws on an empty notepad", async () => {

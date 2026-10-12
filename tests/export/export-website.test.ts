@@ -6,6 +6,7 @@ import { postProcessForExport } from "../../src/export/postprocess";
 import { buildPageHtml } from "../../src/export/template";
 import { getExportExtensions } from "../../src/export/extensions";
 import {
+  createExportNameAllocator,
   createImageNameResolver,
 } from "../../src/export/exportWebsite";
 import { generateHTML } from "../../src/texto/core/helpers/generateHTML";
@@ -31,6 +32,39 @@ describe("createImageNameResolver", () => {
     expect(resolve("img/a.png")).toBe("a.png"); // same source → same file
     expect(resolve("other/a.png")).toBe("a-2.png"); // collision → suffix
     expect(resolve("img/b.jpeg")).toBe("b.jpeg");
+  });
+});
+
+describe("createExportNameAllocator", () => {
+  it("allocates collision-free names across images and diagrams", () => {
+    const allocator = createExportNameAllocator();
+    expect(allocator.allocate("a", ".png")).toBe("a.png");
+    expect(allocator.allocate("a", ".png")).toBe("a-2.png"); // same stem
+    expect(allocator.claim("b.png")).toBe(true);
+    expect(allocator.claim("b.png")).toBe(false); // already taken
+    expect(allocator.allocate("b", ".png")).toBe("b-2.png");
+  });
+
+  it("a vault image named diagram-1.svg never overwrites a diagram", () => {
+    const vaultFiles = new Set(["img/diagram-1.svg"]);
+    const app = {
+      vault: {
+        getAbstractFileByPath: (p: string) =>
+          vaultFiles.has(p) ? {} : null,
+      },
+    };
+    const allocator = createExportNameAllocator();
+    const resolve = createImageNameResolver(app as never, allocator);
+
+    // the image claimed the name first (export order: pages, then files)
+    expect(resolve("img/diagram-1.svg")).toBe("diagram-1.svg");
+    expect(allocator.allocate("diagram-1", ".svg")).toBe("diagram-1-2.svg");
+
+    // and the other way around: the diagram first, the image second
+    const allocator2 = createExportNameAllocator();
+    expect(allocator2.allocate("diagram-1", ".svg")).toBe("diagram-1.svg");
+    const resolve2 = createImageNameResolver(app as never, allocator2);
+    expect(resolve2("img/diagram-1.svg")).toBe("diagram-1-2.svg");
   });
 });
 
@@ -455,7 +489,7 @@ describe("buildPageHtml", () => {
     expect(withToc).toContain('class="toc-drawer"');
     // editor-look rows: number gutter + header, ☰/✕ morph glyphs
     expect(
-      withToc.match(/<a class="toc-item" href="#page-1" title="Cover"><span class="toc-numb"><\/span><span class="toc-header">Cover<\/span>/),
+      withToc.match(/<a class="toc-item is-cover" href="#page-1" title="Cover"><span class="toc-numb"><\/span><span class="toc-header">Cover<\/span>/),
     ).toBeTruthy();
     expect(
       withToc.match(/<a class="toc-item is-empty" href="#page-2" title="a &lt; b"><span class="toc-numb">1<\/span><span class="toc-header">a &lt; b<\/span>/),

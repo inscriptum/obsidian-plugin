@@ -106,7 +106,12 @@ const TOC_SCRIPT = `(function () {
     if (link) close();
   });
   document.addEventListener("keydown", function (event) {
-    if (event.key === "Escape") close();
+    if (event.key !== "Escape") return;
+    if (!drawer.classList.contains("is-open")) return;
+    close();
+    // the focused contents link just disappeared — keep the focus cue
+    // on a visible control
+    toggle.focus();
   });
 })();`;
 
@@ -133,7 +138,7 @@ export function buildPageHtml(meta: ExportPageMeta): string {
 ${meta.toc
   .map(
     (entry) =>
-      `        <li><a class="toc-item${entry.empty ? " is-empty" : ""}" href="${entry.href}" title="${entry.label}"><span class="toc-numb">${entry.num ?? ""}</span><span class="toc-header">${entry.label}</span></a></li>`,
+      `        <li><a class="toc-item${entry.empty ? " is-empty" : ""}${entry.num == null || entry.num === "" ? " is-cover" : ""}" href="${entry.href}" title="${entry.label}"><span class="toc-numb">${entry.num ?? ""}</span><span class="toc-header">${entry.label}</span></a></li>`,
   )
   .join("\n")}
       </ul>

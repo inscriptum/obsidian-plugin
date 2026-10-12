@@ -6,7 +6,7 @@ import { extractNoteTitle } from "../storage/fileNaming";
 import { getExportExtensions } from "./extensions";
 import { postProcessForExport } from "./postprocess";
 import { renderMermaid } from "../texto/extensions/mermaid/mermaidApi";
-import { extractPreview } from "./preview";
+import { escapeDescription, extractPreview } from "./preview";
 import { titleToSlug } from "./slug";
 import { buildPageHtml } from "./template";
 import noteCss from "./assets/note.css?raw";
@@ -26,13 +26,51 @@ function imageBaseName(vaultPath: string): string {
 }
 
 /**
+ * Shared namespace for the files an export writes into `images/`: images
+ * claim their source-derived names here and diagrams allocate in the same
+ * space, so a vault image named `diagram-1.svg` can never overwrite a
+ * diagram file (or another image).
+ */
+export interface ExportNameAllocator {
+  /** Reserve an exact name; false when it is already taken. */
+  claim(name: string): boolean;
+  /** First free `stem[-n]ext` in the namespace. */
+  allocate(stem: string, ext: string): string;
+}
+
+export function createExportNameAllocator(): ExportNameAllocator {
+  const used = new Set<string>();
+  return {
+    claim(name: string): boolean {
+      if (used.has(name)) return false;
+      used.add(name);
+      return true;
+    },
+    allocate(stem: string, ext: string): string {
+      let name = `${stem}${ext}`;
+      let counter = 2;
+      while (used.has(name)) {
+        name = `${stem}-${counter}${ext}`;
+        counter += 1;
+      }
+      used.add(name);
+      return name;
+    },
+  };
+}
+
+/**
  * Assigns export file names to vault images: same source → same file,
  * different sources never collide (`name-2.png`). `resolveTarget` returns
  * null for images missing from the vault so their figures get dropped.
+ * Names are claimed in the shared allocator — diagrams allocate theirs
+ * from the same namespace.
  */
-export function createImageNameResolver(app: App) {
+export function createImageNameResolver(
+  app: App,
+  allocator: ExportNameAllocator = createExportNameAllocator(),
+) {
   const nameByPath = new Map<string, string>();
-  const usedNames = new Set<string>();
 
   return (vaultPath: string): string | null => {
     if (app.vault.getAbstractFileByPath(vaultPath) == null) return null;
@@ -45,14 +83,7 @@ export function createImageNameResolver(app: App) {
     const stem = dot > 0 ? base.slice(0, dot) : base;
     const ext = dot > 0 ? base.slice(dot) : "";
 
-    let name = base;
-    let counter = 2;
-    while (usedNames.has(name)) {
-      name = `${stem}-${counter}${ext}`;
-      counter += 1;
-    }
-
-    usedNames.add(name);
+    const name = allocator.allocate(stem, ext);
     nameByPath.set(vaultPath, name);
     return name;
   };
@@ -109,11 +140,13 @@ export async function exportNoteAsWebsite(
 
   const contentHtml = generateHTML(doc, getExportExtensions());
 
-  const resolveTarget = createImageNameResolver(app);
+  const allocator = createExportNameAllocator();
+  const resolveTarget = createImageNameResolver(app, allocator);
   const mapped = await postProcessForExport(
     contentHtml,
     resolveTarget,
-    // Diagrams compile at export time — the stored node keeps only the source.
+    // Diagrams compile at export time — the stored node keeps only the
+    // source. Their files allocate in the same namespace as images.
     async (code) => {
       try {
         return await renderMermaid(code);
@@ -121,6 +154,7 @@ export async function exportNoteAsWebsite(
         return null;
       }
     },
+    (seq) => allocator.allocate(`diagram-${seq}`, ".svg"),
   );
 
   const preview = extractPreview(doc);
@@ -130,7 +164,9 @@ export async function exportNoteAsWebsite(
       : null;
 
   const pageHtml = buildPageHtml({
-    title,
+    // the plain title stays in the slug; the page meta gets the escaped
+    // form — a "</title><script>…" title must not add markup
+    title: escapeDescription(title),
     description: preview.description,
     previewImageSrc: previewName != null ? `images/${previewName}` : null,
     created: new Date(file.stat.ctime).toISOString(),
