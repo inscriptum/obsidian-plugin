@@ -256,6 +256,23 @@ export async function postProcessForExport(
       droppedDiagrams += 1;
       continue;
     }
+    // Mermaid renders width="100%" with only a max-width cap (its
+    // useMaxWidth mode): the editor's host element constrains that, but a
+    // file-referencing <img> gets no intrinsic size from a percentage and
+    // stretches the diagram over the whole column. Pin the natural size
+    // from the viewBox so the file behaves like any image.
+    const [, , viewBoxW, viewBoxH] = (svgRoot.getAttribute("viewBox") ?? "")
+      .split(/[\s,]+/)
+      .map(Number);
+    if (
+      Number.isFinite(viewBoxW) &&
+      viewBoxW > 0 &&
+      Number.isFinite(viewBoxH) &&
+      viewBoxH > 0
+    ) {
+      svgRoot.setAttribute("width", String(viewBoxW));
+      svgRoot.setAttribute("height", String(viewBoxH));
+    }
     // The diagram ships as an SVG file next to the page images, not as
     // inline markup: the page stays lean and the figure behaves like any
     // other image (caching, natural sizing via the SVG's own dimensions).

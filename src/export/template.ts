@@ -14,6 +14,11 @@ export interface ExportTocEntry {
   href: string;
   /** Already HTML-escaped (see escapeDescription). */
   label: string;
+  /** Page number in the left gutter (the cover carries none). */
+  num?: string;
+  /** Untitled page — the label renders muted-italic, like the editor's
+   *  "Untitled" rows. */
+  empty?: boolean;
 }
 
 export interface ExportPageMeta {
@@ -119,16 +124,19 @@ export function buildPageHtml(meta: ExportPageMeta): string {
     .join("\n");
   const toc = meta.toc?.length
     ? `
-    <button class="toc-toggle" type="button" aria-label="Contents" aria-controls="toc-drawer" aria-expanded="false" title="Contents">&#9776;</button>
+    <button class="toc-toggle" type="button" aria-label="Contents" aria-controls="toc-drawer" aria-expanded="false" title="Contents">
+      <svg class="icon-menu" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+      <svg class="icon-close" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </button>
     <nav class="toc-drawer" id="toc-drawer" aria-label="Contents">
-      <ol>
+      <ul class="toc-list">
 ${meta.toc
   .map(
     (entry) =>
-      `        <li><a href="${entry.href}" title="${entry.label}">${entry.label}</a></li>`,
+      `        <li><a class="toc-item${entry.empty ? " is-empty" : ""}" href="${entry.href}" title="${entry.label}"><span class="toc-numb">${entry.num ?? ""}</span><span class="toc-header">${entry.label}</span></a></li>`,
   )
   .join("\n")}
-      </ol>
+      </ul>
     </nav>`
     : "";
   const tocScript = meta.toc?.length

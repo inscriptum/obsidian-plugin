@@ -210,10 +210,11 @@ article figure.mermaid-figure[data-align="right"] img {
   margin-left: auto;
 }
 
-/* 6. Contents drawer — the notepad's page navigator on the static site:
-      the ☰ button flips a left drawer, each entry jumps to its page
-      anchor, a click on a link or Esc closes it (inline script from the
-      page template). Hidden in print. */
+/* 6. Contents drawer — a port of the notepad's own pages navigator
+      (src/styles/notepad.css .notepad-nav): a bare ☰ that morphs into ✕,
+      a 300px drawer on the secondary background, page rows with a number
+      gutter and a hover pill, "Untitled" rows muted-italic. Static
+      light-theme values — the exported page ships no Obsidian variables. */
 
 @media (prefers-reduced-motion: no-preference) {
   html {
@@ -223,86 +224,140 @@ article figure.mermaid-figure[data-align="right"] img {
 
 .toc-toggle {
   position: fixed;
-  top: 12px;
-  left: 12px;
+  top: 4px;
+  left: 8px;
   z-index: 10;
   appearance: none;
   -webkit-appearance: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   margin: 0;
   padding: 0;
-  border: 1px solid #bbb;
-  border-radius: 8px;
-  background: #fff;
-  color: #222;
-  font-family: Inter, sans-serif;
-  font-size: 18px;
-  line-height: 1;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: #999;
   cursor: pointer;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
 }
 
-.toc-toggle:hover {
-  background: #f6f6f6;
+.toc-toggle svg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 38px;
+  height: 38px;
+  stroke-width: 0.5px;
+  transition:
+    stroke 0.2s,
+    opacity 0.35s,
+    transform 0.35s;
 }
 
-/* Open state: the toggle inverts while the drawer is out. */
-.toc-toggle.is-open {
-  background: #222;
-  border-color: #222;
-  color: #fff;
+.toc-toggle .icon-close {
+  opacity: 0;
+  transform: rotate(-90deg) scale(0.6);
+}
+
+.toc-toggle.is-open .icon-menu {
+  opacity: 0;
+  transform: rotate(90deg) scale(0.6);
+}
+
+.toc-toggle.is-open .icon-close {
+  opacity: 1;
+  transform: rotate(0deg);
+}
+
+.toc-toggle:hover,
+.toc-toggle:focus {
+  color: #222;
+  background: transparent;
+  outline: none;
 }
 
 .toc-drawer {
   position: fixed;
-  top: 48px;
+  top: 44px;
   left: 0;
   bottom: 0;
   z-index: 9;
-  width: min(320px, 84vw);
+  width: min(300px, 86vw);
   overflow-y: auto;
-  background: #fff;
-  border-right: 1px solid #e1e1e1;
-  box-shadow: 0 0 24px rgba(0, 0, 0, 0.12);
+  background: #f2f3f5;
+  border-right: 1px solid #ddd;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   transform: translateX(-102%);
-  transition: transform 0.2s ease;
+  visibility: hidden;
+  transition:
+    transform 0.35s,
+    visibility 0.35s;
 }
 
 .toc-drawer.is-open {
   transform: translateX(0);
+  visibility: visible;
 }
 
-.toc-drawer ol {
+.toc-list {
   margin: 0;
-  padding: 8px 0;
+  padding: 4px 10px 10px;
   list-style: none;
 }
 
-.toc-drawer a {
-  display: block;
-  padding: 10px 16px;
-  color: #222;
-  font-family: Inter, sans-serif;
-  font-size: 15px;
-  line-height: 1.4;
+.toc-item {
+  display: flex;
+  align-items: baseline;
+  margin: 1px 0;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: #666;
   text-decoration: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
 }
 
-.toc-drawer a:hover {
-  background: #f6f6f6;
+.toc-item:hover {
+  color: #222;
+  background: rgba(0, 0, 0, 0.075);
+}
+
+/* The cover row is the notepad title — uppercase, like the editor's. */
+.toc-item:first-child .toc-header {
+  text-transform: uppercase;
+}
+
+.toc-numb {
+  width: 2rem;
+  padding-right: 0.8rem;
+  text-align: right;
+  color: #999;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.toc-header {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0.35rem 0;
+  font-family: Inter, sans-serif;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.toc-item.is-empty .toc-header {
+  color: #999;
+  font-style: italic;
 }
 
 /* After an anchor jump the section's first line must not hide under the
    fixed toggle on narrow viewports. */
 article section[id] {
-  scroll-margin-top: 56px;
+  scroll-margin-top: 48px;
 }
 
 @media print {

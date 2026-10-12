@@ -192,17 +192,22 @@ export async function exportNotepadAsWebsite(
   );
 
   // Contents navigation, mirroring the notepad's own pages drawer: stable
-  // `page-N` anchors on the sections, labels from the page titles. A
+  // `page-N` anchors on the sections, a number gutter (the cover carries
+  // none, like the editor) and labels from the page titles — "Untitled"
+  // in the muted-italic style when a page has no first-line title. A
   // single-page export has nowhere to navigate — it stays clean.
   const sectionIds = sections.map((_, index) => `page-${index + 1}`);
   const toc: ExportTocEntry[] | undefined =
     sections.length >= 2
-      ? sections.map((_, index) => ({
-          href: `#${sectionIds[index]}`,
-          label: escapeDescription(
-            sectionLabels[index] || `Page ${index + 1}`,
-          ),
-        }))
+      ? sections.map((_, index) => {
+          const pageTitle = sectionLabels[index];
+          return {
+            href: `#${sectionIds[index]}`,
+            label: escapeDescription(pageTitle || "Untitled"),
+            num: index > 0 ? String(index) : "",
+            empty: pageTitle === "",
+          };
+        })
       : undefined;
 
   const pageHtml = buildPageHtml({

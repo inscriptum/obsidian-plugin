@@ -415,17 +415,22 @@ describe("buildPageHtml", () => {
       sections: ["<p>one</p>", "<p>two</p>"],
       sectionIds: ["page-1", "page-2"],
       toc: [
-        { href: "#page-1", label: "Cover" },
-        { href: "#page-2", label: "a &lt; b" },
+        { href: "#page-1", label: "Cover", num: "" },
+        { href: "#page-2", label: "a &lt; b", num: "1", empty: true },
       ],
     });
 
     expect(withToc).toContain('class="toc-toggle"');
     expect(withToc).toContain('class="toc-drawer"');
-    expect(withToc).toContain('<a href="#page-1" title="Cover">Cover</a>');
+    // editor-look rows: number gutter + header, ☰/✕ morph glyphs
     expect(
-      withToc.match(/<a href="#page-2" title="a &lt; b">a &lt; b<\/a>/),
+      withToc.match(/<a class="toc-item" href="#page-1" title="Cover"><span class="toc-numb"><\/span><span class="toc-header">Cover<\/span>/),
     ).toBeTruthy();
+    expect(
+      withToc.match(/<a class="toc-item is-empty" href="#page-2" title="a &lt; b"><span class="toc-numb">1<\/span><span class="toc-header">a &lt; b<\/span>/),
+    ).toBeTruthy();
+    expect(withToc).toContain('class="icon-menu"');
+    expect(withToc).toContain('class="icon-close"');
     // toggle script + drawer wiring are on the page
     expect(withToc.match(/<script>/g)?.length).toBe(2);
     expect(withToc).toContain('aria-controls="toc-drawer"');

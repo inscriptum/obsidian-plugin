@@ -176,7 +176,9 @@ describe("exportNotepadAsWebsite", () => {
     expect(index).toContain(
       'figure class="mermaid-figure" data-align="center"',
     );
-    expect(index).not.toContain("<svg");
+    // no mermaid host on the page (the toggle's ☰/✕ glyphs are svg too)
+    expect(index).not.toContain("texto-extension-mermaid");
+    expect(index).not.toContain("<figure class=\"mermaid-figure\"><svg");
     // created from the .um file's ctime; modified from the manifest's
     // latest modifiedAt (1790000000000 → 2026-09-21), not the file mtime
     expect(index).toContain('content="2023-11-14T22:13:20.000Z"');
@@ -306,9 +308,14 @@ describe("exportNotepadAsWebsite", () => {
     // stable per-page anchors on the sections
     expect(html).toContain('<section id="page-1">');
     expect(html).toContain('<section id="page-2">');
-    // drawer entries in order, labels from the pages' own titles
-    expect(html).toContain('<a href="#page-1" title="Мой блокнот">Мой блокнот</a>');
-    expect(html).toContain('<a href="#page-2" title="Page two">Page two</a>');
+    // drawer entries in order, labels from the pages' own titles, cover
+    // without a number, pages numbered like the editor's navigator
+    expect(
+      html.match(/<a class="toc-item" href="#page-1" title="Мой блокнот"><span class="toc-numb"><\/span><span class="toc-header">Мой блокнот/),
+    ).toBeTruthy();
+    expect(
+      html.match(/<a class="toc-item" href="#page-2" title="Page two"><span class="toc-numb">1<\/span><span class="toc-header">Page two/),
+    ).toBeTruthy();
     expect(html.indexOf('href="#page-1"')).toBeLessThan(
       html.indexOf('href="#page-2"'),
     );
@@ -332,7 +339,10 @@ describe("exportNotepadAsWebsite", () => {
     );
 
     const html = writes.get("export/Moj-bloknot/index.html") as string;
-    expect(html).toContain('<a href="#page-2" title="A &amp; B &lt;c&gt;">A &amp; B &lt;c&gt;</a>');
+    expect(
+      html.match(/<span class="toc-header">A &amp; B &lt;c&gt;<\/span>/),
+    ).toBeTruthy();
+    expect(html).toContain('title="A &amp; B &lt;c&gt;"');
   });
 
   it("labels pages without a first-line title by their number", async () => {
@@ -357,7 +367,9 @@ describe("exportNotepadAsWebsite", () => {
     );
 
     const html = writes.get("export/Moj-bloknot/index.html") as string;
-    expect(html).toContain('<a href="#page-2" title="Page 2">Page 2</a>');
+    // the editor's navigator look: "Untitled" muted-italic row
+    expect(html).toContain('<a class="toc-item is-empty" href="#page-2"');
+    expect(html).toContain('<span class="toc-header">Untitled</span>');
   });
 
   it("omits the drawer for a single-page notepad", async () => {
