@@ -209,3 +209,90 @@ article figure.mermaid-figure[data-align="center"] img {
 article figure.mermaid-figure[data-align="right"] img {
   margin-left: auto;
 }
+
+/* 6. Contents drawer — the notepad's page navigator on the static site:
+      the ☰ button flips a left drawer, each entry jumps to its page
+      anchor, a click on a link or Esc closes it (inline script from the
+      page template). Hidden in print. */
+
+html {
+  scroll-behavior: smooth;
+}
+
+.toc-toggle {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  appearance: none;
+  -webkit-appearance: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #bbb;
+  border-radius: 8px;
+  background: #fff;
+  color: #222;
+  font-family: Inter, sans-serif;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.toc-toggle:hover {
+  background: #f6f6f6;
+}
+
+.toc-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 9;
+  width: min(320px, 84vw);
+  overflow-y: auto;
+  background: #fff;
+  border-right: 1px solid #e1e1e1;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.12);
+  transform: translateX(-102%);
+  transition: transform 0.2s ease;
+}
+
+.toc-drawer.is-open {
+  transform: translateX(0);
+}
+
+.toc-drawer ol {
+  margin: 0;
+  padding: 8px 0;
+  list-style: none;
+}
+
+.toc-drawer a {
+  display: block;
+  padding: 10px 16px;
+  color: #222;
+  font-family: Inter, sans-serif;
+  font-size: 15px;
+  line-height: 1.4;
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toc-drawer a:hover {
+  background: #f6f6f6;
+}
+
+@media print {
+  .toc-toggle,
+  .toc-drawer {
+    display: none;
+  }
+}

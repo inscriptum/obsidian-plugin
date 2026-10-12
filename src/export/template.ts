@@ -9,6 +9,13 @@
  * absolute paths) and there is no page script.
  */
 
+/** One contents entry: in-page anchor href (`#…`) and the page label. */
+export interface ExportTocEntry {
+  href: string;
+  /** Already HTML-escaped (see escapeDescription). */
+  label: string;
+}
+
 export interface ExportPageMeta {
   title: string;
   /** Already attribute-escaped (see escapeDescription). */
@@ -21,6 +28,12 @@ export interface ExportPageMeta {
   /** Serialized article content, one `<section>` per entry — a flat note
    *  has a single section, a notepad one per page in manifest order. */
   sections: string[];
+  /** Anchor ids for the sections, same order — stable deep links
+   *  (`#page-1`, …). */
+  sectionIds?: string[];
+  /** Contents entries rendered as the ☰ navigation drawer (the notepad's
+   *  page navigator). Absent/empty → no drawer, like the .note export. */
+  toc?: ExportTocEntry[];
 }
 
 /**
@@ -63,14 +76,65 @@ const COPY_SCRIPT = `(function () {
   });
 })();`;
 
+/**
+ * Toggle + close logic for the contents drawer (see postprocess.ts's copy
+ * button for the delegated-listener style): ☰ flips `is-open`, a click on
+ * any anchor inside the drawer closes it (the jump happened), Esc closes.
+ */
+const TOC_SCRIPT = `(function () {
+  var toggle = document.querySelector(".toc-toggle");
+  var drawer = document.querySelector(".toc-drawer");
+  if (!toggle || !drawer) return;
+  function close() {
+    drawer.classList.remove("is-open");
+    toggle.classList.remove("is-open");
+    toggle.setAttribute("aria-expanded", "false");
+  }
+  toggle.addEventListener("click", function () {
+    var open = drawer.classList.toggle("is-open");
+    toggle.classList.toggle("is-open", open);
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  drawer.addEventListener("click", function (event) {
+    var link = event.target && event.target.closest
+      ? event.target.closest('a[href^="#"]') : null;
+    if (link) close();
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key === "Escape") close();
+  });
+})();`;
+
 export function buildPageHtml(meta: ExportPageMeta): string {
   const ogImage = meta.previewImageSrc
     ? `\n        <meta property="og:image" content="${meta.previewImageSrc}">
         <meta name="twitter:image" content="${meta.previewImageSrc}">`
     : "";
   const sections = meta.sections
-    .map((html) => `      <section>\n        ${html}\n      </section>`)
+    .map((html, index) => {
+      const id = meta.sectionIds?.[index];
+      const attr = id != null ? ` id="${id}"` : "";
+      return `      <section${attr}>\n        ${html}\n      </section>`;
+    })
     .join("\n");
+  const toc = meta.toc?.length
+    ? `
+    <button class="toc-toggle" type="button" aria-label="Contents" aria-expanded="false" title="Contents">&#9776;</button>
+    <nav class="toc-drawer">
+      <ol>
+${meta.toc
+  .map(
+    (entry) =>
+      `        <li><a href="${entry.href}">${entry.label}</a></li>`,
+  )
+  .join("\n")}
+      </ol>
+    </nav>`
+    : "";
+  const tocScript = meta.toc?.length
+    ? `
+    <script>${TOC_SCRIPT}</script>`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -89,11 +153,11 @@ export function buildPageHtml(meta: ExportPageMeta): string {
     <meta name="twitter:description" content="${meta.description}">
     <link href="note.css" rel="stylesheet">
   </head>
-  <body>
+  <body>${toc}
     <article>
 ${sections}
     </article>
-    <script>${COPY_SCRIPT}</script>
+    <script>${COPY_SCRIPT}</script>${tocScript}
   </body>
 </html>
 `;

@@ -170,7 +170,7 @@ describe("exportNotepadAsWebsite", () => {
     expect(index).toContain('content="Summary from the title page"');
     // pages flow in order: title page intro before the plain page body
     expect(index.indexOf("Intro")).toBeLessThan(index.indexOf("Body"));
-    expect(index.match(/<section>/g)?.length).toBe(2);
+    expect(index.match(/<section[ >]/g)?.length).toBe(2);
     // mermaid → <img> pointing at the shared SVG file, align preserved
     expect(index).toContain('src="images/diagram-1.svg"');
     expect(index).toContain(
@@ -289,6 +289,107 @@ describe("exportNotepadAsWebsite", () => {
     expect(html).not.toContain("og:image");
     expect(html).toContain("<title>Мой блокнот</title>"); // manifest title
     expect(writes.has("export/Moj-bloknot/images/image-1.png")).toBe(false);
+  });
+
+  it("anchors pages and renders the contents drawer from page titles", async () => {
+    const { notepad } = makeNotepad();
+    const { app, writes } = makeApp();
+    await exportNotepadAsWebsite(
+      app as never,
+      makeFile(),
+      notepad,
+      "export",
+      { renderDiagram },
+    );
+
+    const html = writes.get("export/Moj-bloknot/index.html") as string;
+    // stable per-page anchors on the sections
+    expect(html).toContain('<section id="page-1">');
+    expect(html).toContain('<section id="page-2">');
+    // drawer entries in order, labels from the pages' own titles
+    expect(html).toContain('<a href="#page-1">Мой блокнот</a>');
+    expect(html).toContain('<a href="#page-2">Page two</a>');
+    expect(html.indexOf('href="#page-1"')).toBeLessThan(
+      html.indexOf('href="#page-2"'),
+    );
+    // toggle + drawer + its script are all on the page
+    expect(html).toContain('class="toc-toggle"');
+    expect(html).toContain('class="toc-drawer"');
+    expect(html).toContain("classList.toggle");
+  });
+
+  it("escapes HTML-significant characters in contents labels", async () => {
+    const { notepad } = makeNotepad();
+    const page = notepad.notes().find((d) => d.order === 1)!;
+    page.title = "A & B <c>";
+    const { app, writes } = makeApp();
+    await exportNotepadAsWebsite(
+      app as never,
+      makeFile(),
+      notepad,
+      "export",
+      { renderDiagram },
+    );
+
+    const html = writes.get("export/Moj-bloknot/index.html") as string;
+    expect(html).toContain('<a href="#page-2">A &amp; B &lt;c&gt;</a>');
+  });
+
+  it("labels pages without a first-line title by their number", async () => {
+    const { notepad } = makeNotepad();
+    const page = notepad.notes().find((d) => d.order === 1)!;
+    // The page's first block carries no title (a diagram), so the
+    // manifest title mirror stays empty and the drawer falls back to
+    // the page number.
+    notepad.setNoteContent(page.id, {
+      type: "noteDoc",
+      content: [{ type: "mermaid", attrs: { code: "graph TD" } }],
+    });
+    expect(page.title).toBe("");
+
+    const { app, writes } = makeApp();
+    await exportNotepadAsWebsite(
+      app as never,
+      makeFile(),
+      notepad,
+      "export",
+      { renderDiagram },
+    );
+
+    const html = writes.get("export/Moj-bloknot/index.html") as string;
+    expect(html).toContain('<a href="#page-2">Page 2</a>');
+  });
+
+  it("omits the drawer for a single-page notepad", async () => {
+    const notepad = UmNotepad.empty();
+    const only = notepad.addNote(undefined, "Single page");
+    // the doc's title node mirrors the descriptor title (the manifest
+    // title is re-synced from the doc on load)
+    notepad.setNoteContent(only.id, {
+      type: "noteDoc",
+      content: [
+        {
+          type: "noteTitle",
+          content: [{ type: "text", text: "Single page" }],
+        },
+        { type: "noteSummary" },
+        { type: "paragraph" },
+      ],
+    });
+
+    const { app, writes } = makeApp();
+    await exportNotepadAsWebsite(
+      app as never,
+      makeFile("Notes/Single page.um"),
+      notepad,
+      "export",
+      { renderDiagram },
+    );
+
+    const html = writes.get("export/Single-page/index.html") as string;
+    expect(html).toContain('<section id="page-1">');
+    expect(html).not.toContain("toc-toggle");
+    expect(html).not.toContain("toc-drawer");
   });
 
   it("throws on an empty notepad", async () => {

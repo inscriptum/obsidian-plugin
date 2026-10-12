@@ -11,9 +11,9 @@ import {
   type ExportDiagramFile,
   type RenderDiagram,
 } from "./postprocess";
-import { extractPreview } from "./preview";
+import { extractPreview, escapeDescription } from "./preview";
 import { titleToSlug } from "./slug";
-import { buildPageHtml } from "./template";
+import { buildPageHtml, type ExportTocEntry } from "./template";
 import noteCss from "./assets/note.css?raw";
 
 /**
@@ -83,7 +83,9 @@ export interface ExportNotepadWebsiteResult {
  *   <exportFolder>/<slug>/images/<file> (relative references)
  *
  * Meta and preview (title, description, og:image) come from the title
- * page (order 0). Images unpack from the container's assets; page dates
+ * page (order 0). From two pages up, a ☰ contents drawer mirrors the
+ * notepad's own pages navigator: each entry is an anchor link to its
+ * page's section. Images unpack from the container's assets; page dates
  * in the meta come from the manifest's modifiedAt stamps (the .um file's
  * mtime when no page carries one). Re-exporting the same notepad
  * overwrites the folder's files in place; the .um file itself is never
@@ -127,6 +129,7 @@ export async function exportNotepadAsWebsite(
   const resolveTarget = createAssetNameResolver(notepad);
 
   const sections: string[] = [];
+  const sectionLabels: string[] = [];
   const diagrams: ExportDiagramFile[] = [];
   const missing = new Set<string>();
   const usedAssets = new Set<string>();
@@ -158,6 +161,9 @@ export async function exportNotepadAsWebsite(
     diagramBase += mapped.diagrams.length;
 
     sections.push(mapped.html);
+    // The contents label is the page's display title (the manifest mirror
+    // of its first line); untitled pages fall back to their number.
+    sectionLabels.push((descriptor.title ?? "").trim());
     diagrams.push(...mapped.diagrams);
     for (const id of mapped.images) usedAssets.add(id);
     for (const id of mapped.missing) missing.add(id);
@@ -185,6 +191,20 @@ export async function exportNotepadAsWebsite(
     0,
   );
 
+  // Contents navigation, mirroring the notepad's own pages drawer: stable
+  // `page-N` anchors on the sections, labels from the page titles. A
+  // single-page export has nowhere to navigate — it stays clean.
+  const sectionIds = sections.map((_, index) => `page-${index + 1}`);
+  const toc: ExportTocEntry[] | undefined =
+    sections.length >= 2
+      ? sections.map((_, index) => ({
+          href: `#${sectionIds[index]}`,
+          label: escapeDescription(
+            sectionLabels[index] || `Page ${index + 1}`,
+          ),
+        }))
+      : undefined;
+
   const pageHtml = buildPageHtml({
     title,
     description: preview?.description ?? "",
@@ -194,6 +214,8 @@ export async function exportNotepadAsWebsite(
       modifiedStamp > 0 ? modifiedStamp : file.stat.mtime,
     ).toISOString(),
     sections,
+    sectionIds,
+    toc,
   });
 
   const folder = normalizePath(`${exportFolder}/${slug}`);

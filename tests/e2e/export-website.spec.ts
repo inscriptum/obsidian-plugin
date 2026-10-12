@@ -82,5 +82,25 @@ test.describe("notepad website export", () => {
     expect(payload.files["export/E2E-export/images/image-1.png"]).toBe(
       btoa("png-bytes"),
     );
+    // three exported pages → contents drawer with anchor entries; labels
+    // mirror the pages' display titles (first line), untitled → "Page N"
+    expect(index).toContain('<section id="page-1">');
+    expect(index).toContain('<a href="#page-1">E2E export</a>');
+    expect(index).toContain('<a href="#page-2">first page</a>');
+    expect(index).toContain('<a href="#page-3">Page 3</a>');
+    expect(index).toContain('class="toc-toggle"');
+
+    // the drawer actually toggles in a real browser: load the exported
+    // page, click ☰, expect the drawer open; a link click closes it
+    await page.setContent(index);
+    await expect(page.locator(".toc-drawer")).not.toHaveClass(/is-open/);
+    await page.click(".toc-toggle");
+    await expect(page.locator(".toc-drawer")).toHaveClass(/is-open/);
+    await page.click('.toc-drawer a[href="#page-2"]');
+    await expect(page.locator(".toc-drawer")).not.toHaveClass(/is-open/);
+    // Esc closes too
+    await page.click(".toc-toggle");
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".toc-drawer")).not.toHaveClass(/is-open/);
   });
 });

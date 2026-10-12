@@ -389,6 +389,57 @@ describe("buildPageHtml", () => {
     ).toBe(2);
     expect(html.indexOf("<p>one</p>")).toBeLessThan(html.indexOf("<p>two</p>"));
   });
+
+  it("anchors sections by id when sectionIds are given", () => {
+    const html = buildPageHtml({
+      title: "t",
+      description: "",
+      previewImageSrc: null,
+      created: "2026-01-01T00:00:00.000Z",
+      modified: "2026-01-01T00:00:00.000Z",
+      sections: ["<p>one</p>", "<p>two</p>"],
+      sectionIds: ["page-1", "page-2"],
+    });
+
+    expect(html).toContain('<section id="page-1">');
+    expect(html).toContain('<section id="page-2">');
+  });
+
+  it("renders the contents drawer only when toc entries are provided", () => {
+    const withToc = buildPageHtml({
+      title: "t",
+      description: "",
+      previewImageSrc: null,
+      created: "2026-01-01T00:00:00.000Z",
+      modified: "2026-01-01T00:00:00.000Z",
+      sections: ["<p>one</p>", "<p>two</p>"],
+      sectionIds: ["page-1", "page-2"],
+      toc: [
+        { href: "#page-1", label: "Cover" },
+        { href: "#page-2", label: "a &lt; b" },
+      ],
+    });
+
+    expect(withToc).toContain('class="toc-toggle"');
+    expect(withToc).toContain('class="toc-drawer"');
+    expect(withToc).toContain('<a href="#page-1">Cover</a>');
+    expect(withToc).toContain('<a href="#page-2">a &lt; b</a>');
+    expect(withToc).toContain("toc-drawer"); // the toggle script is emitted
+    expect(withToc.match(/<script>/g)?.length).toBe(2);
+
+    const withoutToc = buildPageHtml({
+      title: "t",
+      description: "",
+      previewImageSrc: null,
+      created: "2026-01-01T00:00:00.000Z",
+      modified: "2026-01-01T00:00:00.000Z",
+      sections: ["<p>one</p>"],
+    });
+
+    expect(withoutToc).not.toContain("toc-toggle");
+    expect(withoutToc).not.toContain("toc-drawer");
+    expect(withoutToc.match(/<script>/g)?.length).toBe(1);
+  });
 });
 
 describe("export serialization", () => {
