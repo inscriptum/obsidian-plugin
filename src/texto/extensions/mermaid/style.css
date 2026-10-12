@@ -25,6 +25,14 @@
   height: auto;
 }
 
+/* Click-to-zoom affordance (openSvgLightbox): the whole view face opens the
+   lightbox (mermaidLightboxTarget), so the pointer promises it everywhere on
+   the frame — except the states that never open it (error/loading/editing). */
+.texto-extension-mermaid-host:not(.is-error):not(.is-loading):not(.is-editing)
+  .mermaid-view {
+  cursor: zoom-in;
+}
+
 .texto-extension-mermaid-host .mermaid-view__message {
   display: none;
   color: var(--text-error, #e93147);
