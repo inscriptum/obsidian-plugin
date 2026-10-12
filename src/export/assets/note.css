@@ -223,9 +223,13 @@ article figure.mermaid-figure[data-align="right"] img {
 }
 
 .toc-toggle {
-  position: fixed;
-  top: 4px;
-  left: 8px;
+  /* Rides with the drawer (a child of it), exactly like the editor's
+     pages navigator: closed — the bare ☰ hangs outside at the page's left
+     edge (the -102% shift carries it there); open — it travels with the
+     drawer and ends up hanging just past its right edge. */
+  position: absolute;
+  top: 8px;
+  right: -48px;
   z-index: 10;
   appearance: none;
   -webkit-appearance: none;
@@ -238,6 +242,7 @@ article figure.mermaid-figure[data-align="right"] img {
   background: transparent;
   color: #999;
   cursor: pointer;
+  visibility: visible; /* the closed drawer hides everything but this */
 }
 
 .toc-toggle svg {
@@ -282,12 +287,13 @@ article figure.mermaid-figure[data-align="right"] img {
 
 .toc-drawer {
   position: fixed;
-  top: 44px;
+  top: 0; /* full height — the exported page has no toolbar strip */
   left: 0;
   bottom: 0;
   z-index: 9;
+  display: flex;
+  flex-direction: column;
   width: min(300px, 86vw);
-  overflow-y: auto;
   background: #f2f3f5;
   border-right: 1px solid #ddd;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
@@ -304,6 +310,9 @@ article figure.mermaid-figure[data-align="right"] img {
 }
 
 .toc-list {
+  flex: 1 1 auto;
+  overflow-y: auto; /* the drawer itself must not scroll — it would clip
+                       the toggle hanging past its right edge */
   margin: 8px 0 0;
   padding: 0 10px 10px;
   list-style: none;

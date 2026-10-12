@@ -465,6 +465,14 @@ describe("buildPageHtml", () => {
     // toggle script + drawer wiring are on the page
     expect(withToc.match(/<script>/g)?.length).toBe(2);
     expect(withToc).toContain('aria-controls="toc-drawer"');
+    // the toggle rides the drawer (editor navigator mechanics): it is the
+    // nav's first child, the list follows it
+    expect(
+      withToc.indexOf('<nav class="toc-drawer"'),
+    ).toBeLessThan(withToc.indexOf('class="toc-toggle"'));
+    expect(
+      withToc.indexOf('class="toc-toggle"'),
+    ).toBeLessThan(withToc.indexOf('<ul class="toc-list"'));
 
     const withoutToc = buildPageHtml({
       title: "t",
