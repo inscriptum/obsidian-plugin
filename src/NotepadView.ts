@@ -265,6 +265,10 @@ export class NotepadView extends FileView {
    *  src/tools/isPressedCommand.ts). */
   static onEditorCreated: ((editor: Editor) => void) | null = null;
 
+  /** Called by the "Export as website" pane-menu item; the plugin host
+   *  installs the actual export action (see main.ts). */
+  static onExportRequested: ((view: NotepadView) => void) | null = null;
+
   private notepad: UmNotepad | null = null;
   private sections = new Map<string, SectionHandle>();
   /** Expansion state lives on the note descriptors in the manifest
@@ -397,10 +401,28 @@ export class NotepadView extends FileView {
     );
     menu.addItem((item) =>
       item
+        .setTitle("Export as website")
+        .setIcon("globe")
+        .onClick(() => NotepadView.onExportRequested?.(this)),
+    );
+    menu.addItem((item) =>
+      item
         .setTitle("Add note")
         .setIcon("plus")
         .onClick(() => this.addNote()),
     );
+  }
+
+  /** The notepad for export features: live page editors are flushed into
+   *  the in-memory model first (fresher than disk by up to the autosave
+   *  delay), mirroring NoteView.getDocForExport. Nothing is written to
+   *  disk. Null when the view has no notepad open. */
+  public getNotepadForExport(): UmNotepad | null {
+    if (!this.notepad) return null;
+    for (const handle of this.sections.values()) {
+      this.flushSectionToNotepad(handle);
+    }
+    return this.notepad;
   }
 
   /** Hotkey routing into the focused page's editor (see main.ts and

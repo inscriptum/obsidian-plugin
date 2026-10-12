@@ -3,11 +3,23 @@
  *
  * Ported from the inscriptum blog's publish template
  * (blog/src/components/draft/draft.service.ts, publishDraft): same body
- * structure (`article > section`) and meta set so an exported page can be
+ * structure (`article > section+`) and meta set so an exported page can be
  * dropped into that blog unchanged. Differences: the stylesheet is a local
  * relative `note.css` with fonts embedded (no inline style, no site
  * absolute paths) and there is no page script.
  */
+
+/** One contents entry: in-page anchor href (`#…`) and the page label. */
+export interface ExportTocEntry {
+  href: string;
+  /** Already HTML-escaped (see escapeDescription). */
+  label: string;
+  /** Page number in the left gutter (the cover carries none). */
+  num?: string;
+  /** Untitled page — the label renders muted-italic, like the editor's
+   *  "Untitled" rows. */
+  empty?: boolean;
+}
 
 export interface ExportPageMeta {
   title: string;
@@ -18,8 +30,15 @@ export interface ExportPageMeta {
   /** ISO timestamps (file birthtime / mtime). */
   created: string;
   modified: string;
-  /** Serialized article content, wrapped in its `<section>`. */
-  contentHtml: string;
+  /** Serialized article content, one `<section>` per entry — a flat note
+   *  has a single section, a notepad one per page in manifest order. */
+  sections: string[];
+  /** Anchor ids for the sections, same order — stable deep links
+   *  (`#page-1`, …). */
+  sectionIds?: string[];
+  /** Contents entries rendered as the ☰ navigation drawer (the notepad's
+   *  page navigator). Absent/empty → no drawer, like the .note export. */
+  toc?: ExportTocEntry[];
 }
 
 /**
@@ -62,10 +81,72 @@ const COPY_SCRIPT = `(function () {
   });
 })();`;
 
+/**
+ * Toggle + close logic for the contents drawer (see postprocess.ts's copy
+ * button for the delegated-listener style): ☰ flips `is-open`, a click on
+ * any anchor inside the drawer closes it (the jump happened), Esc closes.
+ */
+const TOC_SCRIPT = `(function () {
+  var toggle = document.querySelector(".toc-toggle");
+  var drawer = document.querySelector(".toc-drawer");
+  if (!toggle || !drawer) return;
+  function close() {
+    drawer.classList.remove("is-open");
+    toggle.classList.remove("is-open");
+    toggle.setAttribute("aria-expanded", "false");
+  }
+  toggle.addEventListener("click", function () {
+    var open = drawer.classList.toggle("is-open");
+    toggle.classList.toggle("is-open", open);
+    toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  });
+  drawer.addEventListener("click", function (event) {
+    var link = event.target && event.target.closest
+      ? event.target.closest('a[href^="#"]') : null;
+    if (link) close();
+  });
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape") return;
+    if (!drawer.classList.contains("is-open")) return;
+    close();
+    // the focused contents link just disappeared — keep the focus cue
+    // on a visible control
+    toggle.focus();
+  });
+})();`;
+
 export function buildPageHtml(meta: ExportPageMeta): string {
   const ogImage = meta.previewImageSrc
     ? `\n        <meta property="og:image" content="${meta.previewImageSrc}">
         <meta name="twitter:image" content="${meta.previewImageSrc}">`
+    : "";
+  const sections = meta.sections
+    .map((html, index) => {
+      const id = meta.sectionIds?.[index];
+      const attr = id != null ? ` id="${id}"` : "";
+      return `      <section${attr}>\n        ${html}\n      </section>`;
+    })
+    .join("\n");
+  const toc = meta.toc?.length
+    ? `
+    <nav class="toc-drawer" id="toc-drawer" aria-label="Contents">
+      <button class="toc-toggle" type="button" aria-label="Contents" aria-controls="toc-drawer" aria-expanded="false" title="Contents">
+        <svg class="icon-menu" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
+        <svg class="icon-close" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="17" y1="7" x2="7" y2="17"></line><line x1="7" y1="7" x2="17" y2="17"></line></svg>
+      </button>
+      <ul class="toc-list">
+${meta.toc
+  .map(
+    (entry) =>
+      `        <li><a class="toc-item${entry.empty ? " is-empty" : ""}${entry.num == null || entry.num === "" ? " is-cover" : ""}" href="${entry.href}" title="${entry.label}"><span class="toc-numb">${entry.num ?? ""}</span><span class="toc-header">${entry.label}</span></a></li>`,
+  )
+  .join("\n")}
+      </ul>
+    </nav>`
+    : "";
+  const tocScript = meta.toc?.length
+    ? `
+    <script>${TOC_SCRIPT}</script>`
     : "";
 
   return `<!DOCTYPE html>
@@ -85,13 +166,11 @@ export function buildPageHtml(meta: ExportPageMeta): string {
     <meta name="twitter:description" content="${meta.description}">
     <link href="note.css" rel="stylesheet">
   </head>
-  <body>
+  <body>${toc}
     <article>
-      <section>
-        ${meta.contentHtml}
-      </section>
+${sections}
     </article>
-    <script>${COPY_SCRIPT}</script>
+    <script>${COPY_SCRIPT}</script>${tocScript}
   </body>
 </html>
 `;

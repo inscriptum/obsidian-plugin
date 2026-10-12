@@ -4,9 +4,11 @@
  *    with a relative `images/<file>` source;
  *  - `<texto-extension-attachment>` → dropped (an attachment is a vault
  *    binary — a published page cannot link into the vault);
- *  - `<texto-extension-mermaid>` → `<figure class="mermaid-figure">` with
- *    the diagram compiled to a standalone SVG via the `renderDiagram`
- *    callback; dropped when the compile fails or no callback is given;
+ *  - `<texto-extension-mermaid>` → `<figure class="mermaid-figure"><img>` —
+ *    the diagram is compiled to a standalone SVG via the `renderDiagram`
+ *    callback, returned in `diagrams` as a file to write into `images/`,
+ *    and referenced relatively; dropped when the compile fails or no
+ *    callback is given;
  *  - `<pre><code>` (code blocks) → wrapped into `.hljs-codeblock` with the
  *    language label and a copy button, mirroring the editor's controls
  *    (see code-block-hljs/style.css and codeBlockSelectLang.element.tsx);
@@ -29,6 +31,13 @@ export type ResolveImageTarget = (vaultPath: string) => string | null;
  *  source is invalid / rendering failed (the figure is then dropped). */
 export type RenderDiagram = (code: string) => Promise<string | null>;
 
+/** A rendered diagram: the SVG file to write into the export's `images/`
+ *  folder and the relative file name the `<img>` points at. */
+export interface ExportDiagramFile {
+  name: string;
+  svg: string;
+}
+
 export interface PostProcessResult {
   html: string;
   /** Vault paths referenced by the resulting HTML (deduplicated, order of
@@ -41,6 +50,9 @@ export interface PostProcessResult {
   removedAttachments: number;
   /** How many mermaid diagrams were dropped (render failed or unavailable). */
   droppedDiagrams: number;
+  /** SVG files produced from mermaid nodes — the caller writes them into
+   *  `images/` under their names (see ExportDiagramFile). */
+  diagrams: ExportDiagramFile[];
 }
 
 const IMAGE_TAG = "texto-extension-image";
@@ -176,6 +188,11 @@ export async function postProcessForExport(
   html: string,
   resolveTarget: ResolveImageTarget,
   renderDiagram?: RenderDiagram,
+  /** File name for the Nth rendered diagram (1-based seq within this
+   *  call). Callers exporting several documents into one images/ folder
+   *  thread a shared counter through it; the default names them
+   *  diagram-1.svg, diagram-2.svg, … */
+  nameDiagram: (seq: number) => string = (seq) => `diagram-${seq}.svg`,
 ): Promise<PostProcessResult> {
   const parsed = new DOMParser().parseFromString(html, "text/html");
 
@@ -222,6 +239,8 @@ export async function postProcessForExport(
   }
 
   let droppedDiagrams = 0;
+  let diagramSeq = 0;
+  const diagrams: ExportDiagramFile[] = [];
   for (const el of Array.from(
     parsed.body.querySelectorAll<HTMLElement>(MERMAID_TAG),
   )) {
@@ -237,11 +256,41 @@ export async function postProcessForExport(
       droppedDiagrams += 1;
       continue;
     }
+    // Mermaid renders width="100%" with only a max-width cap (its
+    // useMaxWidth mode): the editor's host element constrains that, but a
+    // file-referencing <img> gets no intrinsic size from a percentage and
+    // stretches the diagram over the whole column. Pin the natural size
+    // from the viewBox so the file behaves like any image.
+    const [, , viewBoxW, viewBoxH] = (svgRoot.getAttribute("viewBox") ?? "")
+      .split(/[\s,]+/)
+      .map(Number);
+    if (
+      Number.isFinite(viewBoxW) &&
+      viewBoxW > 0 &&
+      Number.isFinite(viewBoxH) &&
+      viewBoxH > 0
+    ) {
+      svgRoot.setAttribute("width", String(viewBoxW));
+      svgRoot.setAttribute("height", String(viewBoxH));
+    }
+    // The diagram ships as an SVG file next to the page images, not as
+    // inline markup: the page stays lean and the figure behaves like any
+    // other image (caching, natural sizing via the SVG's own dimensions).
+    diagramSeq += 1;
+    const name = nameDiagram(diagramSeq);
+    diagrams.push({
+      name,
+      svg: new XMLSerializer().serializeToString(svgRoot),
+    });
+
     const figure = parsed.createElement("figure");
     figure.className = "mermaid-figure";
     const align = el.dataset["align"];
     if (align && align !== "left") figure.setAttribute("data-align", align);
-    figure.appendChild(parsed.importNode(svgRoot, true));
+    const img = parsed.createElement("img");
+    img.setAttribute("src", `images/${name}`);
+    img.setAttribute("alt", "Diagram");
+    figure.appendChild(img);
     el.replaceWith(figure);
   }
 
@@ -262,5 +311,6 @@ export async function postProcessForExport(
     missing,
     removedAttachments,
     droppedDiagrams,
+    diagrams,
   };
 }
