@@ -4,6 +4,10 @@
 import type { JSONContent } from "../texto/core/@types";
 import { Editor } from "../texto/core/Editor";
 import { getExtensions } from "../texto/getExtensions";
+import {
+  openImageGallery,
+  type GalleryItem,
+} from "../ui/imageLightbox";
 import { headingFoldingKey } from "../texto/extensions/heading/folding";
 import { taskFoldingKey } from "../texto/extensions/task-item-folding/taskFoldingPlugin";
 import { NotepadView } from "../NotepadView";
@@ -208,6 +212,9 @@ interface E2EApi {
   taskFolds: () => number[];
   /** The last error reported through the editor's onError hook. */
   lastError: () => unknown;
+  /** Open the picture viewer directly (image nodes have no vault in the
+   *  harness, so the gallery items are provided by the test). */
+  openGallery: (items: unknown[], index: number) => void;
 }
 
 let currentEditor: Editor | null = null;
@@ -278,6 +285,9 @@ const e2eApi: E2EApi = {
           taskFoldingKey.getState(currentEditor.view.state)?.folded ?? [],
         ),
   lastError: () => lastError,
+  openGallery: (items: unknown[], index: number) => {
+    openImageGallery(items as GalleryItem[], index);
+  },
 };
 
 g.__e2e = e2eApi;

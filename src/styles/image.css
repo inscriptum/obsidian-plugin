@@ -15,7 +15,8 @@
 /* Fullscreen image lightbox (click-to-zoom) — plugin UI (src/ui/imageLightbox.ts)
    Closing model: Esc / ✕ / click on the background outside the object; the
    object itself never closes, so it keeps a neutral cursor (zoom-out only
-   promises where a click really closes). */
+   promises where a click really closes). The viewer adds a gallery (looping
+   next/prev + counter) and zoom (wheel, +/−, double-click, pinch, drag). */
 .inscriptum-image-lightbox {
   position: fixed;
   inset: 0;
@@ -36,6 +37,16 @@
     box-shadow: 0 8px 40px rgb(0 0 0 / 50%);
     user-select: none;
     cursor: default;
+    touch-action: none; /* pinch/drags are handled via pointer events */
+  }
+
+  /* Zoomed picture: draggable, and visibly so while panning. */
+  &.is-zoomed img {
+    cursor: grab;
+  }
+
+  &.is-panning img {
+    cursor: grabbing;
   }
 
   & svg {
@@ -82,5 +93,83 @@
     text-align: center;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* Gallery arrows ride the overlay edges, vertically centered. */
+  & .inscriptum-image-lightbox__prev,
+  & .inscriptum-image-lightbox__next {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: rgb(255 255 255 / 70%);
+    font-size: 34px;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover {
+      background: rgb(255 255 255 / 12%);
+      color: rgb(255 255 255 / 95%);
+    }
+  }
+
+  & .inscriptum-image-lightbox__prev {
+    left: 8px;
+  }
+
+  & .inscriptum-image-lightbox__next {
+    right: 8px;
+  }
+
+  /* Zoom bar: − n/N + (bottom center). */
+  & .inscriptum-image-lightbox__bar {
+    position: absolute;
+    bottom: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px;
+    border-radius: 10px;
+    background: rgb(0 0 0 / 45%);
+  }
+
+  & .inscriptum-image-lightbox__zoom {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: rgb(255 255 255 / 70%);
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+
+    &:hover {
+      background: rgb(255 255 255 / 12%);
+      color: rgb(255 255 255 / 95%);
+    }
+  }
+
+  & .inscriptum-image-lightbox__counter {
+    min-width: 4.5em;
+    color: rgb(255 255 255 / 80%);
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    user-select: none;
   }
 }

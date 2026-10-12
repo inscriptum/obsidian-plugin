@@ -45,6 +45,7 @@ import {
   imageOnSetViewPropsContainer,
 } from "./notepad/imageTools";
 import type { ImageToolContext } from "./tools/image";
+import { collectGalleryItems } from "./ui/imageLightbox";
 import { createKeyboardTracking } from "./tools/keyboardTracking";
 import { setupScrollShadows, syncScrollShadow } from "./components/toolbar/scrollShadow";
 import { elTag } from "./tags";
@@ -1558,6 +1559,18 @@ export class NotepadView extends FileView {
     ctx: ImageToolContext,
   ): ExtensionHooks {
     const app = this.app;
+
+    // The lightbox gallery: container assets plus external vault images,
+    // resolved the same way the single-image zoom resolves them.
+    ctx.collectDocImages = () =>
+      collectGalleryItems(editorRef.current?.state.doc ?? null, (data) => {
+        if (data.id == null) return null;
+        if (notepad.isAssetId(data.id)) return notepad.assetUrl(data.id);
+        return app.vault.getAbstractFileByPath(data.id) != null
+          ? app.vault.adapter.getResourcePath(data.id)
+          : null;
+      });
+
     return {
       state: {
         onAdd: (node, deco) => {

@@ -6,7 +6,7 @@ import type {
 } from "../texto/extensions/image";
 import type { ImageToolContext } from "../tools/image";
 import { findPosByKey } from "../texto/extensions/state";
-import { openImageLightboxFromUrl } from "../ui/imageLightbox";
+import { openImageGallery, type GalleryItem } from "../ui/imageLightbox";
 import { imageOnSetViewProps } from "../tools/image";
 import type { UmNotepad } from "../storage/um/umNotepad";
 
@@ -111,7 +111,13 @@ export function imageOnSetViewPropsContainer(
       state,
       onClick: (event: MouseEvent) => {
         event.stopPropagation();
-        if (url != null) openImageLightboxFromUrl(url, data?.filename);
+        if (url == null) return;
+        const single: GalleryItem[] = [
+          { id, src: url, filename: data?.filename },
+        ];
+        const items = ctx.collectDocImages?.() ?? single;
+        const index = items.findIndex((item) => item.id === id);
+        openImageGallery(index >= 0 ? items : single, index >= 0 ? index : 0);
       },
       onFileSelected: (file: File | null) => {
         if (file)

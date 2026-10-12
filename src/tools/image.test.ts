@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import type { ImageElementPublicProps } from "../texto/extensions/image";
 import { imageOnSetViewProps, isImageIdReferenced } from "./image";
 
@@ -117,6 +117,53 @@ describe("imageOnSetViewProps", () => {
     expect(update).not.toHaveBeenCalled();
     expect(result?.state).toBeUndefined();
     expect(result?.onFileSelected).toBeTypeOf("function");
+  });
+
+  describe("onClick gallery wiring", () => {
+    afterEach(() => {
+      document.querySelector(".inscriptum-image-lightbox")?.remove();
+    });
+
+    it("opens the collected gallery at the clicked image's index", () => {
+      document.body.innerHTML = "";
+      const ctx = makeCtx((id) => `app://fresh/${id}`, ["img.png"]) as Record<string, unknown>;
+      ctx.collectDocImages = () => [
+        { id: "one.png", src: "app://fresh/one.png", filename: "one.png" },
+        { id: "img.png", src: "app://fresh/img.png", filename: "img.png" },
+        { id: "three.png", src: "app://fresh/three.png", filename: null },
+      ];
+      const props = imageOnSetViewProps(makeProps({}), vi.fn(), ctx as never);
+      props?.onClick?.(new MouseEvent("click", { bubbles: true }));
+      const lb = document.querySelector(".inscriptum-image-lightbox") as HTMLElement;
+      expect(lb).not.toBeNull();
+      expect(lb.querySelector(".inscriptum-image-lightbox__counter")?.textContent).toBe("2 / 3");
+    });
+
+    it("opens the clicked image alone when the context has no gallery", () => {
+      document.body.innerHTML = "";
+      const props = imageOnSetViewProps(
+        makeProps({}),
+        vi.fn(),
+        makeCtx((id) => `app://fresh/${id}`, ["img.png"]) as never,
+      );
+      props?.onClick?.(new MouseEvent("click", { bubbles: true }));
+      const lb = document.querySelector(".inscriptum-image-lightbox") as HTMLElement;
+      expect(lb.querySelector("img")?.getAttribute("src")).toBe("app://fresh/img.png");
+      expect(lb.querySelector(".inscriptum-image-lightbox__counter")?.textContent).toBe("1 / 1");
+    });
+
+    it("opens the clicked image alone when it is missing from the collection", () => {
+      document.body.innerHTML = "";
+      const ctx = makeCtx((id) => `app://fresh/${id}`, ["img.png"]) as Record<string, unknown>;
+      ctx.collectDocImages = () => [
+        { id: "one.png", src: "app://fresh/one.png", filename: null },
+      ];
+      const props = imageOnSetViewProps(makeProps({}), vi.fn(), ctx as never);
+      props?.onClick?.(new MouseEvent("click", { bubbles: true }));
+      const lb = document.querySelector(".inscriptum-image-lightbox") as HTMLElement;
+      expect(lb.querySelector("img")?.getAttribute("src")).toBe("app://fresh/img.png");
+      expect(lb.querySelector(".inscriptum-image-lightbox__counter")?.textContent).toBe("1 / 1");
+    });
   });
 });
 

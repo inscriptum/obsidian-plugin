@@ -2,15 +2,141 @@ import type { App } from "obsidian";
 
 const LIGHTBOX_CLASS = "inscriptum-image-lightbox";
 
+/**
+ * One viewable picture of the document: resolved source plus its label.
+ * `id` is the stable reference (vault path / container asset id) used for
+ * the gallery order, dedupe and finding the clicked node's position.
+ */
+export interface GalleryItem {
+  id: string;
+  src: string;
+  filename?: string | null;
+}
+
 /** Close call of the currently open overlay: replacing or sweeping the
  *  overlay must also retire its document-level keydown listener. */
 let activeClose: (() => void) | null = null;
 
+// ── Transform math (pure — unit-tested without layout) ─────────────────────
+
+/** Viewer transform: CSS `translate(x, y) scale(s)` around the image center
+ *  (scale 1 = the fit-the-viewport base size). */
+export interface ViewerTransform {
+  scale: number;
+  x: number;
+  y: number;
+}
+
+export const MIN_SCALE = 1;
+export const MAX_SCALE = 16;
+/** Wheel zoom speed: factor = exp(-deltaY * RATE) (deltaY 100 ≈ ×0.86). */
+export const WHEEL_ZOOM_RATE = 0.0015;
+/** Trackpad pinch arrives as wheel events with ctrlKey — step them harder. */
+export const PINCH_WHEEL_RATE = 0.01;
+export const BUTTON_ZOOM_FACTOR = 1.25;
+/** While panning, keep at least this many pixels of the picture on screen. */
+export const PAN_KEEP_PX = 80;
+
+export function identityTransform(): ViewerTransform {
+  return { scale: 1, x: 0, y: 0 };
+}
+
+export function clampScale(scale: number): number {
+  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
+}
+
 /**
- * Shared fullscreen overlay chrome. Closing model (the lightbox-gallery-zoom
- * contract, shared by every lightbox): Escape, the corner ✕ button, or a
- * click on the background outside the object — a click on the object itself
- * never closes. Cleans up its listeners.
+ * Multiplies the scale by `factor`, keeping the content point under the
+ * viewport `focal` pinned (the standard zoom-at-cursor contract). Scaling
+ * back down to fit snaps to the identity — a fit picture is always centered,
+ * so no un-reachable leftover pan remains.
+ */
+export function zoomTransform(
+  t: ViewerTransform,
+  factor: number,
+  focal: { x: number; y: number },
+  center: { x: number; y: number },
+): ViewerTransform {
+  const scale = clampScale(t.scale * factor);
+  if (scale === t.scale) return { ...t };
+  if (scale === MIN_SCALE) return identityTransform();
+  // the content point under the focal: p = (focal - center - t) / scale
+  const px = (focal.x - center.x - t.x) / t.scale;
+  const py = (focal.y - center.y - t.y) / t.scale;
+  return {
+    scale,
+    x: focal.x - center.x - px * scale,
+    y: focal.y - center.y - py * scale,
+  };
+}
+
+/**
+ * Pans by (dx, dy), clamped so the scaled picture never leaves the screen
+ * completely: the transformed image box must keep `PAN_KEEP_PX` of overlap
+ * with the viewport on both axes.
+ */
+export function panTransform(
+  t: ViewerTransform,
+  dx: number,
+  dy: number,
+  imageSize: { width: number; height: number },
+  viewport: { width: number; height: number },
+): ViewerTransform {
+  const halfW = (imageSize.width * t.scale) / 2;
+  const halfH = (imageSize.height * t.scale) / 2;
+  const limitX = Math.max(0, viewport.width / 2 + halfW - PAN_KEEP_PX);
+  const limitY = Math.max(0, viewport.height / 2 + halfH - PAN_KEEP_PX);
+  const clamp = (value: number, limit: number) =>
+    Math.min(limit, Math.max(-limit, value));
+  return {
+    scale: t.scale,
+    x: clamp(t.x + dx, limitX),
+    y: clamp(t.y + dy, limitY),
+  };
+}
+
+/**
+ * Gallery assembly from a document: images in document order, only the ones
+ * the resolver reports available (missing files and errors never enter —
+ * the same contract as the single-item lightbox), deduplicated by id
+ * (a picture pasted twice is one gallery item, at its first position).
+ */
+export function collectGalleryItems(
+  doc: {
+    descendants(
+      callback: (node: {
+        type: { name: string };
+        attrs: { data?: { id?: string | null; filename?: string | null } | null };
+      }) => boolean,
+    ): void;
+  } | null,
+  resolve: (data: {
+    id?: string | null;
+    filename?: string | null;
+  }) => string | null,
+): GalleryItem[] {
+  const items: GalleryItem[] = [];
+  const seen = new Set<string>();
+  doc?.descendants((node) => {
+    if (node.type.name !== "image") return true;
+    const data = node.attrs.data;
+    if (data?.id == null || seen.has(data.id)) return true;
+    const src = resolve(data);
+    if (src == null) return true;
+    seen.add(data.id);
+    items.push({ id: data.id, src, filename: data.filename });
+    return true;
+  });
+  return items;
+}
+
+// ── Overlay ────────────────────────────────────────────────────────────────
+
+/**
+ * Shared fullscreen overlay chrome. Closing model (shared by every
+ * lightbox): Escape, the corner ✕, or a click on the background outside the
+ * object — a click on the object itself never closes. Cleans up its
+ * listeners.
  */
 function openLightboxOverlay(
   object: HTMLElement | SVGSVGElement,
@@ -52,10 +178,10 @@ function openLightboxOverlay(
     overlay.appendChild(captionEl);
   }
 
-  // Background = the overlay itself and its caption strip; a click on the
-  // object hits neither and stays.
+  // Background = the overlay surface itself; a click on the object or its
+  // caption hits neither and stays (same convention as the gallery viewer).
   overlay.addEventListener("click", (event) => {
-    if (event.target === overlay || event.target === captionEl) close();
+    if (event.target === overlay) close();
   });
   document.addEventListener("keydown", onKeydown, true);
   activeClose = close;
@@ -88,18 +214,316 @@ export function openImageLightboxFromUrl(
   src: string,
   filename?: string | null,
 ): void {
-  const img = createEl("img");
-  img.src = src;
-  img.alt = filename || src;
+  openImageGallery([{ id: src, src, filename }], 0);
+}
 
-  openLightboxOverlay(img, filename);
+/**
+ * The editor's picture viewer: the gallery of the document's images with
+ * next/prev (looping edges, arrows + keyboard), zoom (wheel, +/− buttons,
+ * double-click fit/100%, pinch on touch) and drag panning while zoomed.
+ * Only `items[index]` is guaranteed to be the clicked picture; every item
+ * must already be resolved and available. A single-item gallery is the old
+ * minimal lightbox plus the zoom bar.
+ */
+export function openImageGallery(items: GalleryItem[], index: number): void {
+  if (items.length === 0) return;
+  closeImageLightbox();
+
+  const state = {
+    index: Math.min(Math.max(index, 0), items.length - 1),
+    transform: identityTransform(),
+  };
+
+  const overlay = createDiv();
+  overlay.className = LIGHTBOX_CLASS;
+
+  const close = () => {
+    overlay.remove();
+    document.removeEventListener("keydown", onKeydown, true);
+    if (activeClose === close) activeClose = null;
+  };
+
+  const onKeydown = (event: KeyboardEvent) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+      return;
+    }
+    if (items.length > 1 && event.key === "ArrowRight") {
+      event.preventDefault();
+      event.stopPropagation();
+      show(state.index + 1);
+    } else if (items.length > 1 && event.key === "ArrowLeft") {
+      event.preventDefault();
+      event.stopPropagation();
+      show(state.index - 1);
+    }
+  };
+
+  const closeButton = createEl("button", {
+    cls: `${LIGHTBOX_CLASS}__close`,
+    text: "✕",
+    attr: { type: "button", "aria-label": "Close" },
+  });
+  closeButton.addEventListener("click", close);
+  overlay.appendChild(closeButton);
+
+  const img = createEl("img");
+  img.draggable = false;
+  overlay.appendChild(img);
+
+  const captionEl = createDiv();
+  captionEl.className = `${LIGHTBOX_CLASS}__caption`;
+  overlay.appendChild(captionEl);
+
+  // Zoom bar: − n/N + (bottom center). Wheel, double-click and pinch do the
+  // same job by gesture; the buttons are the always-visible entry.
+  const bar = createDiv();
+  bar.className = `${LIGHTBOX_CLASS}__bar`;
+  const zoomOutButton = createEl("button", {
+    cls: `${LIGHTBOX_CLASS}__zoom`,
+    text: "−",
+    attr: { type: "button", "aria-label": "Zoom out" },
+  });
+  const counterEl = createSpan({
+    cls: `${LIGHTBOX_CLASS}__counter`,
+  });
+  const zoomInButton = createEl("button", {
+    cls: `${LIGHTBOX_CLASS}__zoom`,
+    text: "+",
+    attr: { type: "button", "aria-label": "Zoom in" },
+  });
+  zoomOutButton.addEventListener("click", () => {
+    zoomBy(1 / BUTTON_ZOOM_FACTOR, imageCenter());
+  });
+  zoomInButton.addEventListener("click", () => {
+    zoomBy(BUTTON_ZOOM_FACTOR, imageCenter());
+  });
+  bar.append(zoomOutButton, counterEl, zoomInButton);
+  overlay.appendChild(bar);
+
+  const prevButton =
+    items.length > 1
+      ? createEl("button", {
+          cls: `${LIGHTBOX_CLASS}__prev`,
+          text: "‹",
+          attr: { type: "button", "aria-label": "Previous image" },
+        })
+      : null;
+  const nextButton =
+    items.length > 1
+      ? createEl("button", {
+          cls: `${LIGHTBOX_CLASS}__next`,
+          text: "›",
+          attr: { type: "button", "aria-label": "Next image" },
+        })
+      : null;
+  prevButton?.addEventListener("click", () => show(state.index - 1));
+  nextButton?.addEventListener("click", () => show(state.index + 1));
+  if (prevButton) overlay.appendChild(prevButton);
+  if (nextButton) overlay.appendChild(nextButton);
+
+  // ── transform rendering & gestures ──
+
+  const render = () => {
+    const t = state.transform;
+    img.style.transform = `translate(${t.x}px, ${t.y}px) scale(${t.scale})`;
+    overlay.classList.toggle("is-zoomed", t.scale > 1);
+    overlay.classList.toggle("is-panning", panning);
+  };
+
+  const viewportCenter = () => ({
+    x: overlay.clientWidth / 2,
+    y: overlay.clientHeight / 2,
+  });
+
+  /** The image's transform center: its untransformed box center (the caption
+   *  and the bar shift the flex center, so the live rect is the source). */
+  const imageCenter = () => {
+    const rect = img.getBoundingClientRect();
+    const origin = overlay.getBoundingClientRect();
+    const t = state.transform;
+    return {
+      x: rect.left - origin.left + rect.width / 2 - t.x,
+      y: rect.top - origin.top + rect.height / 2 - t.y,
+    };
+  };
+
+  /** The image's untransformed layout box (the scale-1 fit size). */
+  const fitRect = () => {
+    const rect = img.getBoundingClientRect();
+    const t = state.transform;
+    return {
+      width: rect.width / t.scale,
+      height: rect.height / t.scale,
+    };
+  };
+
+  const zoomBy = (factor: number, focal: { x: number; y: number }) => {
+    state.transform = zoomTransform(
+      state.transform,
+      factor,
+      focal,
+      imageCenter(),
+    );
+    render();
+  };
+
+  const onWheel = (event: WheelEvent) => {
+    event.preventDefault();
+    const rect = overlay.getBoundingClientRect();
+    // normalize line-mode deltas (deltaMode 1) to pixels
+    const delta = event.deltaY * (event.deltaMode === 1 ? 16 : 1);
+    const rate = event.ctrlKey ? PINCH_WHEEL_RATE : WHEEL_ZOOM_RATE;
+    zoomBy(Math.exp(-delta * rate), {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top,
+    });
+  };
+
+  const onDoubleClick = (event: MouseEvent) => {
+    event.preventDefault();
+    // toggle fit (scale 1) ↔ actual size (natural pixels over fit pixels)
+    const target =
+      state.transform.scale > 1
+        ? 1
+        : clampScale(img.naturalWidth / (fitRect().width || 1));
+    zoomBy(target / state.transform.scale, viewportCenter());
+  };
+
+  // Pointer gestures on the object: drag pans while zoomed; two touch
+  // pointers pinch. Clicks stay no-ops (the closing model).
+  const pointers = new Map<number, { x: number; y: number }>();
+  let panning = false;
+  let pinchStart: { distance: number; transform: ViewerTransform } | null = null;
+  let dragStart: { x: number; y: number; transform: ViewerTransform } | null =
+    null;
+
+  const onPointerDown = (event: PointerEvent) => {
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.size === 2) {
+      const [a, b] = [...pointers.values()];
+      pinchStart = {
+        distance: Math.hypot(a.x - b.x, a.y - b.y) || 1,
+        transform: state.transform,
+      };
+      dragStart = null;
+    } else if (pointers.size === 1) {
+      dragStart = {
+        x: event.clientX,
+        y: event.clientY,
+        transform: state.transform,
+      };
+    }
+    // pointer capture keeps moves/up on the image even off its bounds;
+    // synthetic pointers (tests, automation) are not capturable — the
+    // gesture state above must survive that
+    try {
+      img.setPointerCapture?.(event.pointerId);
+    } catch {
+      /* not a real pointer — fine */
+    }
+  };
+
+  const onPointerMove = (event: PointerEvent) => {
+    if (!pointers.has(event.pointerId)) return;
+    pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (pointers.size === 2 && pinchStart != null) {
+      const [a, b] = [...pointers.values()];
+      const distance = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+      const origin = overlay.getBoundingClientRect();
+      const mid = {
+        x: (a.x + b.x) / 2 - origin.left,
+        y: (a.y + b.y) / 2 - origin.top,
+      };
+      state.transform = zoomTransform(
+        pinchStart.transform,
+        distance / pinchStart.distance,
+        mid,
+        imageCenter(),
+      );
+      render();
+      return;
+    }
+
+    if (pointers.size === 1 && dragStart != null) {
+      if (state.transform.scale <= 1) return; // panning needs a zoomed picture
+      const rect = overlay.getBoundingClientRect();
+      const t = dragStart.transform;
+      state.transform = panTransform(
+        t,
+        event.clientX - dragStart.x,
+        event.clientY - dragStart.y,
+        fitRect(),
+        { width: rect.width, height: rect.height },
+      );
+      panning = true;
+      render();
+    }
+  };
+
+  const onPointerUp = (event: PointerEvent) => {
+    pointers.delete(event.pointerId);
+    if (pointers.size < 2) pinchStart = null;
+    if (pointers.size === 1) {
+      // a pinch ended with one finger still down — it becomes the drag
+      const [rest] = [...pointers.values()];
+      dragStart = { x: rest.x, y: rest.y, transform: state.transform };
+      panning = false;
+    } else {
+      dragStart = null;
+      panning = false;
+      render();
+    }
+  };
+
+  img.addEventListener("wheel", onWheel, { passive: false });
+  img.addEventListener("dblclick", onDoubleClick);
+  img.addEventListener("pointerdown", onPointerDown);
+  img.addEventListener("pointermove", onPointerMove);
+  img.addEventListener("pointerup", onPointerUp);
+  img.addEventListener("pointercancel", onPointerUp);
+
+  // ── gallery state ──
+
+  const show = (index: number) => {
+    // looping edges (owner decision): both directions wrap around
+    const next = ((index % items.length) + items.length) % items.length;
+    state.index = next;
+    // a new picture starts unzoomed and unpanned
+    state.transform = identityTransform();
+    const item = items[next];
+    img.src = item.src;
+    img.alt = item.filename || item.src;
+    captionEl.textContent = item.filename ?? "";
+    captionEl.style.display = item.filename ? "" : "none";
+    counterEl.textContent = `${next + 1} / ${items.length}`;
+    panning = false;
+    pinchStart = null;
+    dragStart = null;
+    render();
+  };
+
+  overlay.addEventListener("click", (event) => {
+    // background click closes; the object, the bar and the arrows are not
+    // the background
+    if (event.target === overlay) close();
+  });
+  document.addEventListener("keydown", onKeydown, true);
+  activeClose = close;
+
+  document.body.appendChild(overlay);
+  show(state.index);
 }
 
 /**
  * Lightbox for an already rendered inline SVG (a mermaid diagram's view
  * face): the clone is normalized to its viewBox dimensions so the overlay's
  * CSS box scales it like a raster image. Captionless — the diagram lightbox
- * carries no label (owner decision, 2026-10-12).
+ * carries no label (owner decision, 2026-10-12); diagrams stay outside the
+ * image gallery (owner decision, 2026-10-13).
  */
 export function openSvgLightbox(svg: SVGSVGElement): void {
   const clone = svg.cloneNode(true) as SVGSVGElement;
