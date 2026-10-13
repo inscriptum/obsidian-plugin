@@ -65,6 +65,41 @@ test.describe("mermaid click-to-zoom", () => {
     await expect(overlay).toBeVisible();
   });
 
+  test("the diagram viewer carries the zoom bar (no gallery, no counter)", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await mount(page, noteDoc({
+      type: "mermaid",
+      attrs: { code: "flowchart TD\n  A[Start] --> B[End]" },
+    }));
+
+    await openDiagramLightbox(page);
+    const overlay = page.locator(".inscriptum-image-lightbox");
+    const bar = overlay.locator(".inscriptum-image-lightbox__bar");
+    await expect(bar).toBeVisible();
+    // zoom buttons only — diagrams stay outside the image gallery
+    await expect(bar.locator(".inscriptum-image-lightbox__zoom")).toHaveCount(2);
+    await expect(bar.locator(".inscriptum-image-lightbox__counter")).toHaveCount(0);
+    await expect(overlay.locator(".inscriptum-image-lightbox__prev")).toHaveCount(0);
+    await expect(overlay.locator(".inscriptum-image-lightbox__next")).toHaveCount(0);
+
+    // the buttons zoom the diagram like an image — with the same drag
+    // affordance in the cursor
+    const svg = overlay.locator("svg");
+    await expect(svg).toHaveCSS("cursor", "default");
+    await bar.locator(".inscriptum-image-lightbox__zoom").last().click();
+    await expect(overlay).toHaveClass(/is-zoomed/);
+    await expect(svg).toHaveCSS("cursor", "grab");
+    await bar.locator(".inscriptum-image-lightbox__zoom").first().click();
+    await expect(overlay).not.toHaveClass(/is-zoomed/);
+    await expect(svg).toHaveCSS("cursor", "default");
+
+    // and it still closes over the zoomed diagram
+    await overlay.locator(".inscriptum-image-lightbox__close").click();
+    await expect(overlay).toHaveCount(0);
+  });
+
   test("Escape closes the diagram lightbox", async ({ page }) => {
     await openHarness(page);
     await mount(page, noteDoc({

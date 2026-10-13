@@ -145,5 +145,65 @@ test.describe("notepad website export", () => {
     await page.keyboard.press("Escape");
     await expect(page.locator(".toc-drawer")).not.toHaveClass(/is-open/);
     await expect(page.locator(".toc-toggle")).toBeFocused();
+
+    // figure lightbox: click a figure (mermaid diagram here, same markup as
+    // images) — the overlay carries the enlarged object; cursors come from
+    // the real stylesheet
+    const mermaidFigure = page.locator("figure.mermaid-figure");
+    await expect(mermaidFigure).toHaveCSS("cursor", "zoom-in");
+    await mermaidFigure.click();
+    const lightbox = page.locator(".site-lightbox");
+    await expect(lightbox).toBeVisible();
+    await expect(lightbox).toHaveCSS("cursor", "zoom-out");
+    await expect(lightbox.locator("img")).toHaveAttribute(
+      "src",
+      "images/diagram-1.svg",
+    );
+    await expect(lightbox.locator(".site-lightbox__close")).toBeVisible();
+    // a click on the object itself never closes — only the dark background
+    await lightbox.locator("img").click();
+    await expect(lightbox).toBeVisible();
+    await lightbox.click({ position: { x: 5, y: 5 } });
+    await expect(lightbox).toHaveCount(0);
+
+    // Esc does not leak to the drawer: with the drawer open beneath, the
+    // first Esc closes only the lightbox, the second closes the drawer
+    await page.click(".toc-toggle");
+    await expect(page.locator(".toc-drawer")).toHaveClass(/is-open/);
+    await mermaidFigure.click();
+    await expect(lightbox).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(lightbox).toHaveCount(0);
+    await expect(page.locator(".toc-drawer")).toHaveClass(/is-open/);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".toc-drawer")).not.toHaveClass(/is-open/);
+
+    // the corner ✕ closes as well
+    await mermaidFigure.click();
+    await expect(lightbox).toBeVisible();
+    await lightbox.locator(".site-lightbox__close").click();
+    await expect(lightbox).toHaveCount(0);
+
+    // keyboard parity: figures are focusable openers, Enter opens, the focus
+    // moves into the viewer (Tab stays on the ✕) and returns to the figure
+    await expect(mermaidFigure).toHaveAttribute("role", "button");
+    await expect(mermaidFigure).toHaveAttribute("tabindex", "0");
+    await mermaidFigure.focus();
+    await page.keyboard.press("Enter");
+    await expect(lightbox).toBeVisible();
+    await expect(lightbox.locator(".site-lightbox__close")).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(lightbox.locator(".site-lightbox__close")).toBeFocused();
+    // a link under the viewer is unreachable: Tab never leaves the viewer
+    await expect(page.locator(".toc-toggle")).not.toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(lightbox).toHaveCount(0);
+    await expect(mermaidFigure).toBeFocused();
+    // Space opens too
+    await page.keyboard.press("Space");
+    await expect(lightbox).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(lightbox).toHaveCount(0);
+    await expect(mermaidFigure).toBeFocused();
   });
 });

@@ -382,3 +382,82 @@ article section[id] {
     display: none;
   }
 }
+
+/* 7. Figure lightbox — a click on any figure (image or mermaid diagram;
+      both export to the same <figure><img> markup) opens the fullscreen
+      overlay with the enlarged object. Own dark palette — the page ships
+      no theme variables. Closing model mirrors the editor's lightbox:
+      Esc, the corner ✕, or a click on the dark background outside the
+      object (the object itself never closes, so it keeps a neutral cursor —
+      zoom-out stays on the background, where a click really closes).
+      Rides above the contents drawer (z-index 9/10). */
+
+article figure {
+  cursor: zoom-in;
+}
+
+/* The figure is a keyboard opener (Tab + Enter/Space, see the page script):
+   keyboard users get the same visible ring as the contents toggle. */
+article figure:focus-visible {
+  outline: 2px solid #999;
+  outline-offset: 2px;
+}
+
+.site-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 80%);
+  cursor: zoom-out;
+}
+
+.site-lightbox img {
+  max-width: 95vw;
+  max-height: 92vh;
+  object-fit: contain;
+  border: none;
+  box-shadow: 0 8px 40px rgb(0 0 0 / 50%);
+  user-select: none;
+  cursor: default;
+}
+
+.site-lightbox__close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  color: rgb(255 255 255 / 70%);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.site-lightbox__close:hover {
+  background: rgb(255 255 255 / 12%);
+  color: rgb(255 255 255 / 95%);
+}
+
+/* Keyboard users keep a visible ring, like the contents toggle. */
+.site-lightbox__close:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 60%);
+  outline-offset: 2px;
+}
+
+@media print {
+  .site-lightbox {
+    display: none;
+  }
+}

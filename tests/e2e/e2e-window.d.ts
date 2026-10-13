@@ -13,6 +13,7 @@ declare global {
       headingFolds(): number[];
       taskFolds(): number[];
       lastError(): unknown;
+      openGallery(items: unknown[], index: number): void;
     };
     __e2eNotepad: {
       mount(

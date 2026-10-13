@@ -7,12 +7,16 @@ import type {
   UpdateFn,
 } from "../texto/extensions/image";
 import { findPosByKey } from "../texto/extensions/state";
-import { openImageLightbox } from "../ui/imageLightbox";
+import { openImageGallery, type GalleryItem } from "../ui/imageLightbox";
 import { saveAttachmentFile } from "../storage/attachments";
 
 export interface ImageToolContext {
   app: App;
   noteFile: TFile;
+  /** The document's available images at click time, in document order —
+   *  the lightbox gallery context. Absent → the clicked picture opens
+   *  alone. Only actually available images are returned. */
+  collectDocImages?: () => GalleryItem[];
 }
 
 /**
@@ -156,7 +160,18 @@ export function imageOnSetViewProps(
       state,
       onClick: (event: MouseEvent) => {
         event.stopPropagation();
-        openImageLightbox(ctx.app, imageId, props.data.filename);
+        const single: GalleryItem[] = [
+          { id: imageId, src, filename: props.data.filename },
+        ];
+        const items = ctx.collectDocImages?.() ?? single;
+        const index = items.findIndex((item) => item.id === imageId);
+        if (index >= 0) {
+          openImageGallery(items, index);
+        } else {
+          // the clicked picture is somehow not in the collected context —
+          // it still opens, alone
+          openImageGallery(single, 0);
+        }
       },
       onFileSelected: (file: File | null) => {
         if (file) void onFileSelected(file, update, ctx);

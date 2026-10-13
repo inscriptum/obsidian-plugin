@@ -570,6 +570,42 @@ describe("buildPageHtml", () => {
     expect(withoutToc).not.toContain("toc-drawer");
     expect(withoutToc.match(/<script>/g)?.length).toBe(1);
   });
+
+  it("ships the figure lightbox script only when figures are present", () => {
+    const base = {
+      title: "t",
+      description: "",
+      previewImageSrc: null,
+      created: "2026-01-01T00:00:00.000Z",
+      modified: "2026-01-01T00:00:00.000Z",
+    };
+    const withFigure = buildPageHtml({
+      ...base,
+      sections: [
+        "<p>one</p>",
+        '<figure data-align="center"><img src="images/image-1.png" alt=""></figure>',
+      ],
+    });
+    expect(withFigure).toContain("site-lightbox");
+    expect(withFigure).toContain("article figure");
+    // copy + lightbox, no toc
+    expect(withFigure.match(/<script>/g)?.length).toBe(2);
+
+    const withMermaidFigure = buildPageHtml({
+      ...base,
+      sections: [
+        '<figure class="mermaid-figure"><img src="images/diagram-1.svg" alt=""></figure>',
+      ],
+    });
+    expect(withMermaidFigure).toContain("site-lightbox");
+
+    const withoutFigures = buildPageHtml({
+      ...base,
+      sections: ["<p>one</p>", "<p>two</p>"],
+    });
+    expect(withoutFigures).not.toContain("site-lightbox");
+    expect(withoutFigures.match(/<script>/g)?.length).toBe(1);
+  });
 });
 
 describe("export serialization", () => {

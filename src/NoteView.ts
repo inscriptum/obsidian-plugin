@@ -38,6 +38,7 @@ import {
   isImageIdReferenced,
   type ImageToolContext,
 } from "./tools/image";
+import { collectGalleryItems } from "./ui/imageLightbox";
 import type { JSONContent } from "./texto/core/@types";
 import "./styles/bubble-menu.css";
 import "./components/note/note.element";
@@ -1283,6 +1284,16 @@ export class NoteView extends FileView {
     ctx: ImageToolContext,
   ): ExtensionHooks {
     const app = this.app;
+
+    // The lightbox gallery: the document's available images at click time.
+    ctx.collectDocImages = () =>
+      collectGalleryItems(
+        editorRef.current?.state.doc ?? null,
+        (data) =>
+          data.id != null && app.vault.getAbstractFileByPath(data.id) != null
+            ? app.vault.adapter.getResourcePath(data.id)
+            : null,
+      );
 
     return {
       state: {
