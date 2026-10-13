@@ -84,11 +84,16 @@ test.describe("mermaid click-to-zoom", () => {
     await expect(overlay.locator(".inscriptum-image-lightbox__prev")).toHaveCount(0);
     await expect(overlay.locator(".inscriptum-image-lightbox__next")).toHaveCount(0);
 
-    // the buttons zoom the diagram like an image
+    // the buttons zoom the diagram like an image — with the same drag
+    // affordance in the cursor
+    const svg = overlay.locator("svg");
+    await expect(svg).toHaveCSS("cursor", "default");
     await bar.locator(".inscriptum-image-lightbox__zoom").last().click();
     await expect(overlay).toHaveClass(/is-zoomed/);
+    await expect(svg).toHaveCSS("cursor", "grab");
     await bar.locator(".inscriptum-image-lightbox__zoom").first().click();
     await expect(overlay).not.toHaveClass(/is-zoomed/);
+    await expect(svg).toHaveCSS("cursor", "default");
 
     // and it still closes over the zoomed diagram
     await overlay.locator(".inscriptum-image-lightbox__close").click();

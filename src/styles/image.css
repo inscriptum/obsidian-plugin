@@ -40,12 +40,15 @@
     touch-action: none; /* pinch/drags are handled via pointer events */
   }
 
-  /* Zoomed picture: draggable, and visibly so while panning. */
-  &.is-zoomed img {
+  /* Zoomed object — picture or diagram — is draggable, and visibly so
+     while panning. */
+  &.is-zoomed img,
+  &.is-zoomed svg {
     cursor: grab;
   }
 
-  &.is-panning img {
+  &.is-panning img,
+  &.is-panning svg {
     cursor: grabbing;
   }
 
