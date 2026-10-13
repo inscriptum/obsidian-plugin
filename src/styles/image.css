@@ -54,11 +54,16 @@
 
   & svg {
     /* A cloned diagram, normalized to its viewBox size by openSvgLightbox —
-       the same max box scales it like a raster image. */
+       the same max box scales it like a raster image. The frame mirrors the
+       editor's .mermaid-view (themed paper + padding): without it a light
+       diagram's dark strokes sit straight on the dark backdrop. */
     max-width: 95vw;
     max-height: 92vh;
     width: auto;
     height: auto;
+    padding: 16px;
+    border-radius: 8px;
+    background: var(--background-primary, #fff);
     box-shadow: 0 8px 40px rgb(0 0 0 / 50%);
     user-select: none;
     cursor: default;
