@@ -368,15 +368,26 @@ export const Mermaid = Node.create<MermaidOptions>({
       };
       element.addEventListener(MERMAID_EDIT_EVENT, onEditEvent);
 
-      // Click-to-zoom: a rendered diagram opens the fullscreen lightbox, as
-      // on image nodes. Selection and the media menu keep working — they ride
-      // mousedown in ProseMirror; the click event itself stops here.
+      // Click-to-zoom mirrors the image contract: the first click only
+      // selects the block (the selection mousedown never delivers the view
+      // face's click), and a click on an ALREADY selected diagram opens the
+      // lightbox. The flag is read at mousedown — before ProseMirror handles
+      // the selection — so it reflects the selection as of before the click.
+      // Selection and the media menu keep working; the click event itself
+      // stops here, as on image nodes.
+      let selectedAtMousedown = false;
+      const onViewMousedown = () => {
+        selectedAtMousedown = element.classList.contains(
+          "ProseMirror-selectednode",
+        );
+      };
       const onViewClick = (event: MouseEvent) => {
         const svg = mermaidLightboxTarget(element, event.target);
-        if (svg == null) return;
+        if (svg == null || !selectedAtMousedown) return;
         event.stopPropagation();
         openSvgLightbox(svg);
       };
+      element.addEventListener("mousedown", onViewMousedown, true);
       element.addEventListener("click", onViewClick);
 
       return {
@@ -418,6 +429,7 @@ export const Mermaid = Node.create<MermaidOptions>({
         destroy: () => {
           if (parseTimer != null) window.clearTimeout(parseTimer);
           element.removeEventListener(MERMAID_EDIT_EVENT, onEditEvent);
+          element.removeEventListener("mousedown", onViewMousedown, true);
           element.removeEventListener("click", onViewClick);
           intersection?.disconnect();
           detachTheme?.();
