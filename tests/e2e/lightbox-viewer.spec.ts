@@ -194,6 +194,99 @@ test.describe("lightbox viewer (gallery + zoom)", () => {
     expect(visible).toBe(true);
   });
 
+  test("pinch follows the fingers: spread plus a moving midpoint pans", async ({
+    page,
+  }) => {
+    await openViewer(page, 0);
+    const overlay = page.locator(".inscriptum-image-lightbox");
+    const img = overlay.locator("img");
+    await expect
+      .poll(() => img.evaluate((el: HTMLImageElement) => el.naturalWidth))
+      .toBeGreaterThan(0);
+    const box = await boxOf(img);
+    const cy = Math.round(box.y + box.height / 2);
+    const spread = async (leftX: number, rightX: number) => {
+      await page.evaluate(
+        async ([l, r, y]) => {
+          const pe = (id: number, x: number, yy: number, type: string) =>
+            new PointerEvent(type, {
+              clientX: x,
+              clientY: yy,
+              bubbles: true,
+              cancelable: true,
+              pointerId: id,
+              pointerType: "touch",
+              isPrimary: id === 1,
+              buttons: 1,
+            });
+          const target = document.querySelector(
+            ".inscriptum-image-lightbox img",
+          ) as HTMLElement;
+          target.dispatchEvent(pe(1, l, y, "pointermove"));
+          target.dispatchEvent(pe(2, r, y, "pointermove"));
+        },
+        [leftX, rightX, cy],
+      );
+    };
+    // grab: two fingers 80px apart around the center
+    await page.evaluate(
+      async ([l, r, y]) => {
+        const pe = (id: number, x: number, yy: number, type: string) =>
+          new PointerEvent(type, {
+            clientX: x,
+            clientY: yy,
+            bubbles: true,
+            cancelable: true,
+            pointerId: id,
+            pointerType: "touch",
+            isPrimary: id === 1,
+            buttons: 1,
+          });
+        const target = document.querySelector(
+          ".inscriptum-image-lightbox img",
+        ) as HTMLElement;
+        target.dispatchEvent(pe(1, l, y, "pointerdown"));
+        target.dispatchEvent(pe(2, r, y, "pointerdown"));
+      },
+      [box.x + box.width / 2 - 40, box.x + box.width / 2 + 40, cy],
+    );
+    // spread to double the distance AND drift the midpoint 60px right:
+    // the picture must scale AND follow the midpoint (not slide away)
+    for (let step = 1; step <= 4; step += 1) {
+      const half = 40 + step * 20;
+      await spread(
+        box.x + box.width / 2 + 60 * (step / 4) - half,
+        box.x + box.width / 2 + 60 * (step / 4) + half,
+      );
+    }
+    const zoomed = await transformOf(page);
+    expect(zoomed.scale).toBeGreaterThan(1.5);
+    expect(zoomed.x).toBeGreaterThan(0);
+    // release both fingers
+    await page.evaluate(() => {
+      const target = document.querySelector(
+        ".inscriptum-image-lightbox img",
+      ) as HTMLElement;
+      const pe = (id: number) =>
+        new PointerEvent("pointerup", {
+          clientX: 0,
+          clientY: 0,
+          bubbles: true,
+          cancelable: true,
+          pointerId: id,
+          pointerType: "touch",
+          isPrimary: id === 1,
+        });
+      target.dispatchEvent(pe(1));
+      target.dispatchEvent(pe(2));
+    });
+    await page.evaluate(() => {
+      document.querySelector(".inscriptum-image-lightbox .inscriptum-image-lightbox__close")
+        ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await expect(overlay).toHaveCount(0);
+  });
+
   test("closing model: only the background, ✕ and Esc close; switching works while zoomed", async ({
     page,
   }) => {

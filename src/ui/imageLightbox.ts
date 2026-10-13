@@ -78,14 +78,12 @@ export function zoomTransform(
 }
 
 /**
- * Pans by (dx, dy), clamped so the scaled picture never leaves the screen
- * completely: the transformed image box must keep `PAN_KEEP_PX` of overlap
- * with the viewport on both axes.
+ * Clamps a transform's translation so the scaled picture never leaves the
+ * screen completely: the transformed image box must keep `PAN_KEEP_PX` of
+ * overlap with the viewport on both axes.
  */
-export function panTransform(
+export function clampTranslate(
   t: ViewerTransform,
-  dx: number,
-  dy: number,
   imageSize: { width: number; height: number },
   viewport: { width: number; height: number },
 ): ViewerTransform {
@@ -97,9 +95,57 @@ export function panTransform(
     Math.min(limit, Math.max(-limit, value));
   return {
     scale: t.scale,
-    x: clamp(t.x + dx, limitX),
-    y: clamp(t.y + dy, limitY),
+    x: clamp(t.x, limitX),
+    y: clamp(t.y, limitY),
   };
+}
+
+/**
+ * Pans by (dx, dy), clamped so the scaled picture never leaves the screen
+ * completely (see clampTranslate).
+ */
+export function panTransform(
+  t: ViewerTransform,
+  dx: number,
+  dy: number,
+  imageSize: { width: number; height: number },
+  viewport: { width: number; height: number },
+): ViewerTransform {
+  return clampTranslate(
+    { scale: t.scale, x: t.x + dx, y: t.y + dy },
+    imageSize,
+    viewport,
+  );
+}
+
+/**
+ * Pinch zoom: `ratio` is the current-to-start finger distance, and the
+ * content point that sat under the fingers at pinch start (computed from
+ * `focalStart`) follows the fingers' current midpoint `focalNow` — a
+ * two-finger drag pans instead of repelling the picture. The result is
+ * clamped like a pan (see clampTranslate).
+ */
+export function pinchTransform(
+  start: ViewerTransform,
+  ratio: number,
+  focalStart: { x: number; y: number },
+  focalNow: { x: number; y: number },
+  center: { x: number; y: number },
+  imageSize: { width: number; height: number },
+  viewport: { width: number; height: number },
+): ViewerTransform {
+  const scale = clampScale(start.scale * ratio);
+  const contentX = (focalStart.x - center.x - start.x) / start.scale;
+  const contentY = (focalStart.y - center.y - start.y) / start.scale;
+  return clampTranslate(
+    {
+      scale,
+      x: focalNow.x - center.x - contentX * scale,
+      y: focalNow.y - center.y - contentY * scale,
+    },
+    imageSize,
+    viewport,
+  );
 }
 
 /**
@@ -332,7 +378,11 @@ function openViewerOverlay(
   // pointers pinch. Clicks stay no-ops (the closing model).
   const pointers = new Map<number, { x: number; y: number }>();
   let panning = false;
-  let pinchStart: { distance: number; transform: ViewerTransform } | null = null;
+  let pinchStart: {
+    distance: number;
+    transform: ViewerTransform;
+    mid: { x: number; y: number };
+  } | null = null;
   let dragStart: { x: number; y: number; transform: ViewerTransform } | null =
     null;
 
@@ -340,9 +390,14 @@ function openViewerOverlay(
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
+      const origin = overlay.getBoundingClientRect();
       pinchStart = {
         distance: Math.hypot(a.x - b.x, a.y - b.y) || 1,
         transform: state.transform,
+        mid: {
+          x: (a.x + b.x) / 2 - origin.left,
+          y: (a.y + b.y) / 2 - origin.top,
+        },
       };
       dragStart = null;
     } else if (pointers.size === 1) {
@@ -374,11 +429,15 @@ function openViewerOverlay(
         x: (a.x + b.x) / 2 - origin.left,
         y: (a.y + b.y) / 2 - origin.top,
       };
-      state.transform = zoomTransform(
+      const rect = overlay.getBoundingClientRect();
+      state.transform = pinchTransform(
         pinchStart.transform,
         distance / pinchStart.distance,
+        pinchStart.mid,
         mid,
         imageCenter(),
+        fitRect(),
+        { width: rect.width, height: rect.height },
       );
       render();
       return;
@@ -495,6 +554,9 @@ export function openImageLightboxFromUrl(
  */
 export function openImageGallery(items: GalleryItem[], index: number): void {
   if (items.length === 0) return;
+  // a picture that fails to load leaves the gallery (see the img error
+  // handler below) — the list shrinks and the counter follows
+  const gallery = items.slice();
 
   const img = createEl("img");
   img.draggable = false;
@@ -504,7 +566,7 @@ export function openImageGallery(items: GalleryItem[], index: number): void {
     caption: "",
     counter: true,
     onKeydown: (event) => {
-      if (items.length <= 1) return;
+      if (gallery.length <= 1) return;
       if (event.key === "ArrowRight") {
         event.preventDefault();
         event.stopPropagation();
@@ -520,20 +582,31 @@ export function openImageGallery(items: GalleryItem[], index: number): void {
 
   const show = (index: number) => {
     // looping edges (owner decision): both directions wrap around
-    const next = ((index % items.length) + items.length) % items.length;
+    const next = ((index % gallery.length) + gallery.length) % gallery.length;
     currentIndex = next;
     // a new picture starts unzoomed and unpanned
     viewer.resetTransform();
-    const item = items[next];
+    const item = gallery[next];
     img.src = item.src;
     img.alt = item.filename || item.src;
     captionEl.textContent = item.filename ?? "";
     captionEl.style.display = item.filename ? "" : "none";
-    if (counterEl) counterEl.textContent = `${next + 1} / ${items.length}`;
+    if (counterEl) counterEl.textContent = `${next + 1} / ${gallery.length}`;
   };
 
+  // Availability contract: a picture that cannot load takes no part in the
+  // gallery. Drop it and move to a neighbor; the last one closing the view.
+  img.addEventListener("error", () => {
+    gallery.splice(currentIndex, 1);
+    if (gallery.length === 0) {
+      viewer.close();
+      return;
+    }
+    show(currentIndex);
+  });
+
   const prevButton =
-    items.length > 1
+    gallery.length > 1
       ? createEl("button", {
           cls: `${LIGHTBOX_CLASS}__prev`,
           text: "‹",
@@ -541,7 +614,7 @@ export function openImageGallery(items: GalleryItem[], index: number): void {
         })
       : null;
   const nextButton =
-    items.length > 1
+    gallery.length > 1
       ? createEl("button", {
           cls: `${LIGHTBOX_CLASS}__next`,
           text: "›",

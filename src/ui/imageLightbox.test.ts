@@ -8,6 +8,7 @@ import {
   collectGalleryItems,
   zoomTransform,
   panTransform,
+  pinchTransform,
   clampScale,
   identityTransform,
   MIN_SCALE,
@@ -129,15 +130,54 @@ describe("transform math", () => {
   it("panTransform clamps so the picture never fully leaves the screen", () => {
     const t = { scale: 4, x: 0, y: 0 };
     // a 100x100 image at scale 4, a 800x600 viewport: half-size 200;
-    // limitX = 400 + 200 - 80 = 520
+    // limitX = 400 + 200 - 80 = 520; limitY = 600/2 + 200 - 80 = 420
     const p = panTransform(t, 10_000, -10_000, { width: 100, height: 100 }, {
       width: 800,
       height: 600,
     });
-    // limitX = 800/2 + 200 - 80 = 520; limitY = 600/2 + 200 - 80 = 420
     expect(p.x).toBe(520);
     expect(p.y).toBe(-420);
     expect(p.scale).toBe(4);
+  });
+
+  it("pinchTransform keeps the picture under a translating two-finger drag", () => {
+    // the Greptile scenario: zoom around the center, then move both fingers
+    // 50px right at constant spacing — the picture must follow, not repel
+    const start = { scale: 2, x: 0, y: 0 };
+    const center = { x: 400, y: 300 };
+    const t = pinchTransform(
+      start,
+      1,
+      { x: 400, y: 300 },
+      { x: 450, y: 300 },
+      center,
+      { width: 200, height: 100 },
+      { width: 800, height: 600 },
+    );
+    expect(t.scale).toBe(2);
+    expect(t.x).toBe(50);
+    expect(t.y).toBe(0);
+  });
+
+  it("pinchTransform pins the starting content point under the moving midpoint", () => {
+    const start = { scale: 1, x: 0, y: 0 };
+    const center = { x: 400, y: 300 };
+    // fingers 100px apart to the left of center; they double the distance
+    // and drift 100px right: the content point grabbed at the start (-50, 0)
+    // must land under the new midpoint (450, 300)
+    const t = pinchTransform(
+      start,
+      2,
+      { x: 350, y: 300 },
+      { x: 450, y: 300 },
+      center,
+      { width: 400, height: 300 },
+      { width: 800, height: 600 },
+    );
+    expect(t.scale).toBe(2);
+    // 450 = 400 + t.x + 2 * (-50)
+    expect(t.x).toBe(150);
+    expect(t.y).toBe(0);
   });
 });
 
@@ -357,6 +397,33 @@ describe("openImageGallery", () => {
 
   it("does nothing for an empty gallery", () => {
     openImageGallery([], 0);
+    expect(document.querySelector(`.${LIGHTBOX_CLASS}`)).toBeNull();
+  });
+
+  it("drops a picture that fails to load and updates the counter", () => {
+    openImageGallery(threeItems, 0);
+    const overlay = document.querySelector(`.${LIGHTBOX_CLASS}`) as HTMLElement;
+    const img = overlay.querySelector("img") as HTMLImageElement;
+    const counter = overlay.querySelector(
+      `.${LIGHTBOX_CLASS}__counter`,
+    ) as HTMLElement;
+
+    img.dispatchEvent(new Event("error"));
+    expect(counter.textContent).toBe("1 / 2");
+    // the next picture (now at the same position) takes over
+    expect(img.getAttribute("src")).toBe("app://test/b.png");
+
+    img.dispatchEvent(new Event("error"));
+    expect(counter.textContent).toBe("1 / 1");
+    expect(img.getAttribute("src")).toBe("app://test/c.png");
+  });
+
+  it("closes when the last remaining picture fails to load", () => {
+    openImageGallery([threeItems[0]], 0);
+    const overlay = document.querySelector(`.${LIGHTBOX_CLASS}`) as HTMLElement;
+    overlay
+      .querySelector("img")
+      ?.dispatchEvent(new Event("error"));
     expect(document.querySelector(`.${LIGHTBOX_CLASS}`)).toBeNull();
   });
 });
