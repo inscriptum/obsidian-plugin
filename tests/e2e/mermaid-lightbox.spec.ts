@@ -1,18 +1,30 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { noteDoc, p } from "./fixtures/docs";
 import { mount, openHarness } from "./helpers";
 
 /** The mermaid view face renders lazily (IntersectionObserver + the real
  *  mermaid engine), so wait for the svg; a node that never renders cannot be
  *  clicked in the harness either. */
-async function renderedSvg(page: import("@playwright/test").Page) {
+async function renderedSvg(page: Page) {
   const svg = page.locator(".texto-extension-mermaid-host .mermaid-view__svg svg");
   await expect(svg).toBeVisible({ timeout: 20_000 });
   return svg;
 }
 
+/** The image contract: the first click only selects the block, the second
+ *  click on the selected diagram opens the lightbox. */
+async function openDiagramLightbox(page: Page) {
+  const svg = await renderedSvg(page);
+  const host = page.locator(".texto-extension-mermaid-host");
+  await svg.click();
+  await expect(host).toHaveClass(/ProseMirror-selectednode/);
+  await expect(page.locator(".inscriptum-image-lightbox")).toHaveCount(0);
+  await svg.click();
+  await expect(page.locator(".inscriptum-image-lightbox")).toBeVisible();
+}
+
 test.describe("mermaid click-to-zoom", () => {
-  test("click on the rendered diagram opens the captionless lightbox", async ({
+  test("first click selects, the second opens the captionless lightbox", async ({
     page,
   }) => {
     await openHarness(page);
@@ -25,10 +37,10 @@ test.describe("mermaid click-to-zoom", () => {
     );
 
     const svg = await renderedSvg(page);
-    await svg.click();
+    const host = page.locator(".texto-extension-mermaid-host");
+    await openDiagramLightbox(page);
 
     const overlay = page.locator(".inscriptum-image-lightbox");
-    await expect(overlay).toBeVisible();
     await expect(overlay.locator("svg")).toBeVisible();
     await expect(overlay.locator("img")).toHaveCount(0);
     await expect(overlay.locator(".inscriptum-image-lightbox__caption")).toHaveCount(0);
@@ -38,9 +50,19 @@ test.describe("mermaid click-to-zoom", () => {
     await overlay.locator("svg").click();
     await expect(overlay).toBeVisible();
 
-    // the background closes; the overlay is replaced cleanly on reopen
+    // the background closes; the overlay is replaced cleanly on reopen.
+    // Closing the lightbox keeps the block selected (the overlay lives
+    // outside the editor), so deselect first — the image contract is "a
+    // click on an already-selected diagram opens", and that is exactly what
+    // a first click would then do.
     await overlay.click({ position: { x: 5, y: 5 } });
     await expect(overlay).toHaveCount(0);
+    await page.locator(".ProseMirror p", { hasText: "diagram below" }).click();
+    await expect(host).not.toHaveClass(/ProseMirror-selectednode/);
+
+    // a fresh diagram opens again after the deselecting click
+    await openDiagramLightbox(page);
+    await expect(overlay).toBeVisible();
   });
 
   test("Escape closes the diagram lightbox", async ({ page }) => {
@@ -50,8 +72,7 @@ test.describe("mermaid click-to-zoom", () => {
       attrs: { code: "flowchart TD\n  A[Start] --> B[End]" },
     }));
 
-    const svg = await renderedSvg(page);
-    await svg.click();
+    await openDiagramLightbox(page);
     const overlay = page.locator(".inscriptum-image-lightbox");
     await expect(overlay).toBeVisible();
 
@@ -66,8 +87,7 @@ test.describe("mermaid click-to-zoom", () => {
       attrs: { code: "flowchart TD\n  A[Start] --> B[End]" },
     }));
 
-    const svg = await renderedSvg(page);
-    await svg.click();
+    await openDiagramLightbox(page);
     const overlay = page.locator(".inscriptum-image-lightbox");
     await expect(overlay).toBeVisible();
 
