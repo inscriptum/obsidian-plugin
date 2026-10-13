@@ -59,12 +59,16 @@
     box-shadow: 0 8px 40px rgb(0 0 0 / 50%);
     user-select: none;
     cursor: default;
+    touch-action: none; /* pinch/drags are handled via pointer events */
   }
 
   & .inscriptum-image-lightbox__close {
     position: absolute;
     top: 8px;
     right: 8px;
+    /* Controls ride above the zoomed object: scale() creates a stacking
+       context that would otherwise paint the picture over them. */
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -85,6 +89,12 @@
     }
   }
 
+  /* On phones the top strip is app chrome and the reach is worst — the ✕
+     moves below it (plus the device's own inset). */
+  &.inscriptum-image-lightbox--mobile .inscriptum-image-lightbox__close {
+    top: calc(env(safe-area-inset-top, 0px) + 56px);
+  }
+
   & .inscriptum-image-lightbox__caption {
     max-width: 90vw;
     overflow: hidden;
@@ -101,6 +111,7 @@
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -135,6 +146,7 @@
     bottom: 14px;
     left: 50%;
     transform: translateX(-50%);
+    z-index: 2;
     display: flex;
     align-items: center;
     gap: 6px;

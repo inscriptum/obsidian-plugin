@@ -244,6 +244,23 @@ describe("openImageLightbox", () => {
       overlay?.querySelector(`.${LIGHTBOX_CLASS}__caption`)?.textContent,
     ).toBe("chart.png");
   });
+
+  it("releases focus on open (the mobile keyboard must hide)", () => {
+    const target = createEl("textarea");
+    document.body.appendChild(target);
+    target.focus();
+    expect(document.activeElement).toBe(target);
+
+    openImageLightbox(makeApp(["img.png"]), "img.png");
+    expect(document.activeElement).not.toBe(target);
+    expect(document.querySelector(`.${LIGHTBOX_CLASS}`)).not.toBeNull();
+  });
+
+  it("carries no mobile modifier on a non-mobile platform", () => {
+    openImageLightbox(makeApp(["img.png"]), "img.png");
+    const overlay = document.querySelector(`.${LIGHTBOX_CLASS}`);
+    expect(overlay?.className).not.toContain(`${LIGHTBOX_CLASS}--mobile`);
+  });
 });
 
 describe("openImageGallery", () => {
@@ -370,7 +387,9 @@ describe("openSvgLightbox", () => {
     expect(clone?.getAttribute("width")).toBe("400");
     expect(clone?.getAttribute("height")).toBe("300");
     expect(clone?.getAttribute("viewBox")).toBe("0 0 400 300");
-    expect(clone?.getAttribute("style")).toBeNull();
+    // mermaid's inline max-width is gone (the viewer's own transform style
+    // is fine, a pinned max-width would fight the viewer's box)
+    expect(clone?.getAttribute("style") ?? "").not.toContain("max-width");
     // the source node stays in place
     expect(svg.isConnected).toBe(true);
   });
@@ -389,6 +408,19 @@ describe("openSvgLightbox", () => {
       ?.querySelector("svg");
     expect(clone?.getAttribute("width")).toBe("120");
     expect(clone?.getAttribute("height")).toBe("80");
+  });
+
+  it("zooms by the buttons and double-clicks back to fit like an image", () => {
+    openSvgLightbox(makeSvg({ viewBox: "0 0 10 10" }));
+    const overlay = document.querySelector(`.${LIGHTBOX_CLASS}`) as HTMLElement;
+    const svg = overlay.querySelector("svg") as SVGSVGElement;
+    const zoomIn = [...overlay.querySelectorAll(".inscriptum-image-lightbox__zoom")].pop() as HTMLButtonElement;
+    zoomIn.click();
+    expect(overlay.classList.contains("is-zoomed")).toBe(true);
+    expect(svg.style.transform).toContain("scale(1.25)");
+    // double-click toggles back to fit (the viewBox is the natural size)
+    svg.dispatchEvent(new MouseEvent("dblclick", { bubbles: true, cancelable: true }));
+    expect(overlay.classList.contains("is-zoomed")).toBe(false);
   });
 
   it("closes on Escape like the image lightbox", () => {
