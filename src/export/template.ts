@@ -122,30 +122,27 @@ const TOC_SCRIPT = `(function () {
  * model mirrors the editor's lightbox — Esc, the corner ✕, or a click on the
  * dark background outside the object (the object itself never closes). The
  * capture-phase Esc handler stops propagation while the overlay is open, so
- * the contents drawer below does not close with it. Zero dependencies,
- * works from file://.
+ * the contents drawer below does not close with it. Keyboard parity: every
+ * figure is a focusable opener (Tab + Enter/Space), opening moves the focus
+ * to the ✕ and Tab stays inside the viewer, closing restores the focus to
+ * the figure it came from. Zero dependencies, works from file://.
  */
 const LIGHTBOX_SCRIPT = `(function () {
   var overlay = null;
+  var opener = null;
   function close() {
     if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
     overlay = null;
+    if (opener) {
+      opener.focus();
+      opener = null;
+    }
   }
-  document.addEventListener("keydown", function (event) {
-    if (event.key !== "Escape" || !overlay) return;
-    event.preventDefault();
-    event.stopPropagation();
-    close();
-  }, true);
-  document.addEventListener("click", function (event) {
-    var target = event.target;
-    if (!target || !target.closest) return;
-    var fig = target.closest("article figure");
-    if (!fig) return;
+  function open(fig) {
     var img = fig.querySelector("img");
     if (!img) return;
-    event.preventDefault();
     close();
+    opener = fig;
     overlay = document.createElement("div");
     overlay.className = "site-lightbox";
     var closeButton = document.createElement("button");
@@ -162,7 +159,48 @@ const LIGHTBOX_SCRIPT = `(function () {
     overlay.addEventListener("click", function (event) {
       if (event.target === overlay) close();
     });
+    // the ✕ is the only focusable thing in the viewer — keep Tab on it
+    overlay.addEventListener("keydown", function (event) {
+      if (event.key === "Tab") {
+        event.preventDefault();
+        closeButton.focus();
+      }
+    });
     document.body.appendChild(overlay);
+    closeButton.focus();
+  }
+  // figures become focusable openers (Tab + Enter/Space), like buttons
+  var figures = document.querySelectorAll("article figure");
+  for (var i = 0; i < figures.length; i += 1) {
+    if (!figures[i].querySelector("img")) continue;
+    figures[i].setAttribute("tabindex", "0");
+    figures[i].setAttribute("role", "button");
+    figures[i].setAttribute("aria-label", "Open picture in viewer");
+  }
+  function figureFrom(target) {
+    if (!target || !target.closest) return null;
+    var fig = target.closest("article figure");
+    return fig && fig.querySelector("img") ? fig : null;
+  }
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape" || !overlay) return;
+    event.preventDefault();
+    event.stopPropagation();
+    close();
+  }, true);
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    if (overlay) return;
+    var fig = figureFrom(event.target);
+    if (!fig) return;
+    event.preventDefault();
+    open(fig);
+  });
+  document.addEventListener("click", function (event) {
+    var fig = figureFrom(event.target);
+    if (!fig) return;
+    event.preventDefault();
+    open(fig);
   });
 })();`;
 

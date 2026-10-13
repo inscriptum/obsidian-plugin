@@ -183,5 +183,27 @@ test.describe("notepad website export", () => {
     await expect(lightbox).toBeVisible();
     await lightbox.locator(".site-lightbox__close").click();
     await expect(lightbox).toHaveCount(0);
+
+    // keyboard parity: figures are focusable openers, Enter opens, the focus
+    // moves into the viewer (Tab stays on the ✕) and returns to the figure
+    await expect(mermaidFigure).toHaveAttribute("role", "button");
+    await expect(mermaidFigure).toHaveAttribute("tabindex", "0");
+    await mermaidFigure.focus();
+    await page.keyboard.press("Enter");
+    await expect(lightbox).toBeVisible();
+    await expect(lightbox.locator(".site-lightbox__close")).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(lightbox.locator(".site-lightbox__close")).toBeFocused();
+    // a link under the viewer is unreachable: Tab never leaves the viewer
+    await expect(page.locator(".toc-toggle")).not.toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(lightbox).toHaveCount(0);
+    await expect(mermaidFigure).toBeFocused();
+    // Space opens too
+    await page.keyboard.press("Space");
+    await expect(lightbox).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(lightbox).toHaveCount(0);
+    await expect(mermaidFigure).toBeFocused();
   });
 });
