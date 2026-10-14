@@ -7,6 +7,7 @@ import {
   PROPERTY_NAME_PRESETS,
   acceptSuggestion,
   insertProperty,
+  isDuplicateTag,
   isPresetName,
   presetType,
   propertyInsertPos,
@@ -211,6 +212,24 @@ describe("removeProperty", () => {
   });
 });
 
+describe("isDuplicateTag", () => {
+  it("matches siblings case-insensitively with trimming; ignores self and empty", () => {
+    const json = v3Doc([property("tags", ["one", "Two "], "list")]);
+    const loc = selectionProperty(
+      schema.nodeFromJSON(json),
+      TextSelection.create(schema.nodeFromJSON(json), 1),
+    )!;
+    // build via selectionProperty on a real caret: use stateProperty path instead
+    const doc = schema.nodeFromJSON(json);
+    const [geo] = geometry(doc);
+    const withCaret = stateAt(json, geo.values[0]);
+    const loc2 = stateProperty(withCaret)!;
+    expect(isDuplicateTag(loc2, 0)).toBe(false);
+    expect(isDuplicateTag({ ...loc2, values: [...loc2.values, { from: 0, to: 0, size: 2, text: " two" }] }, 2)).toBe(true);
+    expect(isDuplicateTag({ ...loc2, values: [{ ...loc2.values[0], text: "" }] }, 0)).toBe(false);
+  });
+});
+
 describe("propertyKeyDown", () => {
   it("Enter in the name moves the caret into the first value", () => {
     const json = v3Doc([property("description", ["x"])]);
@@ -281,6 +300,46 @@ describe("propertyKeyDown", () => {
     expect(loc.values[1].text).toBe("");
   });
 
+  it("Enter on an empty draft does nothing (a tag needs a word)", () => {
+    const json = v3Doc([property("tags", ["one", ""], "list")]);
+    const [geo] = geometry(schema.nodeFromJSON(json));
+    const base = stateAt(json, geo.values[1]);
+
+    let changed = false;
+    const handled = propertyKeyDown(base, "Enter", null, () => {
+      changed = true;
+    });
+    expect(handled).toBe(true);
+    expect(changed).toBe(false);
+  });
+
+  it("Enter on a duplicate word is rejected (tags are unique)", () => {
+    // The last chip's word duplicates an earlier tag (case-insensitive).
+    const json = v3Doc([property("tags", ["one", "two", "Two"], "list")]);
+    const [geo] = geometry(schema.nodeFromJSON(json));
+    const base = stateAt(json, geo.values[2] + 3); // caret at the end of "Two"
+
+    let changed = false;
+    const handled = propertyKeyDown(base, "Enter", null, () => {
+      changed = true;
+    });
+    expect(handled).toBe(true);
+    expect(changed).toBe(false);
+  });
+
+  it("Backspace on the empty draft keeps it (the slot stays while focused)", () => {
+    const json = v3Doc([property("tags", ["one", ""], "list")]);
+    const [geo] = geometry(schema.nodeFromJSON(json));
+    const base = stateAt(json, geo.values[1]);
+
+    let changed = false;
+    const handled = propertyKeyDown(base, "Backspace", null, () => {
+      changed = true;
+    });
+    expect(handled).toBe(true);
+    expect(changed).toBe(false);
+  });
+
   it("Shift-Enter never inserts a line break inside a value", () => {
     const json = v3Doc([property("tags", ["one"], "list")]);
     const [geo] = geometry(schema.nodeFromJSON(json));
@@ -321,49 +380,6 @@ describe("propertyKeyDown", () => {
       "noteTitle",
       "paragraph",
     ]);
-  });
-
-  it("Backspace in an empty extra value removes just that row", () => {
-    const json = v3Doc([property("tags", ["one", ""], "list")]);
-    const [geo] = geometry(schema.nodeFromJSON(json));
-    const base = stateAt(json, geo.values[1]);
-
-    const next = applied(base, (dispatch) =>
-      propertyKeyDown(base, "Backspace", null, dispatch),
-    );
-    const prop = next.doc.content.content[1];
-    expect(prop.childCount).toBe(2); // name + one value
-    expect(prop.child(1).textContent).toBe("one");
-    const loc = stateProperty(next)!;
-    expect(loc.valueIndex).toBe(0);
-  });
-
-  it("Backspace in an empty FIRST value of a list removes it and keeps the caret in the row", () => {
-    const json = v3Doc([property("tags", ["", "two"], "list")]);
-    const [geo] = geometry(schema.nodeFromJSON(json));
-    const base = stateAt(json, geo.values[0]);
-
-    const next = applied(base, (dispatch) =>
-      propertyKeyDown(base, "Backspace", null, dispatch),
-    );
-    const prop = next.doc.content.content[1];
-    expect(prop.childCount).toBe(2); // name + "two"
-    expect(prop.child(1).textContent).toBe("two");
-    const loc = stateProperty(next)!;
-    expect(loc.valueIndex).toBe(0);
-  });
-
-  it("Backspace at the start of a non-empty name is swallowed without changes", () => {
-    const json = v3Doc([property("description", [""])]);
-    const [geo] = geometry(schema.nodeFromJSON(json));
-    const base = stateAt(json, geo.nameFrom);
-
-    let changed = false;
-    const handled = propertyKeyDown(base, "Backspace", null, () => {
-      changed = true;
-    });
-    expect(handled).toBe(true);
-    expect(changed).toBe(false);
   });
 
   it("Shift-Tab from the first value returns the caret to the name", () => {

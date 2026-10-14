@@ -13,7 +13,6 @@ export {
   focusValue,
   focusName,
   appendValue,
-  removeEmptyValue,
   acceptSuggestion,
   propertyKeyDown,
 } from "./notePropertyModel";

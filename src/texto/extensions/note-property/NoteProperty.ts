@@ -2,8 +2,10 @@ import { Node } from "../../core";
 import { mergeAttributes } from "../../core/utilities";
 
 /**
- * A title-page property row (spec 9.1): the `name` field plus one or more
- * value rows. Stored in the title-page document itself — after the title
+ * A title-page property row (spec 9.1): the `name` field plus value rows.
+ * A Text property keeps exactly one (the editor maintains it); a List may
+ * hold any number — an empty list is the "no tags yet" state, values are
+ * only created when a word is committed (Obsidian tags behavior). Stored in the title-page document itself — after the title
  * node, before the content blocks (TitleDoc's content expression). The
  * row's keyboard behavior and its UI affordances (placeholders, remove
  * button, add-row button, name autocomplete) live in noteProperty.plugin;
@@ -14,7 +16,7 @@ export const NoteProperty = Node.create({
 
   group: "block",
 
-  content: "notePropertyName notePropertyValue+",
+  content: "notePropertyName notePropertyValue*",
 
   defining: true,
   selectable: false,

@@ -6,14 +6,26 @@
    continues the header's field-label rule into the left margin. */
 
 .note-property {
+  --property-name-col: 200px;
   position: relative;
   display: grid;
   /* Fixed name column — rows align with each other and with the header. */
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: var(--property-name-col) 1fr;
   column-gap: 16px;
   margin: 2px 0;
   /* The name and the value share one baseline, as one line of text. */
   align-items: baseline;
+}
+
+/* A List row with no committed tags: the muted "Empty" mark sits in the
+   value column, where the chips would be (as in Obsidian). */
+.note-property.empty-tags:after {
+  content: "Empty";
+  position: absolute;
+  left: calc(var(--property-name-col) + 16px);
+  top: 0;
+  color: var(--text-faint);
+  pointer-events: none;
 }
 
 /* The focused row keeps the input underline; nothing permanent — the
@@ -106,9 +118,14 @@
   align-items: baseline;
 }
 
-/* An empty chip (the next tag entry) is a small blank pill, not a word. */
-.note-property-value.chip-empty {
-  min-width: 26px;
+/* The draft input of a List row: a bare caret slot — no pill, no ×; the
+   word being typed turns it into a chip the moment it is committed. */
+.note-property-value.draft {
+  background: transparent;
+  border-radius: 0;
+  min-width: 14px;
+  padding: 0 2px;
+  margin: 0;
 }
 
 /* Per-chip remove button, at the chip's right edge. */
@@ -279,6 +296,7 @@
 /* Mobile: the two-column layout needs less room for the name; the margin
    rule has no margin to hang into on a phone. */
 .is-mobile .note-property {
+  --property-name-col: 120px;
   grid-template-columns: 120px 1fr;
   column-gap: 10px;
 }

@@ -47,22 +47,70 @@ const key = new PluginKey<NotePropertyPluginState>("noteProperty");
 export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
   return new Plugin<NotePropertyPluginState>({
     key,
-      // A row whose name equals a preset adopts the preset's value type —
-      // including names typed manually rather than picked from the popup.
-      // Idempotent: a fixing pass finds nothing to change and terminates.
+      // Row maintenance, Obsidian-tags style:
+      //  - a row named with a preset adopts the preset's value type;
+      //  - a List row holding the caret keeps one trailing empty value as
+      //    its draft input (a chip is only created when a word is
+      //    committed); when the caret leaves, the empty draft is pruned —
+      //    a row with no tags at all serializes zero values;
+      //  - a Text row always keeps exactly one value.
+      // Processed back-to-front so earlier offsets stay valid; idempotent
+      // (a maintenance pass finds nothing to change and terminates).
       appendTransaction: (_transactions, _oldState, newState) => {
-        if (!newState.tr.docChanged) return null;
+        const { selection } = newState;
         const tr = newState.tr;
-        let fixed = 0;
+        let changed = 0;
+        const rows: Array<{ from: number; to: number; node: ProseMirrorNode }> = [];
         newState.doc.forEach((node, offset) => {
-          if (node.type.name !== "noteProperty") return;
-          const type = presetType(node.firstChild?.textContent ?? "");
-          if (type != null && node.attrs.type !== type) {
-            tr.setNodeAttribute(offset, "type", type);
-            fixed += 1;
+          if (node.type.name === "noteProperty") {
+            rows.push({ from: offset, to: offset + node.nodeSize, node });
           }
         });
-        return fixed > 0 ? tr : null;
+        for (let i = rows.length - 1; i >= 0; i -= 1) {
+          const { from, to, node } = rows[i];
+          const type = presetType(node.firstChild?.textContent ?? "");
+          if (type != null && node.attrs.type !== type) {
+            tr.setNodeAttribute(from, "type", type);
+            changed += 1;
+          }
+          const isList = (type ?? node.attrs.type) === "list";
+          const values: Array<{ from: number; to: number; size: number; text: string }> = [];
+          let pos = from + 1;
+          node.forEach((child, childOffset) => {
+            if (childOffset > 0) {
+              values.push({
+                from: pos + 1,
+                to: pos + 1 + child.content.size,
+                size: child.nodeSize,
+                text: child.textContent,
+              });
+            }
+            pos += child.nodeSize;
+          });
+          const focused =
+            selection.from >= from && selection.to <= to && selection.empty;
+
+          if (isList) {
+            const last = values[values.length - 1];
+            if (focused && values.length === 0) {
+              // Nothing to type into: the row gets its draft input. (A row
+              // with committed tags needs none — Enter in the last chip
+              // opens the next draft exactly when a word is committed.)
+              tr.insert(
+                to - 1,
+                newState.schema.nodes.notePropertyValue.create(),
+              );
+              changed += 1;
+            } else if (!focused && last != null && last.text === "") {
+              tr.delete(last.from - 1, last.from - 1 + last.size);
+              changed += 1;
+            }
+          } else if (values.length === 0) {
+            tr.insert(to - 1, newState.schema.nodes.notePropertyValue.create());
+            changed += 1;
+          }
+        }
+        return changed > 0 ? tr : null;
       },
     state: {
       init: () => ({ selected: 0, dismissed: false }),
@@ -220,6 +268,29 @@ function buildDecorations(state: EditorState): Decoration[] {
       decorations.push(Decoration.node(from, to, { class: "rule" }));
     }
 
+    const isList = node.attrs.type === "list";
+    const values: Array<{ from: number; to: number; size: number; text: string }> = [];
+    let valuesPos = from + 1;
+    node.forEach((child, childOffset) => {
+      if (childOffset > 0) {
+        values.push({
+          from: valuesPos + 1,
+          to: valuesPos + 1 + child.content.size,
+          size: child.nodeSize,
+          text: child.textContent,
+        });
+      }
+      valuesPos += child.nodeSize;
+    });
+    // A List row with no committed tags shows the muted "Empty" mark in
+    // the value column (as Obsidian does) — values only exist once a word
+    // is committed.
+    if (isList && values.every((v) => v.text === "")) {
+      decorations.push(
+        Decoration.node(from, to, { class: "empty-tags" }),
+      );
+    }
+
     const name = node.firstChild;
     if (name != null && name.type.name === "notePropertyName") {
       const nameNodeFrom = from + 1;
@@ -268,32 +339,38 @@ function buildDecorations(state: EditorState): Decoration[] {
       }
     }
 
-    const isList = node.attrs.type === "list";
     node.forEach((child, childOffset) => {
       if (child.type.name !== "notePropertyValue") return;
       const childFrom = from + 1 + childOffset;
-      if (child.content.size === 0) {
+      if (!isList && child.content.size === 0) {
         decorations.push(
           Decoration.node(
             childFrom,
             childFrom + child.nodeSize,
-            isList
-              ? // An empty chip needs room to be seen and clicked into —
-                // the "Empty" word would only truncate inside the pill.
-                { class: "chip-empty" }
-              : { class: "empty", "data-placeholder": "Empty" },
+            { class: "empty", "data-placeholder": "Empty" },
           ),
         );
       }
       if (isList) {
         const chipFrom = childFrom + 1;
-        decorations.push(
-          Decoration.widget(
-            chipFrom + child.content.size,
-            (view) => chipRemoveButton(view, from, valuesIndex(node, child)),
-            { side: 1, key: `chipx:${chipFrom}` },
-          ),
-        );
+        const isDraft = child.content.size === 0;
+        if (isDraft) {
+          // The trailing draft input: a bare caret slot while the row is
+          // focused — not a chip (no pill, no ×).
+          decorations.push(
+            Decoration.node(childFrom, childFrom + child.nodeSize, {
+              class: "draft",
+            }),
+          );
+        } else {
+          decorations.push(
+            Decoration.widget(
+              chipFrom + child.content.size,
+              (view) => chipRemoveButton(view, from, valuesIndex(node, child)),
+              { side: 1, key: `chipx:${chipFrom}` },
+            ),
+          );
+        }
       }
     });
 

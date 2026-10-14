@@ -41,7 +41,7 @@ const NOTE_NODES = [
 ];
 
 const TITLE_PROPERTY_NODES = [
-  "noteProperty:notePropertyName notePropertyValue+",
+  "noteProperty:notePropertyName notePropertyValue*",
   "notePropertyName:inline*",
   "notePropertyValue:inline*",
 ];

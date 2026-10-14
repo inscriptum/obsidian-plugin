@@ -241,8 +241,21 @@ export function focusName(
   return true;
 }
 
-/** Enter in a value: a Text property becomes a List and gains an empty
- *  value row after the current one; a List gains another row. */
+/** True when the value under `index` duplicates another value of the same
+ *  row (trimmed, case-insensitive) — Obsidian tags: tags are unique. */
+export function isDuplicateTag(loc: PropertySelection, index: number): boolean {
+  const value = loc.values[index];
+  if (value == null) return false;
+  const text = value.text.trim().toLowerCase();
+  if (text.length === 0) return false;
+  return loc.values.some(
+    (other, i) => i !== index && other.text.trim().toLowerCase() === text,
+  );
+}
+
+/** Enter in a List value: a word becomes a tag chip and a fresh draft
+ *  opens after it; Enter on an empty draft (no word typed) or on a
+ *  duplicate does nothing. */
 export function appendValue(
   state: EditorState,
   dispatch: ((tr: Transaction) => void) | undefined,
@@ -250,55 +263,23 @@ export function appendValue(
 ): boolean {
   const current = loc.values[loc.valueIndex];
   if (current == null) return false;
+  // An empty draft carries no word: Enter keeps the row as it is. A word
+  // that duplicates a sibling tag is rejected too (tags are unique).
+  if (current.text.trim().length === 0) return true;
+  if (isDuplicateTag(loc, loc.valueIndex)) return true;
   if (dispatch) {
-    const prop = state.doc.nodeAt(loc.propFrom);
-    const tr = state.tr;
-    if (prop?.attrs.type === "text") {
-      tr.setNodeAttribute(loc.propFrom, "type", "list");
-    }
-    // Attribute changes move no positions, so the node-end position of the
-    // current value stays valid after the conversion.
     const at = current.from - 1 + current.size;
-    tr.insert(at, state.schema.nodes.notePropertyValue.create());
+    const tr = state.tr.insert(at, state.schema.nodes.notePropertyValue.create());
     tr.setSelection(TextSelection.create(tr.doc, at + 1));
     dispatch(tr.scrollIntoView());
   }
   return true;
 }
 
-/** Backspace at the start of an empty value: drop the row (a property
- *  always keeps at least one value; an emptied List shrinks back). The
- *  caret lands at the end of the previous value, or at the start of the
- *  row that shifted up. */
-export function removeEmptyValue(
-  state: EditorState,
-  dispatch: ((tr: Transaction) => void) | undefined,
-  loc: PropertySelection,
-): boolean {
-  const current = loc.values[loc.valueIndex];
-  if (current == null || current.text.length > 0) return false;
-  if (loc.values.length <= 1) return false;
-  if (dispatch) {
-    const tr = state.tr.delete(
-      current.from - 1,
-      current.from - 1 + current.size,
-    );
-    if (loc.valueIndex > 0) {
-      const prev = loc.values[loc.valueIndex - 1];
-      tr.setSelection(TextSelection.create(tr.doc, prev.to));
-    } else {
-      // After the deletion the next row's content starts exactly where the
-      // removed row's content began.
-      tr.setSelection(TextSelection.create(tr.doc, current.from));
-    }
-    dispatch(tr.scrollIntoView());
-  }
-  return true;
-}
-
 /** Remove one chip of a List property (the chip's own × button): the
- *  value node goes away; removing the last chip leaves an empty value
- *  entry instead of an invalid row. */
+ *  value node goes away; removing the last chip clears it into the row's
+ *  draft entry (a row always keeps at least one value node while it is
+ *  being edited; the plugin prunes empty drafts when the focus leaves). */
 export function removeChipAt(
   state: EditorState,
   dispatch: ((tr: Transaction) => void) | undefined,
@@ -330,12 +311,8 @@ export function removeChipAt(
         tr.setSelection(TextSelection.create(tr.doc, prev.from - 1 + prev.size - 1));
       }
     } else {
-      // The only chip: clear it, the row keeps an empty entry.
-      tr.replaceWith(
-        target.from,
-        target.from + target.text.length,
-        Fragment.empty,
-      );
+      // The only chip: clear it — it becomes the row's draft entry.
+      tr.replaceWith(target.from, target.from + target.text.length, Fragment.empty);
       tr.setSelection(TextSelection.create(tr.doc, target.from));
     }
     dispatch(tr.scrollIntoView());
@@ -455,7 +432,12 @@ export function propertyKeyDown(
       // into the previous one (a List joins its rows) — default applies.
       return loc.valueIndex === 0;
     }
-    if (loc.values.length > 1) return removeEmptyValue(state, dispatch, loc);
+    const prop = state.doc.nodeAt(loc.propFrom);
+    if (prop?.attrs.type === "list") {
+      // The empty value is the row's draft input — it stays while the row
+      // holds the caret (the plugin removes it when the focus leaves).
+      return true;
+    }
     if (loc.isEmpty) return removeProperty(state, dispatch, loc);
     return true;
   }
