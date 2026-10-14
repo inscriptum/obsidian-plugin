@@ -42,11 +42,11 @@
   font-size: var(--font-ui-small, 13px);
   font-weight: 400;
   line-height: 1.6;
-  /* Anchor for the suggestion popup. */
+  /* Anchor for the suggestion popup. No overflow clipping: an empty name
+     field must be able to paint its caret (a clipped empty inline box
+     reports an unrendered position and the caret disappears). */
   position: relative;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* A preset-named row's name is fixed — not a text field anymore. */
@@ -233,6 +233,14 @@
 .note-property-add__btn:hover {
   color: var(--text-muted);
   background: var(--background-modifier-hover);
+}
+
+/* The property fields' placeholders flow INLINE (the generic title-header
+   rule hangs them absolutely): an empty field then has a line box, and the
+   caret at offset 0 actually paints instead of vanishing. */
+.note-property-name.empty:before,
+.note-property-value.empty:before {
+  position: static;
 }
 
 /* ── Name autocomplete popup ── */

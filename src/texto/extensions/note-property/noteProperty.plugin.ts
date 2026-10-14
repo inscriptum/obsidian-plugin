@@ -88,27 +88,47 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
       decorations: (state: EditorState) =>
         DecorationSet.create(state.doc, buildDecorations(state)),
       handleDOMEvents: {
-        // A locked (preset-named) name field takes no caret: a click lands
-        // in the row's first value instead.
+        // A locked (preset-named) name field takes no caret: a click on it
+        // lands in the row's first value instead.
         mousedown: (view: EditorView, event: MouseEvent) => {
           const target = event.target as HTMLElement | null;
-          const locked = target?.closest?.(".note-property-name.locked");
-          if (!(locked instanceof HTMLElement)) return false;
+          const row = target?.closest?.(".note-property");
+          if (!(row instanceof HTMLElement)) return false;
+          const lockedName = target?.closest?.(".note-property-name.locked");
+          const inValue = target?.closest?.(".note-property-value");
+          if (!lockedName && !inValue) return false;
+          if (lockedName == null && !row.querySelector(".note-property-name.locked")) {
+            // Unlocked name + a value click: PM places the caret fine.
+            return false;
+          }
+          // PM's coordinate resolution can park the caret inside the
+          // non-editable name (invisible — nothing paints there). Route it
+          // explicitly into the clicked value's content.
+          const valueEl = inValue instanceof HTMLElement
+            ? inValue
+            : row.querySelector(".note-property-value");
+          if (valueEl == null) return false;
           event.preventDefault();
           event.stopPropagation();
-          const inside = view.posAtDOM(locked, 0);
-          const propNode = view.state.doc.nodeAt(inside - 1);
-          const nameSize = propNode?.firstChild?.nodeSize;
+          const rowPos = view.posAtDOM(row, 0);
+          // posAtDOM(el, 0) is the element's own start boundary.
+          const propFrom = rowPos;
+          const prop = view.state.doc.nodeAt(propFrom);
+          const nameSize = prop?.firstChild?.nodeSize;
           if (nameSize == null) return true;
-          const valueFrom = inside - 1 + 1 + nameSize + 1;
+          const allValues = [...row.querySelectorAll(".note-property-value")];
+          const index = allValues.indexOf(valueEl);
+          let valueStart = propFrom + 1 + nameSize + 1;
+          for (let i = 0; i < index; i += 1) {
+            valueStart += (allValues[i].textContent?.length ?? 0) + 2;
+          }
           const $value = view.state.doc.resolve(
-            Math.min(valueFrom, view.state.doc.content.size),
+            Math.min(valueStart, view.state.doc.content.size),
           );
           view.dispatch(
-            view.state.tr.setSelection(
-              TextSelection.near($value, 1),
-            ).scrollIntoView(),
+            view.state.tr.setSelection(TextSelection.near($value, 1)).scrollIntoView(),
           );
+          view.focus();
           return true;
         },
       },
