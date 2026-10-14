@@ -1,5 +1,10 @@
 import type { Extensions } from "../texto/core/@types";
 import { NoteDoc, NoteSummary } from "../texto/extensions/note-doc";
+import {
+  NoteProperty,
+  NotePropertyName,
+  NotePropertyValue,
+} from "../texto/extensions/note-property";
 import { Link } from "../texto/extensions/link";
 import { Image } from "../texto/extensions/image";
 import { Attachment } from "../texto/extensions/attachment";
@@ -40,10 +45,12 @@ import { Color } from "../texto/extensions/color";
  * swaps its top node per profile (NoteDoc / TitleDoc / PlainDoc all share
  * the "noteDoc" name); the export serializes every shape through this
  * permissive one — .note (mandatory title), .um title pages (title +
- * summary header) and .um plain pages (content only).
+ * summary header or title + properties, spec 9.1) and .um plain pages
+ * (content only).
  */
 const ExportDoc = NoteDoc.extend({
-  content: "noteTitle? noteSummary? (block | attachment | image)+",
+  content:
+    "noteTitle? noteSummary? (noteProperty | block | attachment | image)+",
 });
 
 /**
@@ -62,6 +69,9 @@ export function getExportExtensions(): Extensions {
   return [
     ExportDoc,
     NoteSummary,
+    NoteProperty,
+    NotePropertyName,
+    NotePropertyValue,
     Link,
     Image,
     Attachment,

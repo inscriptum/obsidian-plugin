@@ -40,6 +40,12 @@ const NOTE_NODES = [
   "text:null",
 ];
 
+const TITLE_PROPERTY_NODES = [
+  "noteProperty:notePropertyName notePropertyValue+",
+  "notePropertyName:inline*",
+  "notePropertyValue:inline*",
+];
+
 const MARKS = "bold,code,highlight,hljsMark,italic,link,strike,textStyle,underline";
 
 function canonicalShape(profile: EditorProfileId): string {
@@ -71,12 +77,12 @@ describe("editor profiles", () => {
     );
   });
 
-  it("title profile (title-v2) — header nodes, summary mandatory", () => {
+  it("title profile (title-v3) — title, property rows, then content", () => {
     expect(canonicalShape("title")).toBe(
       `top=noteDoc\nnodes=${[
         ...NOTE_NODES.filter((n) => !n.startsWith("noteDoc:")),
-        "noteDoc:noteTitle noteSummary (block | attachment | image)+",
-        "noteSummary:inline*",
+        "noteDoc:noteTitle noteProperty* (block | attachment | image)+",
+        ...TITLE_PROPERTY_NODES,
       ]
         .sort()
         .join(",")}\nmarks=${MARKS}`,
@@ -99,7 +105,14 @@ describe("editor profiles", () => {
     const plain = getProfileSchema("plain");
     const titleNodes = Object.keys(title.nodes).sort();
     const plainNodes = Object.keys(plain.nodes).sort();
-    expect(plainNodes).toEqual(titleNodes.filter((n) => n !== "noteSummary"));
+    expect(plainNodes).toEqual(
+      titleNodes.filter(
+        (n) =>
+          n !== "noteProperty" &&
+          n !== "notePropertyName" &&
+          n !== "notePropertyValue",
+      ),
+    );
     expect(title.nodes.noteDoc.spec.content).not.toBe(
       plain.nodes.noteDoc.spec.content,
     );

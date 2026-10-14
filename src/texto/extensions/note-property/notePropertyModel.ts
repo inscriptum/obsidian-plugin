@@ -1,0 +1,346 @@
+import type { EditorState, Selection, Transaction } from "prosemirror-state";
+import { TextSelection } from "prosemirror-state";
+import { Fragment, type Node as PMNode } from "prosemirror-model";
+
+/**
+ * Behavior model of the title-page property rows (spec 9.1): pure
+ * ProseMirror state → transaction helpers, no editor instance, so the
+ * keyboard/UI rules are testable without a live view. The plugin
+ * (noteProperty.plugin) routes key events and DOM clicks here; the
+ * storage-level JSON shape lives in src/storage/um/umSchemas.ts — this
+ * module is editor-side and must not import the storage layer.
+ */
+
+/** Preset names the autocomplete offers (9.1). Any other name stays
+ *  freely typeable — the list is an input aid, not a restriction.
+ *  `description` mirrors the migrated legacy summary (the storage layer's
+ *  DESCRIPTION_PROPERTY_NAME); the website export reads the meta
+ *  description from a property with this name. */
+export const PROPERTY_NAME_PRESETS = [
+  "description",
+  "tags",
+  "status",
+  "version",
+] as const;
+
+/** Preset suggestions matching what is typed (case-insensitive prefix);
+ *  an exact match is not suggested again. */
+export function suggestionItems(nameText: string): string[] {
+  const typed = nameText.trim().toLowerCase();
+  return PROPERTY_NAME_PRESETS.filter(
+    (name) => name !== typed && name.startsWith(typed),
+  );
+}
+
+/** Where the caret sits inside a property row. All ranges are content
+ *  ranges (inside the field nodes), not node boundaries. */
+export interface PropertySelection {
+  propFrom: number;
+  propTo: number;
+  /** True when the caret is in the name field, false when in a value. */
+  inName: boolean;
+  /** Content range inside the name node. */
+  nameFrom: number;
+  nameTo: number;
+  nameText: string;
+  /** 0-based index of the value holding the caret, −1 in the name. */
+  valueIndex: number;
+  values: Array<{ from: number; to: number; size: number; text: string }>;
+  /** Name empty and every value empty. */
+  isEmpty: boolean;
+}
+
+interface ValueInfo {
+  from: number;
+  to: number;
+  size: number;
+  text: string;
+}
+
+function propertyValues(prop: PMNode, propFrom: number): ValueInfo[] {
+  const values: ValueInfo[] = [];
+  let nodeStart = propFrom + 1;
+  prop.forEach((child, offset) => {
+    if (offset > 0) {
+      const from = nodeStart + 1;
+      values.push({
+        from,
+        to: from + child.content.size,
+        size: child.nodeSize,
+        text: child.textContent,
+      });
+    }
+    nodeStart += child.nodeSize;
+  });
+  return values;
+}
+
+/** The property row under the caret, or null when the (empty) selection
+ *  is not inside a noteProperty name/value field. */
+export function selectionProperty(
+  doc: PMNode,
+  selection: Selection,
+): PropertySelection | null {
+  const { $head, empty } = selection;
+  if (!empty || $head.depth < 2) return null;
+  const prop = $head.node(1);
+  if (prop.type.name !== "noteProperty") return null;
+  const field = $head.node(2);
+  const inName = field.type.name === "notePropertyName";
+  if (!inName && field.type.name !== "notePropertyValue") return null;
+
+  const propFrom = $head.before(1);
+  const propTo = $head.after(1);
+  const name = prop.firstChild;
+  if (name == null || name.type.name !== "notePropertyName") return null;
+
+  const nameFrom = propFrom + 2;
+  const nameTo = nameFrom + name.content.size;
+  const values = propertyValues(prop, propFrom);
+
+  const valueIndex = inName
+    ? -1
+    : values.findIndex((v) => $head.pos >= v.from && $head.pos <= v.to);
+  if (!inName && valueIndex === -1) return null;
+
+  return {
+    propFrom,
+    propTo,
+    inName,
+    nameFrom,
+    nameTo,
+    nameText: name.textContent,
+    valueIndex,
+    values,
+    isEmpty: name.textContent.length === 0 && values.every((v) => !v.text),
+  };
+}
+
+/** The property row for an editor state (convenience over doc+selection). */
+export function stateProperty(state: EditorState): PropertySelection | null {
+  return selectionProperty(state.doc, state.selection);
+}
+
+/** Insert position for a new property row: right after the last one, or
+ *  directly after the title node when the page has none (properties stay
+ *  contiguous between the title and the content blocks, spec 9.1). Null
+ *  when the document shape gives no anchor (no leading title node). */
+export function propertyInsertPos(doc: PMNode): number | null {
+  let insertPos: number | null = null;
+  let pos = 0;
+  for (let i = 0; i < doc.childCount; i++) {
+    const child = doc.child(i);
+    if (i === 0 && child.type.name !== "noteTitle") return null;
+    if (child.type.name === "noteProperty") {
+      insertPos = pos + child.nodeSize;
+    } else if (insertPos == null && i > 0) {
+      insertPos = pos;
+    }
+    pos += child.nodeSize;
+  }
+  return insertPos;
+}
+
+function emptyProperty(schema: EditorState["schema"]): PMNode {
+  return schema.nodes.noteProperty.create({ type: "text" }, [
+    schema.nodes.notePropertyName.create(),
+    schema.nodes.notePropertyValue.create(),
+  ]);
+}
+
+/** Add a fresh empty property row and put the caret in its name field. */
+export function insertProperty(
+  state: EditorState,
+  dispatch?: (tr: Transaction) => void,
+): boolean {
+  const pos = propertyInsertPos(state.doc);
+  if (pos == null) return false;
+  if (dispatch) {
+    const prop = emptyProperty(state.schema);
+    const tr = state.tr;
+    const after = state.doc.nodeAt(pos);
+    if (after != null) {
+      // Splice the new row directly before the block that follows the
+      // boundary — a bare tr.insert(pos, …) lets the fitter drift past it.
+      tr.replaceWith(pos, pos + after.nodeSize, [prop, after]);
+    } else {
+      tr.insert(pos, prop);
+    }
+    // Caret inside the new row's name field: pos is the row's node start,
+    // its name content starts at pos + 2.
+    tr.setSelection(TextSelection.create(tr.doc, pos + 2));
+    dispatch(tr.scrollIntoView());
+  }
+  return true;
+}
+
+/** Delete the whole row; the caret lands where the row was (end of the
+ *  previous block). */
+export function removeProperty(
+  state: EditorState,
+  dispatch: ((tr: Transaction) => void) | undefined,
+  loc: PropertySelection,
+): boolean {
+  if (dispatch) {
+    const tr = state.tr.delete(loc.propFrom, loc.propTo);
+    tr.setSelection(TextSelection.near(tr.doc.resolve(loc.propFrom), -1));
+    dispatch(tr.scrollIntoView());
+  }
+  return true;
+}
+
+/** Caret into the first value's content (Enter/Tab in the name). */
+export function focusValue(
+  state: EditorState,
+  dispatch: ((tr: Transaction) => void) | undefined,
+  loc: PropertySelection,
+): boolean {
+  const first = loc.values[0];
+  if (first == null) return false;
+  if (dispatch) {
+    const tr = state.tr;
+    tr.setSelection(TextSelection.create(tr.doc, first.from));
+    dispatch(tr.scrollIntoView());
+  }
+  return true;
+}
+
+/** Caret to the end of the name (Shift-Tab from the first value). */
+export function focusName(
+  state: EditorState,
+  dispatch: ((tr: Transaction) => void) | undefined,
+  loc: PropertySelection,
+): boolean {
+  if (dispatch) {
+    const tr = state.tr;
+    tr.setSelection(TextSelection.create(tr.doc, loc.nameTo));
+    dispatch(tr.scrollIntoView());
+  }
+  return true;
+}
+
+/** Enter in a value: a Text property becomes a List and gains an empty
+ *  value row after the current one; a List gains another row. */
+export function appendValue(
+  state: EditorState,
+  dispatch: ((tr: Transaction) => void) | undefined,
+  loc: PropertySelection,
+): boolean {
+  const current = loc.values[loc.valueIndex];
+  if (current == null) return false;
+  if (dispatch) {
+    const prop = state.doc.nodeAt(loc.propFrom);
+    const tr = state.tr;
+    if (prop?.attrs.type === "text") {
+      tr.setNodeAttribute(loc.propFrom, "type", "list");
+    }
+    // Attribute changes move no positions, so the node-end position of the
+    // current value stays valid after the conversion.
+    const at = current.from - 1 + current.size;
+    tr.insert(at, state.schema.nodes.notePropertyValue.create());
+    tr.setSelection(TextSelection.create(tr.doc, at + 1));
+    dispatch(tr.scrollIntoView());
+  }
+  return true;
+}
+
+/** Backspace at the start of an empty value: drop the row (a property
+ *  always keeps at least one value; an emptied List shrinks back). The
+ *  caret lands at the end of the previous value, or at the start of the
+ *  row that shifted up. */
+export function removeEmptyValue(
+  state: EditorState,
+  dispatch: ((tr: Transaction) => void) | undefined,
+  loc: PropertySelection,
+): boolean {
+  const current = loc.values[loc.valueIndex];
+  if (current == null || current.text.length > 0) return false;
+  if (loc.values.length <= 1) return false;
+  if (dispatch) {
+    const tr = state.tr.delete(
+      current.from - 1,
+      current.from - 1 + current.size,
+    );
+    if (loc.valueIndex > 0) {
+      const prev = loc.values[loc.valueIndex - 1];
+      tr.setSelection(TextSelection.create(tr.doc, prev.to));
+    } else {
+      // After the deletion the next row's content starts exactly where the
+      // removed row's content began.
+      tr.setSelection(TextSelection.create(tr.doc, current.from));
+    }
+    dispatch(tr.scrollIntoView());
+  }
+  return true;
+}
+
+/** Accept an autocomplete suggestion: rewrite the name field with the
+ *  chosen name and move the caret into the first value. */
+export function acceptSuggestion(
+  state: EditorState,
+  dispatch: ((tr: Transaction) => void) | undefined,
+  value: string,
+): boolean {
+  const loc = stateProperty(state);
+  if (loc == null || !loc.inName) return false;
+  if (dispatch) {
+    const tr = state.tr.replaceWith(
+      loc.nameFrom,
+      loc.nameTo,
+      value.length > 0 ? state.schema.text(value) : Fragment.empty,
+    );
+    // The name node may have changed size: resolve the first value in the
+    // new document.
+    const nameSize = tr.doc.nodeAt(loc.propFrom)?.firstChild?.nodeSize ?? 2;
+    tr.setSelection(
+      TextSelection.create(tr.doc, loc.propFrom + 1 + nameSize + 1),
+    );
+    dispatch(tr.scrollIntoView());
+  }
+  return true;
+}
+
+/** Keymap routing shared by the plugin's handleKeyDown. Returns true when
+ *  the key was handled. `suggestionPick` (when set) intercepts Enter/Tab
+ *  for the open autocomplete popup. */
+export function propertyKeyDown(
+  state: EditorState,
+  key: string,
+  suggestionPick: (() => boolean) | null,
+  dispatch: (tr: Transaction) => void,
+): boolean {
+  const loc = stateProperty(state);
+  if (loc == null) return false;
+
+  if (loc.inName) {
+    if ((key === "Enter" || key === "Tab") && suggestionPick?.()) return true;
+    if (key === "Enter" || key === "Tab") {
+      return focusValue(state, dispatch, loc);
+    }
+    if (key === "Backspace" && state.selection.$head.parentOffset === 0) {
+      if (loc.isEmpty) return removeProperty(state, dispatch, loc);
+      // At the name start: never join the name into the title or the row
+      // above; elsewhere the default (character delete) applies.
+      return true;
+    }
+    return false;
+  }
+
+  const atValueStart = state.selection.$head.parentOffset === 0;
+  if (key === "Enter") return appendValue(state, dispatch, loc);
+  if (key === "Backspace" && atValueStart) {
+    const current = loc.values[loc.valueIndex];
+    if (current != null && current.text.length > 0) {
+      // The first value never joins into the name; deeper values merge
+      // into the previous one (a List joins its rows) — default applies.
+      return loc.valueIndex === 0;
+    }
+    if (loc.values.length > 1) return removeEmptyValue(state, dispatch, loc);
+    if (loc.isEmpty) return removeProperty(state, dispatch, loc);
+    return true;
+  }
+  if (key === "Shift-Tab" && loc.valueIndex === 0) {
+    return focusName(state, dispatch, loc);
+  }
+  return false;
+}

@@ -461,3 +461,33 @@ article figure:focus-visible {
     display: none;
   }
 }
+
+/* 3. Title-page property rows (spec 9.1, title v3): the name column is
+   muted like the legacy role=definition summary line; values stack in
+   the second column. The editor's grid, flattened for the article. */
+article .note-property {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) 1fr;
+  column-gap: 14px;
+  margin: 0 21px 6px;
+}
+
+article .note-property-name {
+  font-family: Inter, sans-serif;
+  font-size: 15px;
+  line-height: 18px;
+  color: #79828b;
+  word-wrap: break-word;
+}
+
+article p.note-property-value {
+  margin: 0;
+  word-wrap: break-word;
+  /* Lists stack their extra values in the second column, under the first
+     one — mirroring the editor's grid placement. */
+  grid-column: 2;
+}
+
+article .note-property-value:first-of-type {
+  grid-row: 1;
+}

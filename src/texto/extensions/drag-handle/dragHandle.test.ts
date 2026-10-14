@@ -408,20 +408,30 @@ describe("cover header is not draggable (spec 9.1)", () => {
       content: [
         { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
         {
-          type: "noteSummary",
-          content: [{ type: "text", text: "Summary text" }],
+          type: "noteProperty",
+          attrs: { type: "text" },
+          content: [
+            {
+              type: "notePropertyName",
+              content: [{ type: "text", text: "description" }],
+            },
+            {
+              type: "notePropertyValue",
+              content: [{ type: "text", text: "Summary text" }],
+            },
+          ],
         },
         { type: "paragraph", content: [{ type: "text", text: "Body" }] },
       ],
     };
   }
 
-  it("resolves neither the title nor the summary, only the content blocks", () => {
+  it("resolves neither the title nor a property row, only the content blocks", () => {
     const { editor, positions } = useFixture(titleDocContent(), {
       profile: "title",
     });
     const doc = editor.state.doc;
-    // positions[0]=title, [1]=summary, [2]=paragraph — inside each block.
+    // positions[0]=title, [1]=property row, [2]=paragraph — inside each.
     expect(findDraggableBlock(doc, positions[0] + 1)).toBeNull();
     expect(findDraggableBlock(doc, positions[1] + 1)).toBeNull();
     const body = findDraggableBlock(doc, positions[2] + 1);

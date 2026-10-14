@@ -39,11 +39,31 @@ function findFirstNode(node: JSONContent, type: string): JSONContent | null {
   return null;
 }
 
+/** The name of the title-page property the meta description is read from
+ *  (spec 9.1) — mirrors the storage layer's DESCRIPTION_PROPERTY_NAME
+ *  (kept as a literal: the export must not depend on the storage layer). */
+const DESCRIPTION_PROPERTY = "description";
+
+/** The plain text of a property's values, joined for the meta line. */
+function propertyText(node: JSONContent): string {
+  const values = (node.content ?? []).filter(
+    (child) => child.type === "notePropertyValue",
+  );
+  const texts = values
+    .map((value) => {
+      // Hard breaks inside a value become spaces in the flat meta line.
+      return plainText(value);
+    })
+    .filter((text) => text.length > 0);
+  return texts.join(", ");
+}
+
 /**
  * Builds the preview metadata for the export page:
  *  - title from the noteTitle node;
- *  - description from the noteSummary block when the document has one
- *    (notepad title pages, spec 9.1), else the first paragraph;
+ *  - description from the title page's `description` property (spec 9.1,
+ *    title v3), else from the legacy noteSummary line (pre-v3 title
+ *    pages), else the first paragraph;
  *  - preview image from the first image node.
  */
 export function extractPreview(doc: JSONContent): NotePreview {
@@ -52,6 +72,15 @@ export function extractPreview(doc: JSONContent): NotePreview {
   let description = "";
   for (const node of doc.content ?? []) {
     if (node.type === "noteTitle") continue;
+    if (node.type === "noteProperty") {
+      const name = (node.content ?? []).find(
+        (child) => child.type === "notePropertyName",
+      );
+      if (plainText(name).trim() !== DESCRIPTION_PROPERTY) continue;
+      description = propertyText(node).trim();
+      if (description) break;
+      continue;
+    }
     if (node.type === "noteSummary" || node.type === "paragraph") {
       description = plainText(node).trim();
       if (description) break;

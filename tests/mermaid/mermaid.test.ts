@@ -40,14 +40,21 @@ describe("mermaid node", () => {
   });
 
   it("admits the node in the title and plain profiles", () => {
-    // The title profile requires noteSummary after noteTitle.
+    // The title profile (v3) admits property rows between title and content.
     const titleDoc = {
       ...DOC_WITH_MERMAID,
       content: [
         DOC_WITH_MERMAID.content[0],
         {
-          type: "noteSummary",
-          content: [{ type: "text", text: "Summary" }],
+          type: "noteProperty",
+          attrs: { type: "text" },
+          content: [
+            {
+              type: "notePropertyName",
+              content: [{ type: "text", text: "status" }],
+            },
+            { type: "notePropertyValue", content: [] },
+          ],
         },
         ...DOC_WITH_MERMAID.content.slice(1),
       ],

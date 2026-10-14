@@ -20,7 +20,8 @@ import {
   UM_FORMAT,
   UM_SCHEMA_PLAIN,
   UM_SCHEMA_TITLE,
-  UM_SCHEMA_VERSION,
+  UM_SCHEMA_VERSION_PLAIN,
+  UM_SCHEMA_VERSION_TITLE,
   UM_TYPE,
   UM_VERSION,
 } from "../storage/um/umTypes";
@@ -347,7 +348,7 @@ function mountNotepad(
       order: 0,
       title: "Notepad title",
       schema: UM_SCHEMA_TITLE,
-      schemaVersion: UM_SCHEMA_VERSION,
+      schemaVersion: UM_SCHEMA_VERSION_TITLE,
       expanded: opts?.titleExpanded ?? true,
     },
   ];
@@ -359,7 +360,6 @@ function mountNotepad(
           type: "noteTitle",
           content: [{ type: "text", text: "Notepad title" }],
         },
-        { type: "noteSummary" },
         { type: "paragraph" },
       ],
   });
@@ -370,7 +370,7 @@ function mountNotepad(
       order: i + 1,
       title: page.title ?? page.id,
       schema: UM_SCHEMA_PLAIN,
-      schemaVersion: UM_SCHEMA_VERSION,
+      schemaVersion: UM_SCHEMA_VERSION_PLAIN,
       // Open every page so the drag geometry runs against real editors.
       expanded: page.expanded ?? true,
     });
@@ -555,8 +555,18 @@ async function exportUmWebsite(spec: ExportUmWebsiteSpec): Promise<{
     content: [
       { type: "noteTitle", content: [{ type: "text", text: spec.title }] },
       {
-        type: "noteSummary",
-        content: spec.summary ? [{ type: "text", text: spec.summary }] : [],
+        type: "noteProperty",
+        attrs: { type: "text" },
+        content: [
+          {
+            type: "notePropertyName",
+            content: [{ type: "text", text: "description" }],
+          },
+          {
+            type: "notePropertyValue",
+            content: spec.summary ? [{ type: "text", text: spec.summary }] : [],
+          },
+        ],
       },
       { type: "paragraph" },
     ],
