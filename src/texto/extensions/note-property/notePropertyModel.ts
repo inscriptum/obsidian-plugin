@@ -296,6 +296,87 @@ export function removeEmptyValue(
   return true;
 }
 
+/** Remove one chip of a List property (the chip's own × button): the
+ *  value node goes away; removing the last chip leaves an empty value
+ *  entry instead of an invalid row. */
+export function removeChipAt(
+  state: EditorState,
+  dispatch: ((tr: Transaction) => void) | undefined,
+  propFrom: number,
+  valueIndex: number,
+): boolean {
+  const prop = state.doc.nodeAt(propFrom);
+  if (prop == null || prop.type.name !== "noteProperty") return false;
+  const values: Array<{ from: number; size: number; text: string }> = [];
+  let nodeStart = propFrom + 1;
+  prop.forEach((child, offset) => {
+    if (offset > 0) {
+      values.push({ from: nodeStart + 1, size: child.nodeSize, text: child.textContent });
+    }
+    nodeStart += child.nodeSize;
+  });
+  const target = values[valueIndex];
+  if (target == null) return false;
+
+  if (dispatch) {
+    const tr = state.tr;
+    if (values.length > 1) {
+      tr.delete(target.from - 1, target.from - 1 + target.size);
+      const next = values[valueIndex + 1];
+      const prev = values[valueIndex - 1];
+      if (next != null) {
+        tr.setSelection(TextSelection.create(tr.doc, target.from));
+      } else if (prev != null) {
+        tr.setSelection(TextSelection.create(tr.doc, prev.from - 1 + prev.size - 1));
+      }
+    } else {
+      // The only chip: clear it, the row keeps an empty entry.
+      tr.replaceWith(
+        target.from,
+        target.from + target.text.length,
+        Fragment.empty,
+      );
+      tr.setSelection(TextSelection.create(tr.doc, target.from));
+    }
+    dispatch(tr.scrollIntoView());
+  }
+  return true;
+}
+
+/** Enter in a Text value: the content is fixed — the caret moves on, to
+ *  the next property's name field when one follows, otherwise to the next
+ *  content block below (the trailing paragraph the profile guarantees). */
+export function exitTextValue(
+  state: EditorState,
+  dispatch: ((tr: Transaction) => void) | undefined,
+  loc: PropertySelection,
+): boolean {
+  if (dispatch) {
+    const doc = state.doc;
+    let target: number | null = null;
+    let pos = 0;
+    for (let i = 0; i < doc.childCount; i++) {
+      const child = doc.child(i);
+      if (pos === loc.propFrom) {
+        const next = doc.child(i + 1);
+        if (next != null) {
+          const nextPos = pos + child.nodeSize;
+          target =
+            next.type.name === "noteProperty" ? nextPos + 2 : nextPos + 1;
+        }
+        break;
+      }
+      pos += child.nodeSize;
+    }
+    if (target != null) {
+      const tr = state.tr;
+      tr.setSelection(TextSelection.near(tr.doc.resolve(target), 1));
+      dispatch(tr.scrollIntoView());
+    }
+  }
+  return true;
+}
+
 /** Accept an autocomplete suggestion: rewrite the name field with the
  *  chosen name and move the caret into the first value. */
 export function acceptSuggestion(
@@ -359,12 +440,13 @@ export function propertyKeyDown(
     return true;
   }
   if (key === "Enter") {
-    // Obsidian semantics: a Text value is fixed — Enter does nothing to
-    // the structure; a List value grows by one entry.
+    // Obsidian semantics: a Text value is one fixed line — Enter moves on
+    // (next property, or the content below); a List value grows by one
+    // entry.
     const prop = state.doc.nodeAt(loc.propFrom);
     return prop?.attrs.type === "list"
       ? appendValue(state, dispatch, loc)
-      : true;
+      : exitTextValue(state, dispatch, loc);
   }
   if (key === "Backspace" && atValueStart) {
     const current = loc.values[loc.valueIndex];

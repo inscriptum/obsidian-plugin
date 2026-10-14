@@ -227,22 +227,39 @@ describe("propertyKeyDown", () => {
     expect(loc.valueIndex).toBe(0);
   });
 
-  it("Enter in a Text value fixes the content: no structural change", () => {
+  it("Enter in a Text value keeps the content and moves to the next block", () => {
     const json = v3Doc([property("description", ["first"])]);
     const doc = schema.nodeFromJSON(json);
     const [geo] = geometry(doc);
     const base = stateAt(json, geo.values[0] + 1);
 
-    let next: EditorState | null = null;
-    const handled = propertyKeyDown(base, "Enter", null, (tr) => {
-      next = base.apply(tr);
-    });
-    expect(handled).toBe(true);
-    // The command itself dispatches nothing: the value stays as it is.
-    expect(next).toBeNull();
-    const prop = base.doc.content.content[1];
+    const next = applied(base, (dispatch) =>
+      propertyKeyDown(base, "Enter", null, dispatch),
+    );
+    // Structure untouched: one value, still text.
+    const prop = next.doc.content.content[1];
     expect(prop.attrs.type).toBe("text");
     expect(prop.childCount).toBe(2); // name + one value
+    expect(prop.child(1).textContent).toBe("first");
+    // The caret left the property for the trailing content block.
+    const loc = stateProperty(next);
+    expect(loc).toBeNull();
+    expect(next.selection.from).toBeGreaterThan(prop.nodeSize + 2);
+  });
+
+  it("Enter in a Text value jumps to the next property's name", () => {
+    const json = v3Doc([
+      property("description", ["first"]),
+      property("status", ["draft"]),
+    ]);
+    const base = stateAt(json, geometry(schema.nodeFromJSON(json))[0].values[0] + 1);
+
+    const next = applied(base, (dispatch) =>
+      propertyKeyDown(base, "Enter", null, dispatch),
+    );
+    const loc = stateProperty(next)!;
+    expect(loc.inName).toBe(true);
+    expect(loc.nameText).toBe("status");
   });
 
   it("Enter in a List value appends another entry", () => {

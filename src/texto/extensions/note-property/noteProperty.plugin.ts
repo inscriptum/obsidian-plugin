@@ -3,6 +3,7 @@ import { Decoration, DecorationSet } from "prosemirror-view";
 import { TextSelection } from "prosemirror-state";
 import type { EditorState } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
+import type { Node as ProseMirrorNode } from "prosemirror-model";
 import {
   acceptSuggestion,
   insertProperty,
@@ -10,6 +11,7 @@ import {
   presetType,
   propertyInsertPos,
   propertyKeyDown,
+  removeChipAt,
   removeProperty,
   selectionProperty,
   stateProperty,
@@ -170,12 +172,33 @@ function buildDecorations(state: EditorState): Decoration[] {
   const decorations: Decoration[] = [];
   const loc = stateProperty(state);
 
+  // The cover zone: the title plus all property rows. While the caret is
+  // anywhere inside it, the vertical margin rule runs continuously through
+  // the title and every row (the old Title/Summary field-rule look).
+  const title = state.doc.child(0);
+  let lastPropTo: number | null = null;
+  let cursor = 0;
+  for (let i = 0; i < state.doc.childCount; i++) {
+    const child = state.doc.child(i);
+    cursor += child.nodeSize;
+    if (child.type.name === "noteProperty") lastPropTo = cursor;
+  }
+  const zoneEnd = lastPropTo ?? title.nodeSize;
+  const zoneFocused =
+    title.type.name === "noteTitle" && state.selection.to <= zoneEnd;
+  if (zoneFocused && title.type.name === "noteTitle") {
+    decorations.push(Decoration.node(0, title.nodeSize, { class: "rule" }));
+  }
+
   state.doc.forEach((node, offset) => {
     if (node.type.name !== "noteProperty") return;
     // Top-level forEach offsets are absolute doc positions.
     const from = offset;
     const to = from + node.nodeSize;
     const focused = loc != null && loc.propFrom === from;
+    if (zoneFocused) {
+      decorations.push(Decoration.node(from, to, { class: "rule" }));
+    }
 
     const name = node.firstChild;
     if (name != null && name.type.name === "notePropertyName") {
@@ -192,13 +215,17 @@ function buildDecorations(state: EditorState): Decoration[] {
           }),
         );
       }
-      decorations.push(
-        Decoration.widget(
-          nameNodeFrom + 1,
-          () => typeIcon(presetType(name.textContent) ?? "text"),
-          { side: -1, key: `icon:${from}:${name.textContent}` },
-        ),
-      );
+      // The type marker appears once the name exists — over an empty field
+      // it would collide with the placeholder and the caret.
+      if (name.content.size > 0) {
+        decorations.push(
+          Decoration.widget(
+            nameNodeFrom + 1,
+            () => typeIcon(presetType(name.textContent) ?? "text"),
+            { side: -1, key: `icon:${from}:${name.textContent}` },
+          ),
+        );
+      }
     }
 
     if (!focused) return;
@@ -221,15 +248,30 @@ function buildDecorations(state: EditorState): Decoration[] {
       }
     }
 
+    const isList = node.attrs.type === "list";
     node.forEach((child, childOffset) => {
       if (child.type.name !== "notePropertyValue") return;
+      const childFrom = from + 1 + childOffset;
       if (child.content.size === 0) {
-        const childFrom = from + 1 + childOffset;
         decorations.push(
           Decoration.node(
             childFrom,
             childFrom + child.nodeSize,
-            { class: "empty", "data-placeholder": "Empty" },
+            isList
+              ? // An empty chip needs room to be seen and clicked into —
+                // the "Empty" word would only truncate inside the pill.
+                { class: "chip-empty" }
+              : { class: "empty", "data-placeholder": "Empty" },
+          ),
+        );
+      }
+      if (isList) {
+        const chipFrom = childFrom + 1;
+        decorations.push(
+          Decoration.widget(
+            chipFrom + child.content.size,
+            (view) => chipRemoveButton(view, from, valuesIndex(node, child)),
+            { side: 1, key: `chipx:${chipFrom}` },
           ),
         );
       }
@@ -255,6 +297,19 @@ function buildDecorations(state: EditorState): Decoration[] {
   }
 
   return decorations;
+}
+
+/** 0-based index of `child` among the value nodes of `prop`. */
+function valuesIndex(prop: ProseMirrorNode, child: ProseMirrorNode): number {
+  let index = -1;
+  let i = 0;
+  prop.forEach((c) => {
+    if (c.type.name === "notePropertyValue") {
+      if (c === child) index = i;
+      i += 1;
+    }
+  });
+  return index;
 }
 
 /** Suggestions render only while the caret is in a name field, not
@@ -297,6 +352,26 @@ function typeIcon(type: "text" | "list"): HTMLElement {
   span.setAttribute("aria-hidden", "true");
   span.appendChild(spriteIcon(type === "list" ? "propTag" : "propText"));
   return span;
+}
+
+/** The × inside one tag chip (List rows). */
+function chipRemoveButton(
+  view: EditorView,
+  propFrom: number,
+  valueIndex: number,
+): HTMLElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "note-property-chip-x";
+  button.setAttribute("aria-label", "Remove tag");
+  button.appendChild(spriteIcon("x"));
+  button.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    removeChipAt(view.state, (tr) => view.dispatch(tr), propFrom, valueIndex);
+    view.focus();
+  });
+  return button;
 }
 
 function removeButton(view: EditorView): HTMLElement {

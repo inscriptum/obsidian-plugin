@@ -12,22 +12,26 @@
   grid-template-columns: 200px 1fr;
   column-gap: 16px;
   margin: 2px 0;
+  /* The name and the value share one baseline, as one line of text. */
+  align-items: baseline;
 }
 
-/* The focused row gets the field affordances; nothing permanent — the
-   properties area stays quiet like the rest of the cover. The vertical
-   rule hangs into the left margin at the header labels' x, visually
-   continuing the Title/Summary field rule. */
+/* The focused row keeps the input underline; nothing permanent — the
+   properties area stays quiet like the rest of the cover. */
 .note-property.focused {
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.note-property.focused:before {
+/* The vertical margin rule of the cover zone: while the caret is in the
+   title or any property, every covered element draws its segment at the
+   header labels' x — the segments touch and read as one continuous line,
+   exactly like the old Title/Summary field rules. */
+.note-property.rule:before {
   content: "";
   position: absolute;
   left: -21px;
-  top: -3px;
-  bottom: -3px;
+  top: -4px;
+  bottom: -4px;
   border-left: 1px solid var(--background-modifier-border);
 }
 
@@ -40,7 +44,6 @@
   line-height: 1.6;
   /* Anchor for the suggestion popup. */
   position: relative;
-  align-self: start;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -49,6 +52,20 @@
 /* A preset-named row's name is fixed — not a text field anymore. */
 .note-property-name.locked {
   cursor: default;
+}
+
+/* The title's segment of the cover-zone rule (same x as the rows'). */
+.notepad-view-container .ProseMirror > h1.rule {
+  position: relative;
+}
+
+.notepad-view-container .ProseMirror > h1.rule:before {
+  content: "";
+  position: absolute;
+  left: -21px;
+  top: 6px;
+  bottom: 2px;
+  border-left: 1px solid var(--background-modifier-border);
 }
 
 .note-property-type-icon {
@@ -87,6 +104,36 @@
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
+}
+
+/* An empty chip (the next tag entry) is a small blank pill, not a word. */
+.note-property-value.chip-empty {
+  min-width: 26px;
+}
+
+/* Per-chip remove button, at the chip's right edge. */
+.note-property-chip-x {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 5px;
+  margin-right: -3px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.note-property-chip-x svg {
+  width: 11px;
+  height: 11px;
+}
+
+.note-property-chip-x:hover {
+  color: var(--text-normal);
+  background: transparent;
 }
 
 .note-property[data-property-type="list"] .note-property-name {
@@ -149,13 +196,13 @@
   background: transparent;
 }
 
-/* "Add property": a plus button hanging in the left margin, next to where
-   the next row would start (the anchor div is zero-height in flow). */
+/* "Add property": a plus button hanging in the left margin on its own
+   line below the last row — the spot the next property would take. */
 .note-property-add {
   position: relative;
   display: block;
-  height: 0;
-  margin: 3px 0 7px;
+  height: 26px;
+  margin: 8px 0 4px;
   border: none;
   background: transparent;
 }
@@ -163,7 +210,7 @@
 .note-property-add__btn {
   position: absolute;
   right: calc(100% + 34px);
-  bottom: -4px;
+  top: 1px;
   width: 22px;
   height: 22px;
   padding: 0;
@@ -221,10 +268,16 @@
   background: var(--background-modifier-hover);
 }
 
-/* Mobile: the two-column layout needs less room for the name. */
+/* Mobile: the two-column layout needs less room for the name; the margin
+   rule has no margin to hang into on a phone. */
 .is-mobile .note-property {
   grid-template-columns: 120px 1fr;
   column-gap: 10px;
+}
+
+.is-mobile .note-property.rule:before,
+.is-mobile .ProseMirror > h1.rule:before {
+  display: none;
 }
 
 .is-mobile .note-property[data-property-type="list"] .note-property-name {
@@ -247,6 +300,8 @@
 .notepad-view-container .note-property-add__btn,
 .note-view-container .note-property-remove,
 .notepad-view-container .note-property-remove,
+.note-view-container .note-property-chip-x,
+.notepad-view-container .note-property-chip-x,
 .note-view-container .note-property-suggestion,
 .notepad-view-container .note-property-suggestion {
   width: auto;
