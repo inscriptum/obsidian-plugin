@@ -7,6 +7,8 @@ import {
   PROPERTY_NAME_PRESETS,
   acceptSuggestion,
   insertProperty,
+  isPresetName,
+  presetType,
   propertyInsertPos,
   removeProperty,
   propertyKeyDown,
@@ -88,6 +90,23 @@ function geometry(doc: PMNode): {
   });
   return out;
 }
+
+describe("presets", () => {
+  it("recognizes preset names case-insensitively and trims input", () => {
+    expect(isPresetName("description")).toBe(true);
+    expect(isPresetName("  Tags ")).toBe(true);
+    expect(isPresetName("custom")).toBe(false);
+    expect(isPresetName("")).toBe(false);
+  });
+
+  it("maps tags to a list and the rest to text; unknown names have no type", () => {
+    expect(presetType("tags")).toBe("list");
+    expect(presetType("description")).toBe("text");
+    expect(presetType("status")).toBe("text");
+    expect(presetType("version")).toBe("text");
+    expect(presetType("custom")).toBeNull();
+  });
+});
 
 describe("suggestionItems", () => {
   it("offers all presets for an empty name", () => {
@@ -208,8 +227,26 @@ describe("propertyKeyDown", () => {
     expect(loc.valueIndex).toBe(0);
   });
 
-  it("Enter in a Text value converts the row to a List and appends a value", () => {
+  it("Enter in a Text value fixes the content: no structural change", () => {
     const json = v3Doc([property("description", ["first"])]);
+    const doc = schema.nodeFromJSON(json);
+    const [geo] = geometry(doc);
+    const base = stateAt(json, geo.values[0] + 1);
+
+    let next: EditorState | null = null;
+    const handled = propertyKeyDown(base, "Enter", null, (tr) => {
+      next = base.apply(tr);
+    });
+    expect(handled).toBe(true);
+    // The command itself dispatches nothing: the value stays as it is.
+    expect(next).toBeNull();
+    const prop = base.doc.content.content[1];
+    expect(prop.attrs.type).toBe("text");
+    expect(prop.childCount).toBe(2); // name + one value
+  });
+
+  it("Enter in a List value appends another entry", () => {
+    const json = v3Doc([property("tags", ["one"], "list")]);
     const doc = schema.nodeFromJSON(json);
     const [geo] = geometry(doc);
     const base = stateAt(json, geo.values[0] + 1);
@@ -221,10 +258,23 @@ describe("propertyKeyDown", () => {
     const prop = next.doc.content.content[1];
     expect(prop.attrs.type).toBe("list");
     expect(prop.childCount).toBe(3); // name + two values
-    expect(prop.child(1).textContent).toBe("first");
+    expect(prop.child(1).textContent).toBe("one");
     const loc = stateProperty(next)!;
     expect(loc.valueIndex).toBe(1);
     expect(loc.values[1].text).toBe("");
+  });
+
+  it("Shift-Enter never inserts a line break inside a value", () => {
+    const json = v3Doc([property("tags", ["one"], "list")]);
+    const [geo] = geometry(schema.nodeFromJSON(json));
+    const base = stateAt(json, geo.values[0] + 1);
+
+    let changed = false;
+    const handled = propertyKeyDown(base, "Shift-Enter", null, () => {
+      changed = true;
+    });
+    expect(handled).toBe(true);
+    expect(changed).toBe(false);
   });
 
   it("Backspace at the start of the first value with text never joins into the name", () => {
@@ -313,6 +363,19 @@ describe("propertyKeyDown", () => {
 });
 
 describe("acceptSuggestion", () => {
+  it("accepting tags adopts the list type", () => {
+    const json = v3Doc([property("", [""])]);
+    const [geo] = geometry(schema.nodeFromJSON(json));
+    const base = stateAt(json, geo.nameFrom);
+
+    const next = applied(base, (dispatch) =>
+      acceptSuggestion(base, dispatch, "tags"),
+    );
+    const prop = next.doc.content.content[1];
+    expect(prop.child(0).textContent).toBe("tags");
+    expect(prop.attrs.type).toBe("list");
+  });
+
   it("rewrites the name and moves the caret into the first value", () => {
     const json = v3Doc([property("de", [""])]);
     const [geo] = geometry(schema.nodeFromJSON(json));

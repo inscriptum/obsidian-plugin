@@ -1,10 +1,13 @@
 import { Plugin, PluginKey } from "prosemirror-state";
 import { Decoration, DecorationSet } from "prosemirror-view";
+import { TextSelection } from "prosemirror-state";
 import type { EditorState } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import {
   acceptSuggestion,
   insertProperty,
+  isPresetName,
+  presetType,
   propertyInsertPos,
   propertyKeyDown,
   removeProperty,
@@ -42,6 +45,23 @@ const key = new PluginKey<NotePropertyPluginState>("noteProperty");
 export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
   return new Plugin<NotePropertyPluginState>({
     key,
+      // A row whose name equals a preset adopts the preset's value type —
+      // including names typed manually rather than picked from the popup.
+      // Idempotent: a fixing pass finds nothing to change and terminates.
+      appendTransaction: (_transactions, _oldState, newState) => {
+        if (!newState.tr.docChanged) return null;
+        const tr = newState.tr;
+        let fixed = 0;
+        newState.doc.forEach((node, offset) => {
+          if (node.type.name !== "noteProperty") return;
+          const type = presetType(node.firstChild?.textContent ?? "");
+          if (type != null && node.attrs.type !== type) {
+            tr.setNodeAttribute(offset, "type", type);
+            fixed += 1;
+          }
+        });
+        return fixed > 0 ? tr : null;
+      },
     state: {
       init: () => ({ selected: 0, dismissed: false }),
       apply(tr, value) {
@@ -65,6 +85,31 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
     props: {
       decorations: (state: EditorState) =>
         DecorationSet.create(state.doc, buildDecorations(state)),
+      handleDOMEvents: {
+        // A locked (preset-named) name field takes no caret: a click lands
+        // in the row's first value instead.
+        mousedown: (view: EditorView, event: MouseEvent) => {
+          const target = event.target as HTMLElement | null;
+          const locked = target?.closest?.(".note-property-name.locked");
+          if (!(locked instanceof HTMLElement)) return false;
+          event.preventDefault();
+          event.stopPropagation();
+          const inside = view.posAtDOM(locked, 0);
+          const propNode = view.state.doc.nodeAt(inside - 1);
+          const nameSize = propNode?.firstChild?.nodeSize;
+          if (nameSize == null) return true;
+          const valueFrom = inside - 1 + 1 + nameSize + 1;
+          const $value = view.state.doc.resolve(
+            Math.min(valueFrom, view.state.doc.content.size),
+          );
+          view.dispatch(
+            view.state.tr.setSelection(
+              TextSelection.near($value, 1),
+            ).scrollIntoView(),
+          );
+          return true;
+        },
+      },
       handleKeyDown: (view: EditorView, event: KeyboardEvent) => {
         const pluginState = key.getState(view.state);
         const loc = stateProperty(view.state);
@@ -102,10 +147,14 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
               }
             : null;
 
-        // The model speaks PM-style key names: Shift+Tab arrives as
-        // event.key === "Tab" with the modifier set.
+        // The model speaks PM-style key names: modified keys arrive as
+        // event.key with the modifier set.
         const keyName =
-          event.key === "Tab" && event.shiftKey ? "Shift-Tab" : event.key;
+          event.key === "Tab" && event.shiftKey
+            ? "Shift-Tab"
+            : event.key === "Enter" && event.shiftKey
+              ? "Shift-Enter"
+              : event.key;
         return propertyKeyDown(
           view.state,
           keyName,
@@ -128,11 +177,34 @@ function buildDecorations(state: EditorState): Decoration[] {
     const to = from + node.nodeSize;
     const focused = loc != null && loc.propFrom === from;
 
+    const name = node.firstChild;
+    if (name != null && name.type.name === "notePropertyName") {
+      const nameNodeFrom = from + 1;
+      const locked = isPresetName(name.textContent);
+      if (locked) {
+        // Preset names are fixed on every row (not only the focused one):
+        // the field stops taking a caret, so the name is either the preset
+        // or the user's own custom text.
+        decorations.push(
+          Decoration.node(nameNodeFrom, nameNodeFrom + name.nodeSize, {
+            contenteditable: "false",
+            class: "locked",
+          }),
+        );
+      }
+      decorations.push(
+        Decoration.widget(
+          nameNodeFrom + 1,
+          () => typeIcon(presetType(name.textContent) ?? "text"),
+          { side: -1, key: `icon:${from}:${name.textContent}` },
+        ),
+      );
+    }
+
     if (!focused) return;
 
     decorations.push(Decoration.node(from, to, { class: "focused" }));
 
-    const name = node.firstChild;
     if (name != null && name.type.name === "notePropertyName") {
       const nameNodeFrom = from + 1;
       if (name.content.size === 0) {
@@ -210,12 +282,29 @@ function suggestionDecorations(state: EditorState): Decoration[] {
   ];
 }
 
+function spriteIcon(iconId: string): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  use.setAttribute("href", `#inscriptum-tlb-${iconId}`);
+  svg.appendChild(use);
+  return svg;
+}
+
+/** The value-type marker shown before the name, as in Obsidian. */
+function typeIcon(type: "text" | "list"): HTMLElement {
+  const span = document.createElement("span");
+  span.className = "note-property-type-icon";
+  span.setAttribute("aria-hidden", "true");
+  span.appendChild(spriteIcon(type === "list" ? "propTag" : "propText"));
+  return span;
+}
+
 function removeButton(view: EditorView): HTMLElement {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "note-property-remove";
   button.setAttribute("aria-label", "Remove property");
-  button.textContent = "×";
+  button.appendChild(spriteIcon("x"));
   button.addEventListener("mousedown", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -227,16 +316,23 @@ function removeButton(view: EditorView): HTMLElement {
 }
 
 function addButton(view: EditorView): HTMLElement {
+  // A zero-height in-flow anchor whose button hangs into the left margin,
+  // next to the row that would follow the last one.
+  const anchor = document.createElement("div");
+  anchor.className = "note-property-add";
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "note-property-add";
-  button.textContent = "Add property";
+  button.className = "note-property-add__btn";
+  button.setAttribute("aria-label", "Add property");
+  button.setAttribute("title", "Add property");
+  button.appendChild(spriteIcon("propPlus"));
   button.addEventListener("mousedown", (event) => {
     event.preventDefault();
     event.stopPropagation();
     insertProperty(view.state, (tr) => view.dispatch(tr));
   });
-  return button;
+  anchor.appendChild(button);
+  return anchor;
 }
 
 function suggestionList(

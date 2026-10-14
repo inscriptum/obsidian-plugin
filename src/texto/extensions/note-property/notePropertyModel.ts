@@ -11,24 +11,46 @@ import { Fragment, type Node as PMNode } from "prosemirror-model";
  * module is editor-side and must not import the storage layer.
  */
 
-/** Preset names the autocomplete offers (9.1). Any other name stays
- *  freely typeable — the list is an input aid, not a restriction.
+/** Preset property rows (9.1): name → value type, following Obsidian —
+ *  `tags` holds a list of separate tag chips, the rest hold one text line.
+ *  A preset NAME is fixed: a row named with a preset cannot be renamed
+ *  (delete the row and add another); any other name stays freely typeable.
  *  `description` mirrors the migrated legacy summary (the storage layer's
  *  DESCRIPTION_PROPERTY_NAME); the website export reads the meta
  *  description from a property with this name. */
-export const PROPERTY_NAME_PRESETS = [
-  "description",
-  "tags",
-  "status",
-  "version",
-] as const;
+export const PROPERTY_PRESETS: ReadonlyArray<{
+  name: string;
+  type: "text" | "list";
+}> = [
+  { name: "description", type: "text" },
+  { name: "tags", type: "list" },
+  { name: "status", type: "text" },
+  { name: "version", type: "text" },
+];
+
+export const PROPERTY_NAME_PRESETS: readonly string[] = PROPERTY_PRESETS.map(
+  (p) => p.name,
+);
+
+/** True when the (trimmed, case-insensitive) name is one of the presets —
+ *  such a row's name field is locked. */
+export function isPresetName(nameText: string): boolean {
+  const name = nameText.trim().toLowerCase();
+  return PROPERTY_NAME_PRESETS.includes(name);
+}
+
+/** The preset's value type, or null for a non-preset name. */
+export function presetType(nameText: string): "text" | "list" | null {
+  const name = nameText.trim().toLowerCase();
+  return PROPERTY_PRESETS.find((p) => p.name === name)?.type ?? null;
+}
 
 /** Preset suggestions matching what is typed (case-insensitive prefix);
  *  an exact match is not suggested again. */
 export function suggestionItems(nameText: string): string[] {
   const typed = nameText.trim().toLowerCase();
   return PROPERTY_NAME_PRESETS.filter(
-    (name) => name !== typed && name.startsWith(typed),
+    (preset) => preset !== typed && preset.startsWith(typed),
   );
 }
 
@@ -289,6 +311,10 @@ export function acceptSuggestion(
       loc.nameTo,
       value.length > 0 ? state.schema.text(value) : Fragment.empty,
     );
+    // The name now equals a preset — adopt its value type (attributes move
+    // no positions, so the geometry below stays valid).
+    const type = presetType(value);
+    if (type != null) tr.setNodeAttribute(loc.propFrom, "type", type);
     // The name node may have changed size: resolve the first value in the
     // new document.
     const nameSize = tr.doc.nodeAt(loc.propFrom)?.firstChild?.nodeSize ?? 2;
@@ -317,6 +343,7 @@ export function propertyKeyDown(
     if (key === "Enter" || key === "Tab") {
       return focusValue(state, dispatch, loc);
     }
+    if (key === "Shift-Enter") return true;
     if (key === "Backspace" && state.selection.$head.parentOffset === 0) {
       if (loc.isEmpty) return removeProperty(state, dispatch, loc);
       // At the name start: never join the name into the title or the row
@@ -327,7 +354,18 @@ export function propertyKeyDown(
   }
 
   const atValueStart = state.selection.$head.parentOffset === 0;
-  if (key === "Enter") return appendValue(state, dispatch, loc);
+  if (key === "Shift-Enter") {
+    // Values are single-line: Enter-family keys never insert line breaks.
+    return true;
+  }
+  if (key === "Enter") {
+    // Obsidian semantics: a Text value is fixed — Enter does nothing to
+    // the structure; a List value grows by one entry.
+    const prop = state.doc.nodeAt(loc.propFrom);
+    return prop?.attrs.type === "list"
+      ? appendValue(state, dispatch, loc)
+      : true;
+  }
   if (key === "Backspace" && atValueStart) {
     const current = loc.values[loc.valueIndex];
     if (current != null && current.text.length > 0) {
