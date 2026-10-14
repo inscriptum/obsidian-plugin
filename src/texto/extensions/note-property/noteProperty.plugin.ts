@@ -483,7 +483,7 @@ function buildDecorations(state: EditorState): Decoration[] {
   });
 
   const addPos = propertyInsertPos(state.doc);
-  if (addPos != null) {
+  if (addPos != null && zoneFocused) {
     decorations.push(
       Decoration.widget(addPos, (view) => addButton(view), {
         side: 1,
@@ -562,7 +562,7 @@ function typeIcon(type: "text" | "list"): HTMLElement {
   return span;
 }
 
-/** The remove icon inside one tag chip (List rows). */
+/** The × inside one tag chip (List rows). */
 function chipRemoveButton(
   view: EditorView,
   propFrom: number,
@@ -572,7 +572,7 @@ function chipRemoveButton(
   button.type = "button";
   button.className = "note-property-chip-x";
   button.setAttribute("aria-label", "Remove tag");
-  button.appendChild(spriteIcon("trash"));
+  button.appendChild(spriteIcon("x"));
   button.addEventListener("mousedown", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -587,7 +587,7 @@ function removeButton(view: EditorView): HTMLElement {
   button.type = "button";
   button.className = "note-property-remove";
   button.setAttribute("aria-label", "Remove property");
-  button.appendChild(spriteIcon("x"));
+  button.appendChild(spriteIcon("trash"));
   button.addEventListener("mousedown", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -599,25 +599,24 @@ function removeButton(view: EditorView): HTMLElement {
 }
 
 function addButton(view: EditorView): HTMLElement {
-  // A zero-height in-flow anchor whose button hangs into the left margin,
-  // next to the row that would follow the last one.
+  // A quiet text button where the next property would appear; rendered
+  // only while the cover zone is focused (see the widget gate in
+  // buildDecorations).
   const anchor = document.createElement("div");
   anchor.className = "note-property-add";
   const button = document.createElement("button");
   button.type = "button";
   button.className = "note-property-add__btn";
-  button.setAttribute("aria-label", "Add property");
-  button.setAttribute("title", "Add property");
-  button.appendChild(spriteIcon("propPlus"));
+  button.textContent = "+ Add property";
   button.addEventListener("mousedown", (event) => {
     event.preventDefault();
     event.stopPropagation();
     insertProperty(view.state, (tr) => view.dispatch(tr));
+    view.focus();
   });
   anchor.appendChild(button);
   return anchor;
 }
-
 function suggestionList(
   view: EditorView,
   items: string[],
