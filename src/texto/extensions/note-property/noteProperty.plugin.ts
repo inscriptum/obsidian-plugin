@@ -44,6 +44,10 @@ interface NotePropertyPluginState {
 
 const key = new PluginKey<NotePropertyPluginState>("noteProperty");
 
+/** Manual drag-selection anchor for locked-name rows (mousedown position,
+ *  per view; the mousemove handler extends it, mouseup clears it). */
+const dragAnchorByView = new WeakMap<EditorView, number>();
+
 export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
   return new Plugin<NotePropertyPluginState>({
     key,
@@ -200,17 +204,13 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
       decorations: (state: EditorState) =>
         DecorationSet.create(state.doc, buildDecorations(state)),
       handleDOMEvents: {
-        // Two pointer fixes for rows with a locked (preset) name, where
-        // PM's own hit-testing resolves clicks unreliably (a chip sits in
-        // a flex row — the nearest position lands in the non-editable
-        // name, where nothing paints and typing goes nowhere):
-        //  - a click on the draft slot (the trailing empty value) places
-        //    the caret into the slot — typing starts a new tag instead of
-        //    extending the previous chip (nothing selectable there, so
-        //    suppressing the native mousedown costs nothing);
-        //  - a click anywhere else in the row places the caret exactly
-        //    where the user pointed (caretRangeFromPoint), and a
-        //    double-click selects the word under the pointer.
+        // Rows with a locked (preset) name: PM's own hit-testing resolves
+        // clicks unreliably (a chip sits in a flex row — the nearest
+        // position lands in the non-editable name, where nothing paints).
+        // Place the caret exactly where the user pointed via
+        // caretRangeFromPoint, then drive the drag-selection manually
+        // (mousemove extends from the mousedown anchor) and let a
+        // double-click select the word under the pointer.
         mousedown: (view: EditorView, event: MouseEvent) => {
           const target = event.target as HTMLElement | null;
           const row = target?.closest?.(".note-property");
@@ -221,25 +221,8 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
           if (draft instanceof HTMLElement) {
             event.preventDefault();
             event.stopPropagation();
-            // Exactly at the pointed character when hit-testing agrees
-            // (mid-word edits in the draft must work); the slot start as
-            // the fallback for clicks on the empty slot.
-            const hit = valuePosFromPoint(view, event.clientX, event.clientY);
-            if (hit != null) {
-              view.dispatch(
-                view.state.tr.setSelection(
-                  TextSelection.create(view.state.doc, hit.pos),
-                ).scrollIntoView(),
-              );
-            } else {
-              const inside = view.posAtDOM(draft, 0);
-              const $draft = view.state.doc.resolve(
-                Math.min(inside, view.state.doc.content.size),
-              );
-              view.dispatch(
-                view.state.tr.setSelection(TextSelection.near($draft, 1)).scrollIntoView(),
-              );
-            }
+            const placed = placeCaretFromPoint(view, event.clientX, event.clientY, row);
+            if (placed != null) dragAnchorByView.set(view, placed);
             view.focus();
             return true;
           }
@@ -253,8 +236,41 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
           event.preventDefault();
           event.stopPropagation();
           const placed = placeCaretFromPoint(view, event.clientX, event.clientY, row);
-          if (placed) view.focus();
+          if (placed == null) return true;
+          if (event.shiftKey && !view.state.selection.empty) {
+            // Shift-click: extend the current selection to the new point.
+            const anchor = view.state.selection.anchor;
+            view.dispatch(
+              view.state.tr.setSelection(
+                TextSelection.create(view.state.doc, anchor, placed),
+              ).scrollIntoView(),
+            );
+            return true;
+          }
+          dragAnchorByView.set(view, placed);
+          view.focus();
           return true;
+        },
+        mousemove: (view: EditorView, event: MouseEvent) => {
+          if (event.buttons !== 1) {
+            if (dragAnchorByView.has(view)) dragAnchorByView.delete(view);
+            return false;
+          }
+          const anchor = dragAnchorByView.get(view);
+          if (anchor == null) return false;
+          const hit = valuePosFromPoint(view, event.clientX, event.clientY);
+          if (hit == null || hit.pos === anchor) return false;
+          const head = hit.pos;
+          view.dispatch(
+            view.state.tr.setSelection(
+              TextSelection.create(view.state.doc, anchor, head),
+            ).scrollIntoView(),
+          );
+          return true;
+        },
+        mouseup: (view: EditorView) => {
+          dragAnchorByView.delete(view);
+          return false;
         },
         dblclick: (view: EditorView, event: MouseEvent) => {
           const target = event.target as HTMLElement | null;
@@ -355,15 +371,6 @@ function buildDecorations(state: EditorState): Decoration[] {
       }
       valuesPos += child.nodeSize;
     });
-    // A List row with no committed tags shows the muted "Empty" mark in
-    // the value column (as Obsidian does) — values only exist once a word
-    // is committed.
-    if (isList && values.every((v) => v.text === "")) {
-      decorations.push(
-        Decoration.node(from, to, { class: "empty-tags" }),
-      );
-    }
-
     const name = node.firstChild;
     if (name != null && name.type.name === "notePropertyName") {
       const nameNodeFrom = from + 1;
@@ -389,6 +396,20 @@ function buildDecorations(state: EditorState): Decoration[] {
       }
     }
 
+    // Unfocused List rows: no draft exists (pruned), so every value is a
+    // chip with its × ready for a hover.
+    if (!focused && isList) {
+      values.forEach((v, index) => {
+        decorations.push(
+          Decoration.widget(
+            v.to,
+            (view) => chipRemoveButton(view, from, index),
+            { side: 1, key: `chipx:${v.from}` },
+          ),
+        );
+      });
+    }
+
     if (!focused) return;
 
     decorations.push(Decoration.node(from, to, { class: "focused" }));
@@ -412,35 +433,38 @@ function buildDecorations(state: EditorState): Decoration[] {
     // Chips and the draft input. The LAST value of a focused List row is
     // the draft — a bare caret slot (no pill, no ×) no matter what is
     // typed into it; the pill appears when Enter commits the word and
-    // opens the next draft. Committed chips carry their own ×.
-    const lastIndex = values.length - 1;
-    values.forEach((v, index) => {
-      const nodeFrom = v.from - 1;
-      if (!isList) {
-        if (v.text === "") {
+    // opens the next draft. Every committed chip carries its own × (shown
+    // on hover, always on the focused row).
+    if (focused) {
+      const lastIndex = values.length - 1;
+      values.forEach((v, index) => {
+        const nodeFrom = v.from - 1;
+        if (!isList) {
+          if (v.text === "") {
+            decorations.push(
+              Decoration.node(nodeFrom, nodeFrom + v.size, {
+                class: "empty",
+                "data-placeholder": "Empty",
+              }),
+            );
+          }
+          return;
+        }
+        if (index === lastIndex) {
           decorations.push(
-            Decoration.node(nodeFrom, nodeFrom + v.size, {
-              class: "empty",
-              "data-placeholder": "Empty",
-            }),
+            Decoration.node(nodeFrom, nodeFrom + v.size, { class: "draft" }),
+          );
+        } else {
+          decorations.push(
+            Decoration.widget(
+              v.to,
+              (view) => chipRemoveButton(view, from, index),
+              { side: 1, key: `chipx:${v.from}` },
+            ),
           );
         }
-        return;
-      }
-      if (index === lastIndex) {
-        decorations.push(
-          Decoration.node(nodeFrom, nodeFrom + v.size, { class: "draft" }),
-        );
-      } else {
-        decorations.push(
-          Decoration.widget(
-            v.to,
-            (view) => chipRemoveButton(view, from, index),
-            { side: 1, key: `chipx:${v.from}` },
-          ),
-        );
-      }
-    });
+      });
+    }
 
     decorations.push(
       Decoration.widget(
@@ -635,33 +659,33 @@ function valuePosFromPoint(
 
 /** Place the caret for a click inside a locked-name row: exactly at the
  *  pointed value position when hit-testing agrees, otherwise at the start
- *  of the row's first value. Returns true when the caret was placed. */
+ *  of the row's first value. Returns the placed position (null when the
+ *  caret could not be placed). */
 function placeCaretFromPoint(
   view: EditorView,
   x: number,
   y: number,
   row: HTMLElement,
-): boolean {
+): number | null {
   const hit = valuePosFromPoint(view, x, y);
   if (hit != null) {
     view.dispatch(
       view.state.tr.setSelection(TextSelection.create(view.state.doc, hit.pos)).scrollIntoView(),
     );
-    return true;
+    return hit.pos;
   }
   // The point resolved outside any value (an empty slot, the name's
   // padding): fall back to the first value's content start.
   const rowPos = view.posAtDOM(row, 0);
   const propFrom = rowPos - 1;
   const nameSize = view.state.doc.nodeAt(propFrom)?.firstChild?.nodeSize;
-  if (nameSize == null) return false;
-  const $value = view.state.doc.resolve(
-    Math.min(propFrom + 1 + nameSize + 1, view.state.doc.content.size),
-  );
+  if (nameSize == null) return null;
+  const fallback = Math.min(propFrom + 1 + nameSize + 1, view.state.doc.content.size);
+  const $value = view.state.doc.resolve(fallback);
   view.dispatch(
     view.state.tr.setSelection(TextSelection.near($value, 1)).scrollIntoView(),
   );
-  return true;
+  return fallback;
 }
 
 /** Select the word under the pointer (double-click in a tag chip). */
