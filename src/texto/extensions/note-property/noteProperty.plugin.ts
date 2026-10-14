@@ -562,7 +562,7 @@ function typeIcon(type: "text" | "list"): HTMLElement {
   return span;
 }
 
-/** The × inside one tag chip (List rows). */
+/** The remove icon inside one tag chip (List rows). */
 function chipRemoveButton(
   view: EditorView,
   propFrom: number,
@@ -572,7 +572,7 @@ function chipRemoveButton(
   button.type = "button";
   button.className = "note-property-chip-x";
   button.setAttribute("aria-label", "Remove tag");
-  button.appendChild(spriteIcon("x"));
+  button.appendChild(spriteIcon("trash"));
   button.addEventListener("mousedown", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -726,9 +726,12 @@ function zoneRuleWidget(view: import("prosemirror-view").EditorView, zoneEnd: nu
     const titleEl = view.dom.querySelector(":scope > h1");
     const rows = view.dom.querySelectorAll(":scope > .note-property");
     const lastRow = rows[rows.length - 1];
+    // The rule reaches past the "+" button, so the whole cover (title,
+    // rows, the add affordance) reads as one block.
+    const addEl = view.dom.querySelector(":scope > .note-property-add");
     if (titleEl != null && lastRow != null) {
       const top = titleEl.getBoundingClientRect();
-      const bottom = lastRow.getBoundingClientRect();
+      const bottom = (addEl ?? lastRow).getBoundingClientRect();
       const line = document.createElement("div");
       line.className = "note-property-zone-rule";
       line.style.left = `${Math.round(top.left - pmRect.left - 21)}px`;

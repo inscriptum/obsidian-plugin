@@ -697,7 +697,8 @@ button.notepad-section-gutter:hover {
   position: absolute;
   content: attr(data-label);
   color: var(--text-faint);
-  border-right: 1px solid var(--background-modifier-border);
+  /* No border-right here: the zone rule (note-property plugin) draws the
+     single continuous line for the whole cover block. */
   right: 100%;
   top: -6px;
   bottom: -6px;

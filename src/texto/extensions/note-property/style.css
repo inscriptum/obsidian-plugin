@@ -120,11 +120,11 @@
   min-width: 14px;
 }
 
-/* The chip's ×: absolute in the chip's top-right corner — never wraps;
-   revealed on chip hover and always on the focused row. */
+/* The chip's trash: absolute in the chip's right zone — never wraps;
+   revealed when the pointer is over the property field. */
 .note-property-chip-x {
   position: absolute;
-  right: 2px;
+  right: 6px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
@@ -139,11 +139,17 @@
   color: var(--text-faint);
   cursor: pointer;
   box-shadow: none;
+  opacity: 0;
+  transition: opacity 0.1s ease;
 }
 
 .note-property-chip-x svg {
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
+}
+
+.note-property-value:hover .note-property-chip-x {
+  opacity: 1;
 }
 
 .note-property-chip-x:hover {
