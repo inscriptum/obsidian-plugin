@@ -114,6 +114,18 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
           const focused =
             selection.from >= from && selection.to <= to && selection.empty;
 
+          // No formatting in property fields: any mark that reaches the
+          // row (bubble menu, keyboard shortcut, formatted paste) is
+          // stripped — the fields stay plain text.
+          let rowHasMarks = false;
+          newState.doc.nodesBetween(from, to, (child) => {
+            if (child.marks.length > 0) rowHasMarks = true;
+            return true;
+          });
+          if (rowHasMarks) {
+            tr.removeMark(from + 1, to - 1);
+            changed += 1;
+          }
           // A preset name is unique across the row's siblings: typing a
           // name that would duplicate another row's preset is reverted to
           // what the field carried before the keystroke.
@@ -145,18 +157,13 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
 
           if (isList) {
             const last = values[values.length - 1];
-            if (focused && values.length === 0) {
-              // Nothing to type into: the row gets its draft input, and the
-              // caret moves into it (the user came here to type a tag — the
-              // "Empty" mark must not stay under the caret). (A row with
-              // committed tags needs no speculative draft — Enter in the
-              // last chip opens the next one exactly when a word is
-              // committed.)
-              const at = to - 1;
-              tr.insert(at, newState.schema.nodes.notePropertyValue.create());
-              tr.setSelection(
-                TextSelection.create(tr.doc, at + 1),
-              );
+            if (focused && !(last != null && last.text === "")) {
+              // The row holding the caret always keeps one trailing empty
+              // value as its draft input (a chip is only created when a
+              // word is committed with Enter). When the caret leaves, the
+              // empty draft is pruned — a row with no tags at all
+              // serializes zero values.
+              tr.insert(to - 1, newState.schema.nodes.notePropertyValue.create());
               changed += 1;
             } else if (!focused && last != null) {
               // The caret left the row: prune the un-committed tail — an
@@ -430,21 +437,29 @@ function buildDecorations(state: EditorState): Decoration[] {
       }
     }
 
-    // Chips and the draft input. In a focused List row the value under the
-    // caret is the draft — a bare caret slot (no pill, no ×): the word
-    // being typed gets its pill only when Enter commits it and opens the
-    // next slot. Every other value is a chip with its own × (revealed on
-    // hover); unfocused rows keep the × ready for a hover too.
-    if (isList) {
-      values.forEach((v, index) => {
-        const nodeFrom = v.from - 1;
-        const isDraft =
-          focused && loc != null && !loc.inName && loc.valueIndex === index;
-        if (isDraft) {
+    // Chips and the draft input. While a List row holds the caret, its
+    // trailing empty value is the draft — a bare caret slot (no pill, no
+    // ×): the word being typed stays bare until Enter commits it as a
+    // chip. Every value with text is a chip with its own ×, always
+    // visible.
+    values.forEach((v, index) => {
+      const nodeFrom = v.from - 1;
+      const isDraft =
+        focused && isList && index === values.length - 1 && v.text === "";
+      if (isDraft) {
+        decorations.push(
+          Decoration.node(nodeFrom, nodeFrom + v.size, { class: "draft" }),
+        );
+      } else {
+        if (v.text === "" && !isList) {
           decorations.push(
-            Decoration.node(nodeFrom, nodeFrom + v.size, { class: "draft" }),
+            Decoration.node(nodeFrom, nodeFrom + v.size, {
+              class: "empty",
+              "data-placeholder": "Empty",
+            }),
           );
-        } else {
+        }
+        if (isList) {
           decorations.push(
             Decoration.widget(
               v.to,
@@ -453,20 +468,8 @@ function buildDecorations(state: EditorState): Decoration[] {
             ),
           );
         }
-      });
-    } else if (focused) {
-      values.forEach((v) => {
-        const nodeFrom = v.from - 1;
-        if (v.text === "") {
-          decorations.push(
-            Decoration.node(nodeFrom, nodeFrom + v.size, {
-              class: "empty",
-              "data-placeholder": "Empty",
-            }),
-          );
-        }
-      });
-    }
+      }
+    });
 
     decorations.push(
       Decoration.widget(

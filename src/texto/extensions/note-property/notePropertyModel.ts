@@ -106,6 +106,21 @@ function propertyValues(prop: PMNode, propFrom: number): ValueInfo[] {
   return values;
 }
 
+/** True when the selection intersects property fields — used by the
+ *  bubble menu to stay hidden over property text (no formatting there). */
+export function selectionInProperty(
+  doc: PMNode,
+  selection: Selection,
+): boolean {
+  const { $from, $to } = selection;
+  if ($from.depth < 2 || $to.depth < 2) return false;
+  const row = $from.node(1);
+  if (row.type.name !== "noteProperty") return false;
+  if ($to.node(1) !== row) return true;
+  const field = $from.node(2)?.type?.name;
+  return field === "notePropertyName" || field === "notePropertyValue";
+}
+
 /** The property row under the caret, or null when the (empty) selection
  *  is not inside a noteProperty name/value field. */
 export function selectionProperty(
@@ -276,6 +291,17 @@ export function appendValue(
   // that duplicates a sibling tag is rejected too (tags are unique).
   if (current.text.trim().length === 0) return true;
   if (isDuplicateTag(loc, loc.valueIndex)) return true;
+  // The next value may already be an empty draft (the row always keeps one
+  // while it holds the caret): Enter just moves into it.
+  const next = loc.values[loc.valueIndex + 1];
+  if (next != null && next.text.length === 0) {
+    if (dispatch) {
+      const tr = state.tr;
+      tr.setSelection(TextSelection.create(tr.doc, next.from));
+      dispatch(tr.scrollIntoView());
+    }
+    return true;
+  }
   if (dispatch) {
     const at = current.from - 1 + current.size;
     const tr = state.tr.insert(at, state.schema.nodes.notePropertyValue.create());

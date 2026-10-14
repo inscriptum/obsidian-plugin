@@ -83,11 +83,38 @@ function focusRow(editor: Editor, valueIndex: number): void {
 }
 
 describe("List-row draft lifecycle (appendTransaction)", () => {
-  it("a focused row with committed tags does NOT grow a speculative draft (Enter opens it)", () => {
+  it("a focused row keeps one trailing empty draft after committed tags", () => {
     const { editor, el } = build(tagsRowDoc(["one"]));
     focusRow(editor, 0);
     awaitAnimationFrame();
-    expect(valueCount(editor)).toBe(1);
+    // The speculative draft input: the slot the next tag is typed into.
+    expect(valueCount(editor)).toBe(2);
+    const values = (rowProp(editor).content ?? []).filter(
+      (n: JSONContent) => n.type === "notePropertyValue",
+    );
+    expect(values[1]?.content ?? []).toEqual([]); // the draft is empty
+    editor.destroy();
+    el.remove();
+  });
+
+  it("property fields stay plain: pasted marks are stripped", () => {
+    const { editor, el } = build(tagsRowDoc(["one"]));
+    focusRow(editor, 0);
+    // Simulate a formatted paste: insert bold text into the draft.
+    const pm = editor.view;
+    const boldMark = pm.state.schema.marks.bold.create();
+    const anchor = pm.state.selection.from;
+    pm.dispatch(pm.state.tr.insertText("X", anchor));
+    pm.dispatch(pm.state.tr.addMark(anchor, anchor + 1, boldMark));
+    awaitAnimationFrame();
+    const tags = rowProp(editor).content ?? [];
+    const values = tags.filter((n: JSONContent) => n.type === "notePropertyValue");
+    const allPlain = values.every((v: JSONContent) =>
+      (v.content ?? []).every((t: JSONContent) => !t.marks || t.marks.length === 0),
+    );
+    expect(allPlain).toBe(true);
+    const texts = values.map((v: JSONContent) => (v.content ?? []).map((t: JSONContent) => t.text).join(""));
+    expect(texts.join(" ")).toContain("X");
     editor.destroy();
     el.remove();
   });

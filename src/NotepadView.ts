@@ -56,6 +56,7 @@ import { TableBubbleMenuElement } from "./components/bubble-menu-bar/table-bubbl
 import { TableCellsBubbleMenuElement } from "./components/bubble-menu-bar/table-cells-bubble-menu-bar.element";
 import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubble-menu-bar.element";
 import { isMediaNodeSelection } from "./components/bubble-menu-bar/mediaMenuState";
+import { selectionInProperty } from "./texto/extensions/note-property";
 import { getTableMenuState } from "./components/bubble-menu-bar/tableMenuState";
 import { moveTargetIndex } from "./notepad/moveTargetIndex";
 import {
@@ -2501,6 +2502,8 @@ export class NotepadView extends FileView {
           if (!hasFocus || !editor.isEditable || this.isMousePressed)
             return false;
           if (isMediaNodeSelection(state)) return false;
+          // Property fields carry no formatting — the text menu stays away.
+          if (selectionInProperty(state.doc, state.selection)) return false;
           const inTable = isInTable(state);
           // Selected text — the text menu serves it even inside a table.
           if (inTable && !selection.empty && isTextSelection(selection))

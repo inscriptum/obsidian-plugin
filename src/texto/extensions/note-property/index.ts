@@ -5,6 +5,7 @@ export { notePropertyPlugin } from "./noteProperty.plugin";
 export {
   PROPERTY_NAME_PRESETS,
   suggestionItems,
+  selectionInProperty,
   selectionProperty,
   stateProperty,
   propertyInsertPos,

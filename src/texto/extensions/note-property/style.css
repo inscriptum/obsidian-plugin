@@ -172,17 +172,11 @@
   color: var(--text-faint);
   cursor: pointer;
   box-shadow: none;
-  opacity: 0;
-  transition: opacity 0.1s ease;
 }
 
 .note-property-chip-x svg {
   width: 10px;
   height: 10px;
-}
-
-.note-property-value:hover .note-property-chip-x {
-  opacity: 1;
 }
 
 .note-property-chip-x:hover {
