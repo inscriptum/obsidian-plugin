@@ -28,6 +28,19 @@ export function titleHeaderPlugin(): Plugin {
         const title = doc.content.child(0);
         if (title.type.name !== "noteTitle") return null;
 
+        // The title and the properties form one cover zone: while the
+        // caret is anywhere in it (title or any property row), the title
+        // keeps its field label — the zone reads as a single unit.
+        let zoneFocused = selection.to <= title.nodeSize;
+        let pos = title.nodeSize;
+        for (let i = 1; i < doc.childCount; i += 1) {
+          const child = doc.child(i);
+          if (child.type.name !== "noteProperty") break;
+          pos += child.nodeSize;
+          zoneFocused = true;
+        }
+        if (selection.to > pos) zoneFocused = false;
+
         const decorations: Decoration[] = [];
         if (title.content.size === 0) {
           decorations.push(
@@ -36,7 +49,7 @@ export function titleHeaderPlugin(): Plugin {
               "data-placeholder": "Title",
             }),
           );
-        } else if (selection.to <= title.nodeSize) {
+        } else if (zoneFocused) {
           decorations.push(
             Decoration.node(0, title.nodeSize, {
               class: "focused",

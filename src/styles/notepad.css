@@ -676,8 +676,11 @@ button.notepad-section-gutter:hover {
    the title page has no gutter). Real focus is CSS-live via :focus-within,
    so the labels disappear with the caret without decoration churn. */
 
-/* The cover title is larger than an in-content h1 (the blog draft look). */
-.notepad-section.is-title .ProseMirror > h1:first-child {
+/* The cover title is larger than an in-content h1 (the blog draft look).
+   :first-of-type, not :first-child: the cover-zone widget (the margin
+   rule) inserts a span before the h1 while the zone is focused, and the
+   40px size must not depend on the caret. */
+.notepad-section.is-title .ProseMirror > h1:first-of-type {
   font-size: 40px;
   line-height: 1.15;
 }
@@ -1157,7 +1160,7 @@ button.notepad-section-control:focus {
 .notepad-view-container.is-phone
   .notepad-section.is-title
   .ProseMirror
-  > h1:first-child {
+  > h1:first-of-type {
   font-size: 30px;
 }
 
