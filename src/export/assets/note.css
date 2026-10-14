@@ -491,3 +491,9 @@ article p.note-property-value {
 article .note-property-value:first-of-type {
   grid-row: 1;
 }
+
+/* 4. An empty property value (the editor's un-committed draft slot) is
+   invisible on the published page. */
+article p.note-property-value:empty {
+  display: none;
+}

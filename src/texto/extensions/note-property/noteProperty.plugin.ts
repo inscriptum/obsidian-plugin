@@ -165,17 +165,16 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
               // serializes zero values.
               tr.insert(to - 1, newState.schema.nodes.notePropertyValue.create());
               changed += 1;
-            } else if (!focused && last != null) {
-              // The caret left the row: prune the un-committed tail — an
-              // empty draft, and a word that duplicates a committed sibling
-              // tag (its Enter was rejected; leaving must not commit it).
-              const empty = last.text === "";
+            } else if (!focused && last != null && last.text !== "") {
+              // The caret left the row: an empty draft STAYS (pruning it
+              // would shift the content below); only a rejected duplicate
+              // word is pruned — its Enter was rejected, leaving must not
+              // commit it.
               const name = last.text.trim().toLowerCase();
               const duplicate =
-                !empty &&
                 name.length > 0 &&
                 values.slice(0, -1).some((v) => v.text.trim().toLowerCase() === name);
-              if (empty || duplicate) {
+              if (duplicate) {
                 tr.delete(last.from - 1, last.from - 1 + last.size);
                 changed += 1;
               }
@@ -409,19 +408,15 @@ function buildDecorations(state: EditorState): Decoration[] {
       }
     }
 
-    // Unfocused List rows: no draft exists (pruned), so every value is a
-    // chip with its × ready for a hover.
-    if (!focused && isList) {
-      values.forEach((v, index) => {
-        decorations.push(
-          Decoration.widget(
-            v.to,
-            (view) => chipRemoveButton(view, from, index),
-            { side: 1, key: `chipx:${v.from}` },
-          ),
-        );
-      });
-    }
+    // The row's trash renders on every List row (revealed by CSS on row
+    // hover — no caret needed).
+    decorations.push(
+      Decoration.widget(
+        from + 1,
+        (view) => removeButton(view, from, to),
+        { side: -1, key: `remove:${from}` },
+      ),
+    );
 
     if (!focused) return;
 
@@ -473,13 +468,15 @@ function buildDecorations(state: EditorState): Decoration[] {
       }
     });
 
-    decorations.push(
-      Decoration.widget(
-        from + 1,
-        (view) => removeButton(view),
-        { side: -1, key: `remove:${from}` },
-      ),
-    );
+    if (focused) {
+      decorations.push(
+        Decoration.widget(
+          from + 1,
+          (view) => removeButton(view, from, to),
+          { side: -1, key: `remove:${from}` },
+        ),
+      );
+    }
   });
 
   const addPos = propertyInsertPos(state.doc);
@@ -582,7 +579,11 @@ function chipRemoveButton(
   return button;
 }
 
-function removeButton(view: EditorView): HTMLElement {
+function removeButton(
+  view: EditorView,
+  propFrom: number,
+  propTo: number,
+): HTMLElement {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "note-property-remove";
@@ -591,9 +592,12 @@ function removeButton(view: EditorView): HTMLElement {
   button.addEventListener("mousedown", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    const loc = stateProperty(view.state);
-    if (loc == null) return;
-    removeProperty(view.state, (tr) => view.dispatch(tr), loc);
+    // Works without the caret: hovering the field is enough (round 13).
+    removeProperty(
+      view.state,
+      (tr) => view.dispatch(tr),
+      { propFrom, propTo, inName: false, nameFrom: 0, nameTo: 0, nameText: "", valueIndex: -1, values: [], isEmpty: true },
+    );
   });
   return button;
 }

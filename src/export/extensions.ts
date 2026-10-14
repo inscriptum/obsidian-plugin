@@ -1,3 +1,4 @@
+import type { DOMOutputSpec } from "prosemirror-model";
 import type { Extensions } from "../texto/core/@types";
 import { NoteDoc, NoteSummary } from "../texto/extensions/note-doc";
 import {
@@ -71,7 +72,16 @@ export function getExportExtensions(): Extensions {
     NoteSummary,
     NoteProperty,
     NotePropertyName,
-    NotePropertyValue,
+    // An empty value (the editor's draft slot) renders nothing on the
+    // site: the row keeps the slot for layout stability in the editor,
+    // but the published page shows only committed tags.
+    NotePropertyValue.extend({
+      // RenderSpec 0 (a hole) — PM types don't allow it, runtime does.
+      renderHTML({ node }: { node: import("prosemirror-model").Node }): DOMOutputSpec {
+        if (node.childCount === 0) return document.createElement("span");
+        return this.parent!({ node, HTMLAttributes: {} }) as DOMOutputSpec;
+      },
+    }),
     Link,
     Image,
     Attachment,

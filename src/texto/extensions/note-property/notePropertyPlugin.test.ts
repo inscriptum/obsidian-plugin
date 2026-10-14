@@ -119,24 +119,42 @@ describe("List-row draft lifecycle (appendTransaction)", () => {
     el.remove();
   });
 
-  it("the draft is pruned when the caret leaves the row", () => {
+  it("an empty draft stays when the caret leaves (no content shift); a duplicate tail is pruned", () => {
     const { editor, el } = build(tagsRowDoc(["one"]));
     focusRow(editor, 0);
-    // Enter in the last chip commits nothing yet but opens the next draft.
+    // Enter in the last chip opens the next draft.
     propertyKeyDown(editor.state, "Enter", null, (tr) =>
       editor.view.dispatch(tr),
     );
     awaitAnimationFrame();
     expect(valueCount(editor)).toBe(2);
-    // leave: caret into the trailing paragraph
+    // leave: caret into the trailing paragraph — the empty draft STAYS
     editor.commands.setTextSelection(editor.state.doc.content.size - 1);
     awaitAnimationFrame();
-    expect(valueCount(editor)).toBe(1);
+    expect(valueCount(editor)).toBe(2);
+
+    // A typed DUPLICATE tail ("ONE" vs "one") is pruned on leave — its
+    // Enter was rejected, and leaving must not commit it.
+    const caretEnd = editor.state.selection.to;
+    editor.view.dispatch(editor.state.tr.insertText("ONE", caretEnd));
+    awaitAnimationFrame();
+    expect(valueCount(editor)).toBe(2);
+    // leave: the duplicate tail is pruned; the empty draft slot STAYS (no
+    // content shift below).
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+    awaitAnimationFrame();
+    const values = (rowProp(editor).content ?? []).filter(
+      (n: JSONContent) => n.type === "notePropertyValue",
+    );
+    expect(values.map((v: JSONContent) => (v.content ?? []).map((t: JSONContent) => t.text).join(""))).toEqual([
+      "one",
+      "",
+    ]);
     editor.destroy();
     el.remove();
   });
 
-  it("an empty tags row gains a draft while focused and serializes zero values when left", () => {
+  it("an empty tags row gains a draft while focused and keeps it when left (no shift)", () => {
     const { editor, el } = build(tagsRowDoc([]));
     expect(valueCount(editor)).toBe(0);
     focusRow(editor, -1); // caret at the end of the row's name
@@ -144,7 +162,7 @@ describe("List-row draft lifecycle (appendTransaction)", () => {
     expect(valueCount(editor)).toBe(1); // the draft input
     editor.commands.setTextSelection(editor.state.doc.content.size - 1);
     awaitAnimationFrame();
-    expect(valueCount(editor)).toBe(0); // pruned: zero tags serialized
+    expect(valueCount(editor)).toBe(1); // kept: the layout does not shift
     editor.destroy();
     el.remove();
   });
