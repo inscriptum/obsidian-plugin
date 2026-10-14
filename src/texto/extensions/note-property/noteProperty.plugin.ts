@@ -351,7 +351,16 @@ function buildDecorations(state: EditorState): Decoration[] {
   const zoneFocused =
     title.type.name === "noteTitle" && state.selection.to <= zoneEnd;
   if (zoneFocused && title.type.name === "noteTitle") {
-    decorations.push(Decoration.node(0, title.nodeSize, { class: "rule" }));
+    // One continuous vertical rule across the title and every property:
+    // a widget measures the zone's DOM rects and draws a single absolute
+    // line in the left margin (the old Title/Summary field rule, now
+    // covering the whole cover block as one rigid unit).
+    decorations.push(
+      Decoration.widget(0, (view) => zoneRuleWidget(view, zoneEnd), {
+        side: -1,
+        key: `zonerule:${zoneEnd}`,
+      }),
+    );
   }
 
   state.doc.forEach((node, offset) => {
@@ -360,9 +369,6 @@ function buildDecorations(state: EditorState): Decoration[] {
     const from = offset;
     const to = from + node.nodeSize;
     const focused = loc != null && loc.propFrom === from;
-    if (zoneFocused) {
-      decorations.push(Decoration.node(from, to, { class: "rule" }));
-    }
 
     const isList = node.attrs.type === "list";
     const values: Array<{ from: number; to: number; size: number; text: string }> = [];
@@ -452,12 +458,8 @@ function buildDecorations(state: EditorState): Decoration[] {
         );
       } else {
         if (v.text === "" && !isList) {
-          decorations.push(
-            Decoration.node(nodeFrom, nodeFrom + v.size, {
-              class: "empty",
-              "data-placeholder": "Empty",
-            }),
-          );
+          // Text values render blank when empty (owner's call: no
+          // "Empty" placeholder).
         }
         if (isList) {
           decorations.push(
@@ -710,4 +712,33 @@ function selectWordAtPoint(view: EditorView, x: number, y: number): void {
     TextSelection.create(view.state.doc, $pos.start() + start, $pos.start() + end),
   );
   view.dispatch(tr);
+}
+
+/** The continuous left margin rule of the cover zone: one absolute line
+ *  spanning the title's top through the last property's bottom, measured
+ *  from the live DOM (the widget re-renders whenever the decorations
+ *  rebuild, so the geometry tracks document edits). */
+function zoneRuleWidget(view: import("prosemirror-view").EditorView, zoneEnd: number): HTMLElement {
+  const anchor = document.createElement("span");
+  anchor.className = "note-property-zone-rule-anchor";
+  try {
+    const pmRect = view.dom.getBoundingClientRect();
+    const titleEl = view.dom.querySelector(":scope > h1");
+    const rows = view.dom.querySelectorAll(":scope > .note-property");
+    const lastRow = rows[rows.length - 1];
+    if (titleEl != null && lastRow != null) {
+      const top = titleEl.getBoundingClientRect();
+      const bottom = lastRow.getBoundingClientRect();
+      const line = document.createElement("div");
+      line.className = "note-property-zone-rule";
+      line.style.left = `${Math.round(top.left - pmRect.left - 21)}px`;
+      line.style.top = `${Math.round(top.top - pmRect.top - 8)}px`;
+      line.style.height = `${Math.round(bottom.bottom - top.top + 14)}px`;
+      anchor.appendChild(line);
+    }
+  } catch {
+    // measurement is best-effort: an empty anchor renders nothing
+  }
+  void zoneEnd;
+  return anchor;
 }

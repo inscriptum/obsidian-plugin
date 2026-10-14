@@ -17,25 +17,6 @@
   align-items: baseline;
 }
 
-/* The focused row keeps the input underline; nothing permanent — the
-   properties area stays quiet like the rest of the cover. */
-.note-property.focused {
-  border-bottom: 1px solid var(--background-modifier-border);
-}
-
-/* The vertical margin rule of the cover zone: while the caret is in the
-   title or any property, every covered element draws its segment at the
-   header labels' x — the segments touch and read as one continuous line,
-   exactly like the old Title/Summary field rules. */
-.note-property.rule:before {
-  content: "";
-  position: absolute;
-  left: -21px;
-  top: -4px;
-  bottom: -4px;
-  border-left: 1px solid var(--background-modifier-border);
-}
-
 .note-property-name {
   grid-column: 1;
   grid-row: 1;
@@ -53,20 +34,6 @@
 /* A preset-named row's name is fixed — not a text field anymore. */
 .note-property-name.locked {
   cursor: default;
-}
-
-/* The title's segment of the cover-zone rule (same x as the rows'). */
-.notepad-view-container .ProseMirror > h1.rule {
-  position: relative;
-}
-
-.notepad-view-container .ProseMirror > h1.rule:before {
-  content: "";
-  position: absolute;
-  left: -21px;
-  top: 6px;
-  bottom: 2px;
-  border-left: 1px solid var(--background-modifier-border);
 }
 
 .note-property-type-icon {
@@ -312,8 +279,7 @@
   column-gap: 10px;
 }
 
-.is-mobile .note-property.rule:before,
-.is-mobile .ProseMirror > h1.rule:before {
+.is-mobile .note-property-zone-rule {
   display: none;
 }
 
@@ -376,4 +342,20 @@
   border-radius: 4px;
   color: var(--text-normal);
   padding: 3px 8px;
+}
+
+/* ── Cover-zone rule (one continuous line) ──
+   While the caret is in the title or any property, a single absolute line
+   spans the title through the last property at the header labels' x — the
+   zone as one rigid unit (the widget measures the live DOM). */
+.notepad-view-container .note-property-zone-rule-anchor {
+  display: block;
+  height: 0;
+}
+
+.notepad-view-container .note-property-zone-rule {
+  position: absolute;
+  width: 0;
+  border-left: 1px solid var(--background-modifier-border);
+  pointer-events: none;
 }
