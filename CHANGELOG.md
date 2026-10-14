@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Diagrams look like pictures now: the framed card around Mermaid diagrams in the editor is gone — a diagram sits straight on the note background, exactly as it does on a published page. Selecting a diagram still highlights it with an accent outline, and the loading/error placeholders keep their own subtle frame so nothing collapses.
 - Attached files are now links, not silent copies. A file that already lives in the vault is attached as a link to it — no duplicate appears next to the note. A file from outside the vault (desktop) asks once: keep a portable copy next to the note, or link the original where it is (with an honest warning that such a link won't survive moving or syncing the file). On phones the copy is made without questions. Removing an attachment from a note never deletes the file itself.
 
 ## [0.10.0] - 2026-10-06
