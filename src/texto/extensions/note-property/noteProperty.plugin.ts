@@ -3,7 +3,7 @@ import { Decoration, DecorationSet } from "prosemirror-view";
 import { TextSelection } from "prosemirror-state";
 import type { EditorState } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
-import type { Node as ProseMirrorNode } from "prosemirror-model";
+import { Fragment, type Node as ProseMirrorNode } from "prosemirror-model";
 import {
   acceptSuggestion,
   insertProperty,
@@ -60,6 +60,26 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
         const { selection } = newState;
         const tr = newState.tr;
         let changed = 0;
+        // The caret never rests inside a locked (preset-named) name field:
+        // nothing paints there and nothing can be typed — a click that PM
+        // resolves into it is moved to the row's first value.
+        if (selection.empty && selection.$head.depth >= 2) {
+          const row = selection.$head.node(1);
+          const field = selection.$head.node(2);
+          if (
+            row?.type.name === "noteProperty" &&
+            field?.type.name === "notePropertyName" &&
+            isPresetName(row.firstChild?.textContent ?? "")
+          ) {
+            const propFrom = selection.$head.before(1);
+            const nameSize = row.firstChild?.nodeSize;
+            if (nameSize == null) return null;
+            tr.setSelection(
+              TextSelection.create(tr.doc, propFrom + 1 + nameSize + 1),
+            );
+            changed += 1;
+          }
+        }
         const rows: Array<{ from: number; to: number; node: ProseMirrorNode }> = [];
         newState.doc.forEach((node, offset) => {
           if (node.type.name === "noteProperty") {
@@ -90,20 +110,64 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
           const focused =
             selection.from >= from && selection.to <= to && selection.empty;
 
+          // A preset name is unique across the row's siblings: typing a
+          // name that would duplicate another row's preset is reverted to
+          // what the field carried before the keystroke.
+          if (isPresetName(node.firstChild?.textContent ?? "")) {
+            const name = (node.firstChild?.textContent ?? "").trim().toLowerCase();
+            let duplicated = false;
+            rows.forEach((other) => {
+              if (other.from === from) return;
+              if (
+                isPresetName(other.node.firstChild?.textContent ?? "") &&
+                (other.node.firstChild?.textContent ?? "").trim().toLowerCase() === name
+              ) {
+                duplicated = true;
+              }
+            });
+            if (duplicated) {
+              const oldRow = _oldState.doc.content.child(i);
+              const oldName = oldRow.type.name === "noteProperty" ? oldRow.firstChild?.textContent ?? "" : "";
+              const nameFrom = from + 1 + 1; // name content start
+              const nameTo = nameFrom + (node.firstChild?.content.size ?? 0);
+              tr.replaceWith(
+                nameFrom,
+                nameTo,
+                oldName.length > 0 ? newState.schema.text(oldName) : Fragment.empty,
+              );
+              changed += 1;
+            }
+          }
+
           if (isList) {
             const last = values[values.length - 1];
             if (focused && values.length === 0) {
-              // Nothing to type into: the row gets its draft input. (A row
-              // with committed tags needs none — Enter in the last chip
-              // opens the next draft exactly when a word is committed.)
-              tr.insert(
-                to - 1,
-                newState.schema.nodes.notePropertyValue.create(),
+              // Nothing to type into: the row gets its draft input, and the
+              // caret moves into it (the user came here to type a tag — the
+              // "Empty" mark must not stay under the caret). (A row with
+              // committed tags needs no speculative draft — Enter in the
+              // last chip opens the next one exactly when a word is
+              // committed.)
+              const at = to - 1;
+              tr.insert(at, newState.schema.nodes.notePropertyValue.create());
+              tr.setSelection(
+                TextSelection.create(tr.doc, at + 1),
               );
               changed += 1;
-            } else if (!focused && last != null && last.text === "") {
-              tr.delete(last.from - 1, last.from - 1 + last.size);
-              changed += 1;
+            } else if (!focused && last != null) {
+              // The caret left the row: prune the un-committed tail — an
+              // empty draft, and a word that duplicates a committed sibling
+              // tag (its Enter was rejected; leaving must not commit it).
+              const empty = last.text === "";
+              const name = last.text.trim().toLowerCase();
+              const duplicate =
+                !empty &&
+                name.length > 0 &&
+                values.slice(0, -1).some((v) => v.text.trim().toLowerCase() === name);
+              if (empty || duplicate) {
+                tr.delete(last.from - 1, last.from - 1 + last.size);
+                changed += 1;
+              }
             }
           } else if (values.length === 0) {
             tr.insert(to - 1, newState.schema.nodes.notePropertyValue.create());
@@ -136,46 +200,71 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
       decorations: (state: EditorState) =>
         DecorationSet.create(state.doc, buildDecorations(state)),
       handleDOMEvents: {
-        // A locked (preset-named) name field takes no caret: a click on it
-        // lands in the row's first value instead.
+        // Two pointer fixes for rows with a locked (preset) name, where
+        // PM's own hit-testing resolves clicks unreliably (a chip sits in
+        // a flex row — the nearest position lands in the non-editable
+        // name, where nothing paints and typing goes nowhere):
+        //  - a click on the draft slot (the trailing empty value) places
+        //    the caret into the slot — typing starts a new tag instead of
+        //    extending the previous chip (nothing selectable there, so
+        //    suppressing the native mousedown costs nothing);
+        //  - a click anywhere else in the row places the caret exactly
+        //    where the user pointed (caretRangeFromPoint), and a
+        //    double-click selects the word under the pointer.
         mousedown: (view: EditorView, event: MouseEvent) => {
           const target = event.target as HTMLElement | null;
           const row = target?.closest?.(".note-property");
           if (!(row instanceof HTMLElement)) return false;
-          const lockedName = target?.closest?.(".note-property-name.locked");
-          const inValue = target?.closest?.(".note-property-value");
-          if (!lockedName && !inValue) return false;
-          if (lockedName == null && !row.querySelector(".note-property-name.locked")) {
-            // Unlocked name + a value click: PM places the caret fine.
+          if (!row.querySelector(".note-property-name.locked")) return false;
+
+          const draft = target?.closest?.(".note-property-value.draft");
+          if (draft instanceof HTMLElement) {
+            event.preventDefault();
+            event.stopPropagation();
+            // Exactly at the pointed character when hit-testing agrees
+            // (mid-word edits in the draft must work); the slot start as
+            // the fallback for clicks on the empty slot.
+            const hit = valuePosFromPoint(view, event.clientX, event.clientY);
+            if (hit != null) {
+              view.dispatch(
+                view.state.tr.setSelection(
+                  TextSelection.create(view.state.doc, hit.pos),
+                ).scrollIntoView(),
+              );
+            } else {
+              const inside = view.posAtDOM(draft, 0);
+              const $draft = view.state.doc.resolve(
+                Math.min(inside, view.state.doc.content.size),
+              );
+              view.dispatch(
+                view.state.tr.setSelection(TextSelection.near($draft, 1)).scrollIntoView(),
+              );
+            }
+            view.focus();
+            return true;
+          }
+
+          if (
+            !target?.closest?.(".note-property-value") &&
+            !target?.closest?.(".note-property-name.locked")
+          ) {
             return false;
           }
-          // PM's coordinate resolution can park the caret inside the
-          // non-editable name (invisible — nothing paints there). Route it
-          // explicitly into the clicked value's content.
-          const valueEl = inValue instanceof HTMLElement
-            ? inValue
-            : row.querySelector(".note-property-value");
-          if (valueEl == null) return false;
           event.preventDefault();
           event.stopPropagation();
-          const rowPos = view.posAtDOM(row, 0);
-          // posAtDOM(el, 0) is the element's own start boundary.
-          const propFrom = rowPos;
-          const prop = view.state.doc.nodeAt(propFrom);
-          const nameSize = prop?.firstChild?.nodeSize;
-          if (nameSize == null) return true;
-          const allValues = [...row.querySelectorAll(".note-property-value")];
-          const index = allValues.indexOf(valueEl);
-          let valueStart = propFrom + 1 + nameSize + 1;
-          for (let i = 0; i < index; i += 1) {
-            valueStart += (allValues[i].textContent?.length ?? 0) + 2;
-          }
-          const $value = view.state.doc.resolve(
-            Math.min(valueStart, view.state.doc.content.size),
-          );
-          view.dispatch(
-            view.state.tr.setSelection(TextSelection.near($value, 1)).scrollIntoView(),
-          );
+          const placed = placeCaretFromPoint(view, event.clientX, event.clientY, row);
+          if (placed) view.focus();
+          return true;
+        },
+        dblclick: (view: EditorView, event: MouseEvent) => {
+          const target = event.target as HTMLElement | null;
+          if (!target?.closest?.(".note-property-value")) return false;
+          const row = target.closest(".note-property");
+          if (!(row instanceof HTMLElement)) return false;
+          if (!row.querySelector(".note-property-name.locked")) return false;
+          event.preventDefault();
+          event.stopPropagation();
+          selectWordAtPoint(view, event.clientX, event.clientY);
           view.focus();
           return true;
         },
@@ -185,23 +274,8 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
         const loc = stateProperty(view.state);
         const suggestions =
           loc != null && loc.inName && pluginState?.dismissed !== true
-            ? suggestionItems(loc.nameText)
+            ? suggestionItems(loc.nameText, existingPresetNames(view.state, loc.propFrom))
             : [];
-
-        if (suggestions.length > 0) {
-          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-            const delta = event.key === "ArrowDown" ? 1 : -1;
-            const count = suggestions.length;
-            const selected = ((pluginState?.selected ?? 0) + delta + count) % count;
-            view.dispatch(view.state.tr.setMeta(key, { selected }));
-            return true;
-          }
-          if (event.key === "Escape") {
-            view.dispatch(view.state.tr.setMeta(key, { dismissed: true }));
-            return true;
-          }
-        }
-
         const pick =
           suggestions.length > 0
             ? () => {
@@ -216,7 +290,6 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
                 );
               }
             : null;
-
         // The model speaks PM-style key names: modified keys arrive as
         // event.key with the modifier set.
         const keyName =
@@ -296,9 +369,8 @@ function buildDecorations(state: EditorState): Decoration[] {
       const nameNodeFrom = from + 1;
       const locked = isPresetName(name.textContent);
       if (locked) {
-        // Preset names are fixed on every row (not only the focused one):
-        // the field stops taking a caret, so the name is either the preset
-        // or the user's own custom text.
+        // Preset names are fixed on every row: the field stops taking a
+        // caret, so the name is either the preset or the user's own text.
         decorations.push(
           Decoration.node(nameNodeFrom, nameNodeFrom + name.nodeSize, {
             contenteditable: "false",
@@ -306,8 +378,6 @@ function buildDecorations(state: EditorState): Decoration[] {
           }),
         );
       }
-      // The type marker appears once the name exists — over an empty field
-      // it would collide with the placeholder and the caret.
       if (name.content.size > 0) {
         decorations.push(
           Decoration.widget(
@@ -339,38 +409,36 @@ function buildDecorations(state: EditorState): Decoration[] {
       }
     }
 
-    node.forEach((child, childOffset) => {
-      if (child.type.name !== "notePropertyValue") return;
-      const childFrom = from + 1 + childOffset;
-      if (!isList && child.content.size === 0) {
-        decorations.push(
-          Decoration.node(
-            childFrom,
-            childFrom + child.nodeSize,
-            { class: "empty", "data-placeholder": "Empty" },
-          ),
-        );
-      }
-      if (isList) {
-        const chipFrom = childFrom + 1;
-        const isDraft = child.content.size === 0;
-        if (isDraft) {
-          // The trailing draft input: a bare caret slot while the row is
-          // focused — not a chip (no pill, no ×).
+    // Chips and the draft input. The LAST value of a focused List row is
+    // the draft — a bare caret slot (no pill, no ×) no matter what is
+    // typed into it; the pill appears when Enter commits the word and
+    // opens the next draft. Committed chips carry their own ×.
+    const lastIndex = values.length - 1;
+    values.forEach((v, index) => {
+      const nodeFrom = v.from - 1;
+      if (!isList) {
+        if (v.text === "") {
           decorations.push(
-            Decoration.node(childFrom, childFrom + child.nodeSize, {
-              class: "draft",
+            Decoration.node(nodeFrom, nodeFrom + v.size, {
+              class: "empty",
+              "data-placeholder": "Empty",
             }),
           );
-        } else {
-          decorations.push(
-            Decoration.widget(
-              chipFrom + child.content.size,
-              (view) => chipRemoveButton(view, from, valuesIndex(node, child)),
-              { side: 1, key: `chipx:${chipFrom}` },
-            ),
-          );
         }
+        return;
+      }
+      if (index === lastIndex) {
+        decorations.push(
+          Decoration.node(nodeFrom, nodeFrom + v.size, { class: "draft" }),
+        );
+      } else {
+        decorations.push(
+          Decoration.widget(
+            v.to,
+            (view) => chipRemoveButton(view, from, index),
+            { side: 1, key: `chipx:${v.from}` },
+          ),
+        );
       }
     });
 
@@ -417,13 +485,25 @@ function suggestionsVisible(state: EditorState): boolean {
   const loc = stateProperty(state);
   if (loc == null || !loc.inName) return false;
   if (pluginState?.dismissed === true) return false;
-  return suggestionItems(loc.nameText).length > 0;
+  return suggestionItems(loc.nameText, existingPresetNames(state, loc.propFrom)).length > 0;
+}
+
+/** Preset names carried by the OTHER property rows of this document. */
+function existingPresetNames(state: EditorState, skipPropFrom: number): string[] {
+  const names: string[] = [];
+  state.doc.forEach((node, offset) => {
+    if (offset === skipPropFrom) return;
+    if (node.type.name === "noteProperty") {
+      names.push(node.firstChild?.textContent ?? "");
+    }
+  });
+  return names;
 }
 
 function suggestionDecorations(state: EditorState): Decoration[] {
   const loc = stateProperty(state);
   if (loc == null || !loc.inName) return [];
-  const items = suggestionItems(loc.nameText);
+  const items = suggestionItems(loc.nameText, existingPresetNames(state, loc.propFrom));
   if (items.length === 0) return [];
   const selected = Math.min(key.getState(state)?.selected ?? 0, items.length - 1);
   return [
@@ -530,4 +610,75 @@ function suggestionList(
     list.appendChild(item);
   });
   return list;
+}
+
+/** Caret position for a pointer coordinate, as a document position inside
+ *  a value field of `row` (null when the point resolves elsewhere). */
+function valuePosFromPoint(
+  view: EditorView,
+  x: number,
+  y: number,
+): { pos: number; $pos: import("prosemirror-model").ResolvedPos } | null {
+  const range = document.caretRangeFromPoint?.(x, y);
+  if (range == null || !view.dom.contains(range.startContainer)) return null;
+  let pos: number;
+  try {
+    pos = view.posAtDOM(range.startContainer, range.startOffset);
+  } catch {
+    return null;
+  }
+  const $pos = view.state.doc.resolve(pos);
+  if ($pos.depth < 2) return null;
+  if ($pos.node(2)?.type?.name !== "notePropertyValue") return null;
+  return { pos, $pos };
+}
+
+/** Place the caret for a click inside a locked-name row: exactly at the
+ *  pointed value position when hit-testing agrees, otherwise at the start
+ *  of the row's first value. Returns true when the caret was placed. */
+function placeCaretFromPoint(
+  view: EditorView,
+  x: number,
+  y: number,
+  row: HTMLElement,
+): boolean {
+  const hit = valuePosFromPoint(view, x, y);
+  if (hit != null) {
+    view.dispatch(
+      view.state.tr.setSelection(TextSelection.create(view.state.doc, hit.pos)).scrollIntoView(),
+    );
+    return true;
+  }
+  // The point resolved outside any value (an empty slot, the name's
+  // padding): fall back to the first value's content start.
+  const rowPos = view.posAtDOM(row, 0);
+  const propFrom = rowPos - 1;
+  const nameSize = view.state.doc.nodeAt(propFrom)?.firstChild?.nodeSize;
+  if (nameSize == null) return false;
+  const $value = view.state.doc.resolve(
+    Math.min(propFrom + 1 + nameSize + 1, view.state.doc.content.size),
+  );
+  view.dispatch(
+    view.state.tr.setSelection(TextSelection.near($value, 1)).scrollIntoView(),
+  );
+  return true;
+}
+
+/** Select the word under the pointer (double-click in a tag chip). */
+function selectWordAtPoint(view: EditorView, x: number, y: number): void {
+  const hit = valuePosFromPoint(view, x, y);
+  if (hit == null) return;
+  const { $pos } = hit;
+  const text = $pos.parent.textContent;
+  const offset = Math.min($pos.parentOffset, text.length);
+  const isWordChar = (ch: string) => /[\p{L}\p{N}]/u.test(ch);
+  let start = offset;
+  let end = offset;
+  while (start > 0 && isWordChar(text[start - 1] ?? "")) start -= 1;
+  while (end < text.length && isWordChar(text[end] ?? "")) end += 1;
+  if (start === end) return;
+  const tr = view.state.tr.setSelection(
+    TextSelection.create(view.state.doc, $pos.start() + start, $pos.start() + end),
+  );
+  view.dispatch(tr);
 }

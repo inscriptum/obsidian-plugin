@@ -120,6 +120,12 @@ describe("suggestionItems", () => {
     expect(suggestionItems("status")).toEqual([]);
     expect(suggestionItems("custom")).toEqual([]);
   });
+
+  it("does not offer presets already present in the document", () => {
+    expect(suggestionItems("", ["tags"])).toEqual(["description", "status", "version"]);
+    expect(suggestionItems("t", ["tags"])).toEqual([]);
+    expect(suggestionItems("d", ["tags", "Custom"])).toEqual(["description"]);
+  });
 });
 
 describe("propertyInsertPos", () => {
@@ -392,6 +398,37 @@ describe("propertyKeyDown", () => {
     );
     const loc = stateProperty(next)!;
     expect(loc.inName).toBe(true);
+  });
+});
+
+describe("acceptSuggestion (preset uniqueness)", () => {
+  it("rejects accepting a preset that another row already carries", () => {
+    // The new (empty-named) row plus an existing tags row.
+    const json = {
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
+        property("tags", ["one"], "list"),
+        property("", [""]),
+        { type: "paragraph" },
+      ],
+    };
+    const doc = schema.nodeFromJSON(json);
+    const props: number[] = [];
+    let p = 0;
+    doc.forEach((node, off) => {
+      if (node.type.name === "noteProperty") props.push(off);
+      p += node.nodeSize;
+    });
+    const emptyRowFrom = props[1];
+    const base = stateAt(json, emptyRowFrom + 2); // caret in the empty name
+
+    let changed = false;
+    const handled = acceptSuggestion(base, () => {
+      changed = true;
+    }, "tags");
+    expect(handled).toBe(true);
+    expect(changed).toBe(false);
   });
 });
 

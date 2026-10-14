@@ -46,11 +46,20 @@ export function presetType(nameText: string): "text" | "list" | null {
 }
 
 /** Preset suggestions matching what is typed (case-insensitive prefix);
- *  an exact match is not suggested again. */
-export function suggestionItems(nameText: string): string[] {
+ *  an exact match is not suggested again, and presets already present in
+ *  the document (`existingNames`) are not offered — a preset property is
+ *  unique, there is nothing to add twice. */
+export function suggestionItems(
+  nameText: string,
+  existingNames: ReadonlyArray<string> = [],
+): string[] {
   const typed = nameText.trim().toLowerCase();
+  const existing = new Set(
+    existingNames.map((name) => name.trim().toLowerCase()),
+  );
   return PROPERTY_NAME_PRESETS.filter(
-    (preset) => preset !== typed && preset.startsWith(typed),
+    (preset) =>
+      preset !== typed && preset.startsWith(typed) && !existing.has(preset),
   );
 }
 
@@ -363,6 +372,24 @@ export function acceptSuggestion(
 ): boolean {
   const loc = stateProperty(state);
   if (loc == null || !loc.inName) return false;
+  // A preset property is unique: when another row already carries this
+  // preset name, the suggestion is not accepted (the typed text stays as
+  // a custom name for the user to adjust).
+  if (isPresetName(value)) {
+    let duplicate = false;
+    state.doc.forEach((node, offset) => {
+      if (offset === loc.propFrom) return;
+      if (
+        node.type.name === "noteProperty" &&
+        isPresetName(node.firstChild?.textContent ?? "") &&
+        (node.firstChild?.textContent ?? "").trim().toLowerCase() ===
+          value.trim().toLowerCase()
+      ) {
+        duplicate = true;
+      }
+    });
+    if (duplicate) return true;
+  }
   if (dispatch) {
     const tr = state.tr.replaceWith(
       loc.nameFrom,

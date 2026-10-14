@@ -119,8 +119,9 @@
 }
 
 /* The draft input of a List row: a bare caret slot — no pill, no ×; the
-   word being typed turns it into a chip the moment it is committed. */
-.note-property-value.draft {
+   pill appears only when Enter commits the word (the slot stops being the
+   draft). Specificity must beat the chip rule above. */
+.note-property[data-property-type="list"] .note-property-value.draft {
   background: transparent;
   border-radius: 0;
   min-width: 14px;
@@ -163,8 +164,10 @@
 .note-property[data-property-type="list"] .note-property-value:first-of-type {
   grid-column: auto;
   grid-row: auto;
-  display: inline-flex;
-  align-items: center;
+  /* inline-block, not inline-flex: PM's caret hit-testing (posAtCoords)
+     resolves clicks inside flex pills unreliably — a plain inline box
+     keeps clicks, caret placement and text selection native. */
+  display: inline-block;
   width: auto;
   background: var(--background-secondary, rgba(0, 0, 0, 0.05));
   border-radius: 12px;
