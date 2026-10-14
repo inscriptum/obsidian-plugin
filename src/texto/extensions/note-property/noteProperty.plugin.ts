@@ -445,8 +445,11 @@ function buildDecorations(state: EditorState): Decoration[] {
     // visible.
     values.forEach((v, index) => {
       const nodeFrom = v.from - 1;
+      // The trailing empty value is ALWAYS the draft slot (focused or not):
+      // it renders invisible and keeps its place in the layout, so hiding
+      // the "+ Add property" affordance on blur cannot shift the content.
       const isDraft =
-        focused && isList && index === values.length - 1 && v.text === "";
+        isList && index === values.length - 1 && v.text === "";
       if (isDraft) {
         decorations.push(
           Decoration.node(nodeFrom, nodeFrom + v.size, { class: "draft" }),
@@ -468,15 +471,6 @@ function buildDecorations(state: EditorState): Decoration[] {
       }
     });
 
-    if (focused) {
-      decorations.push(
-        Decoration.widget(
-          from + 1,
-          (view) => removeButton(view, from, to),
-          { side: -1, key: `remove:${from}` },
-        ),
-      );
-    }
   });
 
   const addPos = propertyInsertPos(state.doc);
