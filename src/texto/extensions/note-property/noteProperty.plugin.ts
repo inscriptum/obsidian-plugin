@@ -430,27 +430,17 @@ function buildDecorations(state: EditorState): Decoration[] {
       }
     }
 
-    // Chips and the draft input. The LAST value of a focused List row is
-    // the draft — a bare caret slot (no pill, no ×) no matter what is
-    // typed into it; the pill appears when Enter commits the word and
-    // opens the next draft. Every committed chip carries its own × (shown
-    // on hover, always on the focused row).
-    if (focused) {
-      const lastIndex = values.length - 1;
+    // Chips and the draft input. In a focused List row the value under the
+    // caret is the draft — a bare caret slot (no pill, no ×): the word
+    // being typed gets its pill only when Enter commits it and opens the
+    // next slot. Every other value is a chip with its own × (revealed on
+    // hover); unfocused rows keep the × ready for a hover too.
+    if (isList) {
       values.forEach((v, index) => {
         const nodeFrom = v.from - 1;
-        if (!isList) {
-          if (v.text === "") {
-            decorations.push(
-              Decoration.node(nodeFrom, nodeFrom + v.size, {
-                class: "empty",
-                "data-placeholder": "Empty",
-              }),
-            );
-          }
-          return;
-        }
-        if (index === lastIndex) {
+        const isDraft =
+          focused && loc != null && !loc.inName && loc.valueIndex === index;
+        if (isDraft) {
           decorations.push(
             Decoration.node(nodeFrom, nodeFrom + v.size, { class: "draft" }),
           );
@@ -461,6 +451,18 @@ function buildDecorations(state: EditorState): Decoration[] {
               (view) => chipRemoveButton(view, from, index),
               { side: 1, key: `chipx:${v.from}` },
             ),
+          );
+        }
+      });
+    } else if (focused) {
+      values.forEach((v) => {
+        const nodeFrom = v.from - 1;
+        if (v.text === "") {
+          decorations.push(
+            Decoration.node(nodeFrom, nodeFrom + v.size, {
+              class: "empty",
+              "data-placeholder": "Empty",
+            }),
           );
         }
       });

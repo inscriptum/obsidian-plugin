@@ -136,21 +136,21 @@
   width: auto;
   background: var(--background-secondary, rgba(0, 0, 0, 0.05));
   border-radius: 12px;
-  padding: 0 10px;
+  /* The right padding reserves the × zone: the cross never sits on the
+     word. */
+  padding: 0 24px 0 10px;
   margin: 2px 6px 2px 0;
   min-height: 22px;
 }
 
-/* The draft input: fully invisible — just the caret line on the row's
-   background (an empty list row is simply blank while unfocused). */
-.note-property[data-property-type="list"] .note-property-value.draft,
-.note-property[data-property-type="list"] .note-property-value.draft:empty {
+/* The draft input: the value under the caret — a bare caret slot (no
+   pill); the pill appears when Enter commits the word. */
+.note-property[data-property-type="list"] .note-property-value.draft {
   background: transparent;
   border-radius: 0;
-  padding: 0 2px;
+  padding: 0 4px;
   margin: 0;
-  min-width: 0;
-  min-height: 0;
+  min-width: 14px;
 }
 
 /* The chip's ×: absolute in the chip's top-right corner — never wraps;
@@ -181,8 +181,7 @@
   height: 10px;
 }
 
-.note-property-value:hover .note-property-chip-x,
-.note-property.focused .note-property-chip-x {
+.note-property-value:hover .note-property-chip-x {
   opacity: 1;
 }
 
