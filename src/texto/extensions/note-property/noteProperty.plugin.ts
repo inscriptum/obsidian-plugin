@@ -223,6 +223,17 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
           if (!(row instanceof HTMLElement)) return false;
           if (!row.querySelector(".note-property-name.locked")) return false;
 
+          // A click on the add slot inserts a new property row with the
+          // name focused (the slot's placeholder says "+ Add property").
+          const addSlot = target?.closest?.(".note-property-value.add-slot");
+          if (addSlot instanceof HTMLElement) {
+            event.preventDefault();
+            event.stopPropagation();
+            insertProperty(view.state, (tr) => view.dispatch(tr));
+            view.focus();
+            return true;
+          }
+
           const draft = target?.closest?.(".note-property-value.draft");
           if (draft instanceof HTMLElement) {
             event.preventDefault();
@@ -437,24 +448,34 @@ function buildDecorations(state: EditorState): Decoration[] {
     // keeps its place in the layout, so hiding the "+ Add property"
     // affordance on blur cannot shift the content. Every value with text
     // is a chip with its own ×, always visible.
-    values.forEach((v, index) => {
-      const nodeFrom = v.from - 1;
-      const isDraft =
-        isList && index === values.length - 1 && v.text === "";
-      if (isDraft) {
-        decorations.push(
-          Decoration.node(nodeFrom, nodeFrom + v.size, { class: "draft" }),
-        );
-      } else if (isList) {
-        decorations.push(
-          Decoration.widget(
-            v.to,
-            (view) => chipRemoveButton(view, from, index),
-            { side: 1, key: `chipx:${v.from}` },
-          ),
-        );
-      }
-    });
+    // Chips and the add slot. The trailing empty value of the LAST List
+    // row, while the zone is focused, is the "add" affordance: it renders
+    // the gray "+ Add property" placeholder and clicking it adds a new
+    // property row (Obsidian's add-property). Values with text are chips
+    // with their own ×, always visible.
+    if (isList) {
+      values.forEach((v, index) => {
+        const nodeFrom = v.from - 1;
+        const isAddSlot =
+          focused && index === values.length - 1 && v.text === "";
+        if (isAddSlot) {
+          decorations.push(
+            Decoration.node(nodeFrom, nodeFrom + v.size, {
+              class: "add-slot",
+              "data-placeholder": "+ Add property",
+            }),
+          );
+        } else {
+          decorations.push(
+            Decoration.widget(
+              v.to,
+              (view) => chipRemoveButton(view, from, index),
+              { side: 1, key: `chipx:${v.from}` },
+            ),
+          );
+        }
+      });
+    }
 
     if (!focused) return;
 

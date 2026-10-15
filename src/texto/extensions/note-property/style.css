@@ -151,6 +151,23 @@
   background: transparent;
 }
 
+/* The add slot: the trailing empty value of the LAST row while focused —
+   the gray "+ Add property" placeholder, clickable (adds a new property
+   row). */
+.note-property[data-property-type="list"] .note-property-value.add-slot {
+  background: transparent;
+  border-radius: 0;
+  padding: 0 4px;
+  margin: 0;
+  min-width: 14px;
+}
+
+.note-property[data-property-type="list"] .note-property-value.add-slot:before {
+  content: attr(data-placeholder);
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
 /* ── Row chrome (plugin decorations) ── */
 
 /* The row's hover zone extends into the left margin: hovering the trash
