@@ -399,3 +399,117 @@ function awaitAnimationFrame(): void {
   // appendTransaction runs synchronously inside apply; a microtask keeps
   // the test honest about not relying on timers.
 }
+
+describe("PR review fixes (round 17)", () => {
+  it("Enter with a selection inside a Text value deletes it instead of splitting the field", () => {
+    const { editor, el } = build({
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
+        {
+          type: "noteProperty",
+          attrs: { type: "text" },
+          content: [
+            { type: "notePropertyName", content: [{ type: "text", text: "status" }] },
+            { type: "notePropertyValue", content: [{ type: "text", text: "alpha beta" }] },
+          ],
+        },
+        { type: "paragraph", content: [{ type: "text", text: "Body" }] },
+      ],
+    });
+    // Select "beta" inside the value and press Enter.
+    const rowNode = editor.state.doc.content.child(1);
+    const valueFrom = editor.state.doc.content.child(0).nodeSize + 1 + rowNode.firstChild!.nodeSize + 1;
+    editor.commands.setTextSelection({ from: valueFrom + 6, to: valueFrom + 10 });
+    expect(editor.state.selection.empty).toBe(false);
+    pressKey(editor, "Enter");
+    awaitAnimationFrame();
+    const row = (editor.getJSON().content ?? [])[1];
+    const values = row.content?.filter((n) => n.type === "notePropertyValue") ?? [];
+    expect(values).toHaveLength(1); // no split
+    expect(values[0]?.content?.map((t) => t.text).join("")).toBe("alpha ");
+    // the caret took the Text row's Enter semantics: the next block below
+    const types = editor.state.doc.content.content.map((n) => n.type.name);
+    expect(types).toEqual(["noteTitle", "noteProperty", "paragraph"]);
+    editor.destroy();
+    el.remove();
+  });
+
+  it("the autocomplete popup navigates with arrows and dismisses with Escape", () => {
+    const { editor, el } = build({
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
+        {
+          type: "noteProperty",
+          attrs: { type: "text" },
+          content: [
+            { type: "notePropertyName" },
+            { type: "notePropertyValue" },
+          ],
+        },
+        { type: "paragraph" },
+      ],
+    });
+    // Caret into the empty name: suggestions open with all four presets.
+    editor.commands.setTextSelection(editor.state.doc.content.child(0).nodeSize + 2);
+    awaitAnimationFrame();
+    const selected = () => {
+      const plugin = editor.view.state.plugins.find((p) => p.getState(editor.view.state) && "dismissed" in (p.getState(editor.view.state) ?? {}));
+      return plugin?.getState(editor.view.state) as { selected: number; dismissed: boolean };
+    };
+    expect(selected().selected).toBe(0);
+    pressKey(editor, "ArrowDown");
+    awaitAnimationFrame();
+    expect(selected().selected).toBe(1);
+    pressKey(editor, "ArrowUp");
+    awaitAnimationFrame();
+    expect(selected().selected).toBe(0);
+    pressKey(editor, "Escape");
+    awaitAnimationFrame();
+    expect(selected().dismissed).toBe(true);
+    editor.destroy();
+    el.remove();
+  });
+
+  it("the trash resolves the row's bounds at click time (no stale range)", () => {
+    const { editor, el } = build({
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
+        {
+          type: "noteProperty",
+          attrs: { type: "text" },
+          content: [
+            { type: "notePropertyName", content: [{ type: "text", text: "status" }] },
+            { type: "notePropertyValue", content: [{ type: "text", text: "a long value text" }] },
+          ],
+        },
+        {
+          type: "noteProperty",
+          attrs: { type: "text" },
+          content: [
+            { type: "notePropertyName", content: [{ type: "text", text: "version" }] },
+            { type: "notePropertyValue", content: [{ type: "text", text: "1.0" }] },
+          ],
+        },
+        { type: "paragraph" },
+      ],
+    });
+    // Shorten the first row AFTER the widgets were built, then click its trash.
+    const rowNode = editor.state.doc.content.child(1);
+    const valueFrom = editor.state.doc.content.child(0).nodeSize + 1 + rowNode.firstChild!.nodeSize + 1;
+    editor.view.dispatch(editor.view.state.tr.delete(valueFrom + 1, valueFrom + 15));
+    awaitAnimationFrame();
+    const trash = el.querySelector(".note-property-remove")!;
+    trash.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    awaitAnimationFrame();
+    const types = editor.state.doc.content.content.map((n) => n.type.name);
+    expect(types).toEqual(["noteTitle", "noteProperty", "paragraph"]);
+    const version = (editor.getJSON().content ?? [])[1];
+    expect(version.content?.[0]?.content?.[0]?.text).toBe("version"); // untouched
+    expect(version.content?.[1]?.content?.map((t) => t.text).join("")).toBe("1.0");
+    editor.destroy();
+    el.remove();
+  });
+});

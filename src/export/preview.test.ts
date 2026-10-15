@@ -40,6 +40,14 @@ describe("extractPreview", () => {
     );
   });
 
+  it("recognizes any casing of the description property name", () => {
+    const doc = titlePage([
+      property("Description", ["Hand-typed capitalized name."]),
+      { type: "paragraph", content: [{ type: "text", text: "First paragraph." }] },
+    ]);
+    expect(extractPreview(doc).description).toBe("Hand-typed capitalized name.");
+  });
+
   it("joins the values of a List-typed description property", () => {
     const doc = titlePage([
       property("description", ["one", "two"]),

@@ -363,6 +363,38 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
             : event.key === "Enter" && event.shiftKey
               ? "Shift-Enter"
               : event.key;
+        // The autocomplete popup owns the navigation keys while it is open.
+        if (suggestions.length > 0) {
+          const selected = Math.min(pluginState?.selected ?? 0, suggestions.length - 1);
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            const step = event.key === "ArrowDown" ? 1 : -1;
+            const next = (selected + step + suggestions.length) % suggestions.length;
+            view.dispatch(view.state.tr.setMeta(key, { selected: next }));
+            return true;
+          }
+          if (event.key === "Escape") {
+            view.dispatch(view.state.tr.setMeta(key, { dismissed: true }));
+            return true;
+          }
+        }
+        // Values are single-line: with a selection inside one property row,
+        // Enter/Shift-Enter first deletes the selection — PM's splitBlock
+        // would otherwise duplicate the field.
+        if (
+          (keyName === "Enter" || keyName === "Shift-Enter") &&
+          !view.state.selection.empty
+        ) {
+          const { $from, $to } = view.state.selection;
+          if (
+            $from.depth >= 2 &&
+            $from.node(1)?.type.name === "noteProperty" &&
+            $to.node(1) === $from.node(1)
+          ) {
+            view.dispatch(view.state.tr.delete($from.pos, $to.pos));
+            // The state is updated synchronously; the collapsed caret now
+            // takes the row's normal Enter semantics below.
+          }
+        }
         // The cover (title + property rows) is sealed: boundary keys are
         // handled before the row-internal routing.
         if (coverBoundaryKeyDown(view.state, keyName, (tr) => view.dispatch(tr))) {
@@ -471,11 +503,11 @@ function buildDecorations(state: EditorState): Decoration[] {
     }
 
     // The row's trash renders on every List row (revealed by CSS on row
-    // hover — no caret needed).
+    // hover — no caret needed). The bounds are resolved at click time.
     decorations.push(
       Decoration.widget(
         from + 1,
-        (view) => removeButton(view, from, to),
+        (view) => removeButton(view),
         { side: -1, key: `remove:${from}` },
       ),
     );
@@ -606,11 +638,7 @@ function chipRemoveButton(
   return button;
 }
 
-function removeButton(
-  view: EditorView,
-  propFrom: number,
-  propTo: number,
-): HTMLElement {
+function removeButton(view: EditorView): HTMLElement {
   const button = document.createElement("button");
   button.type = "button";
   button.className = "note-property-remove";
@@ -619,11 +647,34 @@ function removeButton(
   button.addEventListener("mousedown", (event) => {
     event.preventDefault();
     event.stopPropagation();
-    // Works without the caret: hovering the field is enough (round 13).
+    // The row's bounds are resolved at click time: the widget can outlive
+    // the row's geometry (edits above shift every position, edits inside
+    // change its size), and a stale range would delete into a neighbor.
+    const row = button.closest(".note-property");
+    if (!(row instanceof HTMLElement)) return;
+    let propFrom: number | null = null;
+    try {
+      propFrom = view.posAtDOM(row, 0) - 1;
+    } catch {
+      return;
+    }
+    if (propFrom == null || propFrom < 0) return;
+    const node = view.state.doc.nodeAt(propFrom);
+    if (node == null || node.type.name !== "noteProperty") return;
     removeProperty(
       view.state,
       (tr) => view.dispatch(tr),
-      { propFrom, propTo, inName: false, nameFrom: 0, nameTo: 0, nameText: "", valueIndex: -1, values: [], isEmpty: true },
+      {
+        propFrom,
+        propTo: propFrom + node.nodeSize,
+        inName: false,
+        nameFrom: 0,
+        nameTo: 0,
+        nameText: "",
+        valueIndex: -1,
+        values: [],
+        isEmpty: true,
+      },
     );
   });
   return button;

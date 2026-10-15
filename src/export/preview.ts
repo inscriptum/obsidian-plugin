@@ -76,7 +76,9 @@ export function extractPreview(doc: JSONContent): NotePreview {
       const name = (node.content ?? []).find(
         (child) => child.type === "notePropertyName",
       );
-      if (plainText(name).trim() !== DESCRIPTION_PROPERTY) continue;
+      // Case-insensitive: the editor locks any casing of the preset name
+      // ("Description" typed by hand stays capitalized in the document).
+      if (plainText(name).trim().toLowerCase() !== DESCRIPTION_PROPERTY) continue;
       description = propertyText(node).trim();
       if (description) break;
       continue;
