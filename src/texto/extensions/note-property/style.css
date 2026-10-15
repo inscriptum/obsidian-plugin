@@ -153,6 +153,20 @@
 
 /* ── Row chrome (plugin decorations) ── */
 
+/* The row's hover zone extends into the left margin: hovering the trash
+   itself (or the gap toward it) keeps the row :hover, so the trash stays
+   reachable and clickable. */
+.note-property[data-property-type]:after {
+  content: "";
+  position: absolute;
+  left: -44px;
+  top: 0;
+  bottom: 0;
+  width: 46px;
+}
+
+
+
 /* Remove button: hangs into the left margin like the header field labels;
    revealed when the pointer hovers the property field. */
 .note-property-remove {
@@ -192,12 +206,14 @@
   background: transparent;
 }
 
-/* "Add property": a quiet text button right where the next property
-   would appear (below the last row, at the value column's start). It
-   renders only while the cover zone is focused. */
+/* "Add property": a quiet text button overlaying the insert point (the
+   place the next property would take). Absolutely positioned by the
+   plugin over the draft slot's line: hiding it on blur cannot shift the
+   layout. */
 .note-property-add {
-  display: block;
-  margin: 6px 0 2px;
+  position: absolute;
+  z-index: 5;
+  margin: 0;
 }
 
 .note-property-add__btn {

@@ -406,6 +406,20 @@ function buildDecorations(state: EditorState): Decoration[] {
           ),
         );
       }
+      if (focused) {
+        if (name.content.size === 0) {
+          decorations.push(
+            Decoration.node(
+              nameNodeFrom,
+              nameNodeFrom + name.nodeSize,
+              { class: "empty", "data-placeholder": "Property name" },
+            ),
+          );
+        }
+        if (loc.inName && suggestionsVisible(state)) {
+          decorations.push(...suggestionDecorations(state));
+        }
+      }
     }
 
     // The row's trash renders on every List row (revealed by CSS on row
@@ -418,65 +432,46 @@ function buildDecorations(state: EditorState): Decoration[] {
       ),
     );
 
-    if (!focused) return;
-
-    decorations.push(Decoration.node(from, to, { class: "focused" }));
-
-    if (name != null && name.type.name === "notePropertyName") {
-      const nameNodeFrom = from + 1;
-      if (name.content.size === 0) {
-        decorations.push(
-          Decoration.node(
-            nameNodeFrom,
-            nameNodeFrom + name.nodeSize,
-            { class: "empty", "data-placeholder": "Property name" },
-          ),
-        );
-      }
-      if (loc.inName && suggestionsVisible(state)) {
-        decorations.push(...suggestionDecorations(state));
-      }
-    }
-
-    // Chips and the draft input. While a List row holds the caret, its
-    // trailing empty value is the draft — a bare caret slot (no pill, no
-    // ×): the word being typed stays bare until Enter commits it as a
-    // chip. Every value with text is a chip with its own ×, always
-    // visible.
+    // Chips and the draft input. The trailing empty value of a List row is
+    // ALWAYS the draft slot (focused or not): it renders invisible and
+    // keeps its place in the layout, so hiding the "+ Add property"
+    // affordance on blur cannot shift the content. Every value with text
+    // is a chip with its own ×, always visible.
     values.forEach((v, index) => {
       const nodeFrom = v.from - 1;
-      // The trailing empty value is ALWAYS the draft slot (focused or not):
-      // it renders invisible and keeps its place in the layout, so hiding
-      // the "+ Add property" affordance on blur cannot shift the content.
       const isDraft =
         isList && index === values.length - 1 && v.text === "";
       if (isDraft) {
         decorations.push(
           Decoration.node(nodeFrom, nodeFrom + v.size, { class: "draft" }),
         );
-      } else {
-        if (v.text === "" && !isList) {
-          // Text values render blank when empty (owner's call: no
-          // "Empty" placeholder).
-        }
-        if (isList) {
-          decorations.push(
-            Decoration.widget(
-              v.to,
-              (view) => chipRemoveButton(view, from, index),
-              { side: 1, key: `chipx:${v.from}` },
-            ),
-          );
-        }
+      } else if (isList) {
+        decorations.push(
+          Decoration.widget(
+            v.to,
+            (view) => chipRemoveButton(view, from, index),
+            { side: 1, key: `chipx:${v.from}` },
+          ),
+        );
       }
     });
+
+    if (!focused) return;
+
+    decorations.push(Decoration.node(from, to, { class: "focused" }));
+
+    if (name != null && name.type.name === "notePropertyName") {
+      if (loc.inName && suggestionsVisible(state)) {
+        decorations.push(...suggestionDecorations(state));
+      }
+    }
 
   });
 
   const addPos = propertyInsertPos(state.doc);
   if (addPos != null && zoneFocused) {
     decorations.push(
-      Decoration.widget(addPos, (view) => addButton(view), {
+      Decoration.widget(addPos, (view) => addButton(view, addPos), {
         side: 1,
         key: "add-property",
       }),
@@ -596,10 +591,9 @@ function removeButton(
   return button;
 }
 
-function addButton(view: EditorView): HTMLElement {
-  // A quiet text button where the next property would appear; rendered
-  // only while the cover zone is focused (see the widget gate in
-  // buildDecorations).
+function addButton(view: EditorView, atPos: number): HTMLElement {
+  // A quiet text button at the insert point. Absolutely positioned over
+  // the draft slot's line: hiding it on blur cannot shift the layout.
   const anchor = document.createElement("div");
   anchor.className = "note-property-add";
   const button = document.createElement("button");
@@ -613,6 +607,15 @@ function addButton(view: EditorView): HTMLElement {
     view.focus();
   });
   anchor.appendChild(button);
+  try {
+    const coords = view.coordsAtPos(atPos);
+    const pmRect = view.dom.getBoundingClientRect();
+    anchor.style.position = "absolute";
+    anchor.style.left = `${Math.round(coords.left - pmRect.left)}px`;
+    anchor.style.top = `${Math.round(coords.top - pmRect.top)}px`;
+  } catch {
+    // measurement is best-effort: the flow fallback keeps it visible
+  }
   return anchor;
 }
 function suggestionList(
