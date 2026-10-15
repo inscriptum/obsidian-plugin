@@ -74,17 +74,6 @@
   align-items: baseline;
 }
 
-/* The draft input of a List row: a bare caret slot — no pill, no ×; the
-   pill appears only when Enter commits the word (the slot stops being the
-   draft). Specificity must beat the chip rule above. */
-.note-property[data-property-type="list"] .note-property-value.draft {
-  background: transparent;
-  border-radius: 0;
-  min-width: 14px;
-  padding: 0 2px;
-  margin: 0;
-}
-
 .note-property[data-property-type="list"] .note-property-name {
   flex: 0 0 200px;
   grid-column: auto;
@@ -111,7 +100,9 @@
 }
 
 /* The draft input: the value under the caret — a bare caret slot (no
-   pill); the pill appears when Enter commits the word. */
+   pill, no ×); the pill appears only when Enter commits the word (the
+   slot stops being the draft). Always present as the trailing empty value
+   of the row (focused or not), so nothing shifts on focus changes. */
 .note-property[data-property-type="list"] .note-property-value.draft {
   background: transparent;
   border-radius: 0;
@@ -151,52 +142,23 @@
   background: transparent;
 }
 
-/* The add slot: the trailing empty value of the LAST row while focused —
-   the gray "+ Add property" placeholder, clickable (adds a new property
-   row). */
-.note-property[data-property-type="list"] .note-property-value.add-slot {
-  background: transparent;
-  border-radius: 0;
-  padding: 0 4px;
-  margin: 0;
-  min-width: 14px;
-}
-
-.note-property[data-property-type="list"] .note-property-value.add-slot:before {
-  content: attr(data-placeholder);
-  color: var(--text-faint);
-  pointer-events: none;
-}
-
 /* ── Row chrome (plugin decorations) ── */
 
-/* The row's hover zone extends into the left margin: hovering the trash
-   itself (or the gap toward it) keeps the row :hover, so the trash stays
-   reachable and clickable. */
-.note-property[data-property-type]:after {
-  content: "";
-  position: absolute;
-  left: -44px;
-  top: 0;
-  bottom: 0;
-  width: 46px;
-}
-
-
-
-/* Remove button: hangs into the left margin like the header field labels;
-   revealed when the pointer hovers the property field. */
+/* Remove button: at the row's right end (Obsidian's per-row delete) —
+   revealed when the pointer hovers the row; the opaque pill keeps it
+   readable and clickable over a chip that reaches the edge (z-index above
+   the chip's own ×). */
 .note-property-remove {
   position: absolute;
-  left: -40px;
+  right: 4px;
   top: 50%;
   transform: translateY(-50%);
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   padding: 0;
   border: none;
   border-radius: 50%;
-  background: transparent;
+  background: var(--background-primary);
   color: var(--text-faint);
   cursor: pointer;
   opacity: 0;
@@ -206,6 +168,7 @@
   align-items: center;
   justify-content: center;
   transition: opacity 0.1s ease;
+  z-index: 3;
 }
 
 .note-property-remove svg {
@@ -220,17 +183,24 @@
 
 .note-property-remove:hover {
   color: var(--text-normal);
-  background: transparent;
+  background: var(--background-primary);
 }
 
-/* "Add property": a quiet text button overlaying the insert point (the
-   place the next property would take). Absolutely positioned by the
-   plugin over the draft slot's line: hiding it on blur cannot shift the
-   layout. */
+/* "Add property": a quiet text button on its own line after the last
+   property row. The line is part of the layout permanently; the text
+   shows only while the caret is inside the cover zone (is-active) —
+   visibility, not display, so the content below never shifts. */
 .note-property-add {
-  position: absolute;
-  z-index: 5;
+  display: block;
   margin: 0;
+}
+
+.note-property-add__btn {
+  visibility: hidden;
+}
+
+.note-property-add.is-active .note-property-add__btn {
+  visibility: visible;
 }
 
 .note-property-add__btn {
@@ -309,7 +279,7 @@
 }
 
 .is-mobile .note-property-remove {
-  left: -26px;
+  right: 2px;
 }
 
 /* Obsidian themes bare `button` elements into gray pills — the property
@@ -327,7 +297,6 @@
   min-height: 0;
   border: none;
   border-radius: 0;
-  background: transparent;
   box-shadow: none;
 }
 
@@ -338,14 +307,16 @@
   height: auto;
   padding: 2px 0;
   color: var(--text-faint);
+  background: transparent;
 }
 
 .note-view-container .note-property-remove,
 .notepad-view-container .note-property-remove {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
   color: var(--text-faint);
+  background: var(--background-primary);
 }
 
 .note-view-container .note-property-suggestion,

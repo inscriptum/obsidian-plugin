@@ -536,6 +536,30 @@ describe("UmNotepad schema handling", () => {
     );
   });
 
+  it("a List row's empty draft value (persisted by older builds) is repaired on load", () => {
+    const nb = UmNotepad.empty();
+    const cover = nb.addNote(undefined, "Cover");
+    nb.setNoteContent(cover.id, {
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
+        createNoteProperty("tags", [[{ type: "text", text: "one" }], null], "list"),
+        { type: "paragraph" },
+      ],
+    });
+    // The empty value was the editor's draft slot — it is not a tag and
+    // does not survive a load (the next save writes the clean shape).
+    const reopened = new UmNotepad(nb.data);
+    const row = reopened.noteContent(cover.id)?.content?.[1];
+    const values = (row?.content ?? []).filter(
+      (n) => n.type === "notePropertyValue",
+    );
+    expect(values).toHaveLength(1);
+    expect(values[0]?.content).toEqual([
+      { type: "text", text: "one" },
+    ]);
+  });
+
   it("preserves uninterpretable pages verbatim through a round trip", () => {
     const nb = UmNotepad.empty();
     const first = nb.addNote(undefined, "Cover");

@@ -166,6 +166,84 @@ describe("List-row draft lifecycle (appendTransaction)", () => {
     editor.destroy();
     el.remove();
   });
+
+  it("a caret entering a zero-value row's locked name lands in the created draft", () => {
+    const { editor, el } = build(tagsRowDoc([]));
+    focusRow(editor, -1); // the locked name of a row without values
+    awaitAnimationFrame();
+    expect(valueCount(editor)).toBe(1); // the draft created in the same pass
+    // The caret never rests in the locked name — it sits in the draft.
+    expect(editor.state.selection.$head.node(2)?.type.name).toBe(
+      "notePropertyValue",
+    );
+    editor.destroy();
+    el.remove();
+  });
+
+  it("a click on a zero-value List row creates the draft and places the caret", () => {
+    const { editor, el } = build(tagsRowDoc([]));
+    const rowEl = el.querySelector(".note-property");
+    expect(rowEl).toBeTruthy();
+    rowEl!.dispatchEvent(
+      new MouseEvent("mousedown", { bubbles: true, cancelable: true }),
+    );
+    awaitAnimationFrame();
+    expect(valueCount(editor)).toBe(1); // the click created the draft input
+    expect(editor.state.selection.$head.node(2)?.type.name).toBe(
+      "notePropertyValue",
+    );
+    editor.destroy();
+    el.remove();
+  });
+
+  it("typing a duplicate preset name reverts to the row's own previous text", () => {
+    // The revert maps row i onto the previous document's i-th PROPERTY
+    // row (the leading title must not shift the index into reading the
+    // wrong row's name).
+    const { editor, el } = build({
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
+        {
+          type: "noteProperty",
+          attrs: { type: "text" },
+          content: [
+            { type: "notePropertyName", content: [{ type: "text", text: "status" }] },
+            { type: "notePropertyValue" },
+          ],
+        },
+        {
+          type: "noteProperty",
+          attrs: { type: "text" },
+          content: [
+            { type: "notePropertyName" },
+            { type: "notePropertyValue" },
+          ],
+        },
+        { type: "paragraph" },
+      ],
+    });
+    // Caret at the end of the second row's (empty) name.
+    const doc = editor.state.doc;
+    let pos: number | null = null;
+    let seen = 0;
+    doc.forEach((node, off) => {
+      if (node.type.name !== "noteProperty" || pos != null) return;
+      seen += 1;
+      if (seen === 2) {
+        const name = node.firstChild!;
+        pos = off + 1 + 1 + name.content.size;
+      }
+    });
+    editor.view.dispatch(
+      editor.view.state.tr.insertText("status", pos!, pos!),
+    );
+    awaitAnimationFrame();
+    const row = (editor.getJSON().content ?? [])[2];
+    expect(row.content?.[0]?.content?.[0]?.text).toBeUndefined(); // reverted to empty
+    editor.destroy();
+    el.remove();
+  });
 });
 
 function awaitAnimationFrame(): void {

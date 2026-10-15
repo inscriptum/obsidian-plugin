@@ -22,9 +22,9 @@ import {
  * UI affordances of the title-page property rows (spec 9.1):
  *  - placeholders ("Property name" / "Empty") on the focused row, the same
  *    data-placeholder mechanism the title header uses;
- *  - the focused row's remove (×) button, hanging into the left margin
- *    like the header field labels;
- *  - the "Add property" affordance between the last row and the content;
+ *  - the row's remove (trash) button at the row's right end, revealed on
+ *    row hover;
+ *  - the "Add property" affordance: one quiet line after the last row;
  *  - the name autocomplete: preset names filtered by the typed prefix,
  *    cycled with the arrow keys, accepted with Enter/Tab or a click,
  *    dismissed with Esc until the caret leaves the name field.
@@ -55,8 +55,9 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
       //  - a row named with a preset adopts the preset's value type;
       //  - a List row holding the caret keeps one trailing empty value as
       //    its draft input (a chip is only created when a word is
-      //    committed); when the caret leaves, the empty draft is pruned —
-      //    a row with no tags at all serializes zero values;
+      //    committed); the draft stays when the caret leaves (no layout
+      //    shift) and is stripped at the storage boundary — a row with no
+      //    tags serializes zero values;
       //  - a Text row always keeps exactly one value.
       // Processed back-to-front so earlier offsets stay valid; idempotent
       // (a maintenance pass finds nothing to change and terminates).
@@ -64,31 +65,18 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
         const { selection } = newState;
         const tr = newState.tr;
         let changed = 0;
-        // The caret never rests inside a locked (preset-named) name field:
-        // nothing paints there and nothing can be typed — a click that PM
-        // resolves into it is moved to the row's first value.
-        if (selection.empty && selection.$head.depth >= 2) {
-          const row = selection.$head.node(1);
-          const field = selection.$head.node(2);
-          if (
-            row?.type.name === "noteProperty" &&
-            field?.type.name === "notePropertyName" &&
-            isPresetName(row.firstChild?.textContent ?? "")
-          ) {
-            const propFrom = selection.$head.before(1);
-            const nameSize = row.firstChild?.nodeSize;
-            if (nameSize == null) return null;
-            tr.setSelection(
-              TextSelection.create(tr.doc, propFrom + 1 + nameSize + 1),
-            );
-            changed += 1;
-          }
-        }
         const rows: Array<{ from: number; to: number; node: ProseMirrorNode }> = [];
+        const oldRows: ProseMirrorNode[] = [];
         newState.doc.forEach((node, offset) => {
           if (node.type.name === "noteProperty") {
             rows.push({ from: offset, to: offset + node.nodeSize, node });
           }
+        });
+        // The previous document's property rows, in order — the revert of
+        // a duplicated preset name maps rows[i] onto this[i] (the doc's
+        // child(i) would read the leading title and shift every index).
+        _oldState.doc.forEach((node) => {
+          if (node.type.name === "noteProperty") oldRows.push(node);
         });
         for (let i = rows.length - 1; i >= 0; i -= 1) {
           const { from, to, node } = rows[i];
@@ -113,6 +101,39 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
           });
           const focused =
             selection.from >= from && selection.to <= to && selection.empty;
+          // Rows are processed back-to-front, so from/to/values (measured
+          // on newState.doc) stay valid: already-processed rows live at
+          // deeper offsets.
+
+          // The caret never rests inside a locked (preset-named) name
+          // field — nothing paints there and nothing can be typed. It
+          // moves to the row's first value; a row without any value (a
+          // List row fresh from storage, never focused) has no caret place
+          // after the name, so its draft value is created in the same
+          // transaction.
+          let draftAddedHere = false;
+          if (
+            focused &&
+            selection.$head.node(1) === node &&
+            selection.$head.node(2)?.type.name === "notePropertyName" &&
+            isPresetName(node.firstChild?.textContent ?? "")
+          ) {
+            const nameSize = node.firstChild?.nodeSize;
+            if (nameSize != null) {
+              if (values.length === 0) {
+                tr.insert(
+                  to - 1,
+                  newState.schema.nodes.notePropertyValue.create(),
+                );
+                draftAddedHere = true;
+                changed += 1;
+              }
+              tr.setSelection(
+                TextSelection.create(tr.doc, from + 1 + nameSize + 1),
+              );
+              changed += 1;
+            }
+          }
 
           // No formatting in property fields: any mark that reaches the
           // row (bubble menu, keyboard shortcut, formatted paste) is
@@ -142,8 +163,12 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
               }
             });
             if (duplicated) {
-              const oldRow = _oldState.doc.content.child(i);
-              const oldName = oldRow.type.name === "noteProperty" ? oldRow.firstChild?.textContent ?? "" : "";
+              // The revert changes the name's length — the rest of this
+              // row's maintenance would run on shifted positions, so it is
+              // left to the next pass (appendTransaction re-runs until
+              // stable).
+              const oldRow = oldRows[i];
+              const oldName = oldRow?.firstChild?.textContent ?? "";
               const nameFrom = from + 1 + 1; // name content start
               const nameTo = nameFrom + (node.firstChild?.content.size ?? 0);
               tr.replaceWith(
@@ -152,12 +177,13 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
                 oldName.length > 0 ? newState.schema.text(oldName) : Fragment.empty,
               );
               changed += 1;
+              continue;
             }
           }
 
           if (isList) {
             const last = values[values.length - 1];
-            if (focused && !(last != null && last.text === "")) {
+            if (focused && !draftAddedHere && !(last != null && last.text === "")) {
               // The row holding the caret always keeps one trailing empty
               // value as its draft input (a chip is only created when a
               // word is committed with Enter). When the caret leaves, the
@@ -179,7 +205,7 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
                 changed += 1;
               }
             }
-          } else if (values.length === 0) {
+          } else if (values.length === 0 && !draftAddedHere) {
             tr.insert(to - 1, newState.schema.nodes.notePropertyValue.create());
             changed += 1;
           }
@@ -223,17 +249,6 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
           if (!(row instanceof HTMLElement)) return false;
           if (!row.querySelector(".note-property-name.locked")) return false;
 
-          // A click on the add slot inserts a new property row with the
-          // name focused (the slot's placeholder says "+ Add property").
-          const addSlot = target?.closest?.(".note-property-value.add-slot");
-          if (addSlot instanceof HTMLElement) {
-            event.preventDefault();
-            event.stopPropagation();
-            insertProperty(view.state, (tr) => view.dispatch(tr));
-            view.focus();
-            return true;
-          }
-
           const draft = target?.closest?.(".note-property-value.draft");
           if (draft instanceof HTMLElement) {
             event.preventDefault();
@@ -244,12 +259,9 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
             return true;
           }
 
-          if (
-            !target?.closest?.(".note-property-value") &&
-            !target?.closest?.(".note-property-name.locked")
-          ) {
-            return false;
-          }
+          // Any other click in a locked-name row (the name itself, the
+          // empty side of a zero-value List row) places the caret in the
+          // row's draft input.
           event.preventDefault();
           event.stopPropagation();
           const placed = placeCaretFromPoint(view, event.clientX, event.clientY, row);
@@ -445,25 +457,24 @@ function buildDecorations(state: EditorState): Decoration[] {
 
     // Chips and the draft input. The trailing empty value of a List row is
     // ALWAYS the draft slot (focused or not): it renders invisible and
-    // keeps its place in the layout, so hiding the "+ Add property"
-    // affordance on blur cannot shift the content. Every value with text
-    // is a chip with its own ×, always visible.
-    // Chips and the add slot. The trailing empty value of the LAST List
-    // row, while the zone is focused, is the "add" affordance: it renders
-    // the gray "+ Add property" placeholder and clicking it adds a new
-    // property row (Obsidian's add-property). Values with text are chips
-    // with their own ×, always visible.
+    // keeps its place in the layout, so nothing shifts when the caret
+    // enters or leaves the row. Every value with text is a chip with its
+    // own ×, always visible.
     if (isList) {
       values.forEach((v, index) => {
         const nodeFrom = v.from - 1;
-        const isAddSlot =
-          focused && index === values.length - 1 && v.text === "";
-        if (isAddSlot) {
+        // The trailing empty value is always the draft slot; the value
+        // holding the caret is the word being typed — bare until Enter
+        // commits it into a chip.
+        const isDraft =
+          (index === values.length - 1 && v.text === "") ||
+          (focused &&
+            loc != null &&
+            !loc.inName &&
+            loc.valueIndex === index);
+        if (isDraft) {
           decorations.push(
-            Decoration.node(nodeFrom, nodeFrom + v.size, {
-              class: "add-slot",
-              "data-placeholder": "+ Add property",
-            }),
+            Decoration.node(nodeFrom, nodeFrom + v.size, { class: "draft" }),
           );
         } else {
           decorations.push(
@@ -481,38 +492,23 @@ function buildDecorations(state: EditorState): Decoration[] {
 
     decorations.push(Decoration.node(from, to, { class: "focused" }));
 
-    if (name != null && name.type.name === "notePropertyName") {
-      if (loc.inName && suggestionsVisible(state)) {
-        decorations.push(...suggestionDecorations(state));
-      }
-    }
-
   });
 
+  // The "+ Add property" affordance: one quiet line after the last row.
+  // The line is always reserved (its height never changes), the text is
+  // visible only while the caret is inside the cover zone — hiding it
+  // cannot shift the content below.
   const addPos = propertyInsertPos(state.doc);
-  if (addPos != null && zoneFocused) {
+  if (addPos != null) {
     decorations.push(
-      Decoration.widget(addPos, (view) => addButton(view, addPos), {
+      Decoration.widget(addPos, (view) => addButton(view, zoneFocused), {
         side: 1,
-        key: "add-property",
+        key: `add-property:${zoneFocused ? "on" : "off"}`,
       }),
     );
   }
 
   return decorations;
-}
-
-/** 0-based index of `child` among the value nodes of `prop`. */
-function valuesIndex(prop: ProseMirrorNode, child: ProseMirrorNode): number {
-  let index = -1;
-  let i = 0;
-  prop.forEach((c) => {
-    if (c.type.name === "notePropertyValue") {
-      if (c === child) index = i;
-      i += 1;
-    }
-  });
-  return index;
 }
 
 /** Suggestions render only while the caret is in a name field, not
@@ -612,11 +608,14 @@ function removeButton(
   return button;
 }
 
-function addButton(view: EditorView, atPos: number): HTMLElement {
-  // A quiet text button at the insert point. Absolutely positioned over
-  // the draft slot's line: hiding it on blur cannot shift the layout.
-  const anchor = document.createElement("div");
-  anchor.className = "note-property-add";
+function addButton(view: EditorView, visible: boolean): HTMLElement {
+  // A quiet text button on its own line after the last property row. The
+  // line belongs to the layout permanently; `visible` (the zone's focus)
+  // only toggles the text — no reflow either way.
+  const line = document.createElement("div");
+  line.className = visible
+    ? "note-property-add is-active"
+    : "note-property-add";
   const button = document.createElement("button");
   button.type = "button";
   button.className = "note-property-add__btn";
@@ -627,17 +626,8 @@ function addButton(view: EditorView, atPos: number): HTMLElement {
     insertProperty(view.state, (tr) => view.dispatch(tr));
     view.focus();
   });
-  anchor.appendChild(button);
-  try {
-    const coords = view.coordsAtPos(atPos);
-    const pmRect = view.dom.getBoundingClientRect();
-    anchor.style.position = "absolute";
-    anchor.style.left = `${Math.round(coords.left - pmRect.left)}px`;
-    anchor.style.top = `${Math.round(coords.top - pmRect.top)}px`;
-  } catch {
-    // measurement is best-effort: the flow fallback keeps it visible
-  }
-  return anchor;
+  line.appendChild(button);
+  return line;
 }
 function suggestionList(
   view: EditorView,
@@ -686,34 +676,65 @@ function valuePosFromPoint(
 }
 
 /** Place the caret for a click inside a locked-name row: exactly at the
- *  pointed value position when hit-testing agrees, otherwise at the start
- *  of the row's first value. Returns the placed position (null when the
- *  caret could not be placed). */
+ *  pointed value position when hit-testing agrees, otherwise at the end of
+ *  the row's last value (the draft slot — where the next word goes). A
+ *  zero-value row gains its draft value first. Returns the placed position
+ *  (null when the caret could not be placed). */
 function placeCaretFromPoint(
   view: EditorView,
   x: number,
   y: number,
   row: HTMLElement,
 ): number | null {
-  const hit = valuePosFromPoint(view, x, y);
+  // A click in the empty row space right of the last value goes to the
+  // row's end (the draft input), not to the nearest text the browser's
+  // hit-testing would pick (the first chip).
+  const valueEls = row.querySelectorAll(".note-property-value");
+  const lastEl = valueEls[valueEls.length - 1];
+  const pastLast = lastEl == null || x > lastEl.getBoundingClientRect().right;
+  const hit = pastLast ? null : valuePosFromPoint(view, x, y);
   if (hit != null) {
     view.dispatch(
       view.state.tr.setSelection(TextSelection.create(view.state.doc, hit.pos)).scrollIntoView(),
     );
     return hit.pos;
   }
-  // The point resolved outside any value (an empty slot, the name's
-  // padding): fall back to the first value's content start.
   const rowPos = view.posAtDOM(row, 0);
   const propFrom = rowPos - 1;
-  const nameSize = view.state.doc.nodeAt(propFrom)?.firstChild?.nodeSize;
-  if (nameSize == null) return null;
-  const fallback = Math.min(propFrom + 1 + nameSize + 1, view.state.doc.content.size);
-  const $value = view.state.doc.resolve(fallback);
+  let prop = view.state.doc.nodeAt(propFrom);
+  if (prop == null || prop.type.name !== "noteProperty") return null;
+  // The click in the row's empty space targets the draft input: a List
+  // row gets one (fresh from storage it has none; a row whose last chip
+  // is committed gets a fresh draft after it). Text rows keep their
+  // single value — the caret goes after its text.
+  if (
+    (prop.attrs.type ?? "text") === "list" &&
+    (prop.childCount < 2 || prop.lastChild?.textContent !== "")
+  ) {
+    view.dispatch(
+      view.state.tr
+        .insert(
+          propFrom + prop.nodeSize - 1,
+          view.state.schema.nodes.notePropertyValue.create(),
+        )
+        .scrollIntoView(),
+    );
+    prop = view.state.doc.nodeAt(propFrom);
+    if (prop == null) return null;
+  }
+  // Inside the last value's content — a text selection must point INTO
+  // the field: its first content position, never the node boundary.
+  const last = prop.lastChild;
+  if (last == null) return null;
+  let lastStart = propFrom + 1;
+  prop.forEach((child) => {
+    if (child !== last) lastStart += child.nodeSize;
+  });
+  const target = lastStart + 1 + last.content.size;
   view.dispatch(
-    view.state.tr.setSelection(TextSelection.near($value, 1)).scrollIntoView(),
+    view.state.tr.setSelection(TextSelection.create(view.state.doc, target)).scrollIntoView(),
   );
-  return fallback;
+  return target;
 }
 
 /** Select the word under the pointer (double-click in a tag chip). */

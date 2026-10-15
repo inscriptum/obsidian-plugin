@@ -1,6 +1,7 @@
 import type { EditorState, Selection, Transaction } from "prosemirror-state";
 import { TextSelection } from "prosemirror-state";
 import { Fragment, type Node as PMNode } from "prosemirror-model";
+import type { JSONContent } from "../../core/@types";
 
 /**
  * Behavior model of the title-page property rows (spec 9.1): pure
@@ -435,6 +436,34 @@ export function acceptSuggestion(
     dispatch(tr.scrollIntoView());
   }
   return true;
+}
+
+/** Storage-boundary shape (9.1): the editor keeps one trailing empty
+ *  value in every List row as its draft input, but a draft is not a
+ *  committed tag — serialized documents carry only real values. Returns
+ *  the doc unchanged (same reference) when there is nothing to strip. */
+export function stripEmptyListValues(doc: JSONContent): JSONContent {
+  if (!Array.isArray(doc.content)) return doc;
+  let changed = false;
+  const content = doc.content.map((node) => {
+    if (node?.type !== "noteProperty") return node;
+    const children = node.content ?? [];
+    const kept = children.filter(
+      (child) =>
+        child?.type !== "notePropertyValue" ||
+        (child.content ?? []).length > 0,
+    );
+    if (kept.length === children.length) return node;
+    // Never strip a Text row's only value into nothing: an empty Text
+    // value is the row's (still empty) field, not a draft.
+    if ((node.attrs?.type ?? "text") !== "list" && kept.length < 2) {
+      return node;
+    }
+    changed = true;
+    return { ...node, content: kept };
+  });
+  if (!changed) return doc;
+  return { ...doc, content };
 }
 
 /** Keymap routing shared by the plugin's handleKeyDown. Returns true when

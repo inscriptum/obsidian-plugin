@@ -15,6 +15,7 @@ import {
   propertyKeyDown,
   selectionProperty,
   stateProperty,
+  stripEmptyListValues,
   suggestionItems,
 } from "./notePropertyModel";
 
@@ -461,5 +462,53 @@ describe("acceptSuggestion", () => {
     const loc = stateProperty(next)!;
     expect(loc.inName).toBe(false);
     expect(loc.valueIndex).toBe(0);
+  });
+});
+
+describe("stripEmptyListValues (storage boundary)", () => {
+  const prop = (
+    name: string,
+    values: JSONContent[][],
+    type: "text" | "list" = "list",
+  ): JSONContent => ({
+    type: "noteProperty",
+    attrs: { type },
+    content: [
+      { type: "notePropertyName", content: [{ type: "text", text: name }] },
+      ...values.map((inline) => ({ type: "notePropertyValue", content: inline })),
+    ],
+  });
+
+  const doc = (props: JSONContent[]): JSONContent => ({
+    type: "noteDoc",
+    content: [
+      { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
+      ...props,
+      { type: "paragraph" },
+    ],
+  });
+
+  const valueCount = (row: JSONContent | undefined): number =>
+    (row?.content ?? []).filter((n) => n.type === "notePropertyValue").length;
+
+  it("strips empty draft values from List rows, keeps committed ones", () => {
+    const source = doc([
+      prop("tags", [[{ type: "text", text: "one" }], []]),
+    ]);
+    const out = stripEmptyListValues(source);
+    expect(valueCount(out.content?.[1])).toBe(1);
+  });
+
+  it("keeps a Text row's empty value — the still-empty field, not a draft", () => {
+    const source = doc([prop("status", [[]], "text")]);
+    const out = stripEmptyListValues(source);
+    expect(valueCount(out.content?.[1])).toBe(1);
+  });
+
+  it("returns the same reference when there is nothing to strip", () => {
+    const source = doc([
+      prop("tags", [[{ type: "text", text: "one" }]]),
+    ]);
+    expect(stripEmptyListValues(source)).toBe(source);
   });
 });
