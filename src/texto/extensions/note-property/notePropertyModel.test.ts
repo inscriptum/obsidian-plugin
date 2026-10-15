@@ -15,7 +15,7 @@ import {
   propertyKeyDown,
   selectionProperty,
   stateProperty,
-  stripEmptyListValues,
+  sanitizePropertyValues,
   suggestionItems,
 } from "./notePropertyModel";
 
@@ -465,7 +465,7 @@ describe("acceptSuggestion", () => {
   });
 });
 
-describe("stripEmptyListValues (storage boundary)", () => {
+describe("sanitizePropertyValues (storage boundary)", () => {
   const prop = (
     name: string,
     values: JSONContent[][],
@@ -495,13 +495,13 @@ describe("stripEmptyListValues (storage boundary)", () => {
     const source = doc([
       prop("tags", [[{ type: "text", text: "one" }], []]),
     ]);
-    const out = stripEmptyListValues(source);
+    const out = sanitizePropertyValues(source);
     expect(valueCount(out.content?.[1])).toBe(1);
   });
 
   it("keeps a Text row's empty value — the still-empty field, not a draft", () => {
     const source = doc([prop("status", [[]], "text")]);
-    const out = stripEmptyListValues(source);
+    const out = sanitizePropertyValues(source);
     expect(valueCount(out.content?.[1])).toBe(1);
   });
 
@@ -509,6 +509,60 @@ describe("stripEmptyListValues (storage boundary)", () => {
     const source = doc([
       prop("tags", [[{ type: "text", text: "one" }]]),
     ]);
-    expect(stripEmptyListValues(source)).toBe(source);
+    expect(sanitizePropertyValues(source)).toBe(source);
+  });
+});
+
+describe("sanitizePropertyValues (tag validity at the storage boundary)", () => {
+  const prop = (
+    name: string,
+    values: JSONContent[][],
+    type: "text" | "list" = "list",
+  ): JSONContent => ({
+    type: "noteProperty",
+    attrs: { type },
+    content: [
+      { type: "notePropertyName", content: [{ type: "text", text: name }] },
+      ...values.map((inline) => ({ type: "notePropertyValue", content: inline })),
+    ],
+  });
+
+  const doc = (props: JSONContent[]): JSONContent => ({
+    type: "noteDoc",
+    content: [
+      { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
+      ...props,
+      { type: "paragraph" },
+    ],
+  });
+
+  const texts = (row: JSONContent | undefined): string[] =>
+    (row?.content ?? [])
+      .filter((n) => n.type === "notePropertyValue")
+      .map((n) => (n.content ?? []).map((t) => t.text ?? "").join(""));
+
+  it("reduces duplicate tags to the first occurrence", () => {
+    const source = doc([
+      prop("tags", [
+        [{ type: "text", text: "one" }],
+        [{ type: "text", text: "ONE" }],
+        [{ type: "text", text: "two" }],
+      ]),
+    ]);
+    const out = sanitizePropertyValues(source);
+    expect(texts(out.content?.[1])).toEqual(["one", "two"]);
+  });
+
+  it("drops empty values alongside duplicates", () => {
+    const source = doc([
+      prop("tags", [[], [{ type: "text", text: "one" }], []]),
+    ]);
+    const out = sanitizePropertyValues(source);
+    expect(texts(out.content?.[1])).toEqual(["one"]);
+  });
+
+  it("keeps a Text row's single value untouched", () => {
+    const source = doc([prop("status", [[]], "text")]);
+    expect(sanitizePropertyValues(source)).toBe(source);
   });
 });

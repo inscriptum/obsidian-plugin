@@ -529,10 +529,11 @@ export function createPlainNoteDoc(): JSONContent {
 
 /** Ensure a title-page document parses under the title profile (v3, spec
  *  9.1): the title node leads, any legacy `noteSummary` line becomes the
- *  `description` property, at least one content block follows the
- *  properties, and List rows carry no empty values (an empty value is the
- *  editor's draft input, never a committed tag — older builds could
- *  persist it). Pure — returns the same doc when nothing is missing.
+ *  `description` property, the properties sit contiguously after the
+ *  title (blocks a broken build leaked into the cover are relocated
+ *  below them), List rows carry only valid tags (empty draft values and
+ *  duplicates are dropped). Pure — returns the same doc when nothing is
+ *  missing.
  *
  *  This is the legacy-stamping path's counterpart to the v2→v3 migration:
  *  containers whose schema fields were absent are stamped at the current
@@ -556,18 +557,54 @@ function normalizeTitleDoc(doc: JSONContent): {
     content[summaryIndex] = createNoteProperty("description", [inline]);
     changed = true;
   }
+  // The cover is sealed: every block sitting between the title and the
+  // last property row belongs below the properties (a broken build could
+  // leak paragraphs there via Enter in the title).
+  let lastProp = -1;
+  content.forEach((node, i) => {
+    if (node?.type === "noteProperty") lastProp = i;
+  });
+  if (lastProp > 1) {
+    const stray = content.slice(1, lastProp).filter((n) => n?.type !== "noteProperty");
+    if (stray.length > 0) {
+      const kept = content.filter(
+        (n, i) => i === 0 || i >= lastProp || n?.type === "noteProperty",
+      );
+      const insertAt = kept.findIndex((n) => n?.type === "noteProperty");
+      let at = insertAt + 1;
+      while (at < kept.length && kept[at]?.type === "noteProperty") at += 1;
+      kept.splice(at, 0, ...stray);
+      content.length = 0;
+      content.push(...kept);
+      changed = true;
+    }
+  }
   for (let i = 0; i < content.length; i++) {
     const node = content[i];
     if (node?.type !== "noteProperty") continue;
     if ((node.attrs?.type ?? "text") !== "list") continue;
     const children = Array.isArray(node.content) ? node.content : [];
-    const kept = children.filter(
-      (child) =>
-        child?.type !== "notePropertyValue" || (child.content ?? []).length > 0,
-    );
-    if (kept.length === children.length) continue;
-    content[i] = { ...node, content: kept };
-    changed = true;
+    const seen = new Set<string>();
+    const kept: JSONContent[] = [];
+    for (const child of children) {
+      if (child?.type !== "notePropertyValue") {
+        kept.push(child);
+        continue;
+      }
+      const text = (child.content ?? [])
+        .map((t) => (typeof t.text === "string" ? t.text : ""))
+        .join("")
+        .trim()
+        .toLowerCase();
+      if (text.length === 0) continue; // the editor's draft — not a tag
+      if (seen.has(text)) continue; // a duplicate — not a tag
+      seen.add(text);
+      kept.push(child);
+    }
+    if (kept.length !== children.length) {
+      content[i] = { ...node, content: kept };
+      changed = true;
+    }
   }
   const hasContentBlock = content
     .slice(1)

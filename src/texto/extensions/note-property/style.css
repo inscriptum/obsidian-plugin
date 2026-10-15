@@ -297,6 +297,7 @@
   min-height: 0;
   border: none;
   border-radius: 0;
+  background: transparent;
   box-shadow: none;
 }
 
@@ -307,7 +308,6 @@
   height: auto;
   padding: 2px 0;
   color: var(--text-faint);
-  background: transparent;
 }
 
 .note-view-container .note-property-remove,

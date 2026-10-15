@@ -16,5 +16,5 @@ export {
   appendValue,
   acceptSuggestion,
   propertyKeyDown,
-  stripEmptyListValues,
+  sanitizePropertyValues,
 } from "./notePropertyModel";

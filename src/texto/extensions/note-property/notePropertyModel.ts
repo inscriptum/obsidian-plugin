@@ -188,6 +188,98 @@ export function propertyInsertPos(doc: PMNode): number | null {
   return insertPos;
 }
 
+/** Where the cover ends: the position right after the last property row,
+ *  or right after the title when the page has none. The cover is a sealed
+ *  unit — content neither enters it (Enter in the title, Backspace below
+ *  it) nor absorbs its lines (Delete at its edges). */
+export function coverEndPos(doc: PMNode): number | null {
+  let titleEnd: number | null = null;
+  let lastPropEnd: number | null = null;
+  let pos = 0;
+  doc.forEach((child) => {
+    if (child.type.name === "noteTitle") titleEnd = pos + child.nodeSize;
+    else if (child.type.name === "noteProperty") lastPropEnd = pos + child.nodeSize;
+    pos += child.nodeSize;
+  });
+  return lastPropEnd ?? titleEnd;
+}
+
+/** Caret into the first property row's name — where Enter in the title
+ *  goes. The first row is created when the page has none. */
+export function focusFirstPropertyName(
+  state: EditorState,
+  dispatch?: (tr: Transaction) => void,
+): boolean {
+  let firstFrom: number | null = null;
+  let pos = 0;
+  for (let i = 0; i < state.doc.childCount; i++) {
+    const child = state.doc.child(i);
+    if (i > 0 && child.type.name === "noteProperty") {
+      firstFrom = pos;
+      break;
+    }
+    pos += child.nodeSize;
+  }
+  if (firstFrom == null) return insertProperty(state, dispatch);
+  if (dispatch) {
+    const tr = state.tr;
+    tr.setSelection(TextSelection.create(tr.doc, firstFrom + 2));
+    dispatch(tr.scrollIntoView());
+  }
+  return true;
+}
+
+/** Key handling at the cover's boundary: the title and the property rows
+ *  form one sealed unit, so Enter in the title opens the first property
+ *  instead of splitting a content block into the cover, Backspace at the
+ *  top of the first content block does not pull it into the last row, and
+ *  Delete at the title's end or at a row's last value does not merge
+ *  blocks across the boundary. Everything else falls through (false). */
+export function coverBoundaryKeyDown(
+  state: EditorState,
+  key: string,
+  dispatch: (tr: Transaction) => void,
+): boolean {
+  const { selection } = state;
+  if (!selection.empty) return false;
+  const $head = selection.$head;
+  const parent = $head.parent;
+
+  if (parent.type.name === "noteTitle") {
+    if (key === "Enter") return focusFirstPropertyName(state, dispatch);
+    // Forward-delete at the title's end would merge the next block (the
+    // first property row) into the title.
+    if (key === "Delete" && $head.parentOffset === parent.content.size) return true;
+    return false;
+  }
+
+  if (key === "Backspace" && $head.depth === 1) {
+    // The first content position of the block that follows the cover:
+    // Backspace there would join the block into the last row (or the
+    // title). A deeper caret (list items etc.) is not a boundary join.
+    const coverEnd = coverEndPos(state.doc);
+    if (coverEnd != null && selection.from === coverEnd + 1 && $head.parentOffset === 0) {
+      return true;
+    }
+    return false;
+  }
+
+  if (key === "Delete" && $head.depth === 2 && parent.type.name === "notePropertyValue") {
+    // The end of a row's last value: forward-delete there would merge the
+    // next block (the following row or the content) into this one.
+    const propFrom = $head.before(1);
+    const prop = state.doc.nodeAt(propFrom);
+    if (prop == null || prop.type.name !== "noteProperty") return false;
+    const last = prop.lastChild;
+    if (last != null && $head.parent === last && $head.parentOffset === last.content.size) {
+      return true;
+    }
+    return false;
+  }
+
+  return false;
+}
+
 function emptyProperty(schema: EditorState["schema"]): PMNode {
   return schema.nodes.noteProperty.create({ type: "text" }, [
     schema.nodes.notePropertyName.create(),
@@ -439,26 +531,34 @@ export function acceptSuggestion(
 }
 
 /** Storage-boundary shape (9.1): the editor keeps one trailing empty
- *  value in every List row as its draft input, but a draft is not a
- *  committed tag — serialized documents carry only real values. Returns
- *  the doc unchanged (same reference) when there is nothing to strip. */
-export function stripEmptyListValues(doc: JSONContent): JSONContent {
+ *  value in every List row as its draft input, and a value only becomes
+ *  a tag when it is filled and not a duplicate. Serialized documents
+ *  carry committed tags only — empty values are dropped and duplicates
+ *  (trimmed, case-insensitive) are reduced to the first occurrence.
+ *  Text rows are untouched (their single empty value is the still-empty
+ *  field, not a draft). Returns the doc unchanged (same reference) when
+ *  there is nothing to sanitize. */
+export function sanitizePropertyValues(doc: JSONContent): JSONContent {
   if (!Array.isArray(doc.content)) return doc;
   let changed = false;
   const content = doc.content.map((node) => {
     if (node?.type !== "noteProperty") return node;
+    if ((node.attrs?.type ?? "text") !== "list") return node;
     const children = node.content ?? [];
-    const kept = children.filter(
-      (child) =>
-        child?.type !== "notePropertyValue" ||
-        (child.content ?? []).length > 0,
-    );
+    const seen = new Set<string>();
+    const kept = children.filter((child) => {
+      if (child?.type !== "notePropertyValue") return true;
+      const text = (child.content ?? [])
+        .map((t) => (typeof t.text === "string" ? t.text : ""))
+        .join("")
+        .trim()
+        .toLowerCase();
+      if (text.length === 0) return false;
+      if (seen.has(text)) return false;
+      seen.add(text);
+      return true;
+    });
     if (kept.length === children.length) return node;
-    // Never strip a Text row's only value into nothing: an empty Text
-    // value is the row's (still empty) field, not a draft.
-    if ((node.attrs?.type ?? "text") !== "list" && kept.length < 2) {
-      return node;
-    }
     changed = true;
     return { ...node, content: kept };
   });

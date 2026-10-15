@@ -246,6 +246,155 @@ describe("List-row draft lifecycle (appendTransaction)", () => {
   });
 });
 
+function pressKey(editor: Editor, key: string): void {
+  (editor.view.dom as HTMLElement).dispatchEvent(
+    new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
+  );
+}
+
+describe("Cover boundary (title + properties sealed)", () => {
+  function titleDoc(): JSONContent {
+    return {
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
+        {
+          type: "noteProperty",
+          attrs: { type: "text" },
+          content: [
+            { type: "notePropertyName", content: [{ type: "text", text: "status" }] },
+            { type: "notePropertyValue", content: [{ type: "text", text: "draft" }] },
+          ],
+        },
+        { type: "paragraph", content: [{ type: "text", text: "Body" }] },
+      ],
+    };
+  }
+
+  it("Enter in the title opens the first property instead of splitting a block", () => {
+    const { editor, el } = build(titleDoc());
+    editor.commands.setTextSelection(3); // inside the title text
+    const before = editor.state.doc.childCount;
+    pressKey(editor, "Enter");
+    awaitAnimationFrame();
+    expect(editor.state.doc.childCount).toBe(before); // the cover stays sealed
+    expect(editor.state.selection.$head.node(1)?.type.name).toBe("noteProperty");
+    editor.destroy();
+    el.remove();
+  });
+
+  it("Enter in the title creates the first property when none exists", () => {
+    const { editor, el } = build({
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
+        { type: "paragraph", content: [{ type: "text", text: "Body" }] },
+      ],
+    });
+    editor.commands.setTextSelection(3);
+    pressKey(editor, "Enter");
+    awaitAnimationFrame();
+    const types = editor.state.doc.content.content.map((n) => n.type.name);
+    expect(types).toEqual(["noteTitle", "noteProperty", "paragraph"]);
+    expect(editor.state.selection.$head.node(2)?.type.name).toBe("notePropertyName");
+    editor.destroy();
+    el.remove();
+  });
+
+  it("Backspace at the top of the first content block does not join into the cover", () => {
+    const { editor, el } = build(titleDoc());
+    // The paragraph's first content position (after title + row).
+    const titleSize = editor.state.doc.content.child(0).nodeSize;
+    const rowSize = editor.state.doc.content.child(1).nodeSize;
+    editor.commands.setTextSelection(titleSize + rowSize + 1);
+    const jsonBefore = JSON.stringify(editor.getJSON());
+    pressKey(editor, "Backspace");
+    awaitAnimationFrame();
+    expect(JSON.stringify(editor.getJSON())).toBe(jsonBefore);
+    editor.destroy();
+    el.remove();
+  });
+
+  it("Delete at the title's end does not merge the first row into it", () => {
+    const { editor, el } = build(titleDoc());
+    editor.commands.setTextSelection(editor.state.doc.content.child(0).content.size + 1);
+    const jsonBefore = JSON.stringify(editor.getJSON());
+    pressKey(editor, "Delete");
+    awaitAnimationFrame();
+    expect(JSON.stringify(editor.getJSON())).toBe(jsonBefore);
+    editor.destroy();
+    el.remove();
+  });
+
+  it("Delete at the last value's end does not merge the content into the row", () => {
+    const { editor, el } = build(titleDoc());
+    // The end of the row's value content ("draft").
+    const titleSize = editor.state.doc.content.child(0).nodeSize;
+    const row = editor.state.doc.content.child(1);
+    editor.commands.setTextSelection(titleSize + 1 + row.firstChild!.nodeSize + 1 + row.lastChild!.content.size);
+    const jsonBefore = JSON.stringify(editor.getJSON());
+    pressKey(editor, "Delete");
+    awaitAnimationFrame();
+    expect(JSON.stringify(editor.getJSON())).toBe(jsonBefore);
+    editor.destroy();
+    el.remove();
+  });
+});
+
+describe("Tag validity (filled, non-duplicate values only)", () => {
+  it("an erased chip is pruned instead of becoming an empty pill", () => {
+    const { editor, el } = build(tagsRowDoc(["one", "two"]));
+    // Erase the whole "one" chip: select its text and delete it.
+    const row = editor.state.doc.content.child(1);
+    const nameSize = row.firstChild!.nodeSize;
+    const oneFrom = titlePad() + 1 + nameSize + 1;
+    editor.view.dispatch(editor.view.state.tr.delete(oneFrom, oneFrom + 3));
+    awaitAnimationFrame();
+    expect(committedChips(editor).filter((t) => t.length > 0)).toEqual(["two"]);
+    editor.destroy();
+    el.remove();
+  });
+
+  it("a duplicate draft word abandoned mid-row is pruned", () => {
+    const { editor, el } = build(tagsRowDoc(["one"]));
+    focusRow(editor, 0);
+    awaitAnimationFrame();
+    // Enter opens the draft; type a duplicate word there.
+    propertyKeyDown(editor.state, "Enter", null, (tr) => editor.view.dispatch(tr));
+    editor.view.dispatch(editor.view.state.tr.insertText("ONE"));
+    awaitAnimationFrame();
+    // The word being typed grows its own fresh draft after it.
+    expect(valueCount(editor)).toBe(3);
+    // The caret moves to the committed chip: the abandoned duplicate goes.
+    focusRow(editor, 0);
+    awaitAnimationFrame();
+    expect(committedChips(editor).filter((t) => t.length > 0)).toEqual(["one"]);
+    editor.destroy();
+    el.remove();
+  });
+
+  it("the word being typed is not pruned while the caret holds it", () => {
+    const { editor, el } = build(tagsRowDoc(["one"]));
+    focusRow(editor, 0);
+    awaitAnimationFrame();
+    propertyKeyDown(editor.state, "Enter", null, (tr) => editor.view.dispatch(tr));
+    editor.view.dispatch(editor.view.state.tr.insertText("ONE"));
+    awaitAnimationFrame();
+    // The caret still holds the duplicate word — pruning waits.
+    expect(committedChips(editor).filter((t) => t.length > 0)).toEqual([
+      "one",
+      "ONE",
+    ]);
+    editor.destroy();
+    el.remove();
+  });
+});
+
+/** The leading noteTitle node's size in the tag-row test docs. */
+function titlePad(): number {
+  return 1 + "Cover".length + 1;
+}
+
 function awaitAnimationFrame(): void {
   // appendTransaction runs synchronously inside apply; a microtask keeps
   // the test honest about not relying on timers.

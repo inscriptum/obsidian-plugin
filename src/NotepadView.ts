@@ -56,7 +56,7 @@ import { TableBubbleMenuElement } from "./components/bubble-menu-bar/table-bubbl
 import { TableCellsBubbleMenuElement } from "./components/bubble-menu-bar/table-cells-bubble-menu-bar.element";
 import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubble-menu-bar.element";
 import { isMediaNodeSelection } from "./components/bubble-menu-bar/mediaMenuState";
-import { selectionInProperty, stripEmptyListValues } from "./texto/extensions/note-property";
+import { selectionInProperty, sanitizePropertyValues } from "./texto/extensions/note-property";
 import { getTableMenuState } from "./components/bubble-menu-bar/tableMenuState";
 import { moveTargetIndex } from "./notepad/moveTargetIndex";
 import {
@@ -1342,7 +1342,7 @@ export class NotepadView extends FileView {
     if (!this.notepad.note(handle.id)) return;
     // The editors' draft slots (the trailing empty value of every List
     // property row) are editor-side UI — they never reach the storage.
-    const json = stripEmptyListValues(handle.editor.getJSON());
+    const json = sanitizePropertyValues(handle.editor.getJSON());
     const current = this.notepad.noteContent(handle.id);
     if (current != null && JSON.stringify(current) === JSON.stringify(json)) {
       return;

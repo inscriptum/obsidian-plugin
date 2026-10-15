@@ -560,6 +560,37 @@ describe("UmNotepad schema handling", () => {
     ]);
   });
 
+  it("blocks leaked into the cover are relocated below the properties on load", () => {
+    const nb = UmNotepad.empty();
+    const cover = nb.addNote(undefined, "Cover");
+    nb.setNoteContent(cover.id, {
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
+        { type: "paragraph", content: [{ type: "text", text: "leaked" }] },
+        createNoteProperty("status", [[{ type: "text", text: "draft" }]], "text"),
+        createNoteProperty("tags", [[{ type: "text", text: "one" }], [{ type: "text", text: "one" }]], "list"),
+        { type: "paragraph", content: [{ type: "text", text: "body" }] },
+      ],
+    });
+    const reopened = new UmNotepad(nb.data);
+    const content = reopened.noteContent(cover.id)?.content ?? [];
+    expect(content.map((n) => n.type)).toEqual([
+      "noteTitle",
+      "noteProperty",
+      "noteProperty",
+      "paragraph",
+      "paragraph",
+    ]);
+    // The leaked paragraph keeps its text below the sealed cover; the
+    // duplicate tag is reduced to one.
+    expect(
+      content[3]?.content?.map((t) => t.text).join(""),
+    ).toBe("leaked");
+    const tags = content[2]?.content?.filter((n) => n.type === "notePropertyValue");
+    expect(tags).toHaveLength(1);
+  });
+
   it("preserves uninterpretable pages verbatim through a round trip", () => {
     const nb = UmNotepad.empty();
     const first = nb.addNote(undefined, "Cover");

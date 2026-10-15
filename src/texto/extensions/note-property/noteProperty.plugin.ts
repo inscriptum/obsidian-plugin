@@ -6,6 +6,7 @@ import type { EditorView } from "prosemirror-view";
 import { Fragment, type Node as ProseMirrorNode } from "prosemirror-model";
 import {
   acceptSuggestion,
+  coverBoundaryKeyDown,
   insertProperty,
   isPresetName,
   presetType,
@@ -65,6 +66,7 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
         const { selection } = newState;
         const tr = newState.tr;
         let changed = 0;
+        const caretLoc = stateProperty(newState);
         const rows: Array<{ from: number; to: number; node: ProseMirrorNode }> = [];
         const oldRows: ProseMirrorNode[] = [];
         newState.doc.forEach((node, offset) => {
@@ -182,28 +184,43 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
           }
 
           if (isList) {
+            // Tag validity: a value becomes a tag only when it is filled
+            // and not a duplicate of an earlier sibling. Empties (erased
+            // chips) and duplicates (draft words abandoned mid-row) are
+            // pruned — except the value under the caret (the word being
+            // typed) and the trailing empty draft.
+            let pruned = false;
+            for (let vi = values.length - 1; vi >= 0; vi -= 1) {
+              const v = values[vi];
+              if (vi === values.length - 1 && v.text === "") continue;
+              if (
+                caretLoc != null &&
+                caretLoc.propFrom === from &&
+                !caretLoc.inName &&
+                caretLoc.valueIndex === vi
+              ) {
+                continue;
+              }
+              const text = v.text.trim().toLowerCase();
+              const invalid =
+                text.length === 0 ||
+                values.some(
+                  (o, oi) => oi < vi && o.text.trim().toLowerCase() === text,
+                );
+              if (invalid) {
+                tr.delete(v.from - 1, v.from - 1 + v.size);
+                pruned = true;
+                changed += 1;
+              }
+            }
+            if (pruned) continue;
             const last = values[values.length - 1];
             if (focused && !draftAddedHere && !(last != null && last.text === "")) {
               // The row holding the caret always keeps one trailing empty
               // value as its draft input (a chip is only created when a
-              // word is committed with Enter). When the caret leaves, the
-              // empty draft is pruned — a row with no tags at all
-              // serializes zero values.
+              // word is committed with Enter).
               tr.insert(to - 1, newState.schema.nodes.notePropertyValue.create());
               changed += 1;
-            } else if (!focused && last != null && last.text !== "") {
-              // The caret left the row: an empty draft STAYS (pruning it
-              // would shift the content below); only a rejected duplicate
-              // word is pruned — its Enter was rejected, leaving must not
-              // commit it.
-              const name = last.text.trim().toLowerCase();
-              const duplicate =
-                name.length > 0 &&
-                values.slice(0, -1).some((v) => v.text.trim().toLowerCase() === name);
-              if (duplicate) {
-                tr.delete(last.from - 1, last.from - 1 + last.size);
-                changed += 1;
-              }
             }
           } else if (values.length === 0 && !draftAddedHere) {
             tr.insert(to - 1, newState.schema.nodes.notePropertyValue.create());
@@ -253,7 +270,10 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
           if (draft instanceof HTMLElement) {
             event.preventDefault();
             event.stopPropagation();
-            const placed = placeCaretFromPoint(view, event.clientX, event.clientY, row);
+            // The draft is empty — browser hit-testing resolves a click in
+            // it to the neighboring chip's text, so the caret goes to the
+            // clicked element's own content end directly.
+            const placed = placeCaretInValueElement(view, draft);
             if (placed != null) dragAnchorByView.set(view, placed);
             view.focus();
             return true;
@@ -343,6 +363,11 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
             : event.key === "Enter" && event.shiftKey
               ? "Shift-Enter"
               : event.key;
+        // The cover (title + property rows) is sealed: boundary keys are
+        // handled before the row-internal routing.
+        if (coverBoundaryKeyDown(view.state, keyName, (tr) => view.dispatch(tr))) {
+          return true;
+        }
         return propertyKeyDown(
           view.state,
           keyName,
@@ -463,15 +488,11 @@ function buildDecorations(state: EditorState): Decoration[] {
     if (isList) {
       values.forEach((v, index) => {
         const nodeFrom = v.from - 1;
-        // The trailing empty value is always the draft slot; the value
-        // holding the caret is the word being typed — bare until Enter
-        // commits it into a chip.
-        const isDraft =
-          (index === values.length - 1 && v.text === "") ||
-          (focused &&
-            loc != null &&
-            !loc.inName &&
-            loc.valueIndex === index);
+        // The trailing empty value is always the draft slot; it renders
+        // invisible and keeps its place in the layout, so nothing shifts
+        // when the caret enters or leaves the row. Every value with text
+        // is a chip with its own ×, always visible.
+        const isDraft = index === values.length - 1 && v.text === "";
         if (isDraft) {
           decorations.push(
             Decoration.node(nodeFrom, nodeFrom + v.size, { class: "draft" }),
@@ -673,6 +694,23 @@ function valuePosFromPoint(
   if ($pos.depth < 2) return null;
   if ($pos.node(2)?.type?.name !== "notePropertyValue") return null;
   return { pos, $pos };
+}
+
+/** Caret at the end of a specific value element's content (its first
+ *  content position when the value is empty). Null when the element does
+ *  not map into a property value. */
+function placeCaretInValueElement(view: EditorView, el: HTMLElement): number | null {
+  try {
+    const at = view.posAtDOM(el, el.childNodes.length);
+    const $at = view.state.doc.resolve(at);
+    if ($at.depth < 2 || $at.parent.type.name !== "notePropertyValue") return null;
+    view.dispatch(
+      view.state.tr.setSelection(TextSelection.create(view.state.doc, at)).scrollIntoView(),
+    );
+    return at;
+  } catch {
+    return null;
+  }
 }
 
 /** Place the caret for a click inside a locked-name row: exactly at the
