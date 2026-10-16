@@ -54,6 +54,11 @@ const TOOLBAR_ICON_PATHS = {
   /* Pencil + x — used by the mermaid block chrome (edit / cancel). */
   pencil: `<path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4"/><path d="M13.5 6.5l4 4"/>`,
   x: `<path d="M18 6l-12 12"/><path d="M6 6l12 12"/>`,
+  /* Title-page property rows: value-type markers and the add-row button
+     (Lucide shapes: type, tag, plus — MIT). */
+  propText: `<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>`,
+  propTag: `<path d="M4 4h7.172a2 2 0 0 1 1.414.586l8.704 8.704a2.426 2.426 0 0 1 0 3.42l-6.58 6.58a2.426 2.426 0 0 1 -3.42 0L2.586 14.586A2 2 0 0 1 2 13.172V6a2 2 0 0 1 2-2z"/><path d="M7.5 7.5h.01"/>`,
+  propPlus: `<path d="M12 5v14"/><path d="M5 12h14"/>`,
 } as const;
 
 /** Bubble-menu icons — paths from the Bubble-Menu-Prototype, Tabler outline
@@ -147,17 +152,16 @@ ${symbols(TOOLBAR_ICON_PATHS, "inscriptum-tlb", 1.75)}
 ${symbols(BUBBLE_ICON_PATHS, "inscriptum-bb", 1.8)}
 </svg>`;
 
-let installed = false;
 
-/** Inject the shared icon sprite into <body>. Idempotent — safe to call on every load. */
+/** Inject the shared icon sprite into <body>. Idempotent — and reload-safe:
+ *  a plugin reload must REPLACE the previously injected sprite, otherwise a
+ *  build that added icons keeps serving the stale symbol set (the old
+ *  element stays in <body> and every new <use> paints nothing). */
 export function installIconSprite(): void {
-  if (installed || document.getElementById(SPRITE_ID)) {
-    return;
-  }
+  document.getElementById(SPRITE_ID)?.remove();
   const spriteEl = new window.DOMParser().parseFromString(
     spriteSvg,
     "image/svg+xml",
   ).documentElement as unknown as SVGElement;
   document.body.insertBefore(spriteEl, document.body.firstChild);
-  installed = true;
 }

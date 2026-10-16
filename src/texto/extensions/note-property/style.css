@@ -1,0 +1,453 @@
+/* Title-page property rows (spec 9.1, schema family title v3).
+   The row is a two-column layout: the name field on the left (muted, like
+   the header's field labels), the value(s) on the right; a List property
+   flows its values as tag chips. Obsidian-properties look: no card, the
+   only line besides the focused-row underline is the vertical rule that
+   continues the header's field-label rule into the left margin. */
+
+.note-property {
+  --property-name-col: 200px;
+  position: relative;
+  display: grid;
+  /* Fixed name column — rows align with each other and with the header. */
+  grid-template-columns: var(--property-name-col) 1fr;
+  column-gap: 16px;
+  margin: 2px 0;
+  /* Top-aligned, not baseline-aligned: the name field is a scroll
+     container (a long name scrolls inside its column), and scroll
+     containers have no baseline — baseline alignment shifted the field
+     upward and clipped it. The name carries the value's line-height, so
+     the tops align and the baselines with them. */
+  align-items: start;
+  min-height: 1.6em;
+}
+
+.note-property-name {
+  height: 100%;
+  align-content: center;
+  grid-column: 1;
+  grid-row: 1;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small, 13px);
+  font-weight: 400;
+  line-height: inherit;
+  position: relative;
+  white-space: nowrap;
+  /* A long custom name scrolls inside its fixed column (the caret stays
+     visible while typing) and reads as an ellipsis at rest; it never
+     overflows into the value column. */
+  overflow-x: auto;
+  text-overflow: ellipsis;
+  scrollbar-width: none;
+}
+
+.note-property-name::-webkit-scrollbar {
+  display: none;
+}
+
+/* An empty name is not a scroll container: entering the caret into a
+   scroll container makes the browser scroll it to the caret's synthesized
+   (bottom-edge) position — the placeholder scrolled out of view and the
+   caret painted above the field. The text span is also inline here, so
+   the caret shares the placeholder's line instead of dropping to a
+   second one. */
+.note-property-name.empty {
+  overflow: visible;
+}
+
+.note-property-name.empty .note-property-name-text {
+  display: inline;
+}
+
+/* A preset-named row's name is fixed — not a text field anymore. */
+.note-property-name.locked {
+  cursor: default;
+}
+
+.note-property-type-icon {
+  display: inline-flex;
+  vertical-align: -2px;
+  margin-right: 6px;
+  color: var(--text-faint);
+  pointer-events: none;
+}
+
+.note-property-type-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.note-property-value {
+  grid-column: 2;
+  margin: 0;
+  padding: 0;
+  line-height: 1.6;
+}
+
+/* The first value sits on the name's line; further values stack below it
+   in the second column. */
+.note-property-value:first-of-type {
+  grid-row: 1;
+}
+
+.note-property-value + .note-property-value {
+  margin-top: 0;
+}
+
+/* A List property (tags) flows its values as chips, like Obsidian's tags
+   property; the block value nodes stay editable in place. */
+.note-property[data-property-type="list"] {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+
+.note-property[data-property-type="list"] .note-property-name {
+  flex: 0 0 200px;
+  min-width: 0;
+  grid-column: auto;
+  grid-row: auto;
+}
+
+.note-property[data-property-type="list"] .note-property-name-text {
+  min-width: 0;
+}
+
+.note-property[data-property-type="list"] .note-property-value,
+.note-property[data-property-type="list"] .note-property-value:first-of-type {
+  grid-column: auto;
+  grid-row: auto;
+  /* inline-block, not inline-flex: PM's caret hit-testing (posAtCoords)
+     resolves clicks inside flex pills unreliably — a plain inline box
+     keeps clicks, caret placement and text selection native. */
+  display: inline-block;
+  position: relative;
+  width: auto;
+  background: var(--background-secondary, rgba(0, 0, 0, 0.05));
+  border-radius: 12px;
+  /* The right padding reserves the × zone: the cross never sits on the
+     word. */
+  padding: 0 24px 0 10px;
+  margin: 2px 6px 2px 0;
+  min-height: 22px;
+}
+
+/* The draft input: the value under the caret — a bare caret slot (no
+   pill, no ×); the pill appears only when Enter commits the word (the
+   slot stops being the draft). Always present as the trailing empty value
+   of the row (focused or not), so nothing shifts on focus changes. */
+.note-property[data-property-type="list"] .note-property-value.draft {
+  background: transparent;
+  border-radius: 0;
+  padding: 0 4px;
+  margin: 0;
+  min-width: 14px;
+}
+
+/* The chip's ×: absolute in the chip's right zone — never wraps; always
+   visible. */
+.note-property-chip-x {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.note-property-chip-x svg {
+  width: 10px;
+  height: 10px;
+}
+
+.note-property-chip-x:hover {
+  color: var(--text-normal);
+  background: transparent;
+}
+
+/* ── Row chrome (plugin decorations) ── */
+
+/* The row's hover zone extends into the left margin: the grip lives
+   there (outside the row's own box), and without this bridge the pointer
+   would leave the row — and hide the grip — before reaching it. */
+.note-property[data-property-type]:after {
+  content: "";
+  position: absolute;
+  left: -48px;
+  top: 0;
+  bottom: 0;
+  width: 50px;
+}
+
+/* An actively dragged row dims; the drop boundary shows an accent line. */
+.note-property.dragging {
+  opacity: 0.35;
+}
+
+.note-property-drop-line {
+  height: 2px;
+  background: var(--interactive-accent);
+  border-radius: 1px;
+}
+
+/* Grip handle: in the left margin, before the property name and to the
+   left of the cover's vertical rule — revealed when the pointer hovers
+   the row; clicking it opens the row menu (type toggle, delete). */
+.note-property-grip {
+  position: absolute;
+  left: -46px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  padding: 2px 3px;
+  border: none;
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-faint);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.1s ease;
+  z-index: 3;
+}
+
+.note-property-grip svg {
+  width: 10px;
+  height: 14px;
+  fill: currentColor;
+}
+
+.note-property:hover .note-property-grip {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.note-property-grip:hover {
+  color: var(--text-normal);
+  background: var(--background-primary);
+}
+
+/* The row menu (type toggle, delete): a small popup anchored at the grip
+   or the right-click point; lives on document.body, above the app. */
+.note-property-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 170px;
+  padding: 4px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  box-shadow: var(--shadow-s);
+}
+
+.note-property-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small, 13px);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.note-property-menu__item svg {
+  width: 13px;
+  height: 13px;
+  color: var(--text-muted);
+  flex: 0 0 auto;
+}
+
+.note-property-menu__item:hover {
+  background: var(--background-modifier-hover);
+}
+
+.note-property-menu__item.is-danger,
+.note-property-menu__item.is-danger svg {
+  color: var(--text-error);
+}
+
+.note-property-menu__sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--background-modifier-border);
+}
+
+/* "Add property": a quiet text button on its own line after the last
+   property row. The line is part of the layout permanently; the text
+   shows only while the caret is inside the cover zone (is-active) —
+   visibility, not display, so the content below never shifts. */
+.note-property-add {
+  display: block;
+  margin: 0;
+}
+
+.note-property-add__btn {
+  visibility: hidden;
+}
+
+.note-property-add.is-active .note-property-add__btn {
+  visibility: visible;
+}
+
+.note-property-add__btn {
+  display: inline-block;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: var(--text-faint);
+  font-size: var(--font-ui-small, 13px);
+  font-weight: 400;
+  line-height: 1.6;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.note-property-add__btn:hover {
+  color: var(--text-muted);
+  background: transparent;
+}
+
+/* The property fields' placeholders flow INLINE (the generic title-header
+   rule hangs them absolutely): an empty field then has a line box, and the
+   caret at offset 0 actually paints instead of vanishing. */
+.note-property-name.empty:before,
+.note-property-value.empty:before {
+  position: static;
+}
+
+/* ── Name autocomplete popup ── */
+
+.note-property-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 20;
+  min-width: 160px;
+  padding: 4px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  box-shadow: var(--shadow-s);
+}
+
+.note-property-suggestion {
+  display: block;
+  width: 100%;
+  padding: 3px 8px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-normal);
+  font-size: var(--font-ui-small, 13px);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: none;
+}
+
+.note-property-suggestion.is-selected {
+  background: var(--background-modifier-hover);
+}
+
+/* Mobile: the two-column layout needs less room for the name; the margin
+   rule has no margin to hang into on a phone. */
+.is-mobile .note-property {
+  --property-name-col: 120px;
+  grid-template-columns: 120px 1fr;
+  column-gap: 10px;
+}
+
+.is-mobile .note-property-zone-rule {
+  display: none;
+}
+
+.is-mobile .note-property[data-property-type="list"] .note-property-name {
+  flex-basis: 120px;
+}
+
+.is-mobile .note-property-grip {
+  left: auto;
+  right: 2px;
+}
+
+/* Obsidian themes bare `button` elements into gray pills — the property
+   chrome is editor content, not app chrome; keep its own quiet look on
+   both platforms (same trap as rule-bubble-menu-buttons, different
+   generic rule). */
+.note-view-container .note-property-add__btn,
+.notepad-view-container .note-property-add__btn,
+.note-view-container .note-property-grip,
+.notepad-view-container .note-property-grip,
+.note-view-container .note-property-chip-x,
+.notepad-view-container .note-property-chip-x,
+.note-view-container .note-property-suggestion,
+.notepad-view-container .note-property-suggestion {
+  min-height: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.note-view-container .note-property-add__btn,
+.notepad-view-container .note-property-add__btn {
+  display: inline-block;
+  width: auto;
+  height: auto;
+  padding: 2px 0;
+  color: var(--text-faint);
+}
+
+.note-view-container .note-property-grip,
+.notepad-view-container .note-property-grip {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  color: var(--text-faint);
+  background: var(--background-primary);
+}
+
+.note-view-container .note-property-suggestion,
+.notepad-view-container .note-property-suggestion {
+  display: block;
+  width: 100%;
+  border-radius: 4px;
+  color: var(--text-normal);
+  padding: 3px 8px;
+}
+
+/* ── Cover-zone rule (one continuous line) ──
+   While the caret is in the title or any property, a single absolute line
+   spans the title through the last property at the header labels' x — the
+   zone as one rigid unit (the widget measures the live DOM). */
+.notepad-view-container .note-property-zone-rule-anchor {
+  display: block;
+  height: 0;
+}
+
+.notepad-view-container .note-property-zone-rule {
+  position: absolute;
+  width: 0;
+  border-left: 1px solid var(--background-modifier-border);
+  pointer-events: none;
+}

@@ -15,6 +15,8 @@ import {
 } from "./umContainer";
 import { generateUmId } from "./umIds";
 import {
+  currentSchemaVersion,
+  createNoteProperty,
   inferSchemaFields,
   interpretSchema,
   migrateNoteDoc,
@@ -23,7 +25,7 @@ import {
 import {
   UM_SCHEMA_PLAIN,
   UM_SCHEMA_TITLE,
-  UM_SCHEMA_VERSION,
+  UM_SCHEMA_VERSION_PLAIN,
   UmError,
   type UmAssetDescriptor,
   type UmContainerData,
@@ -68,7 +70,8 @@ export class UmNotepad {
         descriptor.schema = inferSchemaFields(descriptor.order).schema;
       }
       if (descriptor.schemaVersion == null) {
-        descriptor.schemaVersion = UM_SCHEMA_VERSION;
+        const current = currentSchemaVersion(descriptor.schema);
+        if (current != null) descriptor.schemaVersion = current;
       }
     }
     for (const [id, doc] of this.data.notes) {
@@ -86,7 +89,10 @@ export class UmNotepad {
     if (state.kind === "unsupported") return;
 
     let prepared = doc;
-    if (state.kind === "openable" && state.version < UM_SCHEMA_VERSION) {
+    if (
+      state.kind === "openable" &&
+      state.version < (currentSchemaVersion(state.family) ?? state.version)
+    ) {
       const migrated = migrateNoteDoc(state.family, state.version, doc);
       if (!migrated.ok) {
         this.migrationFailed.add(id);
@@ -219,7 +225,8 @@ export class UmNotepad {
 
     const isTitlePage = at === 0;
     descriptor.schema = isTitlePage ? UM_SCHEMA_TITLE : UM_SCHEMA_PLAIN;
-    descriptor.schemaVersion = UM_SCHEMA_VERSION;
+    descriptor.schemaVersion =
+      currentSchemaVersion(descriptor.schema) ?? UM_SCHEMA_VERSION_PLAIN;
     this.data.notes.set(
       id,
       isTitlePage ? createTitleNoteDoc(title) : createPlainNoteDoc(),
@@ -281,7 +288,10 @@ export class UmNotepad {
       // A duplicate is never the title page: duplicating order 0 is
       // refused by the view, and the copy lands at order ≥ 1.
       schema: sourceDescriptor.schema ?? UM_SCHEMA_PLAIN,
-      schemaVersion: sourceDescriptor.schemaVersion ?? UM_SCHEMA_VERSION,
+      schemaVersion:
+        sourceDescriptor.schemaVersion ??
+        currentSchemaVersion(sourceDescriptor.schema ?? UM_SCHEMA_PLAIN) ??
+        UM_SCHEMA_VERSION_PLAIN,
       modifiedAt: Date.now(),
     };
 
@@ -495,8 +505,9 @@ export function noteDisplayTitle(
     : noteDocFirstLineTitle(doc);
 }
 
-/** Starter document for a title page: the title/summary header plus an
- *  empty content block (spec 9.1). */
+/** Starter document for a title page: the title header and one empty
+ *  content block (spec 9.1). Properties are not pre-created — the editor
+ *  offers the "Add property" affordance instead. */
 export function createTitleNoteDoc(title = ""): JSONContent {
   return {
     type: "noteDoc",
@@ -505,7 +516,6 @@ export function createTitleNoteDoc(title = ""): JSONContent {
         type: "noteTitle",
         content: title.length > 0 ? [{ type: "text", text: title }] : [],
       },
-      { type: "noteSummary" },
       { type: "paragraph" },
     ],
   };
@@ -517,9 +527,17 @@ export function createPlainNoteDoc(): JSONContent {
   return { type: "noteDoc", content: [{ type: "paragraph" }] };
 }
 
-/** Ensure a title-page document parses under the title profile: the header
- *  (title node + summary) exists and at least one content block follows.
- *  Pure — returns the same doc when nothing is missing. */
+/** Ensure a title-page document parses under the title profile (v3, spec
+ *  9.1): the title node leads, any legacy `noteSummary` line becomes the
+ *  `description` property, the properties sit contiguously after the
+ *  title (blocks a broken build leaked into the cover are relocated
+ *  below them), List rows carry only valid tags (empty draft values and
+ *  duplicates are dropped). Pure — returns the same doc when nothing is
+ *  missing.
+ *
+ *  This is the legacy-stamping path's counterpart to the v2→v3 migration:
+ *  containers whose schema fields were absent are stamped at the current
+ *  version without a migration run, so the shape repair happens here. */
 function normalizeTitleDoc(doc: JSONContent): {
   doc: JSONContent;
   changed: boolean;
@@ -530,11 +548,68 @@ function normalizeTitleDoc(doc: JSONContent): {
     content.unshift({ type: "noteTitle" });
     changed = true;
   }
-  if (content[1]?.type !== "noteSummary") {
-    content.splice(1, 0, { type: "noteSummary" });
+  const summaryIndex = content.findIndex(
+    (node) => node?.type === "noteSummary",
+  );
+  if (summaryIndex !== -1) {
+    const summary = content[summaryIndex];
+    const inline = Array.isArray(summary.content) ? summary.content : [];
+    content[summaryIndex] = createNoteProperty("description", [inline]);
     changed = true;
   }
-  if (content.length === 2) {
+  // The cover is sealed: every block sitting between the title and the
+  // last property row belongs below the properties (a broken build could
+  // leak paragraphs there via Enter in the title).
+  let lastProp = -1;
+  content.forEach((node, i) => {
+    if (node?.type === "noteProperty") lastProp = i;
+  });
+  if (lastProp > 1) {
+    const stray = content.slice(1, lastProp).filter((n) => n?.type !== "noteProperty");
+    if (stray.length > 0) {
+      const kept = content.filter(
+        (n, i) => i === 0 || i >= lastProp || n?.type === "noteProperty",
+      );
+      const insertAt = kept.findIndex((n) => n?.type === "noteProperty");
+      let at = insertAt + 1;
+      while (at < kept.length && kept[at]?.type === "noteProperty") at += 1;
+      kept.splice(at, 0, ...stray);
+      content.length = 0;
+      content.push(...kept);
+      changed = true;
+    }
+  }
+  for (let i = 0; i < content.length; i++) {
+    const node = content[i];
+    if (node?.type !== "noteProperty") continue;
+    if ((node.attrs?.type ?? "text") !== "list") continue;
+    const children = Array.isArray(node.content) ? node.content : [];
+    const seen = new Set<string>();
+    const kept: JSONContent[] = [];
+    for (const child of children) {
+      if (child?.type !== "notePropertyValue") {
+        kept.push(child);
+        continue;
+      }
+      const text = (child.content ?? [])
+        .map((t) => (typeof t.text === "string" ? t.text : ""))
+        .join("")
+        .trim()
+        .toLowerCase();
+      if (text.length === 0) continue; // the editor's draft — not a tag
+      if (seen.has(text)) continue; // a duplicate — not a tag
+      seen.add(text);
+      kept.push(child);
+    }
+    if (kept.length !== children.length) {
+      content[i] = { ...node, content: kept };
+      changed = true;
+    }
+  }
+  const hasContentBlock = content
+    .slice(1)
+    .some((node) => node?.type !== "noteProperty");
+  if (!hasContentBlock) {
     content.push({ type: "paragraph" });
     changed = true;
   }

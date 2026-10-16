@@ -7,19 +7,24 @@ export const UM_VERSION = 1;
 /** The only container type defined by UM 1.0 (6.3). */
 export const UM_TYPE = "notepad";
 
-/** Note schema family of the title page (spec 8.6): mandatory title and
- *  summary header, followed by content blocks (9.1). */
+/** Note schema family of the title page (spec 8.6): title header and
+ *  properties, followed by content blocks (9.1). */
 export const UM_SCHEMA_TITLE = "title";
 /** Note schema family of a regular note (spec 8.6): content blocks only,
  *  a title node is not required (9.2). */
 export const UM_SCHEMA_PLAIN = "plain";
-/** Current version of every schema family this editor reads/writes (8.6.1).
- *  Raised only for breaking changes; additive changes keep the value.
- *  v2: table cells accept an image node — the content-expression shape
- *  changed (editorSchemas.test pins it). v1 documents stay valid; older
- *  editors degrade a v2 page to "unsupported" instead of failing to parse
- *  it (image-in-cell is unparseable for them). */
-export const UM_SCHEMA_VERSION = 2;
+/** Current version of the `title` family this editor reads/writes (8.6.1).
+ *  v2: table cells accept an image node (additive, mirrors the plain
+ *  family's bump). v3: the fixed title+summary header became title +
+ *  properties — a breaking change; v2 documents migrate lazily
+ *  (noteSummary → the `description` property, 8.6.3). */
+export const UM_SCHEMA_VERSION_TITLE = 3;
+/** Current version of the `plain` family (8.6.1). v2: table cells accept
+ *  an image node — the content-expression shape changed
+ *  (editorSchemas.test pins it). v1 documents stay valid; older editors
+ *  degrade a v2 page to "unsupported" instead of failing to parse it
+ *  (image-in-cell is unparseable for them). */
+export const UM_SCHEMA_VERSION_PLAIN = 2;
 /** Manifest entry point inside the archive (section 5). */
 export const MANIFEST_PATH = "manifest.json";
 /** Recommended location of note documents (section 8.2). */

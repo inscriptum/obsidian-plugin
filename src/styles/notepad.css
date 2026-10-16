@@ -676,8 +676,11 @@ button.notepad-section-gutter:hover {
    the title page has no gutter). Real focus is CSS-live via :focus-within,
    so the labels disappear with the caret without decoration churn. */
 
-/* The cover title is larger than an in-content h1 (the blog draft look). */
-.notepad-section.is-title .ProseMirror > h1:first-child {
+/* The cover title is larger than an in-content h1 (the blog draft look).
+   :first-of-type, not :first-child: the cover-zone widget (the margin
+   rule) inserts a span before the h1 while the zone is focused, and the
+   40px size must not depend on the caret. */
+.notepad-section.is-title .ProseMirror > h1:first-of-type {
   font-size: 40px;
   line-height: 1.15;
 }
@@ -694,7 +697,8 @@ button.notepad-section-gutter:hover {
   position: absolute;
   content: attr(data-label);
   color: var(--text-faint);
-  border-right: 1px solid var(--background-modifier-border);
+  /* No border-right here: the zone rule (note-property plugin) draws the
+     single continuous line for the whole cover block. */
   right: 100%;
   top: -6px;
   bottom: -6px;
@@ -731,23 +735,6 @@ button.notepad-section-gutter:hover {
   pointer-events: none;
 }
 
-/* The summary line under the title — the blog draft's role=definition:
-   regular, muted, quiet; the theme's own muted token keeps it correct in
-   both light and dark schemes. */
-.notepad-view-container p[role="definition"] {
-  margin: 10px 0 2px;
-  color: var(--text-muted);
-  font-size: 15px;
-  font-weight: 400;
-  line-height: 1.6;
-  font-style: normal;
-}
-
-.notepad-view-container p[role="definition"] a[href] {
-  color: var(--text-muted);
-  border-bottom: none;
-  border-bottom: 0.1em solid rgba(127, 127, 127, 0.4);
-}
 
 /* ── Unopenable page notice (spec 8.6.2) ── */
 
@@ -1174,7 +1161,7 @@ button.notepad-section-control:focus {
 .notepad-view-container.is-phone
   .notepad-section.is-title
   .ProseMirror
-  > h1:first-child {
+  > h1:first-of-type {
   font-size: 30px;
 }
 

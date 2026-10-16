@@ -3,12 +3,15 @@ import { Decoration, DecorationSet } from "prosemirror-view";
 import type { EditorState } from "prosemirror-state";
 
 /**
- * Decorations for the title-page header (spec 9.1) — a port of the blog
- * draft's TopicDoc plugin. The header is the doc's first two children
- * (noteTitle, noteSummary). While a field is empty it shows its
- * `data-placeholder`; while the caret is inside the header and the field
- * has text it gets the `focused` class, which the stylesheet turns into
- * the blog's field label with the vertical rule to the left of the field.
+ * Decorations for the title-page title node (spec 9.1) — a port of the
+ * blog draft's TopicDoc plugin. While the title is empty it shows its
+ * `data-placeholder`; while the caret is inside it and it has text it
+ * gets the `focused` class, which the stylesheet turns into the blog's
+ * field label with the vertical rule to the left of the field.
+ *
+ * Since title v3 the header is the title node only — the summary line
+ * became properties (spec 9.1); property rows carry their own chrome in
+ * noteProperty.plugin.
  *
  * The label's visibility also requires real editor focus; that part is
  * CSS-live (`.notepad-section-body:focus-within`), so no decoration work
@@ -20,16 +23,23 @@ export function titleHeaderPlugin(): Plugin {
     props: {
       decorations: (state: EditorState) => {
         const { doc, selection } = state;
-        if (doc.content.childCount < 2) return null;
+        if (doc.content.childCount < 1) return null;
 
         const title = doc.content.child(0);
-        const summary = doc.content.child(1);
-        if (title.type.name !== "noteTitle" || summary.type.name !== "noteSummary") {
-          return null;
-        }
+        if (title.type.name !== "noteTitle") return null;
 
-        const headerEnd = title.nodeSize + summary.nodeSize;
-        const inHeader = selection.to <= headerEnd;
+        // The title and the properties form one cover zone: while the
+        // caret is anywhere in it (title or any property row), the title
+        // keeps its field label — the zone reads as a single unit.
+        let zoneFocused = selection.to <= title.nodeSize;
+        let pos = title.nodeSize;
+        for (let i = 1; i < doc.childCount; i += 1) {
+          const child = doc.child(i);
+          if (child.type.name !== "noteProperty") break;
+          pos += child.nodeSize;
+          zoneFocused = true;
+        }
+        if (selection.to > pos) zoneFocused = false;
 
         const decorations: Decoration[] = [];
         if (title.content.size === 0) {
@@ -39,36 +49,12 @@ export function titleHeaderPlugin(): Plugin {
               "data-placeholder": "Title",
             }),
           );
-        } else if (inHeader) {
+        } else if (zoneFocused) {
           decorations.push(
             Decoration.node(0, title.nodeSize, {
               class: "focused",
               "data-label": "Title",
             }),
-          );
-        }
-
-        if (summary.content.size === 0) {
-          decorations.push(
-            Decoration.node(
-              title.nodeSize,
-              title.nodeSize + summary.nodeSize,
-              {
-                class: "empty",
-                "data-placeholder": "Add a short summary",
-              },
-            ),
-          );
-        } else if (inHeader) {
-          decorations.push(
-            Decoration.node(
-              title.nodeSize,
-              title.nodeSize + summary.nodeSize,
-              {
-                class: "focused",
-                "data-label": "Summary",
-              },
-            ),
           );
         }
 

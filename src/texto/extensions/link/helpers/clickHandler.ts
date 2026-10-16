@@ -20,7 +20,7 @@ export function clickHandler(options: ClickHandlerOptions): Plugin {
         // anchor, not the anchor itself — resolve it up the tree.
         const link = (event.target as HTMLElement)?.closest?.(
           "a",
-        ) as HTMLAnchorElement | null;
+        );
 
         if (!link) {
           return false;

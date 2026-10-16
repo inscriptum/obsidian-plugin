@@ -40,6 +40,39 @@ function applyAttrs(el: HTMLElement, attrs?: DomAttrs | string): HTMLElement {
   return el;
 }
 
+
+// jsdom implements no layout: ProseMirror's scrollIntoView resolves
+// positions to nodes and asks them for their client rects. Text nodes,
+// DOM Ranges and elements all need an answer — a single all-zero rect
+// keeps the geometry math happy without a layout engine.
+const zeroRect = () => ({
+  x: 0,
+  y: 0,
+  top: 0,
+  left: 0,
+  bottom: 0,
+  right: 0,
+  width: 0,
+  height: 0,
+  toJSON: () => ({}),
+});
+const ensureRects = (proto: unknown) => {
+  const protoRecord = proto as Record<string, unknown>;
+  if (typeof protoRecord.getClientRects !== "function") {
+    protoRecord.getClientRects = function () {
+      return [zeroRect()];
+    };
+  }
+  if (typeof protoRecord.getBoundingClientRect !== "function") {
+    protoRecord.getBoundingClientRect = function () {
+      return zeroRect();
+    };
+  }
+};
+ensureRects(Element.prototype);
+ensureRects(Text.prototype);
+ensureRects(Range.prototype);
+
 const g = globalThis as Record<string, unknown>;
 
 g.createEl = (tag: string, attrs?: DomAttrs | string) =>

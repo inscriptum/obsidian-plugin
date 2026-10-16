@@ -16,7 +16,7 @@ import { noteDocTitle, createTitleNoteDoc, UmNotepad } from "./umNotepad";
 import {
   FROZEN_MTIME,
   MANIFEST_PATH,
-  UM_SCHEMA_VERSION,
+  UM_SCHEMA_VERSION_PLAIN,
   UmError,
 } from "./umTypes";
 
@@ -613,7 +613,7 @@ describe("size limits (zip-bomb guard)", () => {
     );
     expect(() =>
       parseUmContainer(bomb, { maxInflatedBytes: 1024 * 1024 }),
-    ).toThrowError(UmError);
+    ).toThrow(UmError);
   });
 
   it("parses a normal container under the default limits", () => {
@@ -664,7 +664,7 @@ describe("asset GC vs uninterpretable pages", () => {
     const parsed = parseUmContainer(notepadWithTwoNotes().serialize());
     // A page from a newer editor version: its asset references are shapes
     // this editor cannot read, so it must pin the registry.
-    parsed.manifest.notes[1].schemaVersion = UM_SCHEMA_VERSION + 1;
+    parsed.manifest.notes[1].schemaVersion = UM_SCHEMA_VERSION_PLAIN + 1;
     const nb = withPackedAsset(serializeUmContainer(parsed));
 
     expect(nb.gcAssets()).toBe(0);

@@ -92,13 +92,13 @@ describe("link clickHandler with nested marks", () => {
     const editor = createEditorWithLinks();
     editors.push(editor);
     const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
-    const anchor = editor.view!.dom.querySelector("a");
+    const anchor = editor.view.dom.querySelector("a");
     const target = anchor?.querySelector("u");
     expect(target, "underline mark renders as <u> inside <a>").toBeTruthy();
 
     const handleClick = getLinkClickHandler(editor);
     const handled = handleClick(
-      editor.view as EditorView,
+      editor.view,
       0,
       { button: 0, target } as unknown as MouseEvent,
     );
@@ -111,12 +111,12 @@ describe("link clickHandler with nested marks", () => {
     const editor = createEditorWithLinks();
     editors.push(editor);
     const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
-    const target = editor.view!.dom.querySelector("a strong");
+    const target = editor.view.dom.querySelector("a strong");
     expect(target, "bold mark renders as <strong> inside <a>").toBeTruthy();
 
     const handleClick = getLinkClickHandler(editor);
     const handled = handleClick(
-      editor.view as EditorView,
+      editor.view,
       0,
       { button: 0, target } as unknown as MouseEvent,
     );
@@ -129,12 +129,12 @@ describe("link clickHandler with nested marks", () => {
     const editor = createEditorWithLinks();
     editors.push(editor);
     const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
-    const target = editor.view!.dom.querySelector("a");
+    const target = editor.view.dom.querySelector("a");
     expect(target, "link renders as <a>").toBeTruthy();
 
     const handleClick = getLinkClickHandler(editor);
     const handled = handleClick(
-      editor.view as EditorView,
+      editor.view,
       0,
       { button: 0, target } as unknown as MouseEvent,
     );
@@ -147,11 +147,11 @@ describe("link clickHandler with nested marks", () => {
     const editor = createEditorWithLinks();
     editors.push(editor);
     const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
-    const target = editor.view!.dom.querySelector("p");
+    const target = editor.view.dom.querySelector("p");
 
     const handleClick = getLinkClickHandler(editor);
     const handled = handleClick(
-      editor.view as EditorView,
+      editor.view,
       0,
       { button: 0, target } as unknown as MouseEvent,
     );

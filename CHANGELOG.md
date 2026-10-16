@@ -9,15 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Pictures become a real viewer: click any picture and you get the whole note's pictures as a gallery — flip through with the arrows or keyboard (it wraps around), see "which of how many" you are on, zoom with the wheel, the +/− buttons, a double-click (fit ↔ actual size) or a pinch on touch screens, and drag a zoomed picture around. Switching pictures resets the zoom. Only pictures that actually load take part; diagrams keep their own separate click-to-zoom.
-- Diagrams open fullscreen: click a Mermaid diagram to see it enlarged on a dark backdrop, like pictures already do. The enlarged view closes with Esc, the corner ✕, or a click on the dark area around the diagram — clicking the diagram itself keeps it open. Pictures now close the same way.
-- Published pages get a picture viewer: clicking any picture or diagram on an exported website opens it enlarged on a dark backdrop. It closes with Esc, the corner ✕, or a click on the dark area around it — clicking the picture itself keeps it open — and never fights the contents menu for a keypress.
-- Mermaid diagrams: a "Diagram" button in the toolbar inserts a diagram block that renders as an SVG image in the current theme (and re-renders on light/dark switch). Selecting a diagram opens the media menu with alignment and wrap controls, "Edit diagram" and "Delete". "Edit diagram" opens an inline source editor styled like code blocks (line numbers included) — typing shows live syntax errors, "Save" (or Ctrl/Cmd+Enter) compiles the diagram, "Cancel" (or Esc) discards the draft; the editor stays open until an explicit Save or Cancel, wherever the focus is. Deleting a diagram is undoable. The diagram source is saved with the note and survives reopen, copy/paste and website export; on a published page the diagram is a picture file at its natural size with its alignment kept, so it renders even where scripts are stripped. Diagrams render only when they scroll into view, so large notes open fast.
-- Notepads join "Export as website": the same command and ⋯-menu item that publishes a note now publishes a whole notepad as one page — every page in its order, with the cover's title, summary and picture as the site's meta, and a ☰ contents menu that jumps between pages by their titles. Images are unpacked from the notepad into the site, re-export updates the same folder in place, and the notepad file itself is never touched.
+- Notepad covers get properties: under the title, add any fields you like — a description, tags, status, or any name you type (the editor suggests the common ones). A field holds a line of text or a list of chips — switch from its ⋮⋮ menu — and the old summary line becomes a "description" field on first open, feeding the published page's meta description.
+- Pictures open in a viewer: click any picture to browse the note's pictures as a gallery, zoom with the wheel, buttons, double-click or pinch, and drag a zoomed picture around.
+- Diagrams get the same viewer: click a Mermaid diagram to enlarge it; clicking the diagram itself keeps it open, clicking around closes it.
+- Published sites get the same viewer for pictures and diagrams, without fighting the contents menu for keypresses.
+- Mermaid diagrams: insert them from the toolbar, edit the source with live syntax checks, and they render as theme-aware images. They load only when scrolled into view, so large notes open fast.
+- Notepads join "Export as website": a whole notepad publishes as one page with a ☰ contents menu and the cover as the site's meta.
 
 ### Changed
 
-- Attached files are now links, not silent copies. A file that already lives in the vault is attached as a link to it — no duplicate appears next to the note. A file from outside the vault (desktop) asks once: keep a portable copy next to the note, or link the original where it is (with an honest warning that such a link won't survive moving or syncing the file). On phones the copy is made without questions. Removing an attachment from a note never deletes the file itself.
+- Diagrams look like pictures now: no card or frame in the editor, exactly as on a published page.
+- Attached files are linked, not copied: vault files are referenced in place, outside files (desktop) ask once whether to copy or link, and removing an attachment never deletes the file.
 
 ## [0.10.0] - 2026-10-06
 

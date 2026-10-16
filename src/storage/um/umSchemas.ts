@@ -2,7 +2,8 @@ import type { JSONContent } from "../../texto/core/@types";
 import {
   UM_SCHEMA_PLAIN,
   UM_SCHEMA_TITLE,
-  UM_SCHEMA_VERSION,
+  UM_SCHEMA_VERSION_PLAIN,
+  UM_SCHEMA_VERSION_TITLE,
   type UmNoteDescriptor,
 } from "./umTypes";
 
@@ -34,21 +35,19 @@ export type UmSchemaState =
 
 /** Current version of a schema family; null for unknown families. */
 export function currentSchemaVersion(family: string): number | null {
-  return family === UM_SCHEMA_TITLE || family === UM_SCHEMA_PLAIN
-    ? UM_SCHEMA_VERSION
-    : null;
+  if (family === UM_SCHEMA_TITLE) return UM_SCHEMA_VERSION_TITLE;
+  if (family === UM_SCHEMA_PLAIN) return UM_SCHEMA_VERSION_PLAIN;
+  return null;
 }
 
 /** Legacy inference (8.6.2): fields absent → order 0 is the title page,
- *  every other note is plain; the version is the current one. */
+ *  every other note is plain; the version is the family's current one. */
 export function inferSchemaFields(order: number): {
   schema: string;
   schemaVersion: number;
 } {
-  return {
-    schema: order === 0 ? UM_SCHEMA_TITLE : UM_SCHEMA_PLAIN,
-    schemaVersion: UM_SCHEMA_VERSION,
-  };
+  const schema = order === 0 ? UM_SCHEMA_TITLE : UM_SCHEMA_PLAIN;
+  return { schema, schemaVersion: currentSchemaVersion(schema)! };
 }
 
 /**
@@ -61,7 +60,8 @@ export function interpretSchema(
 ): UmSchemaState {
   // Absent fields are legacy (written before schemas existed): infer.
   const family = descriptor.schema ?? inferSchemaFields(descriptor.order).schema;
-  const version = descriptor.schemaVersion ?? UM_SCHEMA_VERSION;
+  const version =
+    descriptor.schemaVersion ?? currentSchemaVersion(family) ?? 1;
 
   const current = currentSchemaVersion(family);
   if (current == null) {
@@ -92,6 +92,60 @@ const MIGRATIONS: Record<
 // of failing to parse it.
 registerMigration(UM_SCHEMA_TITLE, 1, (doc) => doc);
 registerMigration(UM_SCHEMA_PLAIN, 1, (doc) => doc);
+
+// v2 → v3 (title family only): the fixed title+summary header became
+// title + properties (9.1). The summary line migrates into the
+// `description` property (a Text-valued noteProperty), preserving its
+// inline content verbatim; everything else stays untouched.
+registerMigration(UM_SCHEMA_TITLE, 2, (doc) => titleDocSummaryToProperty(doc));
+
+/** The name of the property the legacy summary line migrates into (9.1).
+ *  The website export reads the meta description from it. */
+export const DESCRIPTION_PROPERTY_NAME = "description";
+
+/** The JSON shape of a title-family property row (9.1): a `noteProperty`
+ *  node holding the name and one `notePropertyValue` per value. `type` is
+ *  "text" (exactly one value) or "list" (one or more values). Each entry
+ *  of `values` is the value's inline content (null = empty value). */
+export function createNoteProperty(
+  name: string,
+  values: Array<JSONContent[] | null> = [null],
+  type: "text" | "list" = "text",
+): JSONContent {
+  return {
+    type: "noteProperty",
+    attrs: { type },
+    content: [
+      {
+        type: "notePropertyName",
+        content: name.length > 0 ? [{ type: "text", text: name }] : [],
+      },
+      ...values.map((inline) => ({
+        type: "notePropertyValue",
+        content: inline ?? [],
+      })),
+    ],
+  };
+}
+
+/** Title v2 → v3: replace the `noteSummary` header line with the
+ *  `description` property at the same position. A document without a
+ *  summary (already v3-shaped, or a degenerate one) passes through
+ *  unchanged. Deterministic JSON→JSON (8.6.3). */
+export function titleDocSummaryToProperty(doc: JSONContent): JSONContent {
+  const content = doc.content;
+  if (!Array.isArray(content)) return doc;
+  const summaryIndex = content.findIndex(
+    (node) => node?.type === "noteSummary",
+  );
+  if (summaryIndex === -1) return doc;
+  const summary = content[summaryIndex];
+  const inline = Array.isArray(summary.content) ? summary.content : [];
+  const replacement = createNoteProperty(DESCRIPTION_PROPERTY_NAME, [inline]);
+  const next = [...content];
+  next[summaryIndex] = replacement;
+  return { ...doc, content: next };
+}
 
 /** Register the v(n) → v(n+1) transform of a family (8.6.3): a
  *  deterministic JSON→JSON migration. Called from version-bump commits. */

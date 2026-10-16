@@ -20,7 +20,6 @@ import {
 import {
   createDocumentSearchPlugin,
   documentSearchKey,
-  findDocumentMatches,
 } from "./search/documentSearch";
 import {
   searchNotepad,
@@ -56,6 +55,7 @@ import { TableBubbleMenuElement } from "./components/bubble-menu-bar/table-bubbl
 import { TableCellsBubbleMenuElement } from "./components/bubble-menu-bar/table-cells-bubble-menu-bar.element";
 import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubble-menu-bar.element";
 import { isMediaNodeSelection } from "./components/bubble-menu-bar/mediaMenuState";
+import { selectionInProperty, sanitizePropertyValues } from "./texto/extensions/note-property";
 import { getTableMenuState } from "./components/bubble-menu-bar/tableMenuState";
 import { moveTargetIndex } from "./notepad/moveTargetIndex";
 import {
@@ -1339,7 +1339,9 @@ export class NotepadView extends FileView {
   private flushSectionToNotepad(handle: SectionHandle): void {
     if (!this.notepad || !handle.editor || handle.editor.isDestroyed) return;
     if (!this.notepad.note(handle.id)) return;
-    const json = handle.editor.getJSON();
+    // The editors' draft slots (the trailing empty value of every List
+    // property row) are editor-side UI — they never reach the storage.
+    const json = sanitizePropertyValues(handle.editor.getJSON());
     const current = this.notepad.noteContent(handle.id);
     if (current != null && JSON.stringify(current) === JSON.stringify(json)) {
       return;
@@ -2501,6 +2503,8 @@ export class NotepadView extends FileView {
           if (!hasFocus || !editor.isEditable || this.isMousePressed)
             return false;
           if (isMediaNodeSelection(state)) return false;
+          // Property fields carry no formatting — the text menu stays away.
+          if (selectionInProperty(state.doc, state.selection)) return false;
           const inTable = isInTable(state);
           // Selected text — the text menu serves it even inside a table.
           if (inTable && !selection.empty && isTextSelection(selection))

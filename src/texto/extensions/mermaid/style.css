@@ -9,15 +9,25 @@
   margin: 0.5em 0;
 }
 
+/* The view face is frameless, exactly like the image node: the SVG sits
+   right on the note background — no border, card or padding (the website
+   export renders diagrams the same way, so WYSIWYG holds). The visible
+   placeholder (hairline frame) is reserved for the transient states that
+   need it: loading and error. */
 .texto-extension-mermaid-host .mermaid-view {
   position: relative;
   display: flex;
   /* horizontal placement follows the align attr (see the layout section) */
   min-height: 48px;
+}
+
+/* Loading/error keep a hairline placeholder so the block never collapses
+   into nothing and the error text stays readable. */
+.texto-extension-mermaid-host.is-loading .mermaid-view,
+.texto-extension-mermaid-host.is-error .mermaid-view {
   padding: 12px;
   border: 1px solid var(--background-modifier-border, #ddd);
   border-radius: 8px;
-  background: var(--background-primary, #fff);
 }
 
 .texto-extension-mermaid-host .mermaid-view__svg svg {
@@ -202,7 +212,9 @@
 /* The static language label + action buttons reuse the code block's own
    styles (.hljs-codeblock__controls/__actions/__btn); nothing to add here. */
 
-/* Selected block outline follows the theme accent (as the image node). */
+/* Selected block: accent box-shadow around the diagram, same token and
+   shape as the image node's selection (no permanent frame). */
 .texto-extension-mermaid-host.ProseMirror-selectednode .mermaid-view {
-  border-color: var(--color-accent, #5a9eff);
+  box-shadow: 0 0 0 2px var(--color-accent, #5a9eff);
+  border-radius: 4px;
 }

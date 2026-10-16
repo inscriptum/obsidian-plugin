@@ -1,12 +1,18 @@
 import { Node } from "../../core";
 import { NoteTitle } from "./NoteTitle";
-import { NoteSummary } from "./NoteSummary";
 import { titleHeaderPlugin } from "./plugins/titleHeader.plugin";
 import { trailingParagraphPlugin } from "./trailingParagraph";
+import {
+  NoteProperty,
+  NotePropertyName,
+  NotePropertyValue,
+  notePropertyPlugin,
+} from "../note-property";
 
 /**
- * Top node of a title-page document (spec 9.1, schema family `title`):
- * the mandatory title + summary header, then regular content blocks.
+ * Top node of a title-page document (spec 9.1, schema family `title`,
+ * version 3): the title, then any number of property rows, then regular
+ * content blocks.
  *
  * The node NAME stays "noteDoc" — the serialized shape of existing
  * containers keeps parsing without migrations; the manifest's
@@ -16,13 +22,17 @@ import { trailingParagraphPlugin } from "./trailingParagraph";
 export const TitleDoc = Node.create({
   name: "noteDoc",
   topNode: true,
-  content: "noteTitle noteSummary (block | attachment | image)+",
+  content: "noteTitle noteProperty* (block | attachment | image)+",
 
   addExtensions() {
-    return [NoteTitle, NoteSummary];
+    return [NoteTitle, NoteProperty, NotePropertyName, NotePropertyValue];
   },
 
   addProseMirrorPlugins() {
-    return [titleHeaderPlugin(), trailingParagraphPlugin()];
+    return [
+      titleHeaderPlugin(),
+      notePropertyPlugin(),
+      trailingParagraphPlugin(),
+    ];
   },
 });

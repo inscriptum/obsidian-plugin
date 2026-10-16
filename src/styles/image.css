@@ -54,9 +54,10 @@
 
   & svg {
     /* A cloned diagram, normalized to its viewBox size by openSvgLightbox —
-       the same max box scales it like a raster image. The frame mirrors the
-       editor's .mermaid-view (themed paper + padding): without it a light
-       diagram's dark strokes sit straight on the dark backdrop. */
+       the same max box scales it like a raster image. The paper card is the
+       lightbox's own: the editor's diagram is frameless now, and without a
+       backdrop a light diagram's dark strokes would sit straight on the
+       dark overlay. */
     max-width: 95vw;
     max-height: 92vh;
     width: auto;
