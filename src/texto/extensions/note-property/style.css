@@ -13,8 +13,13 @@
   grid-template-columns: var(--property-name-col) 1fr;
   column-gap: 16px;
   margin: 2px 0;
-  /* The name and the value share one baseline, as one line of text. */
-  align-items: baseline;
+  /* Top-aligned, not baseline-aligned: the name field is a scroll
+     container (a long name scrolls inside its column), and scroll
+     containers have no baseline — baseline alignment shifted the field
+     upward and clipped it. The name carries the value's line-height, so
+     the tops align and the baselines with them. */
+  align-items: start;
+  min-height: 1.6em;
 }
 
 .note-property-name {
@@ -23,7 +28,7 @@
   color: var(--text-muted);
   font-size: var(--font-ui-small, 13px);
   font-weight: 400;
-  line-height: 1.6;
+  line-height: inherit;
   position: relative;
   white-space: nowrap;
   /* A long custom name scrolls inside its fixed column (the caret stays
@@ -36,6 +41,20 @@
 
 .note-property-name::-webkit-scrollbar {
   display: none;
+}
+
+/* An empty name is not a scroll container: entering the caret into a
+   scroll container makes the browser scroll it to the caret's synthesized
+   (bottom-edge) position — the placeholder scrolled out of view and the
+   caret painted above the field. The text span is also inline here, so
+   the caret shares the placeholder's line instead of dropping to a
+   second one. */
+.note-property-name.empty {
+  overflow: visible;
+}
+
+.note-property-name.empty .note-property-name-text {
+  display: inline;
 }
 
 /* A preset-named row's name is fixed — not a text field anymore. */
@@ -86,6 +105,10 @@
   min-width: 0;
   grid-column: auto;
   grid-row: auto;
+}
+
+.note-property[data-property-type="list"] .note-property-name-text {
+  min-width: 0;
 }
 
 .note-property[data-property-type="list"] .note-property-value,
@@ -162,6 +185,17 @@
   top: 0;
   bottom: 0;
   width: 50px;
+}
+
+/* An actively dragged row dims; the drop boundary shows an accent line. */
+.note-property.dragging {
+  opacity: 0.35;
+}
+
+.note-property-drop-line {
+  height: 2px;
+  background: var(--interactive-accent);
+  border-radius: 1px;
 }
 
 /* Grip handle: in the left margin, before the property name and to the

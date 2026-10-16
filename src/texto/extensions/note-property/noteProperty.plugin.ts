@@ -14,6 +14,7 @@ import {
   propertyKeyDown,
   removeChipAt,
   removeProperty,
+  moveProperty,
   selectionProperty,
   setPropertyType,
   stateProperty,
@@ -43,6 +44,10 @@ interface NotePropertyPluginState {
   /** Esc was pressed with suggestions open — hide them until the caret
    *  leaves the name field. */
   dismissed: boolean;
+  /** An active grip drag: the dragged row and the drop boundary (null
+   *  while the pointer has not passed the drag threshold, or has no
+   *  valid drop target yet). */
+  drag: { propFrom: number; dropPos: number | null } | null;
 }
 
 const key = new PluginKey<NotePropertyPluginState>("noteProperty");
@@ -235,23 +240,26 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
         return changed > 0 ? tr : null;
       },
     state: {
-      init: () => ({ selected: 0, dismissed: false }),
+      init: () => ({ selected: 0, dismissed: false, drag: null }),
       apply(tr, value) {
         const meta = tr.getMeta(key) as
           | Partial<NotePropertyPluginState>
           | undefined;
         let selected = value.selected;
         let dismissed = value.dismissed;
+        let drag = value.drag;
         if (meta != null) {
           if (meta.selected != null) selected = meta.selected;
           if (meta.dismissed != null) dismissed = meta.dismissed;
+          if (meta.drag !== undefined) drag = meta.drag;
         } else if (tr.docChanged || tr.selectionSet) {
           selected = 0;
+          if (tr.docChanged) drag = null;
         }
         // The dismissal only holds while the caret stays in a name field.
         const loc = selectionProperty(tr.doc, tr.selection);
         if (loc == null || !loc.inName) dismissed = false;
-        return { selected, dismissed };
+        return { selected, dismissed, drag };
       },
     },
     props: {
@@ -436,6 +444,28 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
 function buildDecorations(state: EditorState): Decoration[] {
   const decorations: Decoration[] = [];
   const loc = stateProperty(state);
+
+  // An active grip drag: the source row dims, the drop boundary shows an
+  // accent line between the rows.
+  const dragState = key.getState(state)?.drag ?? null;
+  if (dragState) {
+    const dragNode = state.doc.nodeAt(dragState.propFrom);
+    if (dragNode != null && dragNode.type.name === "noteProperty") {
+      decorations.push(
+        Decoration.node(dragState.propFrom, dragState.propFrom + dragNode.nodeSize, {
+          class: "dragging",
+        }),
+      );
+    }
+    if (dragState.dropPos != null) {
+      decorations.push(
+        Decoration.widget(dragState.dropPos, dropLineWidget, {
+          side: 1,
+          key: `dropline:${dragState.dropPos}`,
+        }),
+      );
+    }
+  }
 
   // The cover zone: the title plus all property rows. While the caret is
   // anywhere inside it, the vertical margin rule runs continuously through
@@ -682,10 +712,79 @@ function removeButton(view: EditorView): HTMLElement {
     if (propFrom == null || propFrom < 0) return;
     const node = view.state.doc.nodeAt(propFrom);
     if (node == null || node.type.name !== "noteProperty") return;
-    const rect = button.getBoundingClientRect();
-    openRowMenu(view, propFrom, rect.left, rect.bottom + 4);
+
+    // Press → menu; press + move past the threshold → drag the row to
+    // another position among its siblings.
+    const startX = event.clientX;
+    const startY = event.clientY;
+    let dragging = false;
+    let cancelled = false;
+    let dropPos: number | null = null;
+
+    const setDrag = (drop: number | null) => {
+      view.dispatch(view.state.tr.setMeta(key, { drag: drop == null ? null : { propFrom, dropPos: drop } }));
+    };
+    const onMove = (e: MouseEvent) => {
+      if (!dragging && Math.hypot(e.clientX - startX, e.clientY - startY) < 4) return;
+      dragging = true;
+      // The drop boundary from the pointer's y: the first row whose
+      // midline is below the pointer; past the last row — the end of the
+      // property block.
+      const rowEls = Array.from(view.dom.querySelectorAll<HTMLElement>(":scope > .note-property"));
+      const rects = rowEls.map((el) => el.getBoundingClientRect());
+      let dropIndex = rects.findIndex((r) => e.clientY < r.top + r.height / 2);
+      if (dropIndex === -1) dropIndex = rects.length;
+      // The same position (the row's own bounds) — an invalid drop.
+      let sourceIndex = -1;
+      let boundary: number | null = null;
+      let idx = 0;
+      let pos = 0;
+      let lastPropTo: number | null = null;
+      view.state.doc.forEach((n, off) => {
+        if (n.type.name !== "noteProperty") return;
+        if (off === propFrom) sourceIndex = idx;
+        if (idx === dropIndex) boundary = pos;
+        lastPropTo = off + n.nodeSize;
+        idx += 1;
+        pos = off + n.nodeSize;
+      });
+      if (dropIndex >= rects.length) boundary = lastPropTo;
+      dropPos = sourceIndex >= 0 && (dropIndex === sourceIndex || dropIndex === sourceIndex + 1) ? null : boundary;
+      setDrag(dropPos);
+    };
+    const onCancel = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      cancelled = true;
+      setDrag(null);
+    };
+    const onUp = () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      document.removeEventListener("keydown", onCancel, true);
+      if (dragging) {
+        setDrag(null);
+        if (!cancelled && dropPos != null) {
+          moveProperty(view.state, (tr) => view.dispatch(tr), propFrom, dropPos);
+          view.focus();
+          return;
+        }
+      }
+      // A click without a drag: the row menu.
+      const rect = button.getBoundingClientRect();
+      openRowMenu(view, propFrom, rect.left, rect.bottom + 4);
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    document.addEventListener("keydown", onCancel, true);
   });
   return button;
+}
+
+/** The drop indicator: a horizontal accent line between the rows. */
+function dropLineWidget(): HTMLElement {
+  const el = document.createElement("div");
+  el.className = "note-property-drop-line";
+  return el;
 }
 
 /** The grip dots (⋮⋮): six theme-colored points, no sprite entry needed. */

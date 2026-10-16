@@ -230,6 +230,29 @@ export function focusFirstPropertyName(
 }
 
 /** Switch a custom property row between a single text line and a list
+/** Move a property row to another position among its siblings (the grip
+ *  handle's drag). `toPos` is the drop boundary measured on the CURRENT
+ *  document — the position the row should occupy afterwards; it is mapped
+ *  through the deletion of the row itself, so both directions (up and
+ *  down) land correctly. No-op when the row or the drop target is
+ *  missing. */
+export function moveProperty(
+  state: EditorState,
+  dispatch: ((tr: Transaction) => void) | undefined,
+  propFrom: number,
+  toPos: number,
+): boolean {
+  const prop = state.doc.nodeAt(propFrom);
+  if (prop == null || prop.type.name !== "noteProperty") return false;
+  const size = prop.nodeSize;
+  const tr = state.tr.delete(propFrom, propFrom + size);
+  const insertPos = tr.mapping.map(toPos);
+  tr.insert(Math.max(1, Math.min(insertPos, tr.doc.content.size - 1)), prop);
+  if (dispatch) dispatch(tr.scrollIntoView());
+  return true;
+}
+
+/** Switch a custom property row between a single text line and a list
  *  (the row menu's type toggle). Preset-named rows are locked to their
  *  preset's type. Text→List keeps the value; List→Text merges every
  *  value into the first one, joined with ", " (nothing is lost — the

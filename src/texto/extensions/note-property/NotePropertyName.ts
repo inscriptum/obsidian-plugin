@@ -21,10 +21,13 @@ export const NotePropertyName = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
+    // The text lives in an inner span: the truncation/scroll styles sit on
+    // the span, and the empty-field caret shares the placeholder's line
+    // (see style.css .note-property-name.empty).
     return [
       "div",
       mergeAttributes(HTMLAttributes, { class: "note-property-name" }),
-      0,
+      ["span", { class: "note-property-name-text" }, 0],
     ];
   },
 });

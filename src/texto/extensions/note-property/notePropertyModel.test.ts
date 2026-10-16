@@ -11,6 +11,7 @@ import {
   isPresetName,
   presetType,
   propertyInsertPos,
+  moveProperty,
   removeProperty,
   propertyKeyDown,
   selectionProperty,
@@ -564,5 +565,70 @@ describe("sanitizePropertyValues (tag validity at the storage boundary)", () => 
   it("keeps a Text row's single value untouched", () => {
     const source = doc([prop("status", [[]], "text")]);
     expect(sanitizePropertyValues(source)).toBe(source);
+  });
+});
+
+describe("moveProperty (the grip drag)", () => {
+  const prop = (name: string, values: JSONContent[]): JSONContent => ({
+    type: "noteProperty",
+    attrs: { type: "text" },
+    content: [
+      { type: "notePropertyName", content: [{ type: "text", text: name }] },
+      { type: "notePropertyValue", content: values },
+    ],
+  });
+
+  const doc3 = () => ({
+    type: "noteDoc" as const,
+    content: [
+      { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
+      prop("alpha", [{ type: "text", text: "1" }]),
+      prop("beta", [{ type: "text", text: "2" }]),
+      prop("gamma", [{ type: "text", text: "3" }]),
+      { type: "paragraph" },
+    ],
+  });
+
+  function baseState() {
+    return EditorState.create({ doc: schema.nodeFromJSON(doc3()) });
+  }
+
+  function names(state: EditorState): string[] {
+    const out: string[] = [];
+    state.doc.forEach((n) => {
+      if (n.type.name === "noteProperty") out.push(n.firstChild?.textContent ?? "");
+    });
+    return out;
+  }
+
+  function offsets(state: EditorState): number[] {
+    const out: number[] = [];
+    state.doc.forEach((n, off) => {
+      if (n.type.name === "noteProperty") out.push(off);
+    });
+    return out;
+  }
+
+  it("moves a middle row to the top with its value intact", () => {
+    const state = baseState();
+    const offs = offsets(state);
+    const applied: { state: EditorState | null } = { state: null };
+    moveProperty(state, (tr) => { applied.state = state.apply(tr); }, offs[2], offs[0]);
+    expect(names(applied.state!)).toEqual(["gamma", "alpha", "beta"]);
+    const gamma = applied.state!.doc.content.child(1); // the first property after the title
+    expect(gamma.lastChild?.textContent).toBe("3");
+  });
+
+  it("moves the first row to the end", () => {
+    const state = baseState();
+    const offs = offsets(state);
+    const applied: { state: EditorState | null } = { state: null };
+    moveProperty(state, (tr) => { applied.state = state.apply(tr); }, offs[0], offs[2] + state.doc.nodeAt(offs[2])!.nodeSize);
+    expect(names(applied.state!)).toEqual(["beta", "gamma", "alpha"]);
+  });
+
+  it("reports false for a position without a property row", () => {
+    const state = baseState();
+    expect(moveProperty(state, undefined, 1, 5)).toBe(false);
   });
 });

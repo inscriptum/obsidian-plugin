@@ -504,6 +504,7 @@ describe("PR review fixes (round 17)", () => {
     awaitAnimationFrame();
     const grip = el.querySelector(".note-property-grip")!;
     grip.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    grip.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
     awaitAnimationFrame();
     const menu = document.body.querySelector(".note-property-menu");
     expect(menu).toBeTruthy();
@@ -554,6 +555,7 @@ describe("PR review fixes (round 17)", () => {
     });
     const grip = el.querySelector(".note-property-grip")!;
     grip.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    grip.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
     awaitAnimationFrame();
     const typeItem = [...document.body.querySelectorAll(".note-property-menu__item")].find(
       (b) => b.textContent === "List",
@@ -566,6 +568,7 @@ describe("PR review fixes (round 17)", () => {
     // back to text: the single value is kept
     const grip2 = el.querySelector(".note-property-grip")!;
     grip2.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    grip2.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true }));
     awaitAnimationFrame();
     const textItem = [...document.body.querySelectorAll(".note-property-menu__item")].find(
       (b) => b.textContent?.startsWith("Text"),
