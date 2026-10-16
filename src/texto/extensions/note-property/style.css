@@ -23,6 +23,8 @@
 }
 
 .note-property-name {
+  height: 100%;
+  align-content: center;
   grid-column: 1;
   grid-row: 1;
   color: var(--text-muted);
