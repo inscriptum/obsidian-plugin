@@ -846,33 +846,39 @@ function selectWordAtPoint(view: EditorView, x: number, y: number): void {
 }
 
 /** The continuous left margin rule of the cover zone: one absolute line
- *  spanning the title's top through the last property's bottom, measured
- *  from the live DOM (the widget re-renders whenever the decorations
- *  rebuild, so the geometry tracks document edits). */
+ *  spanning the title's top through the add-property line, measured from
+ *  the live DOM. The measurement runs in the next animation frame: at
+ *  widget-creation time the DOM may still carry the pre-transaction
+ *  layout (a just-deleted row would leave the line too long, drawn over
+ *  the body text). */
 function zoneRuleWidget(view: import("prosemirror-view").EditorView, zoneEnd: number): HTMLElement {
   const anchor = document.createElement("span");
   anchor.className = "note-property-zone-rule-anchor";
-  try {
-    const pmRect = view.dom.getBoundingClientRect();
-    const titleEl = view.dom.querySelector(":scope > h1");
-    const rows = view.dom.querySelectorAll(":scope > .note-property");
-    const lastRow = rows[rows.length - 1];
-    // The rule reaches past the "+" button, so the whole cover (title,
-    // rows, the add affordance) reads as one block.
-    const addEl = view.dom.querySelector(":scope > .note-property-add");
-    if (titleEl != null && lastRow != null) {
-      const top = titleEl.getBoundingClientRect();
-      const bottom = (addEl ?? lastRow).getBoundingClientRect();
-      const line = document.createElement("div");
-      line.className = "note-property-zone-rule";
-      line.style.left = `${Math.round(top.left - pmRect.left - 21)}px`;
-      line.style.top = `${Math.round(top.top - pmRect.top - 8)}px`;
-      line.style.height = `${Math.round(bottom.bottom - top.top + 14)}px`;
-      anchor.appendChild(line);
+  const measure = () => {
+    if (!anchor.isConnected) return; // the widget was replaced meanwhile
+    try {
+      const pmRect = view.dom.getBoundingClientRect();
+      const titleEl = view.dom.querySelector(":scope > h1");
+      const rows = view.dom.querySelectorAll(":scope > .note-property");
+      const lastRow = rows[rows.length - 1];
+      // The rule reaches past the "+" line, so the whole cover (title,
+      // rows, the add affordance) reads as one block.
+      const addEl = view.dom.querySelector(":scope > .note-property-add");
+      if (titleEl != null && lastRow != null) {
+        const top = titleEl.getBoundingClientRect();
+        const bottom = (addEl ?? lastRow).getBoundingClientRect();
+        const line = document.createElement("div");
+        line.className = "note-property-zone-rule";
+        line.style.left = `${Math.round(top.left - pmRect.left - 21)}px`;
+        line.style.top = `${Math.round(top.top - pmRect.top - 8)}px`;
+        line.style.height = `${Math.round(bottom.bottom - top.top + 14)}px`;
+        anchor.replaceChildren(line);
+      }
+    } catch {
+      // measurement is best-effort: an empty anchor renders nothing
     }
-  } catch {
-    // measurement is best-effort: an empty anchor renders nothing
-  }
+  };
+  requestAnimationFrame(measure);
   void zoneEnd;
   return anchor;
 }

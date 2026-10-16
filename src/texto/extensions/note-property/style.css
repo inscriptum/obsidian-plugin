@@ -24,11 +24,18 @@
   font-size: var(--font-ui-small, 13px);
   font-weight: 400;
   line-height: 1.6;
-  /* Anchor for the suggestion popup. No overflow clipping: an empty name
-     field must be able to paint its caret (a clipped empty inline box
-     reports an unrendered position and the caret disappears). */
   position: relative;
   white-space: nowrap;
+  /* A long custom name scrolls inside its fixed column (the caret stays
+     visible while typing) and reads as an ellipsis at rest; it never
+     overflows into the value column. */
+  overflow-x: auto;
+  text-overflow: ellipsis;
+  scrollbar-width: none;
+}
+
+.note-property-name::-webkit-scrollbar {
+  display: none;
 }
 
 /* A preset-named row's name is fixed — not a text field anymore. */
@@ -76,6 +83,7 @@
 
 .note-property[data-property-type="list"] .note-property-name {
   flex: 0 0 200px;
+  min-width: 0;
   grid-column: auto;
   grid-row: auto;
 }
@@ -150,7 +158,7 @@
    the chip's own ×). */
 .note-property-remove {
   position: absolute;
-  right: 4px;
+  left: -46px;
   top: 50%;
   transform: translateY(-50%);
   width: 20px;
@@ -279,6 +287,7 @@
 }
 
 .is-mobile .note-property-remove {
+  left: auto;
   right: 2px;
 }
 
