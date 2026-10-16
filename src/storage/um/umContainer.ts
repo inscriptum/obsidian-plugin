@@ -185,7 +185,7 @@ export function parseUmContainer(
   }
 
   const loadedPaths = new Map<string, JSONContent>();
-  for (const descriptor of manifest.notes as UmNoteDescriptor[]) {
+  for (const descriptor of manifest.notes) {
     let doc = loadedPaths.get(descriptor.path);
     if (doc === undefined) {
       const noteBytes = files[descriptor.path];

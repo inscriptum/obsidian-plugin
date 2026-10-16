@@ -78,8 +78,8 @@ export function getExportExtensions(): Extensions {
     NotePropertyValue.extend({
       // RenderSpec 0 (a hole) — PM types don't allow it, runtime does.
       renderHTML({ node }: { node: import("prosemirror-model").Node }): DOMOutputSpec {
-        if (node.childCount === 0) return document.createElement("span");
-        return this.parent!({ node, HTMLAttributes: {} }) as DOMOutputSpec;
+        if (node.childCount === 0) return createSpan();
+        return this.parent!({ node, HTMLAttributes: {} });
       },
     }),
     Link,

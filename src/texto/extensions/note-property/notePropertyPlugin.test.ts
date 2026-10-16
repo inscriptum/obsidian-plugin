@@ -33,7 +33,7 @@ function tagsRowDoc(values: string[]): JSONContent {
 }
 
 function build(content: JSONContent): { editor: Editor; el: HTMLElement } {
-  const el = document.createElement("div");
+  const el = createDiv();
   document.body.appendChild(el);
   const editor = new Editor({
     element: el,
@@ -247,7 +247,7 @@ describe("List-row draft lifecycle (appendTransaction)", () => {
 });
 
 function pressKey(editor: Editor, key: string): void {
-  (editor.view.dom as HTMLElement).dispatchEvent(
+  (editor.view.dom).dispatchEvent(
     new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }),
   );
 }

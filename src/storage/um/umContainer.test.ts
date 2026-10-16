@@ -613,7 +613,7 @@ describe("size limits (zip-bomb guard)", () => {
     );
     expect(() =>
       parseUmContainer(bomb, { maxInflatedBytes: 1024 * 1024 }),
-    ).toThrowError(UmError);
+    ).toThrow(UmError);
   });
 
   it("parses a normal container under the default limits", () => {

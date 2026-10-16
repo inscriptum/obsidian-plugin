@@ -515,7 +515,7 @@ export class NoteView extends FileView {
             // state PM has already focused itself on mousedown by the time
             // this runs, so this is a no-op outside the broken state.
             this.registerDomEvent(editorEl, "pointerdown", (event) => {
-              const pe = event as PointerEvent;
+              const pe = event;
               this.lastEditorPointer = {
                 x: pe.clientX,
                 y: pe.clientY,
@@ -542,8 +542,8 @@ export class NoteView extends FileView {
               const isTap =
                 start != null &&
                 Math.hypot(
-                  (event as PointerEvent).clientX - start.x,
-                  (event as PointerEvent).clientY - start.y,
+                  (event).clientX - start.x,
+                  (event).clientY - start.y,
                 ) < 12 &&
                 Date.now() - start.t < 600;
               if (isTap && !editor.view.hasFocus()) {

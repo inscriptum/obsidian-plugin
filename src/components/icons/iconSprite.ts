@@ -152,7 +152,6 @@ ${symbols(TOOLBAR_ICON_PATHS, "inscriptum-tlb", 1.75)}
 ${symbols(BUBBLE_ICON_PATHS, "inscriptum-bb", 1.8)}
 </svg>`;
 
-let installed = false;
 
 /** Inject the shared icon sprite into <body>. Idempotent — and reload-safe:
  *  a plugin reload must REPLACE the previously injected sprite, otherwise a
@@ -165,5 +164,4 @@ export function installIconSprite(): void {
     "image/svg+xml",
   ).documentElement as unknown as SVGElement;
   document.body.insertBefore(spriteEl, document.body.firstChild);
-  installed = true;
 }

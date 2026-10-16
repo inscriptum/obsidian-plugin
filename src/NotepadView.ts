@@ -20,7 +20,6 @@ import {
 import {
   createDocumentSearchPlugin,
   documentSearchKey,
-  findDocumentMatches,
 } from "./search/documentSearch";
 import {
   searchNotepad,

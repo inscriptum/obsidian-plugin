@@ -68,7 +68,7 @@ function applied(
 ): EditorState {
   const out: EditorState[] = [];
   run((tr) => out.push(base.apply(tr)));
-  return out[0]!;
+  return out[0];
 }
 
 /** Property geometry in a built doc: content-start positions. */

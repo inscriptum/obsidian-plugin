@@ -285,7 +285,7 @@ export async function exportNotepadAsWebsite(
       // exactly (same policy as umVault's writes).
       await app.vault.adapter.writeBinary(
         `${imagesFolder}/${name}`,
-        bytes.slice().buffer as ArrayBuffer,
+        bytes.slice().buffer,
       );
     }
     for (const diagram of diagrams) {

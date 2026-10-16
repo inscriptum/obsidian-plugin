@@ -36,7 +36,7 @@ export async function createUmFile(
 ): Promise<TFile> {
   const bytes = notepad.serialize();
   const tfile = await vault.createBinary(path, bufferFrom(bytes));
-  return tfile as TFile;
+  return tfile;
 }
 
 /** Atomically persist the notepad and update its saved-state fingerprint. */
@@ -157,5 +157,5 @@ function getNodeFs(): typeof import("node:fs") | null {
 
 function bufferFrom(bytes: Uint8Array): ArrayBuffer {
   // Uint8Array.prototype.buffer may be larger than the view — copy exactly.
-  return bytes.slice().buffer as ArrayBuffer;
+  return bytes.slice().buffer;
 }
