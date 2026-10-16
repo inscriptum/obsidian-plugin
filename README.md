@@ -22,17 +22,20 @@ The Obsidian plugin brings Inscriptum to your Obsidian vault, allowing you to us
 
 * WYSIWYG rich text editing
 * Notepads (`.um`): many pages in one file, with a cover page, a pages drawer and notebook-wide search
+* Cover properties: add fields (description, tags, status, any name) to a notepad's cover, as text or lists
 * Headings and structured documents, with foldable sections
 * Todo lists and regular lists, including nested subtasks
 * Blockquotes
 * Tables: cell selection, cell fill, Word-style borders and images inside cells
-* Images: resizing, text wrap layouts and click-to-zoom
+* Images: resizing, text wrap layouts, and a gallery viewer with zoom and pan
+* Mermaid diagrams: insert from the toolbar, edit the source with live syntax checks, render as theme-aware images
 * Links and automatic URL/email linking
+* Attachments: link vault files in place or copy them into the note
 * Code blocks with syntax highlighting
 * Switchable syntax highlighting themes
 * Bubble menu for quick formatting
 * In-note search
-* Export a note as a self-contained static website
+* Export a note — or a whole notepad — as a self-contained static website
 * Works on desktop, phones and tablets
 
 ## Local-first
