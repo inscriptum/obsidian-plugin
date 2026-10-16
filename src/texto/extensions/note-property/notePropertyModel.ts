@@ -229,6 +229,53 @@ export function focusFirstPropertyName(
   return true;
 }
 
+/** Switch a custom property row between a single text line and a list
+ *  (the row menu's type toggle). Preset-named rows are locked to their
+ *  preset's type. Text→List keeps the value; List→Text merges every
+ *  value into the first one, joined with ", " (nothing is lost — the
+ *  caret maps through). */
+export function setPropertyType(
+  state: EditorState,
+  dispatch: ((tr: Transaction) => void) | undefined,
+  propFrom: number,
+  type: "text" | "list",
+): boolean {
+  const prop = state.doc.nodeAt(propFrom);
+  if (prop == null || prop.type.name !== "noteProperty") return false;
+  if (isPresetName(prop.firstChild?.textContent ?? "")) return false;
+  if ((prop.attrs.type ?? "text") === type) return true;
+  const tr = state.tr.setNodeAttribute(propFrom, "type", type);
+  if (type === "text") {
+    const values: Array<{ from: number; size: number; text: string }> = [];
+    let pos = propFrom + 1;
+    prop.forEach((child, offset) => {
+      if (offset > 0) {
+        values.push({ from: pos + 1, size: child.nodeSize, text: child.textContent });
+      }
+      pos += child.nodeSize;
+    });
+    if (values.length > 1) {
+      const merged = values
+        .map((v) => v.text.trim())
+        .filter((t) => t.length > 0)
+        .join(", ");
+      const regionFrom = values[0].from - 1;
+      const last = values[values.length - 1];
+      const regionTo = last.from - 1 + last.size;
+      tr.replaceWith(
+        regionFrom,
+        regionTo,
+        state.schema.nodes.notePropertyValue.create(
+          {},
+          merged.length > 0 ? state.schema.text(merged) : undefined,
+        ),
+      );
+    }
+  }
+  if (dispatch) dispatch(tr.scrollIntoView());
+  return true;
+}
+
 /** Key handling at the cover's boundary: the title and the property rows
  *  form one sealed unit, so Enter in the title opens the first property
  *  instead of splitting a content block into the cover, Backspace at the

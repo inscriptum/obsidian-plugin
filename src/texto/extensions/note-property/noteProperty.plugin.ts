@@ -15,6 +15,7 @@ import {
   removeChipAt,
   removeProperty,
   selectionProperty,
+  setPropertyType,
   stateProperty,
   suggestionItems,
 } from "./notePropertyModel";
@@ -23,8 +24,9 @@ import {
  * UI affordances of the title-page property rows (spec 9.1):
  *  - placeholders ("Property name" / "Empty") on the focused row, the same
  *    data-placeholder mechanism the title header uses;
- *  - the row's remove (trash) button at the row's right end, revealed on
- *    row hover;
+ *  - the row's grip handle in the left margin (revealed on row hover):
+ *    it opens the row menu — the type toggle for custom rows and the
+ *    delete action; the same menu opens on right-click over a row;
  *  - the "Add property" affordance: one quiet line after the last row;
  *  - the name autocomplete: preset names filtered by the typed prefix,
  *    cycled with the arrow keys, accepted with Enter/Tab or a click,
@@ -62,7 +64,10 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
       //  - a Text row always keeps exactly one value.
       // Processed back-to-front so earlier offsets stay valid; idempotent
       // (a maintenance pass finds nothing to change and terminates).
-      appendTransaction: (_transactions, _oldState, newState) => {
+      appendTransaction: (transactions, _oldState, newState) => {
+        if (transactions.some((t) => t.docChanged) && rowMenu && rowMenu.view.state === newState) {
+          closeRowMenu();
+        }
         const { selection } = newState;
         const tr = newState.tr;
         let changed = 0;
@@ -321,6 +326,23 @@ export function notePropertyPlugin(): Plugin<NotePropertyPluginState> {
           dragAnchorByView.delete(view);
           return false;
         },
+        contextmenu: (view: EditorView, event: MouseEvent) => {
+          const target = event.target as HTMLElement | null;
+          const row = target?.closest?.(".note-property");
+          if (!(row instanceof HTMLElement)) return false;
+          event.preventDefault();
+          event.stopPropagation();
+          let propFrom: number | null = null;
+          try {
+            propFrom = view.posAtDOM(row, 0) - 1;
+          } catch {
+            return true;
+          }
+          const node = propFrom != null ? view.state.doc.nodeAt(propFrom) : null;
+          if (node == null || node.type.name !== "noteProperty") return true;
+          openRowMenu(view, propFrom, event.clientX, event.clientY);
+          return true;
+        },
         dblclick: (view: EditorView, event: MouseEvent) => {
           const target = event.target as HTMLElement | null;
           if (!target?.closest?.(".note-property-value")) return false;
@@ -502,13 +524,13 @@ function buildDecorations(state: EditorState): Decoration[] {
       }
     }
 
-    // The row's trash renders on every List row (revealed by CSS on row
-    // hover — no caret needed). The bounds are resolved at click time.
+    // The row's grip renders on every row (revealed by CSS on row hover —
+    // no caret needed); clicking it opens the row menu.
     decorations.push(
       Decoration.widget(
         from + 1,
         (view) => removeButton(view),
-        { side: -1, key: `remove:${from}` },
+        { side: -1, key: `grip:${from}` },
       ),
     );
 
@@ -641,15 +663,14 @@ function chipRemoveButton(
 function removeButton(view: EditorView): HTMLElement {
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "note-property-remove";
-  button.setAttribute("aria-label", "Remove property");
-  button.appendChild(spriteIcon("trash"));
+  button.className = "note-property-grip";
+  button.setAttribute("aria-label", "Property actions");
+  button.appendChild(gripDots());
   button.addEventListener("mousedown", (event) => {
     event.preventDefault();
     event.stopPropagation();
     // The row's bounds are resolved at click time: the widget can outlive
-    // the row's geometry (edits above shift every position, edits inside
-    // change its size), and a stale range would delete into a neighbor.
+    // the row's geometry (edits above shift every position).
     const row = button.closest(".note-property");
     if (!(row instanceof HTMLElement)) return;
     let propFrom: number | null = null;
@@ -661,12 +682,119 @@ function removeButton(view: EditorView): HTMLElement {
     if (propFrom == null || propFrom < 0) return;
     const node = view.state.doc.nodeAt(propFrom);
     if (node == null || node.type.name !== "noteProperty") return;
+    const rect = button.getBoundingClientRect();
+    openRowMenu(view, propFrom, rect.left, rect.bottom + 4);
+  });
+  return button;
+}
+
+/** The grip dots (⋮⋮): six theme-colored points, no sprite entry needed. */
+function gripDots(): SVGSVGElement {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 12 16");
+  svg.setAttribute("aria-hidden", "true");
+  for (const [cx, cy] of [
+    [4, 3],
+    [8, 3],
+    [4, 8],
+    [8, 8],
+    [4, 13],
+    [8, 13],
+  ]) {
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("cx", String(cx));
+    dot.setAttribute("cy", String(cy));
+    dot.setAttribute("r", "1.3");
+    svg.appendChild(dot);
+  }
+  return svg;
+}
+
+/** The row menu singleton: one menu per renderer; any open menu closes
+ *  when another opens, when a click lands outside it, on Escape, or when
+ *  the editor's document changes (the row can shift or vanish). */
+let rowMenu: { view: EditorView; close(): void } | null = null;
+
+function closeRowMenu(): void {
+  rowMenu?.close();
+  rowMenu = null;
+}
+
+function openRowMenu(view: EditorView, propFrom: number, x: number, y: number): void {
+  closeRowMenu();
+  const menu = document.createElement("div");
+  menu.className = "note-property-menu";
+  const close = () => {
+    menu.remove();
+    document.removeEventListener("mousedown", onDocDown, true);
+    document.removeEventListener("keydown", onKey, true);
+  };
+  const onDocDown = (event: MouseEvent) => {
+    if (!menu.contains(event.target as Node)) closeRowMenu();
+  };
+  const onKey = (event: KeyboardEvent) => {
+    if (event.key === "Escape") {
+      event.stopPropagation();
+      closeRowMenu();
+    }
+  };
+  const node = view.state.doc.nodeAt(propFrom);
+  if (node == null || node.type.name !== "noteProperty") return;
+  const custom = !isPresetName(node.firstChild?.textContent ?? "");
+  const isList = (node.attrs.type ?? "text") === "list";
+
+  if (custom) {
+    // The type toggle: a custom row holds one text line or a list of
+    // chips. Preset rows are locked to their preset's type.
+    const typeItem = document.createElement("button");
+    typeItem.type = "button";
+    typeItem.className = "note-property-menu__item";
+    typeItem.appendChild(spriteIcon(isList ? "propText" : "propTag"));
+    const label = document.createElement("span");
+    label.textContent = isList ? "Text" : "List";
+    typeItem.appendChild(label);
+
+    typeItem.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setPropertyType(
+        view.state,
+        (tr) => view.dispatch(tr),
+        propFrom,
+        isList ? "text" : "list",
+      );
+      closeRowMenu();
+      view.focus();
+    });
+    menu.appendChild(typeItem);
+    const sep = document.createElement("div");
+    sep.className = "note-property-menu__sep";
+    menu.appendChild(sep);
+  }
+
+  const deleteItem = document.createElement("button");
+  deleteItem.type = "button";
+  deleteItem.className = "note-property-menu__item is-danger";
+  deleteItem.appendChild(spriteIcon("trash"));
+  const deleteLabel = document.createElement("span");
+  deleteLabel.textContent = "Delete property";
+  deleteItem.appendChild(deleteLabel);
+  deleteItem.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    // The row's bounds, re-resolved: the document may have changed while
+    // the menu was open.
+    const current = view.state.doc.nodeAt(propFrom);
+    if (current == null || current.type.name !== "noteProperty") {
+      closeRowMenu();
+      return;
+    }
     removeProperty(
       view.state,
       (tr) => view.dispatch(tr),
       {
         propFrom,
-        propTo: propFrom + node.nodeSize,
+        propTo: propFrom + current.nodeSize,
         inName: false,
         nameFrom: 0,
         nameTo: 0,
@@ -676,8 +804,21 @@ function removeButton(view: EditorView): HTMLElement {
         isEmpty: true,
       },
     );
+    closeRowMenu();
+    view.focus();
   });
-  return button;
+  menu.appendChild(deleteItem);
+
+  document.body.appendChild(menu);
+  // Clamp into the viewport.
+  const rect = menu.getBoundingClientRect();
+  const left = Math.max(8, Math.min(x, window.innerWidth - rect.width - 8));
+  const top = Math.max(8, Math.min(y, window.innerHeight - rect.height - 8));
+  menu.style.left = `${Math.round(left)}px`;
+  menu.style.top = `${Math.round(top)}px`;
+  document.addEventListener("mousedown", onDocDown, true);
+  document.addEventListener("keydown", onKey, true);
+  rowMenu = { view, close };
 }
 
 function addButton(view: EditorView, visible: boolean): HTMLElement {

@@ -472,7 +472,7 @@ describe("PR review fixes (round 17)", () => {
     el.remove();
   });
 
-  it("the trash resolves the row's bounds at click time (no stale range)", () => {
+  it("the grip menu deletes the row with click-time bounds (no stale range)", () => {
     const { editor, el } = build({
       type: "noteDoc",
       content: [
@@ -496,19 +496,85 @@ describe("PR review fixes (round 17)", () => {
         { type: "paragraph" },
       ],
     });
-    // Shorten the first row AFTER the widgets were built, then click its trash.
+    // Shorten the first row AFTER the widgets were built, then open its
+    // menu and delete through it.
     const rowNode = editor.state.doc.content.child(1);
     const valueFrom = editor.state.doc.content.child(0).nodeSize + 1 + rowNode.firstChild!.nodeSize + 1;
     editor.view.dispatch(editor.view.state.tr.delete(valueFrom + 1, valueFrom + 15));
     awaitAnimationFrame();
-    const trash = el.querySelector(".note-property-remove")!;
-    trash.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    const grip = el.querySelector(".note-property-grip")!;
+    grip.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    awaitAnimationFrame();
+    const menu = document.body.querySelector(".note-property-menu");
+    expect(menu).toBeTruthy();
+    const deleteItem = menu!.querySelector(".note-property-menu__item.is-danger") as HTMLElement;
+    deleteItem.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
     awaitAnimationFrame();
     const types = editor.state.doc.content.content.map((n) => n.type.name);
     expect(types).toEqual(["noteTitle", "noteProperty", "paragraph"]);
     const version = (editor.getJSON().content ?? [])[1];
     expect(version.content?.[0]?.content?.[0]?.text).toBe("version"); // untouched
     expect(version.content?.[1]?.content?.map((t) => t.text).join("")).toBe("1.0");
+    editor.destroy();
+    el.remove();
+  });
+
+  it("right-click over a locked row opens the same menu", () => {
+    const { editor, el } = build(tagsRowDoc(["one"]));
+    const rowEl = el.querySelector(".note-property")!;
+    rowEl.dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }));
+    awaitAnimationFrame();
+    expect(document.body.querySelector(".note-property-menu")).toBeTruthy();
+    const deleteItem = document.body.querySelector(".note-property-menu__item.is-danger") as HTMLElement;
+    deleteItem.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    awaitAnimationFrame();
+    expect(editor.state.doc.content.content.map((n) => n.type.name)).toEqual([
+      "noteTitle",
+      "paragraph",
+    ]);
+    editor.destroy();
+    el.remove();
+  });
+
+  it("the row menu toggles a custom row between text and list", () => {
+    const { editor, el } = build({
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
+        {
+          type: "noteProperty",
+          attrs: { type: "text" },
+          content: [
+            { type: "notePropertyName", content: [{ type: "text", text: "authors" }] },
+            { type: "notePropertyValue", content: [{ type: "text", text: "One, Two" }] },
+          ],
+        },
+        { type: "paragraph" },
+      ],
+    });
+    const grip = el.querySelector(".note-property-grip")!;
+    grip.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    awaitAnimationFrame();
+    const typeItem = [...document.body.querySelectorAll(".note-property-menu__item")].find(
+      (b) => b.textContent === "List",
+    ) as HTMLElement;
+    expect(typeItem).toBeTruthy();
+    typeItem.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    awaitAnimationFrame();
+    const row = (editor.getJSON().content ?? [])[1];
+    expect(row.attrs?.type).toBe("list");
+    // back to text: the single value is kept
+    const grip2 = el.querySelector(".note-property-grip")!;
+    grip2.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    awaitAnimationFrame();
+    const textItem = [...document.body.querySelectorAll(".note-property-menu__item")].find(
+      (b) => b.textContent?.startsWith("Text"),
+    ) as HTMLElement;
+    textItem.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+    awaitAnimationFrame();
+    const row2 = (editor.getJSON().content ?? [])[1];
+    expect(row2.attrs?.type).toBe("text");
+    expect(row2.content?.filter((n) => n.type === "notePropertyValue")).toHaveLength(1);
     editor.destroy();
     el.remove();
   });
