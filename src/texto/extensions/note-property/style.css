@@ -152,6 +152,18 @@
 
 /* ── Row chrome (plugin decorations) ── */
 
+/* The row's hover zone extends into the left margin: the trash lives
+   there (outside the row's own box), and without this bridge the pointer
+   would leave the row — and hide the trash — before reaching it. */
+.note-property[data-property-type]:after {
+  content: "";
+  position: absolute;
+  left: -48px;
+  top: 0;
+  bottom: 0;
+  width: 50px;
+}
+
 /* Remove button: at the row's right end (Obsidian's per-row delete) —
    revealed when the pointer hovers the row; the opaque pill keeps it
    readable and clickable over a chip that reaches the edge (z-index above
