@@ -86,6 +86,13 @@ export function mermaidLightboxTarget(
 
 /** Applies the layout class to the host (left = default, no class) —
  *  the NodeView dom does not receive rendered attrs automatically. */
+/** PM node attrs are untyped (`Record<string, any>`); read the diagram
+ *  source through this guard so `any` cannot leak into render/edit state. */
+function attrCode(attrs: unknown): string {
+  const code = (attrs as { code?: unknown } | null)?.code;
+  return typeof code === "string" ? code : "";
+}
+
 function syncLayoutClass(element: HTMLElement, align: unknown): void {
   const layout = isMermaidLayout(align) ? align : "left";
   for (const value of MERMAID_LAYOUTS) {
@@ -168,7 +175,7 @@ export const Mermaid = Node.create<MermaidOptions>({
         throw new Error("[TEXTO ERROR]: getPos must be a function.");
       }
 
-      let lastCode = node.attrs.code ?? "";
+      let lastCode = attrCode(node.attrs);
       let editing = false;
       let committing = false;
       let dirty = true;
@@ -414,7 +421,7 @@ export const Mermaid = Node.create<MermaidOptions>({
           element.classList.toggle("is-readonly", !editor.isEditable);
           syncLayoutClass(element, updatedNode.attrs.align);
 
-          const code = updatedNode.attrs.code ?? "";
+          const code = attrCode(updatedNode.attrs);
           if (code !== lastCode) {
             lastCode = code;
             dirty = true;

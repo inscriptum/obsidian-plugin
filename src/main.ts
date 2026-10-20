@@ -7,6 +7,7 @@ import {
   PluginSettingTab,
   setIcon,
   Setting,
+  type SettingDefinitionItem,
   TFolder,
   WorkspaceLeaf,
 } from "obsidian";
@@ -189,7 +190,10 @@ export default class NotesPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    // loadData() is `any` by plugin API contract; narrow it before merging so
+    // a malformed data.json cannot smuggle untyped values into settings.
+    const stored = (await this.loadData()) as Partial<InscriptumSettings> | null;
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
     setWriteLogEnabled(this.settings.writeLog);
   }
 
@@ -517,6 +521,47 @@ class InscriptumSettingTab extends PluginSettingTab {
     this.plugin = plugin;
   }
 
+  /** Declarative settings (Obsidian 1.13.0+): rows become searchable and
+   *  render from these definitions. Kept in sync with `display()`, which
+   *  older runtimes (minAppVersion 1.6.6) render instead — on 1.13.0+ the
+   *  framework skips `display()` when this returns a non-empty array. */
+  getSettingDefinitions(): SettingDefinitionItem[] {
+    return [
+      {
+        control: {
+          type: "text",
+          key: "exportFolder",
+          defaultValue: DEFAULT_SETTINGS.exportFolder,
+        },
+        name: "Export folder",
+        desc: "Vault folder where the 'export as website' command writes its output. Each note becomes a self-contained subfolder (index.html, note.css, images) that can be hosted anywhere or opened directly from disk.",
+      },
+      {
+        control: {
+          type: "toggle",
+          key: "writeLog",
+          defaultValue: DEFAULT_SETTINGS.writeLog,
+        },
+        name: "Diagnostic log",
+        desc: "When turned on, inscriptum keeps a technical journal of its note-saving activity in a hidden file named .inscriptum-log.jsonl in your vault. If a note is ever damaged or lost, this journal helps figure out what happened. Leave it off in everyday use and turn it on when troubleshooting a problem.",
+      },
+    ];
+  }
+
+  async setControlValue(key: string, value: unknown): Promise<void> {
+    // Same normalize-on-write semantics the imperative display() applies.
+    if (key === "exportFolder") {
+      if (typeof value === "string") {
+        this.plugin.settings.exportFolder = normalizePath(
+          value.trim() || DEFAULT_SETTINGS.exportFolder,
+        );
+      }
+    } else if (key === "writeLog" && typeof value === "boolean") {
+      this.plugin.settings.writeLog = value;
+    }
+    await this.plugin.saveSettings();
+  }
+
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
@@ -524,7 +569,7 @@ class InscriptumSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Export folder")
       .setDesc(
-        "Vault folder where the 'Export as website' command writes its output. Each note becomes a self-contained subfolder (index.html, note.css, images) that can be hosted anywhere or opened directly from disk.",
+        "Vault folder where the 'export as website' command writes its output. Each note becomes a self-contained subfolder (index.html, note.css, images) that can be hosted anywhere or opened directly from disk.",
       )
       .addText((text) =>
         text

@@ -144,12 +144,20 @@ async function replaceFile(
   await adapter.writeBinary(targetPath, data);
 }
 
+/** The one node fs method the atomic-replace fast path needs, declared
+ *  structurally: `typeof import("node:fs")` needs @types/node to resolve and
+ *  does not in every linting environment (the Obsidian review bot), while
+ *  `require("fs")` only exists on desktop anyway. */
+interface NodeFs {
+  renameSync(from: string, to: string): void;
+}
+
 /** The node fs module on desktop Obsidian; null on mobile / when blocked. */
-function getNodeFs(): typeof import("node:fs") | null {
+function getNodeFs(): NodeFs | null {
   try {
     const req = (window as { require?: (id: string) => unknown }).require;
     if (typeof req !== "function") return null;
-    return req("fs") as typeof import("node:fs");
+    return req("fs") as NodeFs;
   } catch {
     return null;
   }

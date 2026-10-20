@@ -7,20 +7,28 @@
 
 Composition:
 
-1. `@font-face` rules (copied from the inscriptum notepad's injected style,
-   URLs replaced with data URIs).
-2. The deployed inscriptum article stylesheet (`/css/note.css`) — normalize,
-   typography variables, `article`-scoped content styles, night-owl code
-   highlight theme, task list / table / figure styles.
+1. Generated-file header with the stylelint gate note (why the deployed
+   part's intentional browser-feature usages are exempt).
+2. `@font-face` rules with the fonts inlined as data URIs.
+3. The deployed inscriptum stylesheet (`https://inscriptum.js.org/css/note.css`)
+   with duplicate property declarations removed (keep-last — cascade
+   equivalent) and legacy IE star-hacks dropped; this satisfies the
+   project's `npm run lint:css` gate for the generated file.
+4. The hand-maintained `Export additions` section (float clearing, image
+   layouts, the code block chrome, the export-only table rules) — preserved
+   verbatim from the previous build.
 
-To regenerate (e.g. after the source design changes):
+## Regenerating
 
-1. Download the current deployed stylesheet:
-   `curl -o /tmp/note.css https://inscriptum.js.org/css/note.css`
-2. Re-run the generator snippet from the repository history
-   (scripts/…): it extracts the `@font-face` rules from any exported note in
-   `blog/src/public/note/*.html`, inlines the four font files from
-   `blog/src/public/fonts/` as data URIs and concatenates the deployed CSS.
-3. Re-apply the hand-maintained `Export additions` section at the bottom of
-   the file (float clearing, image layouts and the code block chrome) — the
-   generator only produces parts 1–2.
+```sh
+node scripts/generate-note-css.mjs                 # fetch the deployed CSS
+node scripts/generate-note-css.mjs --from old.css  # offline: use a local copy
+```
+
+The script reuses the embedded `@font-face` rules and the `Export additions`
+section from the current file. When the source design (blog) changes,
+re-fetch; when the fonts change, re-derive the `@font-face` block manually:
+extract the `@font-face` rules from any exported note in
+`blog/src/public/note/*.html`, inline the four font files from
+`blog/src/public/fonts/` as data URIs, and replace part 2 in `note.css`
+before regenerating.

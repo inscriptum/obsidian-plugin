@@ -86,10 +86,10 @@ describe("table borders commands", () => {
     expect(bordersAt(editor, c1)).toEqual({
       top: { style: "solid", width: "1.5pt", color: "#b3a3f7" },
     });
-    // The cell's DOM carries the inline border (beats the default grid).
+    // The cell's DOM carries the inline border (beats the default grid —
+    // inline declarations outrank every stylesheet rule).
     // (jsdom re-serializes hex colors to rgb() — assert format, not color.)
     expect(cellDomStyle(editor, c1)).toContain("border-top: 1.5pt solid");
-    expect(cellDomStyle(editor, c1)).toContain("!important");
     // Neighbours untouched.
     expect(bordersAt(editor, cells(editor)[1])).toBe(null);
 
@@ -334,14 +334,14 @@ describe("table borders commands", () => {
 });
 
 describe("borders style helpers", () => {
-  it("bordersToStyle renders per-side declarations with !important", () => {
+  it("bordersToStyle renders per-side declarations with", () => {
     expect(
       bordersToStyle({
         top: { style: "solid", width: "2.25pt", color: null },
         bottom: { style: "none" },
       }),
     ).toBe(
-      "border-top: 2.25pt solid var(--inscriptum-table-border) !important; border-bottom: none !important",
+      "border-top: 2.25pt solid var(--inscriptum-table-border); border-bottom: none",
     );
     expect(bordersToStyle(null)).toBe("");
     expect(bordersToStyle({})).toBe("");

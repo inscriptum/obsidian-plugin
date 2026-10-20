@@ -28,7 +28,7 @@ describe("bordersToStyle injection guard", () => {
       bordersToStyle({
         top: { style: "solid", width: "1.5pt", color: "#b3a3f7" },
       }),
-    ).toBe("border-top: 1.5pt solid #b3a3f7 !important");
+    ).toBe("border-top: 1.5pt solid #b3a3f7");
   });
 
   it("skips sides with malformed values instead of interpolating them", () => {
@@ -42,7 +42,7 @@ describe("bordersToStyle injection guard", () => {
         bottom: { style: "solid; } td { display: none", width: "1pt" } as never,
         right: { style: "solid", width: "1.5pt", color: "#b3a3f7" },
       }),
-    ).toBe("border-right: 1.5pt solid #b3a3f7 !important");
+    ).toBe("border-right: 1.5pt solid #b3a3f7");
   });
 
   it("keeps the theme-default color and rejects crafted colors", () => {
@@ -50,7 +50,7 @@ describe("bordersToStyle injection guard", () => {
       bordersToStyle({
         left: { style: "dashed", width: "1pt", color: null },
       }),
-    ).toBe("border-left: 1pt dashed var(--inscriptum-table-border) !important");
+    ).toBe("border-left: 1pt dashed var(--inscriptum-table-border)");
     expect(
       bordersToStyle({
         left: {

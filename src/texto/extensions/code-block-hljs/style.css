@@ -50,7 +50,6 @@
       margin: var(--texto-code-block__code-margin);
       display: block;
       overflow-x: auto;
-      scrollbar-color: var(--texto-code-block__scrollbar-color);
       padding: var(--texto-code-block__code-padding);
       cursor: default;
 

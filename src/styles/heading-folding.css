@@ -11,9 +11,12 @@
    - node decorations `texto-folded-content` on hidden body blocks.
    ═══════════════════════════════════════════════════════════════ */
 
-/* Hide folded section bodies. */
-.note .texto-folded-content {
-  display: none !important;
+/* Hide folded section bodies. Specificity (0,3,0): extension stylesheets
+   imported after this file (code-block-hljs, mermaid, table, task-item)
+   also set `display` on block wrappers — the extra .ProseMirror class
+   keeps this rule ahead of them regardless of file order. */
+.note .ProseMirror .texto-folded-content {
+  display: none;
 }
 
 /* The chevron host sits inside the heading's inline content, pulled out to
@@ -64,14 +67,17 @@
 
 /* Show the chevron on heading hover (Obsidian behavior), on its own hover,
    and always while collapsed. */
-.note h1:hover > .texto-heading-fold-chevron-host,
-.note h2:hover > .texto-heading-fold-chevron-host,
-.note h3:hover > .texto-heading-fold-chevron-host,
-.note h4:hover > .texto-heading-fold-chevron-host,
-.note h5:hover > .texto-heading-fold-chevron-host,
-.note h6:hover > .texto-heading-fold-chevron-host,
-.note .texto-heading-fold-chevron-host:hover,
-.note .is-folded > .texto-heading-fold-chevron-host {
+/* The :not(.is-grabbed)/:not(.is-dragging) exclusions let the
+   hold-grab/drag hide rules in drag-handle.css win without !important —
+   while grabbing, Chrome latches :hover and the folded state stays on. */
+.note h1:hover > .texto-heading-fold-chevron-host:not(.is-grabbed):not(.is-dragging),
+.note h2:hover > .texto-heading-fold-chevron-host:not(.is-grabbed):not(.is-dragging),
+.note h3:hover > .texto-heading-fold-chevron-host:not(.is-grabbed):not(.is-dragging),
+.note h4:hover > .texto-heading-fold-chevron-host:not(.is-grabbed):not(.is-dragging),
+.note h5:hover > .texto-heading-fold-chevron-host:not(.is-grabbed):not(.is-dragging),
+.note h6:hover > .texto-heading-fold-chevron-host:not(.is-grabbed):not(.is-dragging),
+.note .texto-heading-fold-chevron-host:hover:not(.is-grabbed):not(.is-dragging),
+.note .is-folded > .texto-heading-fold-chevron-host:not(.is-grabbed):not(.is-dragging) {
   opacity: 1;
 }
 

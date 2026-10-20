@@ -163,8 +163,12 @@
   background: transparent;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+}
+
+.note-view-container.is-mobile .note-toolbar::-webkit-scrollbar,
+.notepad-view-container.is-mobile .note-toolbar::-webkit-scrollbar {
+  display: none;
 }
 
 /* Stop scroll chaining: when the horizontal scroller reaches its edge the
@@ -323,7 +327,6 @@
 .notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-media-bar {
   flex-wrap: nowrap;
   overflow-x: auto;
-  scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
 }
 .note-view-container.is-mobile

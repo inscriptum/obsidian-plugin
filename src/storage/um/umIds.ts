@@ -18,8 +18,8 @@ let lastRandom: number[] = [];
 function randomBits(length: number): number[] {
   const out: number[] = new Array<number>(length);
   const bytes = new Uint8Array(length);
-  if (typeof globalThis.crypto?.getRandomValues === "function") {
-    globalThis.crypto.getRandomValues(bytes);
+  if (typeof window.crypto?.getRandomValues === "function") {
+    window.crypto.getRandomValues(bytes);
   } else {
     for (let i = 0; i < length; i++) {
       bytes[i] = Math.floor(Math.random() * 256);

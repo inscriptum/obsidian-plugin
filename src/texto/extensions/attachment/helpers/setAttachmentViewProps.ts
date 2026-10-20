@@ -157,9 +157,12 @@ function onFileSelected(
         // attrs back as they were when the picker opened — placeholder for a
         // fresh block, the previous file for a replace — and drop the
         // prepared file so the picker does not re-trigger.
+        // PM attrs are untyped; this node is guaranteed to be an attachment
+        // node, so read the previous attrs through the schema type.
+        const prevAttrs = node.attrs as AttachmentOptions["attributes"];
         dispatchAttrs({
-          state: { ...node.attrs.state, preparedData: undefined },
-          data: node.attrs.data,
+          state: { ...prevAttrs.state, preparedData: undefined },
+          data: prevAttrs.data,
         });
       },
     );

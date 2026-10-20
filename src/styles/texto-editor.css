@@ -26,12 +26,15 @@
   white-space: pre-wrap;
 }
 
+/* ProseMirror's block-separator hack (prosemirror-view inserts 1px imgs
+   between blocks for drop targets). No !important: nothing in the plugin
+   styles or Obsidian's app.css out-specifics the class selector. */
 img.ProseMirror-separator {
-  display: inline !important;
-  border: none !important;
-  margin: 0 !important;
-  width: 1px !important;
-  height: 1px !important;
+  display: inline;
+  border: none;
+  margin: 0;
+  width: 1px;
+  height: 1px;
 }
 
 .ProseMirror-gapcursor {

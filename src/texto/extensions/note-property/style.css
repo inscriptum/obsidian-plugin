@@ -11,7 +11,7 @@
   display: grid;
   /* Fixed name column — rows align with each other and with the header. */
   grid-template-columns: var(--property-name-col) 1fr;
-  column-gap: 16px;
+  gap: 16px;
   margin: 2px 0;
   /* Top-aligned, not baseline-aligned: the name field is a scroll
      container (a long name scrolls inside its column), and scroll
@@ -38,7 +38,6 @@
      overflows into the value column. */
   overflow-x: auto;
   text-overflow: ellipsis;
-  scrollbar-width: none;
 }
 
 .note-property-name::-webkit-scrollbar {
@@ -374,7 +373,7 @@
 .is-mobile .note-property {
   --property-name-col: 120px;
   grid-template-columns: 120px 1fr;
-  column-gap: 10px;
+  gap: 10px;
 }
 
 .is-mobile .note-property-zone-rule {

@@ -150,6 +150,7 @@
 /* layout-transparent rows container: the rows behave as direct children
    of the code element (line numbers anchor to the pre's gutter) */
 .texto-extension-mermaid-host .mermaid-editor__rows {
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- load-bearing layout: rows must behave as direct children of the pre; supported in Obsidian's Chromium, flagged only as caniuse "partial support" */
   display: contents;
 }
 
@@ -189,7 +190,6 @@
   white-space: pre;
   overflow-wrap: normal;
   overflow: auto;
-  scrollbar-width: none;
 }
 
 .texto-extension-mermaid-host .mermaid-editor__input::-webkit-scrollbar {

@@ -93,8 +93,10 @@ export function extractPreview(doc: JSONContent): NotePreview {
   }
 
   const image = findFirstNode(doc, "image");
-  const previewImageId =
-    typeof image?.attrs?.data?.id === "string" ? image.attrs.data.id : null;
+  // PM stores node attrs as `Record<string, any>`; narrow to the one field
+  // the preview needs instead of letting `any` leak into the id.
+  const imageData = image?.attrs?.data as { id?: unknown } | undefined;
+  const previewImageId = typeof imageData?.id === "string" ? imageData.id : null;
 
   return { title, description: escapeDescription(description), previewImageId };
 }

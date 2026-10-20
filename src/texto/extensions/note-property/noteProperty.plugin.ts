@@ -654,8 +654,8 @@ function suggestionDecorations(state: EditorState): Decoration[] {
 }
 
 function spriteIcon(iconId: string): SVGSVGElement {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  const use = document.createElementNS("http://www.w3.org/2000/svg", "use");
+  const svg = createSvg("svg");
+  const use = createSvg("use");
   use.setAttribute("href", `#inscriptum-tlb-${iconId}`);
   svg.appendChild(use);
   return svg;
@@ -663,7 +663,7 @@ function spriteIcon(iconId: string): SVGSVGElement {
 
 /** The value-type marker shown before the name, as in Obsidian. */
 function typeIcon(type: "text" | "list"): HTMLElement {
-  const span = document.createElement("span");
+  const span = createSpan();
   span.className = "note-property-type-icon";
   span.setAttribute("aria-hidden", "true");
   span.appendChild(spriteIcon(type === "list" ? "propTag" : "propText"));
@@ -676,7 +676,7 @@ function chipRemoveButton(
   propFrom: number,
   valueIndex: number,
 ): HTMLElement {
-  const button = document.createElement("button");
+  const button = createEl("button");
   button.type = "button";
   button.className = "note-property-chip-x";
   button.setAttribute("aria-label", "Remove tag");
@@ -691,7 +691,7 @@ function chipRemoveButton(
 }
 
 function removeButton(view: EditorView): HTMLElement {
-  const button = document.createElement("button");
+  const button = createEl("button");
   button.type = "button";
   button.className = "note-property-grip";
   button.setAttribute("aria-label", "Property actions");
@@ -782,14 +782,14 @@ function removeButton(view: EditorView): HTMLElement {
 
 /** The drop indicator: a horizontal accent line between the rows. */
 function dropLineWidget(): HTMLElement {
-  const el = document.createElement("div");
+  const el = createDiv();
   el.className = "note-property-drop-line";
   return el;
 }
 
 /** The grip dots (⋮⋮): six theme-colored points, no sprite entry needed. */
 function gripDots(): SVGSVGElement {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  const svg = createSvg("svg");
   svg.setAttribute("viewBox", "0 0 12 16");
   svg.setAttribute("aria-hidden", "true");
   for (const [cx, cy] of [
@@ -800,7 +800,7 @@ function gripDots(): SVGSVGElement {
     [4, 13],
     [8, 13],
   ]) {
-    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    const dot = createSvg("circle");
     dot.setAttribute("cx", String(cx));
     dot.setAttribute("cy", String(cy));
     dot.setAttribute("r", "1.3");
@@ -821,7 +821,7 @@ function closeRowMenu(): void {
 
 function openRowMenu(view: EditorView, propFrom: number, x: number, y: number): void {
   closeRowMenu();
-  const menu = document.createElement("div");
+  const menu = createDiv();
   menu.className = "note-property-menu";
   const close = () => {
     menu.remove();
@@ -845,11 +845,11 @@ function openRowMenu(view: EditorView, propFrom: number, x: number, y: number): 
   if (custom) {
     // The type toggle: a custom row holds one text line or a list of
     // chips. Preset rows are locked to their preset's type.
-    const typeItem = document.createElement("button");
+    const typeItem = createEl("button");
     typeItem.type = "button";
     typeItem.className = "note-property-menu__item";
     typeItem.appendChild(spriteIcon(isList ? "propText" : "propTag"));
-    const label = document.createElement("span");
+    const label = createSpan();
     label.textContent = isList ? "Text" : "List";
     typeItem.appendChild(label);
 
@@ -866,16 +866,16 @@ function openRowMenu(view: EditorView, propFrom: number, x: number, y: number): 
       view.focus();
     });
     menu.appendChild(typeItem);
-    const sep = document.createElement("div");
+    const sep = createDiv();
     sep.className = "note-property-menu__sep";
     menu.appendChild(sep);
   }
 
-  const deleteItem = document.createElement("button");
+  const deleteItem = createEl("button");
   deleteItem.type = "button";
   deleteItem.className = "note-property-menu__item is-danger";
   deleteItem.appendChild(spriteIcon("trash"));
-  const deleteLabel = document.createElement("span");
+  const deleteLabel = createSpan();
   deleteLabel.textContent = "Delete property";
   deleteItem.appendChild(deleteLabel);
   deleteItem.addEventListener("mousedown", (event) => {
@@ -924,14 +924,14 @@ function addButton(view: EditorView, visible: boolean): HTMLElement {
   // A quiet text button on its own line after the last property row. The
   // line belongs to the layout permanently; `visible` (the zone's focus)
   // only toggles the text — no reflow either way.
-  const line = document.createElement("div");
+  const line = createDiv();
   line.className = visible
     ? "note-property-add is-active"
     : "note-property-add";
-  const button = document.createElement("button");
+  const button = createEl("button");
   button.type = "button";
   button.className = "note-property-add__btn";
-  button.textContent = "+ Add property";
+  button.textContent = "+ add property";
   button.addEventListener("mousedown", (event) => {
     event.preventDefault();
     event.stopPropagation();
@@ -946,10 +946,10 @@ function suggestionList(
   items: string[],
   selected: number,
 ): HTMLElement {
-  const list = document.createElement("div");
+  const list = createDiv();
   list.className = "note-property-suggestions";
   items.forEach((name, index) => {
-    const item = document.createElement("button");
+    const item = createEl("button");
     item.type = "button";
     item.className =
       index === selected
@@ -973,7 +973,29 @@ function valuePosFromPoint(
   x: number,
   y: number,
 ): { pos: number; $pos: import("prosemirror-model").ResolvedPos } | null {
-  const range = document.caretRangeFromPoint?.(x, y);
+  // `caretPositionFromPoint` is the standard API (Chromium 128+); Obsidian
+  // builds with minAppVersion 1.6.6 run older Chromium and only ship the
+  // deprecated `caretRangeFromPoint` — feature-detect, fall back. Both are
+  // read through a local type so the deprecated declaration is not
+  // referenced directly.
+  const doc = document as Omit<Document, "caretRangeFromPoint"> & {
+    caretPositionFromPoint?: (
+      x: number,
+      y: number,
+    ) => { offsetNode: Node; offset: number } | null;
+    caretRangeFromPoint?: (x: number, y: number) => Range | null;
+  };
+  let range: Range | null = null;
+  if (typeof doc.caretPositionFromPoint === "function") {
+    const position = doc.caretPositionFromPoint(x, y);
+    if (position) {
+      range = document.createRange();
+      range.setStart(position.offsetNode, position.offset);
+      range.collapse(true);
+    }
+  } else {
+    range = doc.caretRangeFromPoint?.(x, y) ?? null;
+  }
   if (range == null || !view.dom.contains(range.startContainer)) return null;
   let pos: number;
   try {
@@ -1092,7 +1114,7 @@ function selectWordAtPoint(view: EditorView, x: number, y: number): void {
  *  layout (a just-deleted row would leave the line too long, drawn over
  *  the body text). */
 function zoneRuleWidget(view: import("prosemirror-view").EditorView, zoneEnd: number): HTMLElement {
-  const anchor = document.createElement("span");
+  const anchor = createSpan();
   anchor.className = "note-property-zone-rule-anchor";
   const measure = () => {
     if (!anchor.isConnected) return; // the widget was replaced meanwhile
@@ -1107,7 +1129,7 @@ function zoneRuleWidget(view: import("prosemirror-view").EditorView, zoneEnd: nu
       if (titleEl != null && lastRow != null) {
         const top = titleEl.getBoundingClientRect();
         const bottom = (addEl ?? lastRow).getBoundingClientRect();
-        const line = document.createElement("div");
+        const line = createDiv();
         line.className = "note-property-zone-rule";
         line.style.left = `${Math.round(top.left - pmRect.left - 21)}px`;
         line.style.top = `${Math.round(top.top - pmRect.top - 8)}px`;
@@ -1118,7 +1140,7 @@ function zoneRuleWidget(view: import("prosemirror-view").EditorView, zoneEnd: nu
       // measurement is best-effort: an empty anchor renders nothing
     }
   };
-  requestAnimationFrame(measure);
+  window.requestAnimationFrame(measure);
   void zoneEnd;
   return anchor;
 }

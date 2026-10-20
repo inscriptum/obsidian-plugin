@@ -245,7 +245,9 @@
 .texto-editor .ProseMirror a {
   color: var(--text-accent, var(--interactive-accent, #7c6af7));
   text-decoration: underline;
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
   text-decoration-thickness: 1px;
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
   text-decoration-color: color-mix(
     in srgb,
     var(--text-accent, var(--interactive-accent, #7c6af7)) 40%,
@@ -260,6 +262,7 @@
 
 .texto-editor .ProseMirror a:hover {
   color: var(--text-accent-hover, var(--text-accent, #7c6af7));
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
   text-decoration-thickness: 1.5px;
 }
 

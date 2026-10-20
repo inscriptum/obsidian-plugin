@@ -226,7 +226,7 @@ function appContainer(): HTMLElement {
   if (existing != null) {
     return existing;
   }
-  const app = document.createElement("div");
+  const app = createDiv();
   app.id = "app";
   document.body.appendChild(app);
   return app;
@@ -241,10 +241,8 @@ function mountEditor(doc: unknown): string {
 
   const app = appContainer();
   app.replaceChildren();
-  const note = document.createElement("div");
-  note.className = "note";
-  const article = document.createElement("article");
-  article.className = "texto-editor";
+  const note = createDiv("note");
+  const article = createEl("article", { cls: "texto-editor" });
   note.appendChild(article);
   app.appendChild(note);
 

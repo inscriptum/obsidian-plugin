@@ -7,21 +7,26 @@ import { mergeDeep } from "./utilities/mergeDeep";
 
 // Options/Storage default to `any` for covariance (Node<CustomOptions> must stay assignable to Node)
 export class Node<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- default `any` keeps Node<CustomOptions> assignable to Node (covariance)
   Options extends AnyRecord = any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- default `any` keeps Node<CustomOptions> assignable to Node (covariance)
   Storage extends AnyRecord = any,
 > {
   type = "node";
 
   name = "node";
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential defaults must stay `any` so Node<Custom> is assignable to Node
   parent: Node<any, any> | null = null;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential defaults must stay `any` so Node<Custom> is assignable to Node
   child: Node<any, any> | null = null;
 
   options: Options = {} as Options;
 
   storage: Storage;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential defaults must stay `any` so Node<Custom> is assignable to Node
   config: NodeConfig<any, any> = {
     name: this.name,
   };
@@ -53,6 +58,7 @@ export class Node<
   }
 
   // TODO: delete all static create methods... or... move to somewhere
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- NodeConfig generic defaults mirror the class defaults (covariance)
   static create<O extends AnyRecord = any, S extends AnyRecord = any>(
     config: Partial<NodeConfig<O, S>> = {},
   ) {
