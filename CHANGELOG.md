@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- A quieter update than it looks: this round clears every community review warning — stricter typing, no deprecated calls — so future updates stay easy to ship.
+- Settings are now findable in Obsidian's settings search (1.13+): look for "Export folder" or "Diagnostic log".
+- Code blocks show the slim custom scrollbar they were designed with, instead of the browser's default one.
+
 ## [0.11.0] - 2026-10-16
 
 ### Added
