@@ -11,7 +11,9 @@
   display: grid;
   /* Fixed name column — rows align with each other and with the header. */
   grid-template-columns: var(--property-name-col) 1fr;
-  gap: 16px;
+  /* Two-value gap: the same node is also a flex row for list-type values
+     (wrapping tag chips) — keep row-gap at the chip margins' spacing. */
+  gap: 0 16px;
   margin: 2px 0;
   /* Top-aligned, not baseline-aligned: the name field is a scroll
      container (a long name scrolls inside its column), and scroll
@@ -373,7 +375,7 @@
 .is-mobile .note-property {
   --property-name-col: 120px;
   grid-template-columns: 120px 1fr;
-  gap: 10px;
+  gap: 0 10px;
 }
 
 .is-mobile .note-property-zone-rule {

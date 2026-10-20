@@ -86,13 +86,6 @@ export function mermaidLightboxTarget(
 
 /** Applies the layout class to the host (left = default, no class) —
  *  the NodeView dom does not receive rendered attrs automatically. */
-/** PM node attrs are untyped (`Record<string, any>`); read the diagram
- *  source through this guard so `any` cannot leak into render/edit state. */
-function attrCode(attrs: unknown): string {
-  const code = (attrs as { code?: unknown } | null)?.code;
-  return typeof code === "string" ? code : "";
-}
-
 function syncLayoutClass(element: HTMLElement, align: unknown): void {
   const layout = isMermaidLayout(align) ? align : "left";
   for (const value of MERMAID_LAYOUTS) {
@@ -100,6 +93,13 @@ function syncLayoutClass(element: HTMLElement, align: unknown): void {
       element.classList.toggle(`texto-mermaid-layout-${value}`, value === layout);
     }
   }
+}
+
+/** PM node attrs are untyped (`Record<string, any>`); read the diagram
+ *  source through this guard so `any` cannot leak into render/edit state. */
+function attrCode(attrs: unknown): string {
+  const code = (attrs as { code?: unknown } | null)?.code;
+  return typeof code === "string" ? code : "";
 }
 
 /** Debounce of the live parse hint while typing, ms. */

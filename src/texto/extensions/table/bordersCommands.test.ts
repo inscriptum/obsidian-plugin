@@ -334,7 +334,7 @@ describe("table borders commands", () => {
 });
 
 describe("borders style helpers", () => {
-  it("bordersToStyle renders per-side declarations with", () => {
+  it("bordersToStyle renders per-side declarations", () => {
     expect(
       bordersToStyle({
         top: { style: "solid", width: "2.25pt", color: null },

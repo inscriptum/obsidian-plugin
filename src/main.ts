@@ -28,7 +28,7 @@ import { exportNoteAsWebsite } from "./export/exportWebsite";
 import { exportNotepadAsWebsite } from "./export/exportNotepadWebsite";
 
 interface InscriptumSettings {
-  /** Append one JSONL line per note save to .inscriptum-write-log.jsonl
+  /** Append one JSONL line per note save to .inscriptum-log.jsonl
    *  (diagnostics for storage problems). Off by default. */
   writeLog: boolean;
   /** Vault folder for "Export as website" output, one subfolder per note. */
@@ -190,8 +190,8 @@ export default class NotesPlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    // loadData() is `any` by plugin API contract; narrow it before merging so
-    // a malformed data.json cannot smuggle untyped values into settings.
+    // loadData() is `any` by plugin API contract; the cast narrows the merge
+    // type so only the known settings keys are visible to the compiler.
     const stored = (await this.loadData()) as Partial<InscriptumSettings> | null;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
     setWriteLogEnabled(this.settings.writeLog);
