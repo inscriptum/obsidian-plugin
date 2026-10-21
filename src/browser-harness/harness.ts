@@ -105,7 +105,8 @@ defineHelper("addClass", (el, [classes]) => {
   for (const cls of list) el.classList.add(cls);
 });
 defineHelper("addClasses", (el, [classes]) => {
-  for (const list of classes as string[][]) el.classList.add(...list);
+  // Obsidian's addClasses takes an ARRAY of class names (addClass takes one).
+  for (const cls of classes as string[]) el.classList.add(cls);
 });
 defineHelper("removeClass", (el, [classes]) => {
   const list: string[] = Array.isArray(classes)
@@ -114,7 +115,7 @@ defineHelper("removeClass", (el, [classes]) => {
   for (const cls of list) el.classList.remove(cls);
 });
 defineHelper("removeClasses", (el, [classes]) => {
-  for (const list of classes as string[][]) el.classList.remove(...list);
+  for (const cls of classes as string[]) el.classList.remove(cls);
 });
 defineHelper("toggleClass", (el, [classes, value]) => {
   const list: string[] = Array.isArray(classes)
