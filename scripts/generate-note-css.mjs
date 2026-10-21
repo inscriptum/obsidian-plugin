@@ -27,6 +27,7 @@
  */
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { dedupProperties } from "./generate-note-css-lib.mjs";
 
 const DEPLOYED_URL = "https://inscriptum.js.org/css/note.css";
 const TARGET = fileURLToPath(
@@ -65,65 +66,11 @@ function extractParts(current) {
   }
   return {
     fonts: lines[fontsIdx],
-    additions: lines.slice(deployedIdx + 1).join("\n").replace(/^\n+/, ""),
+    additions: lines
+      .slice(deployedIdx + 1)
+      .join("\n")
+      .replace(/^\n+/, ""),
   };
-}
-
-/** Removes duplicate property declarations inside each block, keeping the
- *  LAST occurrence (cascade-equivalent: the last declaration wins — an
- *  `!important` repeat only loses to a later `!important` of the same
- *  property, so importance is part of the dedup key), and drops legacy IE
- *  star-hack declarations (*prop — invalid in every modern browser and
- *  flagged as duplicates by the stylelint gate). Conservative guards: any
- *  block containing `url(` is left untouched (a `;` inside an unquoted
- *  data URI would break naive splitting), and the whole run fails when
- *  quotes and braces interleave in a way the splitter cannot see through —
- *  the maintainer then dedups that upstream change by hand. */
-function dedupProperties(css) {
-  for (let i = 0; i < css.length; i++) {
-    const ch = css[i];
-    if (ch === '"' || ch === "'") {
-      const close = css.indexOf(ch, i + 1);
-      if (close < 0) throw new Error("unbalanced quote in deployed css");
-      const inner = css.slice(i + 1, close);
-      if (/[{}]/.test(inner)) {
-        throw new Error(
-          "brace inside a quoted css value — dedup splitter cannot parse this safely; handle the upstream change manually",
-        );
-      }
-      i = close;
-    }
-  }
-  let removed = 0;
-  const out = css.replace(/\{[^{}]*\}/g, (block) => {
-    if (block.includes("url(")) return block;
-    const inner = block.slice(1, -1);
-    const decls = inner.split(";");
-    const keyOf = (d) => {
-      const colon = d.indexOf(":");
-      if (colon < 0) return null;
-      const prop = d.slice(0, colon).trim().toLowerCase();
-      return prop ? `${prop}!${d.includes("!important") ? 1 : 0}` : null;
-    };
-    const lastIndex = new Map();
-    decls.forEach((d, i) => {
-      const key = keyOf(d);
-      if (key) lastIndex.set(key, i);
-    });
-    const kept = decls.filter((d, i) => {
-      const key = keyOf(d);
-      if (!key) return d.trim() !== "";
-      if (key.startsWith("*")) {
-        removed += 1;
-        return false;
-      }
-      const isLast = lastIndex.get(key) === i;
-      if (!isLast) removed += 1;
-      return isLast;
-    });
-    return `{${kept.join(";")}}`;
-  });
-  return { out, removed };
 }
 
 const [current, deployed] = await Promise.all([

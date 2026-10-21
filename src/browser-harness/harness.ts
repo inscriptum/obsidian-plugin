@@ -4,10 +4,7 @@
 import type { JSONContent } from "../texto/core/@types";
 import { Editor } from "../texto/core/Editor";
 import { getExtensions } from "../texto/getExtensions";
-import {
-  openImageGallery,
-  type GalleryItem,
-} from "../ui/imageLightbox";
+import { openImageGallery, type GalleryItem } from "../ui/imageLightbox";
 import { headingFoldingKey } from "../texto/extensions/heading/folding";
 import { taskFoldingKey } from "../texto/extensions/task-item-folding/taskFoldingPlugin";
 import { NotepadView } from "../NotepadView";
@@ -16,6 +13,7 @@ import { UmNotepad } from "../storage/um/umNotepad";
 import { exportNotepadAsWebsite } from "../export/exportNotepadWebsite";
 import type { UmContainerData, UmNoteDescriptor } from "../storage/um/umTypes";
 import type { WorkspaceLeaf } from "obsidian";
+import { TFile } from "obsidian";
 import {
   UM_FORMAT,
   UM_SCHEMA_PLAIN,
@@ -68,6 +66,21 @@ g.createSpan = (attrs?: DomAttrs | string) => {
 };
 g.createEl = (tag: string, attrs?: DomAttrs | string) =>
   applyAttrs(document.createElement(tag), attrs);
+// Obsidian's createSvg builds an element in the SVG namespace. SVG elements
+// have no writable `className` (it is an SVGAnimatedString), so the class
+// goes through setAttribute — the note-property sprite icons rely on it.
+g.createSvg = (tag: string, attrs?: DomAttrs | string) => {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  if (typeof attrs === "string") svg.textContent = attrs;
+  else if (attrs != null) {
+    if (attrs.cls) svg.setAttribute("class", attrs.cls);
+    if (attrs.text != null) svg.textContent = attrs.text;
+    if (attrs.attr) {
+      for (const [k, v] of Object.entries(attrs.attr)) svg.setAttribute(k, v);
+    }
+  }
+  return svg;
+};
 g.createFragment = () => document.createDocumentFragment();
 /* eslint-enable obsidianmd/prefer-create-el -- end of the global shim block (the rule stays disabled only while the shim's own helpers are defined) */
 // NOTE: do NOT assign window.requestAnimationFrame — `g` IS window, and
@@ -363,14 +376,13 @@ function mountNotepad(
   ];
   notes.set("title-page", {
     type: "noteDoc",
-    content:
-      opts?.titleDoc ?? [
-        {
-          type: "noteTitle",
-          content: [{ type: "text", text: "Notepad title" }],
-        },
-        { type: "paragraph" },
-      ],
+    content: opts?.titleDoc ?? [
+      {
+        type: "noteTitle",
+        content: [{ type: "text", text: "Notepad title" }],
+      },
+      { type: "paragraph" },
+    ],
   });
   pages.forEach((page, i) => {
     descriptors.push({
@@ -462,15 +474,20 @@ function mountNotepad(
   view.contentEl.addClass("view-content");
   view.contentEl.addClass("notepad-view-container");
   v.app = app;
-  v.file = {
-    path: "e2e/harness.um",
-    name: "harness.um",
-    basename: "harness",
-    parent: null,
-    // renderCollapsedTitle falls back to the container mtime for pages
-    // without a modifiedAt stamp (um-page-updated-at) — TFile always has it.
-    stat: { mtime: 1790000000000, ctime: 1790000000000, size: 1 },
-  };
+  // NotepadView guards the open file with `instanceof TFile` (the community
+  // review forbids TFile casts) — the harness must hand it a real TFile
+  // instance, not a plain object, or the guard rejects it and the editors
+  // never mount. The fields are set explicitly: the harness shim's TFile
+  // takes no constructor argument.
+  const harnessFile = new TFile();
+  harnessFile.path = "e2e/harness.um";
+  harnessFile.name = "harness.um";
+  harnessFile.basename = "harness";
+  harnessFile.parent = null;
+  // renderCollapsedTitle falls back to the container mtime for pages
+  // without a modifiedAt stamp (um-page-updated-at) — TFile always has it.
+  harnessFile.stat = { mtime: 1790000000000, ctime: 1790000000000, size: 1 };
+  v.file = harnessFile;
   // Mirror onOpen's DOM skeleton; the nav drawer (buildNavSidebar) stays
   // unbuilt — rebuildNavList null-guards on the missing navListEl.
   v.toolbarHost = view.contentEl.createDiv("notepad-toolbar-host");
@@ -525,9 +542,12 @@ function b64ToBytes(b64: string): Uint8Array {
 
 function toB64(data: string | ArrayBuffer): string {
   const bytes =
-    typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+    typeof data === "string"
+      ? new TextEncoder().encode(data)
+      : new Uint8Array(data);
   let bin = "";
-  for (let i = 0; i < bytes.length; i += 1) bin += String.fromCharCode(bytes[i]);
+  for (let i = 0; i < bytes.length; i += 1)
+    bin += String.fromCharCode(bytes[i]);
   return btoa(bin);
 }
 
