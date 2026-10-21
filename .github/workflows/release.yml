@@ -96,8 +96,20 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           tag="${GITHUB_REF#refs/tags/}"
+          assets=(main.js manifest.json)
+          if [ "${{ steps.styles.outputs.exists }}" = "true" ]; then
+            assets+=(styles.css)
+          fi
 
-          gh release create "$tag" \
-            --title="$tag" \
-            --notes-file release-notes.md \
-            main.js manifest.json ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
+          # A tag push can be delivered twice (a retried push after a network
+          # hiccup) — the second run must not fail on an existing release.
+          # The release itself is already correct, so replace the assets.
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "release $tag already exists — replacing its assets"
+            gh release upload "$tag" "${assets[@]}" --clobber
+          else
+            gh release create "$tag" \
+              --title="$tag" \
+              --notes-file release-notes.md \
+              "${assets[@]}"
+          fi
