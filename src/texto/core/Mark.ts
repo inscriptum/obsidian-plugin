@@ -8,15 +8,19 @@ import { mergeDeep } from "./utilities/mergeDeep";
 
 // Options/Storage default to `any` for covariance (Mark<CustomOptions> must stay assignable to Mark)
 export class Mark<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- default `any` keeps Mark<CustomOptions> assignable to Mark (covariance)
   Options extends AnyRecord = any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- default `any` keeps Mark<CustomOptions> assignable to Mark (covariance)
   Storage extends AnyRecord = any,
 > {
   type = "mark";
 
   name = "mark";
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential defaults must stay `any` so Mark<Custom> is assignable to Mark
   parent: Mark<any, any> | null = null;
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential defaults must stay `any` so Mark<Custom> is assignable to Mark
   child: Mark<any, any> | null = null;
 
   options: Options = {} as Options;
@@ -56,6 +60,7 @@ export class Mark<
       ) || {};
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MarkConfig generic defaults mirror the class defaults (covariance)
   static create<O extends AnyRecord = any, S extends AnyRecord = any>(
     config: Partial<MarkConfig<O, S>> = {},
   ) {

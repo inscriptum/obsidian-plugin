@@ -26,6 +26,12 @@
   white-space: pre-wrap;
 }
 
+/* ProseMirror's block-separator hack (prosemirror-view inserts 1px imgs
+   between blocks for drop targets). !important is kept deliberately, as in
+   ProseMirror's own recommended style: arbitrary user themes/snippets style
+   `img` with higher specificity, and a visible separator would corrupt the
+   editor layout. */
+/* stylelint-disable declaration-no-important -- must beat unknown user-theme img rules, same as prosemirror-view's own recommendation for this block */
 img.ProseMirror-separator {
   display: inline !important;
   border: none !important;
@@ -33,6 +39,7 @@ img.ProseMirror-separator {
   width: 1px !important;
   height: 1px !important;
 }
+/* stylelint-enable declaration-no-important */
 
 .ProseMirror-gapcursor {
   display: none;
@@ -51,7 +58,7 @@ img.ProseMirror-separator {
   animation: ProseMirror-cursor-blink 1.1s steps(2, start) infinite;
 }
 
-/* stylelint-disable-next-line keyframes-name-pattern */
+/* stylelint-disable-next-line keyframes-name-pattern -- ProseMirror's own keyframe name; the animation is referenced by prosemirror-view and renaming it would break the gapcursor blink */
 @keyframes ProseMirror-cursor-blink {
   to {
     visibility: hidden;

@@ -195,9 +195,10 @@ td .texto-extension-image-host.texto-image-layout-full {
   }
 }
 
-/* Full-width images are not user-resizable. */
+/* Full-width images are not user-resizable. No other rule sets `display`
+   on resize handles, so the plain declaration wins the cascade. */
 .texto-extension-image-host.texto-image-layout-full .image-resize-handle {
-  display: none !important;
+  display: none;
 }
 
 .texto-extension-image-host.texto-image-layout-center {
@@ -272,5 +273,5 @@ body.texto-image-resizing {
 /* No resize handles for error blocks ("file not found") and empty
    placeholders — there is no image to resize. */
 .texto-extension-image-host.texto-image-no-file .image-resize-handle {
-  display: none !important;
+  display: none;
 }

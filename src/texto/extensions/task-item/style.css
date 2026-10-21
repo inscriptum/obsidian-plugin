@@ -43,7 +43,9 @@ ul.chk,
   &[data-checked="true"] .content > p {
     color: #8d8f9b;
     text-decoration: line-through;
+    /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
     text-decoration-color: rgba(141, 143, 155, 0.45);
+    /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
     text-decoration-thickness: 1px;
     transition: color 200ms;
   }
@@ -52,6 +54,7 @@ ul.chk,
 /* Light theme adjustments matching typography-v2.html .theme-light .note .chk */
 .theme-light .texto-extension-task-item-host[data-checked="true"] .content > p {
   color: #8f8f99;
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
   text-decoration-color: rgba(143, 143, 153, 0.5);
 }
 
@@ -93,18 +96,22 @@ ul.chk,
   transition: transform 100ms ease-in-out;
 }
 
-.texto-extension-task-item-host:hover .texto-task-fold-chevron,
-.texto-extension-task-item-host .texto-task-fold-chevron:hover,
-.texto-extension-task-item-host.is-folded .texto-task-fold-chevron {
+/* The :not(.is-grabbed)/:not(.is-dragging) exclusions let the
+   hold-grab/drag hide rules in styles/drag-handle.css (imported before
+   this file) win without !important — while grabbing, Chrome latches
+   :hover and the folded state stays on. */
+.texto-extension-task-item-host:hover .texto-task-fold-chevron:not(.is-grabbed):not(.is-dragging),
+.texto-extension-task-item-host .texto-task-fold-chevron:hover:not(.is-grabbed):not(.is-dragging),
+.texto-extension-task-item-host.is-folded .texto-task-fold-chevron:not(.is-grabbed):not(.is-dragging) {
   opacity: 1;
 }
 
 /* Drag-handle hover from the gutter: the strip left of the item belongs to
    it (see dragHandlePlugin.ts) — the plugin force-reveals the chevron (its
    grab point) via this class, the item's own :hover doesn't reach there.
-   The hold-grab/drag states hide the chevron (dots handle takes its place;
-   those rules live in styles/drag-handle.css, imported BEFORE this file —
-   so the exclusion here is what lets them win). */
+   The hold-grab/drag states hide the chevron (dots handle takes its
+   place; those rules live in styles/drag-handle.css, imported BEFORE this
+   file — the exclusion here is what lets them win without !important). */
 .texto-extension-task-item-host
 .texto-task-fold-chevron.is-hover:not(.is-grabbed):not(.is-dragging) {
   opacity: 1;

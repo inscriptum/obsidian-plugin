@@ -304,7 +304,7 @@ export class UmNotepad {
     // The "(copy)" suffix must also land in the copy document's title
     // source (header node or first line), or the title mirror wipes it on
     // the next load. A non-empty base title guarantees a writable line.
-    const copyDoc: JSONContent = JSON.parse(JSON.stringify(sourceDoc));
+    const copyDoc = JSON.parse(JSON.stringify(sourceDoc)) as JSONContent;
     if (descriptor.title) {
       const titled =
         descriptor.schema === UM_SCHEMA_TITLE

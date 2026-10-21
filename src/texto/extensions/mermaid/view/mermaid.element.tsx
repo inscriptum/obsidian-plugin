@@ -27,6 +27,7 @@ export const mermaidElement = litView.element({
     onInput: p.opt<(code: string) => void>(),
   },
 })(function* (params) {
+  // eslint-disable-next-line @typescript-eslint/no-this-alias -- lit's element generator binds `this` to the host element; the arrow callbacks below capture it
   const host: HTMLElement = this;
 
   const textarea = (): HTMLTextAreaElement =>

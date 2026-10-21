@@ -109,7 +109,7 @@ function createCustomElement<T>(baseTag: string, make: () => T): T {
   try {
     return make();
   } catch {
-    return document.createElement(elTag(baseTag)) as unknown as T;
+    return createEl(elTag(baseTag) as keyof HTMLElementTagNameMap) as unknown as T;
   }
 }
 
@@ -838,7 +838,7 @@ export class NotepadView extends FileView {
     } else {
       title.setText("This page was created in a newer version");
       text.setText(
-        "Update Inscriptum to open and edit it. The content is kept unchanged in the file.",
+        "Update inscriptum to open and edit it. The content is kept unchanged in the file.",
       );
     }
   }
@@ -1387,9 +1387,12 @@ export class NotepadView extends FileView {
     }
 
     const editorRef = handle.editorRef;
+    // Image/attachment tools save relative to the open note; without a bound
+    // file there is nothing to bind the context to.
+    if (!(this.file instanceof TFile)) return null;
     const ctx: ImageToolContext = {
       app: this.app,
-      noteFile: this.file as TFile,
+      noteFile: this.file,
     };
     const isMobile = Platform.isMobile;
     // The schema family picks the editor profile (spec 8.6): title pages
@@ -1592,7 +1595,11 @@ export class NotepadView extends FileView {
       },
       attachment: {
         onFileSelected: (file, update, cancel) => {
-          void attachSelectedFile(app, this.file as TFile, file, update, cancel);
+          if (!(this.file instanceof TFile)) {
+            cancel();
+            return;
+          }
+          void attachSelectedFile(app, this.file, file, update, cancel);
         },
         onClick: (attrs) => {
           openAttachmentFile(app, attrs.data);
@@ -3039,7 +3046,11 @@ export class NotepadView extends FileView {
       withAction.addAction("undo", title, cb);
       return;
     }
-    const btn = notice.noticeEl.createEl("button", {
+    // `messageEl` arrived in Obsidian 1.8.7; runtimes older than that
+    // (minAppVersion is 1.6.6) only carry the deprecated `noticeEl`. The
+    // local type reads both without referencing the deprecated declaration.
+    const container = notice as { messageEl?: HTMLElement; noticeEl: HTMLElement };
+    const btn = (container.messageEl ?? container.noticeEl).createEl("button", {
       text: title,
       cls: "notepad-notice-action",
     });

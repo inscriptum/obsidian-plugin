@@ -261,17 +261,6 @@ export function readAssetDescriptors(
   return out;
 }
 
-function writeAssetDescriptors(
-  manifest: UmManifest,
-  assets: UmAssetDescriptor[],
-): void {
-  if (assets.length === 0) {
-    delete manifest.assets;
-  } else {
-    manifest.assets = assets;
-  }
-}
-
 /** Serialize the container deterministically: fixed timestamps, fixed entry
  *  order, pretty-printed JSON. Assets and unknown entries are stored
  *  uncompressed (level 0) — images are already compressed and unknown

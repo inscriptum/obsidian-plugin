@@ -36,7 +36,11 @@ export default defineConfig(
       },
       parserOptions: {
         projectService: {
-          allowDefaultProject: ["eslint.config.mts", "playwright.config.ts"],
+          allowDefaultProject: [
+            "eslint.config.mts",
+            "stylelint.config.mjs",
+            "playwright.config.ts",
+          ],
         },
         tsconfigRootDir: import.meta.dirname,
       },
@@ -66,6 +70,12 @@ export default defineConfig(
       "eslint-comments/no-restricted-disable": [
         "error",
         "obsidianmd/*",
+        // …except prefer-create-el: src/browser-harness/harness.ts IS the
+        // implementation of Obsidian's createEl/createDiv/createSpan, so the
+        // rule would flag its own implementation. The shim suppresses the
+        // rule locally with a described disable; every other obsidianmd rule
+        // stays non-disableable.
+        "!obsidianmd/prefer-create-el",
         "no-console",
         "no-restricted-globals",
         "@typescript-eslint/no-restricted-imports",
@@ -84,19 +94,12 @@ export default defineConfig(
       "@typescript-eslint/no-misused-promises": "warn",
       "@typescript-eslint/no-floating-promises": "warn",
       "@typescript-eslint/no-unnecessary-type-assertion": "warn",
-      "@typescript-eslint/no-empty-object-type": [
-        "warn",
-        // Extension command types use `declare global { interface Commands extends … {} }`
-        // as declaration-merging augmentation points — these must stay interfaces.
-        { allowInterfaces: "with-single-extends" },
-      ],
-      "@typescript-eslint/no-empty-interface": [
-        "warn",
-        // Same declaration-merging augmentation points (one `declare global
-        // { interface Commands extends … {} }` per extension); a type alias
-        // cannot merge into the global interface, so keep them.
-        { allowSingleExtends: true },
-      ],
+      // No option overrides: the review bot sees empty interfaces (the
+      // `declare global { interface Commands extends … {} }` merging points
+      // cannot be type aliases), so the local gate must see them too. Both
+      // rule names stay on — v8 merged no-empty-interface into
+      // no-empty-object-type, and the bot's naming is not visible to us;
+      // inline suppressions name both so they match either report.
       "@typescript-eslint/no-redundant-type-constituents": "warn",
       "@typescript-eslint/no-this-alias": "warn",
       "@typescript-eslint/no-unsafe-function-type": "warn",

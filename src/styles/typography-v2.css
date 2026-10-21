@@ -114,7 +114,9 @@
 .note a {
   color: var(--note-accent-text);
   text-decoration: underline;
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
   text-decoration-thickness: 1px;
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
   text-decoration-color: color-mix(
     in srgb,
     var(--note-accent-text) 40%,
@@ -129,6 +131,7 @@
 
 .note a:hover {
   color: var(--note-accent-hover);
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
   text-decoration-color: color-mix(
     in srgb,
     var(--note-accent-hover) 55%,
@@ -279,11 +282,13 @@
 .note .chk li.on {
   color: var(--text-muted);
   text-decoration: line-through;
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
   text-decoration-color: color-mix(
     in srgb,
     var(--text-muted) 45%,
     transparent
   );
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
   text-decoration-thickness: 1px;
 }
 

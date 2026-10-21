@@ -27,10 +27,12 @@ export type Extensions = AnyExtension[];
 // Centralize `any` for repeated patterns, avoiding duplicate warnings.
 
 // `any[]` is required here because this type stores callbacks with arbitrary parameter lists.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- callbacks with arbitrary parameter lists
 export type AnyFn = (...args: any[]) => unknown;
 
 export type AnyFnVoid = (...args: never[]) => void;
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- structural compatibility with any options interface (see AnyObject)
 export type AnyRecord = Record<string, any>;
 
 /** Expansion of `keyof any` */
@@ -114,9 +116,11 @@ export type JSONContent = {
   marks?: {
     type: string;
     attrs?: AnyRecord;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mark attrs carry arbitrary payload fields
     [key: string]: any;
   }[];
   text?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- JSON document nodes carry arbitrary payload fields
   [key: string]: any;
 };
 
@@ -141,11 +145,13 @@ export type CommandSpec = CommandFn;
 export type KeyboardShortcutCommand = (props: { editor: Editor }) => boolean;
 
 export type Attribute = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- attribute defaults mirror ProseMirror's Attribute.default (any by contract)
   default: any;
   rendered?: boolean;
   renderHTML?:
     | ((attributes: Record<string, unknown>) => Record<string, unknown> | null)
     | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseHTML return mirrors ProseMirror's Attribute type (any by contract)
   parseHTML?: ((element: HTMLElement) => any) | null;
   keepOnSplit: boolean;
   isRequired?: boolean;

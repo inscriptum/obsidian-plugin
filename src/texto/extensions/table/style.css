@@ -5,7 +5,8 @@
    ProseMirror Tables — v2
    Project uses its OWN table extension: div.table-wrapper (kebab-case)
    (see src/texto/extensions/table/tableView.ts)
-   Max specificity + !important to override default Obsidian styles.
+   Max specificity to override default Obsidian styles; no !important —
+   per-cell inline border styles must be able to win the cascade.
    ═══════════════════════════════════════════════════════════════ */
 
 /* ─── Wrapper ─── */
@@ -38,18 +39,21 @@
 
 /* Table with borders disabled ("No borders" preset): suppresses the default
    grid for every cell — including cells inserted later. Per-cell inline
-   border styles (rendered from the `borders` attr with !important) still
-   win over this rule, so borders can be drawn back onto a borderless
-   table cell by cell. */
+   border styles (rendered from the `borders` attr, no !important) still win
+   over this rule — inline declarations beat any stylesheet rule — so
+   borders can be drawn back onto a borderless table cell by cell. */
 .ProseMirror .table-wrapper table[data-borders="none"] td,
 .ProseMirror .table-wrapper table[data-borders="none"] th {
-  border: none !important;
+  border: none;
 }
 
 /* ─── Cells ─── */
 .ProseMirror .table-wrapper table td,
 .ProseMirror .table-wrapper table th {
-  border: 1px solid var(--inscriptum-table-border) !important;
+  /* No !important: per-cell inline border styles (borders attr) must stay
+     able to override this default without resorting to !important of their
+     own (see helpers/borders.ts). */
+  border: 1px solid var(--inscriptum-table-border);
   min-width: 1em;
   /* The horizontal value is public: the image extension negates it for
      full-width images inside a cell (see texto/extensions/image/style.css). */
@@ -59,8 +63,8 @@
   box-sizing: border-box;
   position: relative;
   font-size: 14px;
-  color: #b6b8c4 !important;
-  background: transparent !important;
+  color: #b6b8c4;
+  background: transparent;
   font-variant-numeric: tabular-nums;
 }
 
@@ -70,15 +74,15 @@
     in srgb,
     var(--interactive-accent, #7c6af7) 4%,
     transparent
-  ) !important;
+  );
 }
 
 .ProseMirror .table-wrapper table th {
   text-align: left;
   font-size: 13.5px;
   font-weight: 600;
-  color: #d9dbe4 !important;
-  background: #15151a !important;
+  color: #d9dbe4;
+  background: #15151a;
 }
 
 /* ─── Overlay (selection frame + resize) ───
@@ -145,13 +149,13 @@ body.texto-table__cell-dragging
 
 .theme-light .ProseMirror .table-wrapper table td,
 .theme-light .ProseMirror .table-wrapper table th {
-  border-color: #d7d7e0 !important;
-  color: #45454d !important;
+  border-color: #d7d7e0;
+  color: #45454d;
 }
 
 .theme-light .ProseMirror .table-wrapper table th {
-  color: #33333b !important;
-  background: #f0f0f4 !important;
+  color: #33333b;
+  background: #f0f0f4;
 }
 
 .theme-light .ProseMirror .table-wrapper table td:hover,
@@ -160,7 +164,7 @@ body.texto-table__cell-dragging
     in srgb,
     var(--interactive-accent, #7c6af7) 5%,
     transparent
-  ) !important;
+  );
 }
 
 /* ─── Selected cells (CellSelection) ───

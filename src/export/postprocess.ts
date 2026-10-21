@@ -95,7 +95,20 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 
 type IconShape = { tag: string; attrs: Record<string, string> };
 
-function svgIcon(doc: Document, shapes: IconShape[]): SVGElement {
+/** Export post-processing builds DOM inside a detached DOMParser document,
+ *  where Obsidian's `createEl` helpers are not available. The narrow type
+ *  expresses that (a full `Document` is assignable to it); element creation
+ *  goes through `createElIn`. */
+type DetachedDoc = Pick<Document, "createElement" | "createElementNS">;
+
+function createElIn<K extends keyof HTMLElementTagNameMap>(
+  doc: DetachedDoc,
+  tag: K,
+): HTMLElementTagNameMap[K] {
+  return doc.createElement(tag);
+}
+
+function svgIcon(doc: DetachedDoc, shapes: IconShape[]): SVGElement {
   const svg = doc.createElementNS(SVG_NS, "svg");
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("fill", "none");
@@ -129,8 +142,8 @@ const CHECK_ICON: IconShape[] = [
   { tag: "path", attrs: { d: "M5 12l5 5l10 -10" } },
 ];
 
-function iconSpan(doc: Document, cls: string, icon: IconShape[]): HTMLElement {
-  const span = doc.createElement("span");
+function iconSpan(doc: DetachedDoc, cls: string, icon: IconShape[]): HTMLElement {
+  const span = createElIn(doc, "span");
   span.className = cls;
   span.appendChild(svgIcon(doc, icon));
   return span;
@@ -144,20 +157,20 @@ function wrapCodeBlock(parsed: Document, pre: Element): void {
   const code = pre.querySelector("code");
   if (code == null) return;
 
-  const block = parsed.createElement("div");
+  const block = createElIn(parsed, "div");
   block.className = "hljs-codeblock";
   if (code.getAttribute("wrap") === "true") block.classList.add("is-wrapped");
 
-  const controls = parsed.createElement("div");
+  const controls = createElIn(parsed, "div");
   controls.className = "hljs-codeblock__controls";
-  const lang = parsed.createElement("span");
+  const lang = createElIn(parsed, "span");
   lang.className = "hljs-codeblock__lang";
   lang.textContent = languageLabel(code.getAttribute("class"));
   controls.appendChild(lang);
 
-  const actions = parsed.createElement("div");
+  const actions = createElIn(parsed, "div");
   actions.className = "hljs-codeblock__actions";
-  const copyButton = parsed.createElement("button");
+  const copyButton = createElIn(parsed, "button");
   copyButton.setAttribute("type", "button");
   copyButton.className = "hljs-codeblock__btn hljs-codeblock__btn--copy";
   copyButton.title = "Copy code";
@@ -216,12 +229,12 @@ export async function postProcessForExport(
     }
     if (!images.includes(vaultPath)) images.push(vaultPath);
 
-    const figure = parsed.createElement("figure");
+    const figure = createElIn(parsed, "figure");
     figure.setAttribute("data-align", el.dataset["align"] ?? "left");
     const style = figureWidthStyle(el.dataset["width"] ?? null);
     if (style !== "") figure.setAttribute("style", style);
 
-    const img = parsed.createElement("img");
+    const img = createElIn(parsed, "img");
     img.setAttribute("src", `images/${fileName}`);
     const alt = el.dataset["filename"];
     if (alt) img.setAttribute("alt", alt);
@@ -283,11 +296,11 @@ export async function postProcessForExport(
       svg: new XMLSerializer().serializeToString(svgRoot),
     });
 
-    const figure = parsed.createElement("figure");
+    const figure = createElIn(parsed, "figure");
     figure.className = "mermaid-figure";
     const align = el.dataset["align"];
     if (align && align !== "left") figure.setAttribute("data-align", align);
-    const img = parsed.createElement("img");
+    const img = createElIn(parsed, "img");
     img.setAttribute("src", `images/${name}`);
     img.setAttribute("alt", "Diagram");
     figure.appendChild(img);

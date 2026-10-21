@@ -79,8 +79,9 @@ function safeBorderColor(color: string): string | null {
 }
 
 /** Inline style for the cell's `borders` attribute; "" when nothing to draw.
-   !important is required to beat the stylesheet's default
-   `td/th { border: 1px solid … !important }` (see style.css).
+   plain declarations suffice: inline styles outrank every
+   stylesheet rule, including the cell default in style.css and the
+   "No borders" preset suppressor.
    Sides with malformed values are skipped — an untrusted attribute must
    not reach the style. */
 export function bordersToStyle(
@@ -92,7 +93,7 @@ export function bordersToStyle(
     const spec = borders[side];
     if (!spec) continue;
     if (spec.style === "none") {
-      parts.push(`border-${side}: none !important`);
+      parts.push(`border-${side}: none`);
     } else {
       const width = spec.width ?? "1pt";
       const color = safeBorderColor(spec.color || BORDER_AUTO_COLOR);
@@ -103,7 +104,7 @@ export function bordersToStyle(
       ) {
         continue;
       }
-      parts.push(`border-${side}: ${width} ${spec.style} ${color} !important`);
+      parts.push(`border-${side}: ${width} ${spec.style} ${color}`);
     }
   }
   return parts.join("; ");

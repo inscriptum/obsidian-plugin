@@ -4,10 +4,7 @@
 import type { JSONContent } from "../texto/core/@types";
 import { Editor } from "../texto/core/Editor";
 import { getExtensions } from "../texto/getExtensions";
-import {
-  openImageGallery,
-  type GalleryItem,
-} from "../ui/imageLightbox";
+import { openImageGallery, type GalleryItem } from "../ui/imageLightbox";
 import { headingFoldingKey } from "../texto/extensions/heading/folding";
 import { taskFoldingKey } from "../texto/extensions/task-item-folding/taskFoldingPlugin";
 import { NotepadView } from "../NotepadView";
@@ -16,6 +13,7 @@ import { UmNotepad } from "../storage/um/umNotepad";
 import { exportNotepadAsWebsite } from "../export/exportNotepadWebsite";
 import type { UmContainerData, UmNoteDescriptor } from "../storage/um/umTypes";
 import type { WorkspaceLeaf } from "obsidian";
+import { TFile } from "obsidian";
 import {
   UM_FORMAT,
   UM_SCHEMA_PLAIN,
@@ -53,6 +51,7 @@ const g = window as unknown as Record<string, unknown>;
 // Obsidian semantics: createDiv/createSpan take the CLASS as a bare string
 // (or a DomElementInfo object) — a string is never the text content.
 // createEl(tag, string) is the text form; createEl(tag, {...}) the info one.
+/* eslint-disable obsidianmd/prefer-create-el -- this file IS the Obsidian DOM-helper shim: createEl/createDiv/createSpan/createFragment are IMPLEMENTED here, so the rule would flag its own implementation (there is no helper to call yet) */
 g.createDiv = (attrs?: DomAttrs | string) => {
   const div = document.createElement("div");
   if (typeof attrs === "string") div.className = attrs;
@@ -67,7 +66,23 @@ g.createSpan = (attrs?: DomAttrs | string) => {
 };
 g.createEl = (tag: string, attrs?: DomAttrs | string) =>
   applyAttrs(document.createElement(tag), attrs);
+// Obsidian's createSvg builds an element in the SVG namespace. SVG elements
+// have no writable `className` (it is an SVGAnimatedString), so the class
+// goes through setAttribute — the note-property sprite icons rely on it.
+g.createSvg = (tag: string, attrs?: DomAttrs | string) => {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  if (typeof attrs === "string") svg.textContent = attrs;
+  else if (attrs != null) {
+    if (attrs.cls) svg.setAttribute("class", attrs.cls);
+    if (attrs.text != null) svg.textContent = attrs.text;
+    if (attrs.attr) {
+      for (const [k, v] of Object.entries(attrs.attr)) svg.setAttribute(k, v);
+    }
+  }
+  return svg;
+};
 g.createFragment = () => document.createDocumentFragment();
+/* eslint-enable obsidianmd/prefer-create-el -- end of the global shim block (the rule stays disabled only while the shim's own helpers are defined) */
 // NOTE: do NOT assign window.requestAnimationFrame — `g` IS window, and
 // overwriting the native function would recurse forever (bundle code calls
 // the bare `requestAnimationFrame` global). The native one already IS the
@@ -97,21 +112,28 @@ const toStr = (value: unknown): string =>
       : JSON.stringify(value);
 defineHelper("addClass", (el, [classes]) => {
   // Obsidian's addClass accepts a string (ONE class) or an array.
-  const list = Array.isArray(classes) ? classes : [classes as string];
+  const list: string[] = Array.isArray(classes)
+    ? (classes as string[])
+    : [classes as string];
   for (const cls of list) el.classList.add(cls);
 });
 defineHelper("addClasses", (el, [classes]) => {
-  for (const list of classes as string[][]) el.classList.add(...list);
+  // Obsidian's addClasses takes an ARRAY of class names (addClass takes one).
+  for (const cls of classes as string[]) el.classList.add(cls);
 });
 defineHelper("removeClass", (el, [classes]) => {
-  const list = Array.isArray(classes) ? classes : [classes as string];
+  const list: string[] = Array.isArray(classes)
+    ? (classes as string[])
+    : [classes as string];
   for (const cls of list) el.classList.remove(cls);
 });
 defineHelper("removeClasses", (el, [classes]) => {
-  for (const list of classes as string[][]) el.classList.remove(...list);
+  for (const cls of classes as string[]) el.classList.remove(cls);
 });
 defineHelper("toggleClass", (el, [classes, value]) => {
-  const list = Array.isArray(classes) ? classes : [classes as string];
+  const list: string[] = Array.isArray(classes)
+    ? (classes as string[])
+    : [classes as string];
   for (const cls of list) el.classList.toggle(cls, Boolean(value));
 });
 defineHelper("hasClass", (el, [cls]) => el.classList.contains(cls as string));
@@ -138,6 +160,7 @@ defineHelper("setCssProps", (el, [props]) => {
 defineHelper("empty", (el) => {
   while (el.firstChild) el.removeChild(el.firstChild);
 });
+/* eslint-disable obsidianmd/prefer-create-el -- the prototype helpers below ARE Obsidian's createEl/createDiv/createSpan: they must call document.createElement to build the element they hand back */
 defineHelper("createDiv", (el, [cls]) => {
   const div = document.createElement("div");
   // Obsidian semantics: createDiv("name") sets the CLASS, createDiv({...})
@@ -160,6 +183,7 @@ defineHelper("createEl", (el, [tag, attrs]) => {
   el.appendChild(out);
   return out;
 });
+/* eslint-enable obsidianmd/prefer-create-el -- end of the prototype-helper block (the rule stays disabled only while the shim's own helpers are defined) */
 defineHelper("setText", (el, [text]) => {
   el.textContent = toStr(text);
   return el;
@@ -226,7 +250,7 @@ function appContainer(): HTMLElement {
   if (existing != null) {
     return existing;
   }
-  const app = document.createElement("div");
+  const app = createDiv();
   app.id = "app";
   document.body.appendChild(app);
   return app;
@@ -241,10 +265,8 @@ function mountEditor(doc: unknown): string {
 
   const app = appContainer();
   app.replaceChildren();
-  const note = document.createElement("div");
-  note.className = "note";
-  const article = document.createElement("article");
-  article.className = "texto-editor";
+  const note = createDiv("note");
+  const article = createEl("article", { cls: "texto-editor" });
   note.appendChild(article);
   app.appendChild(note);
 
@@ -354,14 +376,13 @@ function mountNotepad(
   ];
   notes.set("title-page", {
     type: "noteDoc",
-    content:
-      opts?.titleDoc ?? [
-        {
-          type: "noteTitle",
-          content: [{ type: "text", text: "Notepad title" }],
-        },
-        { type: "paragraph" },
-      ],
+    content: opts?.titleDoc ?? [
+      {
+        type: "noteTitle",
+        content: [{ type: "text", text: "Notepad title" }],
+      },
+      { type: "paragraph" },
+    ],
   });
   pages.forEach((page, i) => {
     descriptors.push({
@@ -453,15 +474,20 @@ function mountNotepad(
   view.contentEl.addClass("view-content");
   view.contentEl.addClass("notepad-view-container");
   v.app = app;
-  v.file = {
-    path: "e2e/harness.um",
-    name: "harness.um",
-    basename: "harness",
-    parent: null,
-    // renderCollapsedTitle falls back to the container mtime for pages
-    // without a modifiedAt stamp (um-page-updated-at) — TFile always has it.
-    stat: { mtime: 1790000000000, ctime: 1790000000000, size: 1 },
-  };
+  // NotepadView guards the open file with `instanceof TFile` (the community
+  // review forbids TFile casts) — the harness must hand it a real TFile
+  // instance, not a plain object, or the guard rejects it and the editors
+  // never mount. The fields are set explicitly: the harness shim's TFile
+  // takes no constructor argument.
+  const harnessFile = new TFile();
+  harnessFile.path = "e2e/harness.um";
+  harnessFile.name = "harness.um";
+  harnessFile.basename = "harness";
+  harnessFile.parent = null;
+  // renderCollapsedTitle falls back to the container mtime for pages
+  // without a modifiedAt stamp (um-page-updated-at) — TFile always has it.
+  harnessFile.stat = { mtime: 1790000000000, ctime: 1790000000000, size: 1 };
+  v.file = harnessFile;
   // Mirror onOpen's DOM skeleton; the nav drawer (buildNavSidebar) stays
   // unbuilt — rebuildNavList null-guards on the missing navListEl.
   v.toolbarHost = view.contentEl.createDiv("notepad-toolbar-host");
@@ -516,9 +542,12 @@ function b64ToBytes(b64: string): Uint8Array {
 
 function toB64(data: string | ArrayBuffer): string {
   const bytes =
-    typeof data === "string" ? new TextEncoder().encode(data) : new Uint8Array(data);
+    typeof data === "string"
+      ? new TextEncoder().encode(data)
+      : new Uint8Array(data);
   let bin = "";
-  for (let i = 0; i < bytes.length; i += 1) bin += String.fromCharCode(bytes[i]);
+  for (let i = 0; i < bytes.length; i += 1)
+    bin += String.fromCharCode(bytes[i]);
   return btoa(bin);
 }
 

@@ -17,10 +17,13 @@ export type AnyObject = AnyRecord;
 
 export interface AnyConfig<
   Options = AnyObject,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Storage is intentionally `any`: extensions store arbitrary state
   Storage = any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Config defaults to `any`: extension configs are structurally open
   Config extends Record<any, any> = any,
   ConfigType = unknown,
 > {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pass-through map of arbitrary tiptap-style config fields
   [key: string]: any;
 
   /**
