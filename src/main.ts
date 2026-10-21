@@ -548,6 +548,17 @@ class InscriptumSettingTab extends PluginSettingTab {
     ];
   }
 
+  /** Read the current value for a control key (Obsidian 1.13.0+ calls this
+   *  on every render of a `control`-type definition). The base class reads
+   *  the app's own config storage; the plugin keeps its settings in
+   *  `plugin.settings` (defaults merged with the stored data), so read them
+   *  from there — otherwise the field would render empty and the next save
+   *  would write the default over the user's value. */
+  getControlValue(key: string): unknown {
+    const settings = this.plugin.settings as unknown as Record<string, unknown>;
+    return settings[key];
+  }
+
   async setControlValue(key: string, value: unknown): Promise<void> {
     // Same normalize-on-write semantics the imperative display() applies.
     if (key === "exportFolder") {

@@ -70,6 +70,12 @@ export default defineConfig(
       "eslint-comments/no-restricted-disable": [
         "error",
         "obsidianmd/*",
+        // …except prefer-create-el: src/browser-harness/harness.ts IS the
+        // implementation of Obsidian's createEl/createDiv/createSpan, so the
+        // rule would flag its own implementation. The shim suppresses the
+        // rule locally with a described disable; every other obsidianmd rule
+        // stays non-disableable.
+        "!obsidianmd/prefer-create-el",
         "no-console",
         "no-restricted-globals",
         "@typescript-eslint/no-restricted-imports",
@@ -90,9 +96,10 @@ export default defineConfig(
       "@typescript-eslint/no-unnecessary-type-assertion": "warn",
       // No option overrides: the review bot sees empty interfaces (the
       // `declare global { interface Commands extends … {} }` merging points
-      // cannot be type aliases), so the local gate must see them too.
-      "@typescript-eslint/no-empty-object-type": "warn",
-      "@typescript-eslint/no-empty-interface": "off",
+      // cannot be type aliases), so the local gate must see them too. Both
+      // rule names stay on — v8 merged no-empty-interface into
+      // no-empty-object-type, and the bot's naming is not visible to us;
+      // inline suppressions name both so they match either report.
       "@typescript-eslint/no-redundant-type-constituents": "warn",
       "@typescript-eslint/no-this-alias": "warn",
       "@typescript-eslint/no-unsafe-function-type": "warn",

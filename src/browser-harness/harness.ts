@@ -53,6 +53,7 @@ const g = window as unknown as Record<string, unknown>;
 // Obsidian semantics: createDiv/createSpan take the CLASS as a bare string
 // (or a DomElementInfo object) — a string is never the text content.
 // createEl(tag, string) is the text form; createEl(tag, {...}) the info one.
+/* eslint-disable obsidianmd/prefer-create-el -- this file IS the Obsidian DOM-helper shim: createEl/createDiv/createSpan/createFragment are IMPLEMENTED here, so the rule would flag its own implementation (there is no helper to call yet) */
 g.createDiv = (attrs?: DomAttrs | string) => {
   const div = document.createElement("div");
   if (typeof attrs === "string") div.className = attrs;
@@ -68,6 +69,7 @@ g.createSpan = (attrs?: DomAttrs | string) => {
 g.createEl = (tag: string, attrs?: DomAttrs | string) =>
   applyAttrs(document.createElement(tag), attrs);
 g.createFragment = () => document.createDocumentFragment();
+/* eslint-enable obsidianmd/prefer-create-el -- end of the global shim block (the rule stays disabled only while the shim's own helpers are defined) */
 // NOTE: do NOT assign window.requestAnimationFrame — `g` IS window, and
 // overwriting the native function would recurse forever (bundle code calls
 // the bare `requestAnimationFrame` global). The native one already IS the
@@ -97,21 +99,27 @@ const toStr = (value: unknown): string =>
       : JSON.stringify(value);
 defineHelper("addClass", (el, [classes]) => {
   // Obsidian's addClass accepts a string (ONE class) or an array.
-  const list = Array.isArray(classes) ? classes : [classes as string];
+  const list: string[] = Array.isArray(classes)
+    ? (classes as string[])
+    : [classes as string];
   for (const cls of list) el.classList.add(cls);
 });
 defineHelper("addClasses", (el, [classes]) => {
   for (const list of classes as string[][]) el.classList.add(...list);
 });
 defineHelper("removeClass", (el, [classes]) => {
-  const list = Array.isArray(classes) ? classes : [classes as string];
+  const list: string[] = Array.isArray(classes)
+    ? (classes as string[])
+    : [classes as string];
   for (const cls of list) el.classList.remove(cls);
 });
 defineHelper("removeClasses", (el, [classes]) => {
   for (const list of classes as string[][]) el.classList.remove(...list);
 });
 defineHelper("toggleClass", (el, [classes, value]) => {
-  const list = Array.isArray(classes) ? classes : [classes as string];
+  const list: string[] = Array.isArray(classes)
+    ? (classes as string[])
+    : [classes as string];
   for (const cls of list) el.classList.toggle(cls, Boolean(value));
 });
 defineHelper("hasClass", (el, [cls]) => el.classList.contains(cls as string));
@@ -138,6 +146,7 @@ defineHelper("setCssProps", (el, [props]) => {
 defineHelper("empty", (el) => {
   while (el.firstChild) el.removeChild(el.firstChild);
 });
+/* eslint-disable obsidianmd/prefer-create-el -- the prototype helpers below ARE Obsidian's createEl/createDiv/createSpan: they must call document.createElement to build the element they hand back */
 defineHelper("createDiv", (el, [cls]) => {
   const div = document.createElement("div");
   // Obsidian semantics: createDiv("name") sets the CLASS, createDiv({...})
@@ -160,6 +169,7 @@ defineHelper("createEl", (el, [tag, attrs]) => {
   el.appendChild(out);
   return out;
 });
+/* eslint-enable obsidianmd/prefer-create-el -- end of the prototype-helper block (the rule stays disabled only while the shim's own helpers are defined) */
 defineHelper("setText", (el, [text]) => {
   el.textContent = toStr(text);
   return el;
