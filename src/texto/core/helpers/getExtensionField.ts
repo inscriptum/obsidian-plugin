@@ -1,13 +1,12 @@
-import type {
-  AnyExtension,
-  MaybeThisParameterType,
-  RemoveThis,
-} from "../@types";
+import type { AnyExtension, RemoveThis } from "../@types";
 
 export function getExtensionField<T>(
   extension: AnyExtension,
   field: string,
-  context?: Omit<MaybeThisParameterType<T>, "parent">,
+  // The context is a plain bag on purpose: the field's own `this` type is
+  // enforced by the extension implementation (see AnyConfig), and the
+  // dynamic dispatch here erases it anyway.
+  context?: object,
 ): RemoveThis<T> {
   const fieldObj: unknown = extension.config[field];
 

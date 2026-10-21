@@ -1,6 +1,10 @@
 import { Editor } from "../../../core";
 import { Plugin, PluginKey } from "prosemirror-state";
-import { Decoration, DecorationSet } from "prosemirror-view";
+import {
+  Decoration,
+  DecorationSet,
+  type DecorationAttrs,
+} from "prosemirror-view";
 import type { AnyRecord } from "../../../core/@types";
 
 import { NoteTitle } from "../NoteTitle";
@@ -58,7 +62,9 @@ export const notePlaceholdersPlugin = (
           );
         } else {
           decorations.push(
-            Decoration.node(0, title.nodeSize, { ...notEmptyTitleAttributes }),
+            Decoration.node(0, title.nodeSize, {
+              ...notEmptyTitleAttributes,
+            } as DecorationAttrs),
           );
         }
 

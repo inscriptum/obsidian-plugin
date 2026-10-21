@@ -77,9 +77,19 @@ export function getExportExtensions(): Extensions {
     // but the published page shows only committed tags.
     NotePropertyValue.extend({
       // RenderSpec 0 (a hole) — PM types don't allow it, runtime does.
-      renderHTML({ node }: { node: import("prosemirror-model").Node }): DOMOutputSpec {
+      renderHTML({
+        node,
+      }: {
+        node: import("prosemirror-model").Node;
+      }): DOMOutputSpec {
         if (node.childCount === 0) return createSpan();
-        return this.parent!({ node, HTMLAttributes: {} });
+        const parent = this.parent as
+          | ((props: {
+              node: import("prosemirror-model").Node;
+              HTMLAttributes: Record<string, unknown>;
+            }) => DOMOutputSpec)
+          | undefined;
+        return parent!({ node, HTMLAttributes: {} });
       },
     }),
     Link,

@@ -1,5 +1,6 @@
 import type { Command } from "../../core/@types";
 import type { AnyConfig } from "../../core/@types/AnyConfig";
+import type { HardBreakOptions } from "./hard-break";
 
 type AddCommandsThis = ThisParameterType<Required<AnyConfig>["addCommands"]>;
 
@@ -18,7 +19,7 @@ export function addCommands(this: AddCommandsThis) {
                 return false;
               }
 
-              const { keepMarks } = this.options;
+              const { keepMarks } = this.options as HardBreakOptions;
               const { splittableMarks } = editor.extensionManager;
               const marks =
                 storedMarks ||

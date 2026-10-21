@@ -70,17 +70,15 @@ export default defineConfig(
       "eslint-comments/no-restricted-disable": [
         "error",
         "obsidianmd/*",
-        // …except prefer-create-el: src/browser-harness/harness.ts IS the
-        // implementation of Obsidian's createEl/createDiv/createSpan, so the
-        // rule would flag its own implementation. The shim suppresses the
-        // rule locally with a described disable; every other obsidianmd rule
-        // stays non-disableable.
-        "!obsidianmd/prefer-create-el",
         "no-console",
         "no-restricted-globals",
         "@typescript-eslint/no-restricted-imports",
         "no-alert",
         "@typescript-eslint/no-deprecated",
+        // The community review refuses these suppressions outright — a
+        // disabled `no-explicit-any` is reported as an error, so the local
+        // gate must see it too (the types are fixed, not silenced).
+        "@typescript-eslint/no-explicit-any",
         "@microsoft/sdl/no-document-write",
         "no-eval",
         "@microsoft/sdl/no-inner-html",

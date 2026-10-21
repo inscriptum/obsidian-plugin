@@ -90,7 +90,7 @@ export const Link = Mark.create<LinkOptions>({
   },
 
   inclusive() {
-    return this.options.autolink;
+    return (this.options as LinkOptions).autolink;
   },
 
   addOptions() {
@@ -196,7 +196,7 @@ export const Link = Mark.create<LinkOptions>({
         type: this.type,
         getAttributes: (
           match: ExtendedRegExpMatchArray,
-          pasteEvent: ClipboardEvent,
+          pasteEvent?: ClipboardEvent,
         ) => {
           const html = pasteEvent?.clipboardData?.getData("text/html");
           const hrefRegex = /href="([^"]*)"/;
@@ -210,7 +210,7 @@ export const Link = Mark.create<LinkOptions>({
           }
 
           return {
-            href: match.data?.href as string | undefined,
+            href: match.data?.href,
           };
         },
       }),

@@ -16,117 +16,106 @@ import type {
   Attributes,
   GlobalAttributes,
   NodeViewRenderer,
-  ParentConfig,
 } from ".";
 import type { AnyConfig, AnyObject } from "./AnyConfig";
 
-export interface NodeConfig<Options = AnyObject, Storage = AnyObject>
-  extends AnyConfig<Options, Storage, NodeConfig<Options, Storage>, NodeType> {
+export interface NodeConfig<Options = object, Storage = object>
+  extends AnyConfig<Options, Storage, NodeType> {
   /**
    * Global attributes
    */
-  addGlobalAttributes?: (this: {
+  addGlobalAttributes?(this: {
     name: string;
     options: Options;
     storage: Storage;
-    parent: ParentConfig<NodeConfig<Options, Storage>>["addGlobalAttributes"];
-  }) => GlobalAttributes | object;
+    parent: unknown;
+  }): GlobalAttributes | object;
 
   /**
    * Raw
    */
-  addCommands?: (this: {
+  addCommands?(this: {
     name: string;
     options: Options;
     storage: Storage;
     editor: Editor;
     type: NodeType;
-    parent: ParentConfig<NodeConfig<Options, Storage>>["addCommands"];
-  }) => AnyCommands;
+    parent: unknown;
+  }): AnyCommands;
 
   /**
    * Input rules
    */
-  addInputRules?: (this: {
+  addInputRules?(this: {
     name: string;
     options: Options;
     storage: Storage;
     editor: Editor;
     type: NodeType;
-    parent: ParentConfig<NodeConfig<Options, Storage>>["addInputRules"];
-  }) => InputRule[];
+    parent: unknown;
+  }): InputRule[];
 
   /**
    * Paste rules
    */
-  addPasteRules?: (this: {
+  addPasteRules?(this: {
     name: string;
     options: Options;
     storage: Storage;
     editor: Editor;
     type: NodeType;
-    parent: ParentConfig<NodeConfig<Options, Storage>>["addPasteRules"];
-  }) => PasteRule[];
+    parent: unknown;
+  }): PasteRule[];
 
   /**
    * ProseMirror plugins
    */
-  addProseMirrorPlugins?: (this: {
+  addProseMirrorPlugins?(this: {
     name: string;
     options: Options;
     storage: Storage;
     editor: Editor;
     type: NodeType;
-    parent: ParentConfig<NodeConfig<Options, Storage>>["addProseMirrorPlugins"];
-  }) => Plugin[];
+    parent: unknown;
+  }): Plugin[];
 
   /**
    * Extend Node Schema
    */
-  extendNodeSchema?:
-    | ((
-        this: {
-          name: string;
-          options: Options;
-          storage: Storage;
-          parent: ParentConfig<
-            NodeConfig<Options, Storage>
-          >["extendNodeSchema"];
-        },
-        extension: AnyExtension,
-      ) => Record<string, AnyObject>)
-    | null;
+  extendNodeSchema?(
+    this: {
+      name: string;
+      options: Options;
+      storage: Storage;
+      parent: unknown;
+    },
+    extension: AnyExtension,
+  ): Record<string, AnyObject> | null;
 
   /**
    * Extend Mark Schema
    */
-  extendMarkSchema?:
-    | ((
-        this: {
-          name: string;
-          options: Options;
-          storage: Storage;
-          parent: ParentConfig<
-            NodeConfig<Options, Storage>
-          >["extendMarkSchema"];
-        },
-        extension: Node,
-      ) => Record<string, unknown>)
-    | null;
+  extendMarkSchema?(
+    this: {
+      name: string;
+      options: Options;
+      storage: Storage;
+      parent: unknown;
+    },
+    extension: Node,
+  ): Record<string, unknown>;
 
   /**
    * Node View
    */
-  addNodeView?:
-    | ((this: {
-        name: string;
-        options: Options;
-        storage: Storage;
-        editor: Editor;
-        type: NodeType;
-        parent: ParentConfig<NodeConfig<Options, Storage>>["addNodeView"];
-      }) => NodeViewRenderer)
-    | null;
+  addNodeView?(this: {
+    name: string;
+    options: object;
+    storage: object;
+    editor: Editor;
+    type: NodeType;
+    parent: unknown;
+  }): NodeViewRenderer | null;
 
   /**
    * TopNode
@@ -140,9 +129,9 @@ export interface NodeConfig<Options = AnyObject, Storage = AnyObject>
     | NodeSpec["content"]
     | ((this: {
         name: string;
-        options: Options;
-        storage: Storage;
-        parent: ParentConfig<NodeConfig<Options, Storage>>["content"];
+        options: object;
+        storage: object;
+        parent: unknown;
       }) => NodeSpec["content"]);
 
   /**
@@ -152,9 +141,9 @@ export interface NodeConfig<Options = AnyObject, Storage = AnyObject>
     | NodeSpec["marks"]
     | ((this: {
         name: string;
-        options: Options;
-        storage: Storage;
-        parent: ParentConfig<NodeConfig<Options, Storage>>["marks"];
+        options: object;
+        storage: object;
+        parent: unknown;
       }) => NodeSpec["marks"]);
 
   /**
@@ -164,9 +153,9 @@ export interface NodeConfig<Options = AnyObject, Storage = AnyObject>
     | NodeSpec["group"]
     | ((this: {
         name: string;
-        options: Options;
-        storage: Storage;
-        parent: ParentConfig<NodeConfig<Options, Storage>>["group"];
+        options: object;
+        storage: object;
+        parent: unknown;
       }) => NodeSpec["group"]);
 
   /**
@@ -176,9 +165,9 @@ export interface NodeConfig<Options = AnyObject, Storage = AnyObject>
     | NodeSpec["inline"]
     | ((this: {
         name: string;
-        options: Options;
-        storage: Storage;
-        parent: ParentConfig<NodeConfig<Options, Storage>>["inline"];
+        options: object;
+        storage: object;
+        parent: unknown;
       }) => NodeSpec["inline"]);
 
   /**
@@ -188,9 +177,9 @@ export interface NodeConfig<Options = AnyObject, Storage = AnyObject>
     | NodeSpec["atom"]
     | ((this: {
         name: string;
-        options: Options;
-        storage: Storage;
-        parent: ParentConfig<NodeConfig<Options, Storage>>["atom"];
+        options: object;
+        storage: object;
+        parent: unknown;
       }) => NodeSpec["atom"]);
 
   /**
@@ -200,9 +189,9 @@ export interface NodeConfig<Options = AnyObject, Storage = AnyObject>
     | NodeSpec["selectable"]
     | ((this: {
         name: string;
-        options: Options;
-        storage: Storage;
-        parent: ParentConfig<NodeConfig<Options, Storage>>["selectable"];
+        options: object;
+        storage: object;
+        parent: unknown;
       }) => NodeSpec["selectable"]);
 
   /**
@@ -212,9 +201,9 @@ export interface NodeConfig<Options = AnyObject, Storage = AnyObject>
     | NodeSpec["draggable"]
     | ((this: {
         name: string;
-        options: Options;
-        storage: Storage;
-        parent: ParentConfig<NodeConfig<Options, Storage>>["draggable"];
+        options: object;
+        storage: object;
+        parent: unknown;
       }) => NodeSpec["draggable"]);
 
   /**
@@ -224,9 +213,9 @@ export interface NodeConfig<Options = AnyObject, Storage = AnyObject>
     | NodeSpec["code"]
     | ((this: {
         name: string;
-        options: Options;
-        storage: Storage;
-        parent: ParentConfig<NodeConfig<Options, Storage>>["code"];
+        options: object;
+        storage: object;
+        parent: unknown;
       }) => NodeSpec["code"]);
 
   /**
@@ -236,9 +225,9 @@ export interface NodeConfig<Options = AnyObject, Storage = AnyObject>
     | NodeSpec["whitespace"]
     | ((this: {
         name: string;
-        options: Options;
-        storage: Storage;
-        parent: ParentConfig<NodeConfig<Options, Storage>>["whitespace"];
+        options: object;
+        storage: object;
+        parent: unknown;
       }) => NodeSpec["whitespace"]);
 
   /**
@@ -248,9 +237,9 @@ export interface NodeConfig<Options = AnyObject, Storage = AnyObject>
     | NodeSpec["defining"]
     | ((this: {
         name: string;
-        options: Options;
-        storage: Storage;
-        parent: ParentConfig<NodeConfig<Options, Storage>>["defining"];
+        options: object;
+        storage: object;
+        parent: unknown;
       }) => NodeSpec["defining"]);
 
   /**
@@ -260,66 +249,62 @@ export interface NodeConfig<Options = AnyObject, Storage = AnyObject>
     | NodeSpec["isolating"]
     | ((this: {
         name: string;
-        options: Options;
-        storage: Storage;
-        parent: ParentConfig<NodeConfig<Options, Storage>>["isolating"];
+        options: object;
+        storage: object;
+        parent: unknown;
       }) => NodeSpec["isolating"]);
 
   /**
    * Parse HTML
    */
-  parseHTML?: (this: {
+  parseHTML?(this: {
     name: string;
     options: Options;
     storage: Storage;
-    parent: ParentConfig<NodeConfig<Options, Storage>>["parseHTML"];
-  }) => NodeSpec["parseDOM"];
+    parent: unknown;
+  }): NodeSpec["parseDOM"];
 
   /**
    * Render HTML
    */
-  renderHTML?:
-    | ((
-        this: {
-          name: string;
-          options: Options;
-          storage: Storage;
-          parent: ParentConfig<NodeConfig<Options, Storage>>["renderHTML"];
-        },
-        props: {
-          node: ProseMirrorNode;
-          HTMLAttributes: Record<string, unknown>;
-        },
-      ) => DOMOutputSpec)
-    | null;
+  renderHTML?(
+    this: {
+      name: string;
+      options: Options;
+      storage: Storage;
+      parent: unknown;
+    },
+    props: {
+      node: ProseMirrorNode;
+      HTMLAttributes: Record<string, unknown>;
+    },
+  ): DOMOutputSpec;
 
   /**
    * Render Text
    */
-  renderText?:
-    | ((
-        this: {
-          name: string;
-          options: Options;
-          storage: Storage;
-          parent: ParentConfig<NodeConfig<Options, Storage>>["renderText"];
-        },
-        props: {
-          node: ProseMirrorNode;
-          pos: number;
-          parent: ProseMirrorNode;
-          index: number;
-        },
-      ) => string)
-    | null;
+  renderText?(
+    this: {
+      name: string;
+      options: Options;
+      storage: Storage;
+      parent: unknown;
+    },
+    props: {
+      node: ProseMirrorNode;
+      pos: number;
+      parent: ProseMirrorNode;
+      index: number;
+    },
+  ): string;
 
   /**
    * Add Attributes
    */
-  addAttributes?: (this: {
+  addAttributes?(this: {
     name: string;
     options: Options;
     storage: Storage;
-    parent: ParentConfig<NodeConfig<Options, Storage>>["addAttributes"];
-  }) => Attributes | object;
+    parent: unknown;
+  }): Attributes | object;
 }

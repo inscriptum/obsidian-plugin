@@ -23,7 +23,7 @@ export const TaskList = Node.create<TaskListOptions>({
   group: "block list",
 
   content() {
-    return `${this.options.itemTypeName}+`;
+    return `${(this.options as TaskListOptions).itemTypeName}+`;
   },
 
   parseHTML() {

@@ -66,7 +66,9 @@ export const TaskItem = Node.create<TaskItemOptions>({
   },
 
   content() {
-    return this.options.nested ? "paragraph block*" : "paragraph+";
+    return (this.options as TaskItemOptions).nested
+      ? "paragraph block*"
+      : "paragraph+";
   },
 
   addAttributes() {
@@ -156,14 +158,14 @@ export const TaskItem = Node.create<TaskItemOptions>({
       element.props = {
         checked: !!node.attrs.checked,
         content: contentEl,
-        foldable: isFoldableItem(this.options, node),
+        foldable: isFoldableItem(this.options as TaskItemOptions, node),
         handleChevronClick: () => {
           if (editor.isEditable && isFunction(getPos)) {
             toggleFoldAt(editor, getPos());
           }
         },
         editor,
-        options: this.options,
+        options: this.options as TaskItemOptions,
         handleCheckboxClick: (checkboxEl) => {
           const { checked } = checkboxEl;
 
@@ -181,19 +183,23 @@ export const TaskItem = Node.create<TaskItemOptions>({
             });
           }
 
+          const onReadOnlyChecked = (this.options as TaskItemOptions)
+            .onReadOnlyChecked;
           if (
             !editor.isEditable &&
-            this.options.onReadOnlyChecked &&
-            !this.options.onReadOnlyChecked(node, checked)
+            onReadOnlyChecked &&
+            !onReadOnlyChecked(node, checked)
           ) {
             checkboxEl.checked = !checkboxEl.checked;
           }
         },
       };
 
-      Object.entries(this.options.HTMLAttributes).forEach(([key, value]) => {
-        element.setAttribute(key, value);
-      });
+      Object.entries((this.options as TaskItemOptions).HTMLAttributes).forEach(
+        ([key, value]) => {
+          element.setAttribute(key, value);
+        },
+      );
 
       element.dataset.checked = String(node.attrs.checked);
 
@@ -236,7 +242,10 @@ export const TaskItem = Node.create<TaskItemOptions>({
           element.props = {
             ...element.props,
             checked: !!updatedNode.attrs.checked,
-            foldable: isFoldableItem(this.options, updatedNode),
+            foldable: isFoldableItem(
+              this.options as TaskItemOptions,
+              updatedNode,
+            ),
           };
 
           return true;

@@ -10,90 +10,82 @@ import type { Plugin } from "prosemirror-state";
 import type { Editor } from "../Editor";
 import type { InputRule } from "../InputRule";
 import type { PasteRule } from "../PasteRule";
-import type { AnyRecord, Attributes, GlobalAttributes, ParentConfig } from ".";
+import type { AnyRecord, Attributes, GlobalAttributes } from ".";
 import type { AnyConfig } from "./AnyConfig";
 
-export interface MarkConfig<Options = AnyRecord, Storage = AnyRecord>
-  extends AnyConfig<Options, Storage, MarkConfig<Options, Storage>, MarkType> {
+export interface MarkConfig<Options = object, Storage = object>
+  extends AnyConfig<Options, Storage, MarkType> {
   /**
    * Global attributes
    */
-  addGlobalAttributes?: (this: {
+  addGlobalAttributes?(this: {
     name: string;
     options: Options;
     storage: Storage;
-    parent: ParentConfig<MarkConfig<Options, Storage>>["addGlobalAttributes"];
-  }) => GlobalAttributes | object;
+    parent: unknown;
+  }): GlobalAttributes | object;
 
   /**
    * Input rules
    */
-  addInputRules?: (this: {
+  addInputRules?(this: {
     name: string;
     options: Options;
     storage: Storage;
     editor: Editor;
     type: MarkType;
-    parent: ParentConfig<MarkConfig<Options, Storage>>["addInputRules"];
-  }) => InputRule[];
+    parent: unknown;
+  }): InputRule[];
 
   /**
    * Paste rules
    */
-  addPasteRules?: (this: {
+  addPasteRules?(this: {
     name: string;
     options: Options;
     storage: Storage;
     editor: Editor;
     type: MarkType;
-    parent: ParentConfig<MarkConfig<Options, Storage>>["addPasteRules"];
-  }) => PasteRule[];
+    parent: unknown;
+  }): PasteRule[];
 
   /**
    * ProseMirror plugins
    */
-  addProseMirrorPlugins?: (this: {
+  addProseMirrorPlugins?(this: {
     name: string;
     options: Options;
     storage: Storage;
     editor: Editor;
     type: MarkType;
-    parent: ParentConfig<MarkConfig<Options, Storage>>["addProseMirrorPlugins"];
-  }) => Plugin[];
+    parent: unknown;
+  }): Plugin[];
 
   /**
    * Extend Node Schema
    */
-  extendNodeSchema?:
-    | ((
-        this: {
-          name: string;
-          options: Options;
-          storage: Storage;
-          parent: ParentConfig<
-            MarkConfig<Options, Storage>
-          >["extendNodeSchema"];
-        },
-        extension: Node,
-      ) => AnyRecord)
-    | null;
+  extendNodeSchema?(
+    this: {
+      name: string;
+      options: Options;
+      storage: Storage;
+      parent: unknown;
+    },
+    extension: Node,
+  ): AnyRecord;
 
   /**
    * Extend Mark Schema
    */
-  extendMarkSchema?:
-    | ((
-        this: {
-          name: string;
-          options: Options;
-          storage: Storage;
-          parent: ParentConfig<
-            MarkConfig<Options, Storage>
-          >["extendMarkSchema"];
-        },
-        extension: Mark,
-      ) => AnyRecord)
-    | null;
+  extendMarkSchema?(
+    this: {
+      name: string;
+      options: Options;
+      storage: Storage;
+      parent: unknown;
+    },
+    extension: Mark,
+  ): AnyRecord;
 
   /**
    * Keep mark after split node
@@ -107,9 +99,9 @@ export interface MarkConfig<Options = AnyRecord, Storage = AnyRecord>
     | MarkSpec["inclusive"]
     | ((this: {
         name: string;
-        options: Options;
-        storage: Storage;
-        parent: ParentConfig<MarkConfig<Options, Storage>>["inclusive"];
+        options: object;
+        storage: object;
+        parent: unknown;
       }) => MarkSpec["inclusive"]);
 
   /**
@@ -119,9 +111,9 @@ export interface MarkConfig<Options = AnyRecord, Storage = AnyRecord>
     | MarkSpec["excludes"]
     | ((this: {
         name: string;
-        options: Options;
-        storage: Storage;
-        parent: ParentConfig<MarkConfig<Options, Storage>>["excludes"];
+        options: object;
+        storage: object;
+        parent: unknown;
       }) => MarkSpec["excludes"]);
 
   /**
@@ -136,9 +128,9 @@ export interface MarkConfig<Options = AnyRecord, Storage = AnyRecord>
     | MarkSpec["group"]
     | ((this: {
         name: string;
-        options: Options;
-        storage: Storage;
-        parent: ParentConfig<MarkConfig<Options, Storage>>["group"];
+        options: object;
+        storage: object;
+        parent: unknown;
       }) => MarkSpec["group"]);
 
   /**
@@ -148,9 +140,9 @@ export interface MarkConfig<Options = AnyRecord, Storage = AnyRecord>
     | MarkSpec["spanning"]
     | ((this: {
         name: string;
-        options: Options;
-        storage: Storage;
-        parent: ParentConfig<MarkConfig<Options, Storage>>["spanning"];
+        options: object;
+        storage: object;
+        parent: unknown;
       }) => MarkSpec["spanning"]);
 
   /**
@@ -160,46 +152,44 @@ export interface MarkConfig<Options = AnyRecord, Storage = AnyRecord>
     | boolean
     | ((this: {
         name: string;
-        options: Options;
-        storage: Storage;
-        parent: ParentConfig<MarkConfig<Options, Storage>>["code"];
+        options: object;
+        storage: object;
+        parent: unknown;
       }) => boolean);
 
   /**
    * Parse HTML
    */
-  parseHTML?: (this: {
+  parseHTML?(this: {
     name: string;
     options: Options;
     storage: Storage;
-    parent: ParentConfig<MarkConfig<Options, Storage>>["parseHTML"];
-  }) => MarkSpec["parseDOM"];
+    parent: unknown;
+  }): MarkSpec["parseDOM"];
 
   /**
    * Render HTML
    */
-  renderHTML?:
-    | ((
-        this: {
-          name: string;
-          options: Options;
-          storage: Storage;
-          parent: ParentConfig<MarkConfig<Options, Storage>>["renderHTML"];
-        },
-        props: {
-          mark: ProseMirrorMark;
-          HTMLAttributes: AnyRecord;
-        },
-      ) => DOMOutputSpec)
-    | null;
+  renderHTML?(
+    this: {
+      name: string;
+      options: Options;
+      storage: Storage;
+      parent: unknown;
+    },
+    props: {
+      mark: ProseMirrorMark;
+      HTMLAttributes: AnyRecord;
+    },
+  ): DOMOutputSpec;
 
   /**
    * Attributes
    */
-  addAttributes?: (this: {
+  addAttributes?(this: {
     name: string;
     options: Options;
     storage: Storage;
-    parent: ParentConfig<MarkConfig<Options, Storage>>["addAttributes"];
-  }) => Attributes | object;
+    parent: unknown;
+  }): Attributes | object;
 }

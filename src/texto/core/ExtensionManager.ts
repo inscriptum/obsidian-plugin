@@ -45,8 +45,7 @@ export class ExtensionManager {
 
     this.extensions.forEach((extension) => {
       // store extension storage in editor
-      this.editor.extensionStorage[extension.name] =
-        extension.storage as AnyRecord;
+      this.editor.extensionStorage[extension.name] = extension.storage;
 
       const context = {
         name: extension.name,
@@ -394,6 +393,8 @@ export class ExtensionManager {
           if (!addNodeView) {
             return [];
           }
+          // Narrowed here so the closure below keeps the non-null type.
+          const createNodeView = addNodeView;
 
           const nodeview = (
             node: ProsemirrorNode,
@@ -407,7 +408,10 @@ export class ExtensionManager {
               extensionAttributes,
             ) as Record<string, string>;
 
-            return addNodeView()({
+            // The extension's addNodeView returns the renderer factory.
+            const renderer = createNodeView();
+            if (renderer == null) return null;
+            return renderer({
               editor,
               node,
               getPos,

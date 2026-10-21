@@ -14,7 +14,10 @@ export function markPasteRule(config: {
   type: MarkType;
   getAttributes?:
     | AnyRecord
-    | ((match: ExtendedRegExpMatchArray) => AnyRecord)
+    | ((
+        match: ExtendedRegExpMatchArray,
+        pasteEvent?: ClipboardEvent,
+      ) => AnyRecord)
     | false
     | null;
 }) {

@@ -372,7 +372,7 @@ export const Image = Node.create<ImageOptions>({
         throw new Error("[TEXTO ERROR]: getPos must be a function.");
       }
 
-      setViewProps(element, node, editor, this.options);
+      setViewProps(element, node, editor, this.options as ImageOptions);
 
       for (const handle of createResizeHandles(element, editor, getPos)) {
         element.appendChild(handle);
@@ -386,7 +386,12 @@ export const Image = Node.create<ImageOptions>({
             return false;
           }
 
-          setViewProps(element, updatedNode, editor, this.options);
+          setViewProps(
+            element,
+            updatedNode,
+            editor,
+            this.options as ImageOptions,
+          );
 
           return true;
         },

@@ -24,16 +24,20 @@ export type AnyExtension = Extension | Node | Mark;
 export type Extensions = AnyExtension[];
 
 // ── Shared type aliases ──────────────────────────────────────────────
-// Centralize `any` for repeated patterns, avoiding duplicate warnings.
+// Centralize the loose types for repeated patterns, avoiding duplicate
+// warnings — and without `any`: the community review reports a disabled
+// `no-explicit-any` as an error, so the loose spots have to be typed.
 
-// `any[]` is required here because this type stores callbacks with arbitrary parameter lists.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- callbacks with arbitrary parameter lists
-export type AnyFn = (...args: any[]) => unknown;
+// Callbacks with arbitrary parameter lists. `never[]` keeps every concrete
+// function assignable to it (never is assignable to any parameter type)
+// while staying callable only with arguments the caller knows.
+export type AnyFn = (...args: never[]) => unknown;
 
 export type AnyFnVoid = (...args: never[]) => void;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- structural compatibility with any options interface (see AnyObject)
-export type AnyRecord = Record<string, any>;
+// Structural map of arbitrary values. `unknown` (not `any`) keeps the
+// values honest: reading one demands a narrowing, which is the point.
+export type AnyRecord = Record<string, unknown>;
 
 /** Expansion of `keyof any` */
 export type KeyOfAny = string | number | symbol;
@@ -116,12 +120,12 @@ export type JSONContent = {
   marks?: {
     type: string;
     attrs?: AnyRecord;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mark attrs carry arbitrary payload fields
-    [key: string]: any;
+    // mark attrs carry arbitrary payload fields
+    [key: string]: unknown;
   }[];
   text?: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- JSON document nodes carry arbitrary payload fields
-  [key: string]: any;
+  // JSON document nodes carry arbitrary payload fields
+  [key: string]: unknown;
 };
 
 export type ContentType = HTMLContent | JSONContent | JSONContent[] | null;
@@ -145,14 +149,14 @@ export type CommandSpec = CommandFn;
 export type KeyboardShortcutCommand = (props: { editor: Editor }) => boolean;
 
 export type Attribute = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- attribute defaults mirror ProseMirror's Attribute.default (any by contract)
-  default: any;
+  // attribute defaults mirror ProseMirror's Attribute.default
+  default: unknown;
   rendered?: boolean;
   renderHTML?:
     | ((attributes: Record<string, unknown>) => Record<string, unknown> | null)
     | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- parseHTML return mirrors ProseMirror's Attribute type (any by contract)
-  parseHTML?: ((element: HTMLElement) => any) | null;
+  // parseHTML return mirrors ProseMirror's Attribute type
+  parseHTML?: ((element: HTMLElement) => unknown) | null;
   keepOnSplit: boolean;
   isRequired?: boolean;
 };

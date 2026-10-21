@@ -149,7 +149,8 @@ export const TableCellsBubbleMenuElement = litView.element({
 
   /* ── Link layer (same behavior as the text bubble menu, for cells) ── */
   const openLinkLayer = () => {
-    linkDraft = String(props.editor.getAttributes("link").href ?? "");
+    const linkAttrs = props.editor.getAttributes("link");
+    linkDraft = typeof linkAttrs.href === "string" ? linkAttrs.href : "";
     openLayer = "link";
     void this.next().then(() => {
       window.requestAnimationFrame(() => {

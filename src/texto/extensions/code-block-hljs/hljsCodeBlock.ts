@@ -462,7 +462,7 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
 
       const language = findLanguageByCssClass(
         (node.attrs as HljsCodeBlockAttrs).class,
-        this.options.languageClassPrefix,
+        (this.options as HljsCodeBlockOptions).languageClassPrefix,
       );
 
       if (isString(language)) {
@@ -486,7 +486,7 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
         container.props.onChange = onChangeLang(
           pos,
           editor,
-          this.options,
+          this.options as HljsCodeBlockOptions,
           domCodeEl,
         );
 
@@ -596,7 +596,7 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
 
           const language = findLanguageByCssClass(
             (updatedNode.attrs as HljsCodeBlockAttrs).class,
-            this.options.languageClassPrefix,
+            (this.options as HljsCodeBlockOptions).languageClassPrefix,
           );
 
           // Coarse-pointer UI: keep the language button label in sync (the

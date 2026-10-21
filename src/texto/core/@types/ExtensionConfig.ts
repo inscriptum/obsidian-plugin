@@ -3,94 +3,77 @@ import type { Plugin } from "prosemirror-state";
 
 import type { Editor, InputRule } from "..";
 import type { PasteRule } from "../PasteRule";
-import type { AnyRecord, GlobalAttributes, ParentConfig } from ".";
+import type { AnyRecord, GlobalAttributes } from ".";
 import type { AnyConfig } from "./AnyConfig";
 
-export interface ExtensionConfig<Options = AnyRecord, Storage = AnyRecord>
-  extends AnyConfig<
-    Options,
-    Storage,
-    ExtensionConfig<Options, Storage>,
-    unknown
-  > {
+export interface ExtensionConfig<Options = object, Storage = object>
+  extends AnyConfig<Options, Storage, unknown> {
   /**
    * Global attributes
    */
-  addGlobalAttributes?: (this: {
+  addGlobalAttributes?(this: {
     name: string;
     options: Options;
     storage: Storage;
-    parent: ParentConfig<
-      ExtensionConfig<Options, Storage>
-    >["addGlobalAttributes"];
-  }) => GlobalAttributes | object;
+    parent: unknown;
+  }): GlobalAttributes | object;
 
   /**
    * Input rules
    */
-  addInputRules?: (this: {
+  addInputRules?(this: {
     name: string;
     options: Options;
     storage: Storage;
     editor: Editor;
-    parent: ParentConfig<ExtensionConfig<Options, Storage>>["addInputRules"];
-  }) => InputRule[];
+    parent: unknown;
+  }): InputRule[];
 
   /**
    * Paste rules
    */
-  addPasteRules?: (this: {
+  addPasteRules?(this: {
     name: string;
     options: Options;
     storage: Storage;
     editor: Editor;
-    parent: ParentConfig<ExtensionConfig<Options, Storage>>["addPasteRules"];
-  }) => PasteRule[];
+    parent: unknown;
+  }): PasteRule[];
 
   /**
    * ProseMirror plugins
    */
-  addProseMirrorPlugins?: (this: {
+  addProseMirrorPlugins?(this: {
     name: string;
     options: Options;
     storage: Storage;
     editor: Editor;
-    parent: ParentConfig<
-      ExtensionConfig<Options, Storage>
-    >["addProseMirrorPlugins"];
-  }) => Plugin[];
+    parent: unknown;
+  }): Plugin[];
 
   /**
    * Extend Node Schema
    */
-  extendNodeSchema?:
-    | ((
-        this: {
-          name: string;
-          options: Options;
-          storage: Storage;
-          parent: ParentConfig<
-            ExtensionConfig<Options, Storage>
-          >["extendNodeSchema"];
-        },
-        extension: Node,
-      ) => AnyRecord)
-    | null;
+  extendNodeSchema?(
+    this: {
+      name: string;
+      options: Options;
+      storage: Storage;
+      parent: unknown;
+    },
+    extension: Node,
+  ): AnyRecord;
 
   /**
    * Extend Mark Schema
    */
-  extendMarkSchema?:
-    | ((
-        this: {
-          name: string;
-          options: Options;
-          storage: Storage;
-          parent: ParentConfig<
-            ExtensionConfig<Options, Storage>
-          >["extendMarkSchema"];
-        },
-        extension: Mark,
-      ) => AnyRecord)
-    | null;
+  extendMarkSchema?(
+    this: {
+      name: string;
+      options: Options;
+      storage: Storage;
+      parent: unknown;
+    },
+    extension: Mark,
+  ): AnyRecord;
 }

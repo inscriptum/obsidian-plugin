@@ -1,15 +1,15 @@
-import type { AnyFn, AnyRecord } from "./@types";
+import type { AnyFn } from "./@types";
 
 type StringKeyOf<T> = Extract<keyof T, string>;
 type CallbackType<
-  T extends AnyRecord,
+  T extends object,
   EventName extends StringKeyOf<T>,
 > = T[EventName] extends unknown[] ? T[EventName] : [T[EventName]];
-type CallbackFunction<T extends AnyRecord, EventName extends StringKeyOf<T>> = (
+type CallbackFunction<T extends object, EventName extends StringKeyOf<T>> = (
   ...props: CallbackType<T, EventName>
 ) => unknown;
 
-export class EventEmitter<T extends AnyRecord> {
+export class EventEmitter<T extends object> {
   private callbacks: { [key: string]: AnyFn[] } = {};
 
   public on<EventName extends StringKeyOf<T>>(
@@ -33,7 +33,9 @@ export class EventEmitter<T extends AnyRecord> {
 
     if (callbacks) {
       for (const callback of callbacks) {
-        callback.apply(this, args);
+        // AnyFn takes `never[]` (it accepts every signature); the call
+        // site knows the concrete argument list, so the cast is local.
+        (callback as (...callArgs: unknown[]) => unknown).apply(this, args);
       }
     }
 
