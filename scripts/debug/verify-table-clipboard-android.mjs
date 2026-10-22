@@ -10,8 +10,10 @@ const R = {};
 R.vault = await page.evaluate(() => window.app?.vault?.getName?.() ?? null);
 R.plugin = await page.evaluate(() => !!window.app?.plugins?.getPlugin?.('inscriptum'));
 
-// write the test note (two 3-col tables) and open it
-R.setup = await page.evaluate(async () => {
+// write the test note (two 3-col tables) and open it; unique name per run
+const notePath = `local/table-clipboard-verify-${Date.now()}.note`;
+R.notePath = notePath;
+R.setup = await page.evaluate(async (notePath) => {
   const mk = (name) => ({
     type: 'table', attrs: { data: { rowsCount: 3, colsCount: 3 } },
     content: [
@@ -29,8 +31,8 @@ R.setup = await page.evaluate(async () => {
       mk('B'),
     ],
   };
-  await app.vault.adapter.write('local/table-clipboard-verify.note', JSON.stringify(doc));
-  const file = app.vault.getAbstractFileByPath('local/table-clipboard-verify.note');
+  await app.vault.adapter.write(notePath, JSON.stringify(doc));
+  const file = app.vault.getAbstractFileByPath(notePath);
   const leaf = app.workspace.getLeaf('tab');
   await leaf.openFile(file);
   app.workspace.revealLeaf(leaf);
@@ -57,7 +59,7 @@ R.setup = await page.evaluate(async () => {
     return out;
   };
   return { ok: true, platform: { isMobile: /is-mobile/.test(document.body.className) || Boolean(window.Capacitor), ua: navigator.userAgent.slice(0, 60) } };
-});
+}, notePath);
 
 // rect paste: CellSelection over B00..B11 + synthetic paste with a copied 2x2
 R.rectPaste = await page.evaluate(() => {
@@ -89,5 +91,18 @@ R.rowsAtCaret = await page.evaluate(() => {
   return window.__tableTexts(1);
 });
 
+// cleanup: close the leaf, delete this run's note (file closed first)
+R.cleanedUp = await page.evaluate(async (notePath) => {
+  const leaf = app.workspace.getLeavesOfType('note-view').find((l) => l.view?.file?.path === notePath);
+  if (leaf) {
+    try { leaf.detach(); } catch {}
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  const file = app.vault.getAbstractFileByPath(notePath);
+  if (file) {
+    try { await app.vault.delete(file); } catch { return false; }
+  }
+  return true;
+}, notePath);
 await browser.close().catch(() => {});
 console.log(JSON.stringify(R, null, 2));
