@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Ячейки и строки таблиц наконец переходят из таблицы в таблицу: вставка на выделение заменяет содержимое ячеек (заливка и ширины целевых ячеек остаются своими), скопированные строки вставляются новыми рядами, а «вырезать» убирает выделенные строки целиком — вместо вложенной таблицы и сломанной вёрстки.
+
 ## [0.12.1] - 2026-10-22
 
 ### Changed
