@@ -129,14 +129,14 @@ export interface NodeConfig<Options = object, Storage = object>
   content?:
     | NodeSpec["content"]
     | BivariantFn<
-      {
+        {
           name: string;
           options: Options;
           storage: Storage;
           parent: unknown;
-      },
-      NodeSpec["content"]
-    >;
+        },
+        NodeSpec["content"]
+      >;
 
   /**
    * Marks
@@ -144,14 +144,14 @@ export interface NodeConfig<Options = object, Storage = object>
   marks?:
     | NodeSpec["marks"]
     | BivariantFn<
-      {
+        {
           name: string;
           options: Options;
           storage: Storage;
           parent: unknown;
-      },
-      NodeSpec["marks"]
-    >;
+        },
+        NodeSpec["marks"]
+      >;
 
   /**
    * Group
@@ -159,14 +159,14 @@ export interface NodeConfig<Options = object, Storage = object>
   group?:
     | NodeSpec["group"]
     | BivariantFn<
-      {
+        {
           name: string;
           options: Options;
           storage: Storage;
           parent: unknown;
-      },
-      NodeSpec["group"]
-    >;
+        },
+        NodeSpec["group"]
+      >;
 
   /**
    * Inline
@@ -174,14 +174,14 @@ export interface NodeConfig<Options = object, Storage = object>
   inline?:
     | NodeSpec["inline"]
     | BivariantFn<
-      {
+        {
           name: string;
           options: Options;
           storage: Storage;
           parent: unknown;
-      },
-      NodeSpec["inline"]
-    >;
+        },
+        NodeSpec["inline"]
+      >;
 
   /**
    * Atom
@@ -189,14 +189,14 @@ export interface NodeConfig<Options = object, Storage = object>
   atom?:
     | NodeSpec["atom"]
     | BivariantFn<
-      {
+        {
           name: string;
           options: Options;
           storage: Storage;
           parent: unknown;
-      },
-      NodeSpec["atom"]
-    >;
+        },
+        NodeSpec["atom"]
+      >;
 
   /**
    * Selectable
@@ -204,14 +204,14 @@ export interface NodeConfig<Options = object, Storage = object>
   selectable?:
     | NodeSpec["selectable"]
     | BivariantFn<
-      {
+        {
           name: string;
           options: Options;
           storage: Storage;
           parent: unknown;
-      },
-      NodeSpec["selectable"]
-    >;
+        },
+        NodeSpec["selectable"]
+      >;
 
   /**
    * Draggable
@@ -219,14 +219,14 @@ export interface NodeConfig<Options = object, Storage = object>
   draggable?:
     | NodeSpec["draggable"]
     | BivariantFn<
-      {
+        {
           name: string;
           options: Options;
           storage: Storage;
           parent: unknown;
-      },
-      NodeSpec["draggable"]
-    >;
+        },
+        NodeSpec["draggable"]
+      >;
 
   /**
    * Code
@@ -234,14 +234,14 @@ export interface NodeConfig<Options = object, Storage = object>
   code?:
     | NodeSpec["code"]
     | BivariantFn<
-      {
+        {
           name: string;
           options: Options;
           storage: Storage;
           parent: unknown;
-      },
-      NodeSpec["code"]
-    >;
+        },
+        NodeSpec["code"]
+      >;
 
   /**
    * Whitespace
@@ -249,14 +249,14 @@ export interface NodeConfig<Options = object, Storage = object>
   whitespace?:
     | NodeSpec["whitespace"]
     | BivariantFn<
-      {
+        {
           name: string;
           options: Options;
           storage: Storage;
           parent: unknown;
-      },
-      NodeSpec["whitespace"]
-    >;
+        },
+        NodeSpec["whitespace"]
+      >;
 
   /**
    * Defining
@@ -264,14 +264,14 @@ export interface NodeConfig<Options = object, Storage = object>
   defining?:
     | NodeSpec["defining"]
     | BivariantFn<
-      {
+        {
           name: string;
           options: Options;
           storage: Storage;
           parent: unknown;
-      },
-      NodeSpec["defining"]
-    >;
+        },
+        NodeSpec["defining"]
+      >;
 
   /**
    * Isolating
@@ -279,14 +279,14 @@ export interface NodeConfig<Options = object, Storage = object>
   isolating?:
     | NodeSpec["isolating"]
     | BivariantFn<
-      {
+        {
           name: string;
           options: Options;
           storage: Storage;
           parent: unknown;
-      },
-      NodeSpec["isolating"]
-    >;
+        },
+        NodeSpec["isolating"]
+      >;
 
   /**
    * Parse HTML

@@ -10,12 +10,7 @@ import type { Plugin } from "prosemirror-state";
 import type { Editor } from "../Editor";
 import type { InputRule } from "../InputRule";
 import type { PasteRule } from "../PasteRule";
-import type {
-  AnyRecord,
-  Attributes,
-  BivariantFn,
-  GlobalAttributes,
-} from ".";
+import type { AnyRecord, Attributes, BivariantFn, GlobalAttributes } from ".";
 import type { AnyConfig } from "./AnyConfig";
 
 export interface MarkConfig<Options = object, Storage = object>
@@ -103,14 +98,14 @@ export interface MarkConfig<Options = object, Storage = object>
   inclusive?:
     | MarkSpec["inclusive"]
     | BivariantFn<
-      {
+        {
           name: string;
           options: Options;
           storage: Storage;
           parent: unknown;
-      },
-      MarkSpec["inclusive"]
-    >;
+        },
+        MarkSpec["inclusive"]
+      >;
 
   /**
    * Excludes
@@ -118,14 +113,14 @@ export interface MarkConfig<Options = object, Storage = object>
   excludes?:
     | MarkSpec["excludes"]
     | BivariantFn<
-      {
+        {
           name: string;
           options: Options;
           storage: Storage;
           parent: unknown;
-      },
-      MarkSpec["excludes"]
-    >;
+        },
+        MarkSpec["excludes"]
+      >;
 
   /**
    * Marks this Mark as exitable
@@ -138,14 +133,14 @@ export interface MarkConfig<Options = object, Storage = object>
   group?:
     | MarkSpec["group"]
     | BivariantFn<
-      {
+        {
           name: string;
           options: Options;
           storage: Storage;
           parent: unknown;
-      },
-      MarkSpec["group"]
-    >;
+        },
+        MarkSpec["group"]
+      >;
 
   /**
    * Spanning
@@ -153,14 +148,14 @@ export interface MarkConfig<Options = object, Storage = object>
   spanning?:
     | MarkSpec["spanning"]
     | BivariantFn<
-      {
+        {
           name: string;
           options: Options;
           storage: Storage;
           parent: unknown;
-      },
-      MarkSpec["spanning"]
-    >;
+        },
+        MarkSpec["spanning"]
+      >;
 
   /**
    * Code
@@ -168,14 +163,14 @@ export interface MarkConfig<Options = object, Storage = object>
   code?:
     | boolean
     | BivariantFn<
-      {
+        {
           name: string;
           options: Options;
           storage: Storage;
           parent: unknown;
-      },
-      boolean
-    >;
+        },
+        boolean
+      >;
 
   /**
    * Parse HTML

@@ -3,10 +3,7 @@ import type { Plugin } from "prosemirror-state";
 
 import type { Editor, InputRule } from "..";
 import type { PasteRule } from "../PasteRule";
-import type {
-  AnyRecord,
-  GlobalAttributes,
-} from ".";
+import type { AnyRecord, GlobalAttributes } from ".";
 import type { AnyConfig } from "./AnyConfig";
 
 export interface ExtensionConfig<Options = object, Storage = object>
