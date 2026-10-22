@@ -114,7 +114,7 @@ export function getSchemaByResolvedExtensions(extensions: Extensions): Schema {
           extensionAttributes.map((extensionAttribute) => {
             return [
               extensionAttribute.name,
-              { default: extensionAttribute?.attribute?.default as unknown },
+              { default: extensionAttribute?.attribute?.default },
             ];
           }),
         ),
@@ -219,7 +219,7 @@ export function getSchemaByResolvedExtensions(extensions: Extensions): Schema {
           extensionAttributes.map((extensionAttribute) => {
             return [
               extensionAttribute.name,
-              { default: extensionAttribute?.attribute?.default as unknown },
+              { default: extensionAttribute?.attribute?.default },
             ];
           }),
         ),

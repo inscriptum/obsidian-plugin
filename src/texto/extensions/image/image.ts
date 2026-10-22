@@ -386,7 +386,12 @@ export const Image = Node.create<ImageOptions>({
             return false;
           }
 
-          setViewProps(element, updatedNode, editor, this.options);
+          setViewProps(
+            element,
+            updatedNode,
+            editor,
+            this.options,
+          );
 
           return true;
         },

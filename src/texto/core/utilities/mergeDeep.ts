@@ -1,7 +1,7 @@
 import { isPlainObject } from "./isPlainObject";
 import type { AnyRecord } from "../@types";
 
-export function mergeDeep(target: AnyRecord, source: AnyRecord): AnyRecord {
+export function mergeDeep(target: object, source: object): AnyRecord {
   const output: AnyRecord = { ...target };
 
   if (isPlainObject(target) && isPlainObject(source)) {
@@ -13,7 +13,7 @@ export function mergeDeep(target: AnyRecord, source: AnyRecord): AnyRecord {
           Object.assign(output, { [key]: sourceValue });
         } else {
           const targetValue: unknown = target[key];
-          output[key] = mergeDeep(targetValue as AnyRecord, sourceValue);
+          output[key] = mergeDeep(targetValue as object, sourceValue);
         }
       } else {
         Object.assign(output, { [key]: sourceValue });

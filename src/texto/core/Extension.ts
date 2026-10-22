@@ -1,12 +1,13 @@
 import type { AnyConfig } from "./@types/AnyConfig";
-import type { AnyRecord } from "./@types";
 import type { ExtensionConfig } from "./@types/ExtensionConfig";
 import { getExtensionField } from "./helpers/getExtensionField";
 import { callOrReturn } from "./utilities/callOrReturn";
 import { mergeDeep } from "./utilities/mergeDeep";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- default `any` keeps Extension<CustomOptions> assignable to Extension (covariance)
-export class Extension<Options extends AnyRecord = any, Storage = any> {
+export class Extension<
+  Options extends object = object,
+  Storage extends object = object,
+> {
   type = "extension";
 
   name = "extension";
@@ -19,7 +20,7 @@ export class Extension<Options extends AnyRecord = any, Storage = any> {
 
   storage: Storage;
 
-  config: ExtensionConfig = {
+  config: ExtensionConfig<Options, Storage> = {
     name: this.name,
   };
 
@@ -30,7 +31,7 @@ export class Extension<Options extends AnyRecord = any, Storage = any> {
     this.config = {
       ...this.config,
       ...config,
-    } as ExtensionConfig;
+    };
 
     this.name = this.config.name;
 
@@ -42,18 +43,17 @@ export class Extension<Options extends AnyRecord = any, Storage = any> {
       ) as Options;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- addStorage returns Storage (default `any`) via dynamic getExtensionField
-    this.storage =
-      callOrReturn(
-        getExtensionField<AnyConfig["addStorage"]>(this, "addStorage", {
-          name: this.name,
-          options: this.options,
-        }),
-      ) || {};
+    // The dynamic dispatch erases the concrete Storage type, so the value is
+    // narrowed back to it here.
+    this.storage = (callOrReturn(
+      getExtensionField<AnyConfig["addStorage"]>(this, "addStorage", {
+        name: this.name,
+        options: this.options,
+      }),
+    ) || {}) as Storage;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ExtensionConfig generic defaults mirror the class defaults (covariance)
-  static create<O extends AnyRecord = any, S = any>(
+  static create<O extends object = object, S extends object = object>(
     config: Partial<ExtensionConfig<O, S>> = {},
   ) {
     return new Extension<O, S>(config);
@@ -66,20 +66,19 @@ export class Extension<Options extends AnyRecord = any, Storage = any> {
 
     extension.options = mergeDeep(this.options, options) as Options;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- addStorage returns Storage (default `any`) via dynamic getExtensionField
     extension.storage = callOrReturn(
       getExtensionField<AnyConfig["addStorage"]>(extension, "addStorage", {
         name: extension.name,
         options: extension.options,
       }),
-    );
+    ) as Storage;
 
     return extension;
   }
 
   extend<
-    ExtendedOptions extends AnyRecord = Options,
-    ExtendedStorage = Storage,
+    ExtendedOptions extends object = Options,
+    ExtendedStorage extends object = Storage,
   >(
     extendedConfig: Partial<
       ExtensionConfig<ExtendedOptions, ExtendedStorage>
@@ -103,13 +102,12 @@ export class Extension<Options extends AnyRecord = any, Storage = any> {
       }),
     ) as ExtendedOptions;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- addStorage returns Storage (default `any`) via dynamic getExtensionField
     extension.storage = callOrReturn(
       getExtensionField<AnyConfig["addStorage"]>(extension, "addStorage", {
         name: extension.name,
         options: extension.options,
       }),
-    );
+    ) as ExtendedStorage;
 
     return extension;
   }

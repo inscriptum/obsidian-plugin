@@ -2,19 +2,21 @@ import type { FileStats, TFolder, Vault as ObsidianVault } from "obsidian";
 import { vi } from "vitest";
 
 export class Vault {
-  read = vi.fn();
-  modify = vi.fn();
-  create = vi.fn();
-  delete = vi.fn();
-  rename = vi.fn();
-  getAbstractFileByPath = vi.fn();
+  // Typed mocks: an untyped vi.fn() returns `any`, and every test that
+  // reads `mock.calls` then inherits it (no-unsafe-* warnings).
+  read = vi.fn<(path: string) => Promise<string>>();
+  modify = vi.fn<(path: string, data: string) => Promise<void>>();
+  create = vi.fn<(path: string, data: string) => Promise<void>>();
+  delete = vi.fn<(path: string) => Promise<void>>();
+  rename = vi.fn<(from: string, to: string) => Promise<void>>();
+  getAbstractFileByPath = vi.fn<(path: string) => unknown>();
   adapter = {
-    stat: vi.fn(),
-    write: vi.fn(),
-    rename: vi.fn(),
-    remove: vi.fn(),
-    append: vi.fn(),
-    getFullPath: vi.fn(),
+    stat: vi.fn<(path: string) => Promise<{ size: number } | null>>(),
+    write: vi.fn<(path: string, data: string) => Promise<void>>(),
+    rename: vi.fn<(from: string, to: string) => Promise<void>>(),
+    remove: vi.fn<(path: string) => Promise<void>>(),
+    append: vi.fn<(path: string, data: string) => Promise<void>>(),
+    getFullPath: vi.fn<(path: string) => string>(),
   };
 }
 

@@ -36,10 +36,7 @@ function titleDoc(title = "", summary = ""): JSONContent {
 }
 
 /** A v3 title page: title, properties, content blocks. */
-function titleDocV3(
-  title = "",
-  properties: JSONContent[] = [],
-): JSONContent {
+function titleDocV3(title = "", properties: JSONContent[] = []): JSONContent {
   return {
     type: "noteDoc",
     content: [
@@ -262,11 +259,14 @@ describe("UmNotepad schema handling", () => {
   }
 
   function readManifest(bytes: Uint8Array): Record<string, unknown> {
-    return JSON.parse(DEC.decode(unzipSync(bytes)["manifest.json"]));
+    return JSON.parse(DEC.decode(unzipSync(bytes)["manifest.json"])) as Record<
+      string,
+      unknown
+    >;
   }
 
   function readNote(bytes: Uint8Array, path: string): JSONContent {
-    return JSON.parse(DEC.decode(unzipSync(bytes)[path]));
+    return JSON.parse(DEC.decode(unzipSync(bytes)[path])) as JSONContent;
   }
 
   it("stamps inferred schema fields on legacy containers and writes them back", () => {
@@ -347,9 +347,7 @@ describe("UmNotepad schema handling", () => {
         [{ type: "text", text: "Legacy summary" }],
       ]),
     );
-    expect(
-      readManifest(nb.serialize()).notes,
-    ).toEqual([
+    expect(readManifest(nb.serialize()).notes).toEqual([
       expect.objectContaining({
         id: "a",
         schemaVersion: UM_SCHEMA_VERSION_TITLE,
@@ -543,7 +541,11 @@ describe("UmNotepad schema handling", () => {
       type: "noteDoc",
       content: [
         { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
-        createNoteProperty("tags", [[{ type: "text", text: "one" }], null], "list"),
+        createNoteProperty(
+          "tags",
+          [[{ type: "text", text: "one" }], null],
+          "list",
+        ),
         { type: "paragraph" },
       ],
     });
@@ -555,9 +557,7 @@ describe("UmNotepad schema handling", () => {
       (n) => n.type === "notePropertyValue",
     );
     expect(values).toHaveLength(1);
-    expect(values[0]?.content).toEqual([
-      { type: "text", text: "one" },
-    ]);
+    expect(values[0]?.content).toEqual([{ type: "text", text: "one" }]);
   });
 
   it("blocks leaked into the cover are relocated below the properties on load", () => {
@@ -568,8 +568,16 @@ describe("UmNotepad schema handling", () => {
       content: [
         { type: "noteTitle", content: [{ type: "text", text: "Cover" }] },
         { type: "paragraph", content: [{ type: "text", text: "leaked" }] },
-        createNoteProperty("status", [[{ type: "text", text: "draft" }]], "text"),
-        createNoteProperty("tags", [[{ type: "text", text: "one" }], [{ type: "text", text: "one" }]], "list"),
+        createNoteProperty(
+          "status",
+          [[{ type: "text", text: "draft" }]],
+          "text",
+        ),
+        createNoteProperty(
+          "tags",
+          [[{ type: "text", text: "one" }], [{ type: "text", text: "one" }]],
+          "list",
+        ),
         { type: "paragraph", content: [{ type: "text", text: "body" }] },
       ],
     });
@@ -584,10 +592,10 @@ describe("UmNotepad schema handling", () => {
     ]);
     // The leaked paragraph keeps its text below the sealed cover; the
     // duplicate tag is reduced to one.
-    expect(
-      content[3]?.content?.map((t) => t.text).join(""),
-    ).toBe("leaked");
-    const tags = content[2]?.content?.filter((n) => n.type === "notePropertyValue");
+    expect(content[3]?.content?.map((t) => t.text).join("")).toBe("leaked");
+    const tags = content[2]?.content?.filter(
+      (n) => n.type === "notePropertyValue",
+    );
     expect(tags).toHaveLength(1);
   });
 

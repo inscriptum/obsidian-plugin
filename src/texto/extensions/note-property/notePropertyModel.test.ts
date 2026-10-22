@@ -64,7 +64,9 @@ function stateAt(json: JSONContent, caretPos: number): EditorState {
  *  the resulting state (commands dispatch at most once). */
 function applied(
   base: EditorState,
-  run: (dispatch: (tr: import("prosemirror-state").Transaction) => void) => boolean,
+  run: (
+    dispatch: (tr: import("prosemirror-state").Transaction) => void,
+  ) => boolean,
 ): EditorState {
   const out: EditorState[] = [];
   run((tr) => out.push(base.apply(tr)));
@@ -85,7 +87,8 @@ function geometry(doc: PMNode): {
     let childStart = from + 1;
     node.forEach((child) => {
       // childStart = the child node's start; content starts one inside.
-      if (child.type.name === "notePropertyName") entry.nameFrom = childStart + 1;
+      if (child.type.name === "notePropertyName")
+        entry.nameFrom = childStart + 1;
       else entry.values.push(childStart + 1);
       childStart += child.nodeSize;
     });
@@ -124,7 +127,11 @@ describe("suggestionItems", () => {
   });
 
   it("does not offer presets already present in the document", () => {
-    expect(suggestionItems("", ["tags"])).toEqual(["description", "status", "version"]);
+    expect(suggestionItems("", ["tags"])).toEqual([
+      "description",
+      "status",
+      "version",
+    ]);
     expect(suggestionItems("t", ["tags"])).toEqual([]);
     expect(suggestionItems("d", ["tags", "Custom"])).toEqual(["description"]);
   });
@@ -169,7 +176,10 @@ describe("selectionProperty", () => {
   });
 
   it("resolves the value field and its index", () => {
-    const loc = selectionProperty(doc, TextSelection.create(doc, geo.values[0]));
+    const loc = selectionProperty(
+      doc,
+      TextSelection.create(doc, geo.values[0]),
+    );
     expect(loc).toMatchObject({ inName: false, valueIndex: 0 });
   });
 
@@ -209,7 +219,9 @@ describe("removeProperty", () => {
     const base = stateAt(json, geo.values[0]);
     const loc = stateProperty(base)!;
 
-    const next = applied(base, (dispatch) => removeProperty(base, dispatch, loc));
+    const next = applied(base, (dispatch) =>
+      removeProperty(base, dispatch, loc),
+    );
     expect(next.doc.content.content.map((n) => n.type.name)).toEqual([
       "noteTitle",
       "paragraph",
@@ -223,18 +235,24 @@ describe("removeProperty", () => {
 describe("isDuplicateTag", () => {
   it("matches siblings case-insensitively with trimming; ignores self and empty", () => {
     const json = v3Doc([property("tags", ["one", "Two "], "list")]);
-    const loc = selectionProperty(
-      schema.nodeFromJSON(json),
-      TextSelection.create(schema.nodeFromJSON(json), 1),
-    )!;
     // build via selectionProperty on a real caret: use stateProperty path instead
     const doc = schema.nodeFromJSON(json);
     const [geo] = geometry(doc);
     const withCaret = stateAt(json, geo.values[0]);
     const loc2 = stateProperty(withCaret)!;
     expect(isDuplicateTag(loc2, 0)).toBe(false);
-    expect(isDuplicateTag({ ...loc2, values: [...loc2.values, { from: 0, to: 0, size: 2, text: " two" }] }, 2)).toBe(true);
-    expect(isDuplicateTag({ ...loc2, values: [{ ...loc2.values[0], text: "" }] }, 0)).toBe(false);
+    expect(
+      isDuplicateTag(
+        {
+          ...loc2,
+          values: [...loc2.values, { from: 0, to: 0, size: 2, text: " two" }],
+        },
+        2,
+      ),
+    ).toBe(true);
+    expect(
+      isDuplicateTag({ ...loc2, values: [{ ...loc2.values[0], text: "" }] }, 0),
+    ).toBe(false);
   });
 });
 
@@ -279,7 +297,10 @@ describe("propertyKeyDown", () => {
       property("description", ["first"]),
       property("status", ["draft"]),
     ]);
-    const base = stateAt(json, geometry(schema.nodeFromJSON(json))[0].values[0] + 1);
+    const base = stateAt(
+      json,
+      geometry(schema.nodeFromJSON(json))[0].values[0] + 1,
+    );
 
     const next = applied(base, (dispatch) =>
       propertyKeyDown(base, "Enter", null, dispatch),
@@ -417,18 +438,20 @@ describe("acceptSuggestion (preset uniqueness)", () => {
     };
     const doc = schema.nodeFromJSON(json);
     const props: number[] = [];
-    let p = 0;
     doc.forEach((node, off) => {
       if (node.type.name === "noteProperty") props.push(off);
-      p += node.nodeSize;
     });
     const emptyRowFrom = props[1];
     const base = stateAt(json, emptyRowFrom + 2); // caret in the empty name
 
     let changed = false;
-    const handled = acceptSuggestion(base, () => {
-      changed = true;
-    }, "tags");
+    const handled = acceptSuggestion(
+      base,
+      () => {
+        changed = true;
+      },
+      "tags",
+    );
     expect(handled).toBe(true);
     expect(changed).toBe(false);
   });
@@ -476,7 +499,10 @@ describe("sanitizePropertyValues (storage boundary)", () => {
     attrs: { type },
     content: [
       { type: "notePropertyName", content: [{ type: "text", text: name }] },
-      ...values.map((inline) => ({ type: "notePropertyValue", content: inline })),
+      ...values.map((inline) => ({
+        type: "notePropertyValue",
+        content: inline,
+      })),
     ],
   });
 
@@ -493,9 +519,7 @@ describe("sanitizePropertyValues (storage boundary)", () => {
     (row?.content ?? []).filter((n) => n.type === "notePropertyValue").length;
 
   it("strips empty draft values from List rows, keeps committed ones", () => {
-    const source = doc([
-      prop("tags", [[{ type: "text", text: "one" }], []]),
-    ]);
+    const source = doc([prop("tags", [[{ type: "text", text: "one" }], []])]);
     const out = sanitizePropertyValues(source);
     expect(valueCount(out.content?.[1])).toBe(1);
   });
@@ -507,9 +531,7 @@ describe("sanitizePropertyValues (storage boundary)", () => {
   });
 
   it("returns the same reference when there is nothing to strip", () => {
-    const source = doc([
-      prop("tags", [[{ type: "text", text: "one" }]]),
-    ]);
+    const source = doc([prop("tags", [[{ type: "text", text: "one" }]])]);
     expect(sanitizePropertyValues(source)).toBe(source);
   });
 });
@@ -524,7 +546,10 @@ describe("sanitizePropertyValues (tag validity at the storage boundary)", () => 
     attrs: { type },
     content: [
       { type: "notePropertyName", content: [{ type: "text", text: name }] },
-      ...values.map((inline) => ({ type: "notePropertyValue", content: inline })),
+      ...values.map((inline) => ({
+        type: "notePropertyValue",
+        content: inline,
+      })),
     ],
   });
 
@@ -596,7 +621,8 @@ describe("moveProperty (the grip drag)", () => {
   function names(state: EditorState): string[] {
     const out: string[] = [];
     state.doc.forEach((n) => {
-      if (n.type.name === "noteProperty") out.push(n.firstChild?.textContent ?? "");
+      if (n.type.name === "noteProperty")
+        out.push(n.firstChild?.textContent ?? "");
     });
     return out;
   }
@@ -613,7 +639,14 @@ describe("moveProperty (the grip drag)", () => {
     const state = baseState();
     const offs = offsets(state);
     const applied: { state: EditorState | null } = { state: null };
-    moveProperty(state, (tr) => { applied.state = state.apply(tr); }, offs[2], offs[0]);
+    moveProperty(
+      state,
+      (tr) => {
+        applied.state = state.apply(tr);
+      },
+      offs[2],
+      offs[0],
+    );
     expect(names(applied.state!)).toEqual(["gamma", "alpha", "beta"]);
     const gamma = applied.state!.doc.content.child(1); // the first property after the title
     expect(gamma.lastChild?.textContent).toBe("3");
@@ -623,7 +656,14 @@ describe("moveProperty (the grip drag)", () => {
     const state = baseState();
     const offs = offsets(state);
     const applied: { state: EditorState | null } = { state: null };
-    moveProperty(state, (tr) => { applied.state = state.apply(tr); }, offs[0], offs[2] + state.doc.nodeAt(offs[2])!.nodeSize);
+    moveProperty(
+      state,
+      (tr) => {
+        applied.state = state.apply(tr);
+      },
+      offs[0],
+      offs[2] + state.doc.nodeAt(offs[2])!.nodeSize,
+    );
     expect(names(applied.state!)).toEqual(["beta", "gamma", "alpha"]);
   });
 

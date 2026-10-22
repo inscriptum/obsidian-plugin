@@ -219,7 +219,8 @@ export const ToolbarElement = litView.element({
       return;
     }
     // Prefill when the caret/selection sits on a link.
-    linkDraft = String(props.editor.getAttributes("link").href ?? "");
+    const linkAttrs = props.editor.getAttributes("link");
+    linkDraft = typeof linkAttrs.href === "string" ? linkAttrs.href : "";
     linkLayerOpen = true;
     syncLinkLayerClass();
     void this.next().then(() => {
@@ -310,22 +311,22 @@ export const ToolbarElement = litView.element({
               <div class="note-toolbar__table-bar">{props.tableBar}</div>
             ) : (
               GROUPS.map((group, gi) => [
-              gi > 0 ? <div class="note-toolbar__sep"></div> : null,
-              group.map((btn) => (
-                <button
-                  class={`note-toolbar__btn${(btn.activeKey && state[btn.activeKey]) || (btn.activeKey === "link" && linkLayerOpen) ? " is-active" : ""}`}
-                  aria-label={btn.label}
-                  onclick={() =>
-                    btn.activeKey === "link"
-                      ? toggleLinkLayer()
-                      : btn.action(props.editor)
-                  }
-                >
-                  <span class="note-toolbar__icon">
-                    {toolbarIconNodes[btn.icon]({})}
-                  </span>
-                </button>
-              )),
+                gi > 0 ? <div class="note-toolbar__sep"></div> : null,
+                group.map((btn) => (
+                  <button
+                    class={`note-toolbar__btn${(btn.activeKey && state[btn.activeKey]) || (btn.activeKey === "link" && linkLayerOpen) ? " is-active" : ""}`}
+                    aria-label={btn.label}
+                    onclick={() =>
+                      btn.activeKey === "link"
+                        ? toggleLinkLayer()
+                        : btn.action(props.editor)
+                    }
+                  >
+                    <span class="note-toolbar__icon">
+                      {toolbarIconNodes[btn.icon]({})}
+                    </span>
+                  </button>
+                )),
               ])
             )}
             <div class="note-toolbar__spacer"></div>

@@ -1,5 +1,8 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import type { ImageElementPublicProps } from "../texto/extensions/image";
+import type {
+  ImageElementPublicProps,
+  UpdateFn,
+} from "../texto/extensions/image";
 import { imageOnSetViewProps, isImageIdReferenced } from "./image";
 
 function makeCtx(
@@ -31,20 +34,20 @@ function makeProps(
 
 describe("imageOnSetViewProps", () => {
   it("re-resolves a stale src from data.id and persists it", () => {
-    const update = vi.fn();
+    const update = vi.fn<UpdateFn>();
     const result = imageOnSetViewProps(
       makeProps({}),
       update,
       makeCtx((id) => `app://fresh/${id}`, ["img.png"]) as never,
     );
     expect(update).toHaveBeenCalledTimes(1);
-    expect(update.mock.calls[0][0].state.src).toBe("app://fresh/img.png");
-    expect(update.mock.calls[0][0].state.error).toBeUndefined();
+    expect(update.mock.calls[0]?.[0]?.state?.src).toBe("app://fresh/img.png");
+    expect(update.mock.calls[0]?.[0]?.state?.error).toBeUndefined();
     expect(result?.state?.src).toBe("app://fresh/img.png");
   });
 
   it("does not update when src is already fresh", () => {
-    const update = vi.fn();
+    const update = vi.fn<UpdateFn>();
     const result = imageOnSetViewProps(
       makeProps({ state: { src: "app://fresh/img.png" } }),
       update,
@@ -55,7 +58,7 @@ describe("imageOnSetViewProps", () => {
   });
 
   it("clears a persisted error and retries when the file exists again", () => {
-    const update = vi.fn();
+    const update = vi.fn<UpdateFn>();
     const result = imageOnSetViewProps(
       makeProps({ state: { src: "app://old/img.png", error: "" } }),
       update,
@@ -63,39 +66,39 @@ describe("imageOnSetViewProps", () => {
     );
     // src differs (old mtime/cache-buster) -> new attempt with cleared error
     expect(update).toHaveBeenCalledTimes(1);
-    expect(update.mock.calls[0][0].state.error).toBeUndefined();
+    expect(update.mock.calls[0]?.[0]?.state?.error).toBeUndefined();
     expect(result?.state?.src).toBe("app://fresh/img.png");
   });
 
   it("sets an informative error and drops src when the file is missing", () => {
-    const update = vi.fn();
+    const update = vi.fn<UpdateFn>();
     const result = imageOnSetViewProps(
       makeProps({ data: { id: "local/gone.png", filename: "gone.png" } }),
       update,
       makeCtx(() => `app://fresh/local/gone.png`, []) as never,
     );
     expect(update).toHaveBeenCalledTimes(1);
-    expect(update.mock.calls[0][0].state.error).toBe(
+    expect(update.mock.calls[0]?.[0]?.state?.error).toBe(
       "File not found: gone.png",
     );
-    expect(update.mock.calls[0][0].state.src).toBeUndefined();
+    expect(update.mock.calls[0]?.[0]?.state?.src).toBeUndefined();
     expect(result?.state?.error).toBe("File not found: gone.png");
   });
 
   it("falls back to data.id in the error text when filename is absent", () => {
-    const update = vi.fn();
+    const update = vi.fn<UpdateFn>();
     imageOnSetViewProps(
       makeProps({ data: { id: "local/gone.png" } }),
       update,
       makeCtx(() => "app://x", []) as never,
     );
-    expect(update.mock.calls[0][0].state.error).toBe(
+    expect(update.mock.calls[0]?.[0]?.state?.error).toBe(
       "File not found: local/gone.png",
     );
   });
 
   it("does not re-update when the missing-file error is already shown", () => {
-    const update = vi.fn();
+    const update = vi.fn<UpdateFn>();
     imageOnSetViewProps(
       makeProps({
         data: { id: "local/gone.png", filename: "gone.png" },
@@ -108,7 +111,7 @@ describe("imageOnSetViewProps", () => {
   });
 
   it("leaves state undefined for a node without data.id", () => {
-    const update = vi.fn();
+    const update = vi.fn<UpdateFn>();
     const result = imageOnSetViewProps(
       makeProps({ data: undefined, state: undefined }),
       update,
@@ -126,7 +129,10 @@ describe("imageOnSetViewProps", () => {
 
     it("opens the collected gallery at the clicked image's index", () => {
       document.body.innerHTML = "";
-      const ctx = makeCtx((id) => `app://fresh/${id}`, ["img.png"]) as Record<string, unknown>;
+      const ctx = makeCtx((id) => `app://fresh/${id}`, ["img.png"]) as Record<
+        string,
+        unknown
+      >;
       ctx.collectDocImages = () => [
         { id: "one.png", src: "app://fresh/one.png", filename: "one.png" },
         { id: "img.png", src: "app://fresh/img.png", filename: "img.png" },
@@ -134,9 +140,13 @@ describe("imageOnSetViewProps", () => {
       ];
       const props = imageOnSetViewProps(makeProps({}), vi.fn(), ctx as never);
       props?.onClick?.(new MouseEvent("click", { bubbles: true }));
-      const lb = document.querySelector(".inscriptum-image-lightbox") as HTMLElement;
+      const lb = document.querySelector(
+        ".inscriptum-image-lightbox",
+      ) as HTMLElement;
       expect(lb).not.toBeNull();
-      expect(lb.querySelector(".inscriptum-image-lightbox__counter")?.textContent).toBe("2 / 3");
+      expect(
+        lb.querySelector(".inscriptum-image-lightbox__counter")?.textContent,
+      ).toBe("2 / 3");
     });
 
     it("opens the clicked image alone when the context has no gallery", () => {
@@ -147,22 +157,37 @@ describe("imageOnSetViewProps", () => {
         makeCtx((id) => `app://fresh/${id}`, ["img.png"]) as never,
       );
       props?.onClick?.(new MouseEvent("click", { bubbles: true }));
-      const lb = document.querySelector(".inscriptum-image-lightbox") as HTMLElement;
-      expect(lb.querySelector("img")?.getAttribute("src")).toBe("app://fresh/img.png");
-      expect(lb.querySelector(".inscriptum-image-lightbox__counter")?.textContent).toBe("1 / 1");
+      const lb = document.querySelector(
+        ".inscriptum-image-lightbox",
+      ) as HTMLElement;
+      expect(lb.querySelector("img")?.getAttribute("src")).toBe(
+        "app://fresh/img.png",
+      );
+      expect(
+        lb.querySelector(".inscriptum-image-lightbox__counter")?.textContent,
+      ).toBe("1 / 1");
     });
 
     it("opens the clicked image alone when it is missing from the collection", () => {
       document.body.innerHTML = "";
-      const ctx = makeCtx((id) => `app://fresh/${id}`, ["img.png"]) as Record<string, unknown>;
+      const ctx = makeCtx((id) => `app://fresh/${id}`, ["img.png"]) as Record<
+        string,
+        unknown
+      >;
       ctx.collectDocImages = () => [
         { id: "one.png", src: "app://fresh/one.png", filename: null },
       ];
       const props = imageOnSetViewProps(makeProps({}), vi.fn(), ctx as never);
       props?.onClick?.(new MouseEvent("click", { bubbles: true }));
-      const lb = document.querySelector(".inscriptum-image-lightbox") as HTMLElement;
-      expect(lb.querySelector("img")?.getAttribute("src")).toBe("app://fresh/img.png");
-      expect(lb.querySelector(".inscriptum-image-lightbox__counter")?.textContent).toBe("1 / 1");
+      const lb = document.querySelector(
+        ".inscriptum-image-lightbox",
+      ) as HTMLElement;
+      expect(lb.querySelector("img")?.getAttribute("src")).toBe(
+        "app://fresh/img.png",
+      );
+      expect(
+        lb.querySelector(".inscriptum-image-lightbox__counter")?.textContent,
+      ).toBe("1 / 1");
     });
   });
 });

@@ -8,23 +8,23 @@ import { isNodeActive } from "./isNodeActive";
 export function isActive(
   state: EditorState,
   name: string | null,
-  attributes: AnyRecord = {},
+  attributes: object = {},
 ): boolean {
   if (!name) {
     return (
-      isNodeActive(state, null, attributes) ||
-      isMarkActive(state, null, attributes)
+      isNodeActive(state, null, attributes as AnyRecord) ||
+      isMarkActive(state, null, attributes as AnyRecord)
     );
   }
 
   const schemaType = getSchemaTypeNameByName(name, state.schema);
 
   if (schemaType === "node") {
-    return isNodeActive(state, name, attributes);
+    return isNodeActive(state, name, attributes as AnyRecord);
   }
 
   if (schemaType === "mark") {
-    return isMarkActive(state, name, attributes);
+    return isMarkActive(state, name, attributes as AnyRecord);
   }
 
   return false;

@@ -147,7 +147,13 @@ export const Attachment = Node.create<AttachmentOptions>({
         throw new Error("[TEXTO ERROR]: getPos must be a function.");
       }
 
-      setAttachmentViewProps(element, node, editor, this.options, getPos());
+      setAttachmentViewProps(
+        element,
+        node,
+        editor,
+        this.options,
+        getPos(),
+      );
 
       return {
         dom: element,

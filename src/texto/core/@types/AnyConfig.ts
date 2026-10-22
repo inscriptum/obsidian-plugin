@@ -10,21 +10,27 @@ import type {
 
 /**
  * Arbitrary extension options/storage object.
- * The `any` value provides structural compatibility with any options interface
- * (without it, interfaces like `BoldOptions` are not assignable to AnyObject).
+ * The value map is `Record<string, unknown>`: concrete option interfaces
+ * (BoldOptions & co.) are NOT assignable to it (interfaces have no index
+ * signature), so the generic parameters below are constrained to `object`
+ * and their defaults are the widest honest type — `object` keeps
+ * `Node<CustomOptions>` assignable to `Node` (covariance) without `any`.
  */
 export type AnyObject = AnyRecord;
 
+/**
+ * The shape of the `this` context every handler runs with. The handlers are
+ * declared as METHODS on purpose: a method's `this` parameter is compared
+ * bivariantly, so a narrow config (Node<NoteDocOptions>) stays assignable
+ * to the loose one (`AnyExtension` = the default instantiation).
+ */
 export interface AnyConfig<
-  Options = AnyObject,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Storage is intentionally `any`: extensions store arbitrary state
-  Storage = any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Config defaults to `any`: extension configs are structurally open
-  Config extends Record<any, any> = any,
+  Options = object,
+  Storage = object,
   ConfigType = unknown,
 > {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- pass-through map of arbitrary tiptap-style config fields
-  [key: string]: any;
+  // pass-through map of arbitrary tiptap-style config fields
+  [key: string]: unknown;
 
   /**
    * Name
@@ -39,180 +45,164 @@ export interface AnyConfig<
   /**
    * Default Options
    */
-  addOptions?: (this: {
+  addOptions?(this: {
     name: string;
-    parent: Exclude<Config["addOptions"], undefined>;
-  }) => Options;
+    parent: unknown;
+  }): Options;
 
   /**
    * Default Storage
    */
-  addStorage?: (this: {
+  addStorage?(this: {
     name: string;
     options: Options;
-    parent: Exclude<Config["addStorage"], undefined>;
-  }) => Storage;
+    parent: unknown;
+  }): Storage;
 
   /**
    * Raw
    */
-  addCommands?: (this: {
+  addCommands?(this: {
     name: string;
     options: Options;
     storage: Storage;
     editor: Editor;
     type: ConfigType;
-    parent: Config["addCommands"];
-  }) => AnyCommands;
+    parent: unknown;
+  }): AnyCommands;
 
   /**
    * Keyboard shortcuts
    */
-  addKeyboardShortcuts?: (this: {
+  addKeyboardShortcuts?(this: {
     name: string;
     options: Options;
     storage: Storage;
     editor: Editor;
     type: ConfigType;
-    parent: Config["addKeyboardShortcuts"];
-  }) => {
+    parent: unknown;
+  }): {
     [key: string]: KeyboardShortcutCommand;
   };
 
   /**
    * Extensions
    */
-  addExtensions?: (this: {
+  addExtensions?(this: {
     name: string;
     options: Options;
     storage: Storage;
-    parent: Config["addExtensions"];
-  }) => Extensions;
+    parent: unknown;
+  }): Extensions;
 
   /**
    * The editor is not ready yet.
    */
-  onBeforeCreate?:
-    | ((this: {
-        name: string;
-        options: Options;
-        storage: Storage;
-        editor: Editor;
-        type: ConfigType;
-        parent: Config["onBeforeCreate"];
-      }) => void)
-    | null;
+  onBeforeCreate?(this: {
+    name: string;
+    options: Options;
+    storage: Storage;
+    editor: Editor;
+    type: ConfigType;
+    parent: unknown;
+  }): void;
 
   /**
    * The editor is ready.
    */
-  onCreate?:
-    | ((this: {
-        name: string;
-        options: Options;
-        storage: Storage;
-        editor: Editor;
-        type: ConfigType;
-        parent: Config["onCreate"];
-      }) => void)
-    | null;
+  onCreate?(this: {
+    name: string;
+    options: Options;
+    storage: Storage;
+    editor: Editor;
+    type: ConfigType;
+    parent: unknown;
+  }): void;
 
   /**
    * The content has changed.
    */
-  onUpdate?:
-    | ((this: {
-        name: string;
-        options: Options;
-        storage: Storage;
-        editor: Editor;
-        type: ConfigType;
-        parent: Config["onUpdate"];
-      }) => void)
-    | null;
+  onUpdate?(this: {
+    name: string;
+    options: Options;
+    storage: Storage;
+    editor: Editor;
+    type: ConfigType;
+    parent: unknown;
+  }): void;
 
   /**
    * The selection has changed.
    */
-  onSelectionUpdate?:
-    | ((this: {
-        name: string;
-        options: Options;
-        storage: Storage;
-        editor: Editor;
-        type: ConfigType;
-        parent: Config["onSelectionUpdate"];
-      }) => void)
-    | null;
+  onSelectionUpdate?(this: {
+    name: string;
+    options: Options;
+    storage: Storage;
+    editor: Editor;
+    type: ConfigType;
+    parent: unknown;
+  }): void;
 
   /**
    * The editor state has changed.
    */
-  onTransaction?:
-    | ((
-        this: {
-          name: string;
-          options: Options;
-          storage: Storage;
-          editor: Editor;
-          type: ConfigType;
-          parent: Config["onTransaction"];
-        },
-        props: {
-          transaction: Transaction;
-        },
-      ) => void)
-    | null;
+  onTransaction?(
+    this: {
+      name: string;
+      options: Options;
+      storage: Storage;
+      editor: Editor;
+      type: ConfigType;
+      parent: unknown;
+    },
+    props: {
+      transaction: Transaction;
+    },
+  ): void;
 
   /**
    * The editor is focused.
    */
-  onFocus?:
-    | ((
-        this: {
-          name: string;
-          options: Options;
-          storage: Storage;
-          editor: Editor;
-          type: ConfigType;
-          parent: Config["onFocus"];
-        },
-        props: {
-          event: FocusEvent;
-        },
-      ) => void)
-    | null;
+  onFocus?(
+    this: {
+      name: string;
+      options: Options;
+      storage: Storage;
+      editor: Editor;
+      type: ConfigType;
+      parent: unknown;
+    },
+    props: {
+      event: FocusEvent;
+    },
+  ): void;
 
   /**
    * The editor isn’t focused anymore.
    */
-  onBlur?:
-    | ((
-        this: {
-          name: string;
-          options: Options;
-          storage: Storage;
-          editor: Editor;
-          type: ConfigType;
-          parent: Config["onBlur"];
-        },
-        props: {
-          event: FocusEvent;
-        },
-      ) => void)
-    | null;
+  onBlur?(
+    this: {
+      name: string;
+      options: Options;
+      storage: Storage;
+      editor: Editor;
+      type: ConfigType;
+      parent: unknown;
+    },
+    props: {
+      event: FocusEvent;
+    },
+  ): void;
 
   /**
    * The editor is destroyed.
    */
-  onDestroy?:
-    | ((this: {
-        name: string;
-        options: Options;
-        storage: Storage;
-        editor: Editor;
-        type: ConfigType;
-        parent: Config["onDestroy"];
-      }) => void)
-    | null;
+  onDestroy?(this: {
+    name: string;
+    options: Options;
+    storage: Storage;
+    editor: Editor;
+    type: ConfigType;
+    parent: unknown;
+  }): void;
 }

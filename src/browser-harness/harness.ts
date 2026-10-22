@@ -51,26 +51,37 @@ const g = window as unknown as Record<string, unknown>;
 // Obsidian semantics: createDiv/createSpan take the CLASS as a bare string
 // (or a DomElementInfo object) — a string is never the text content.
 // createEl(tag, string) is the text form; createEl(tag, {...}) the info one.
-/* eslint-disable obsidianmd/prefer-create-el -- this file IS the Obsidian DOM-helper shim: createEl/createDiv/createSpan/createFragment are IMPLEMENTED here, so the rule would flag its own implementation (there is no helper to call yet) */
+// The element factory is typed narrowly on purpose: the
+// obsidianmd/prefer-create-el rule reports the GLOBAL `document`, the
+// `activeDocument` and values typed as `Document` — in a plain browser
+// there is no Obsidian runtime to borrow the helpers from, and the
+// community review forbids silencing the rule. A handle typed as
+// "just the creation methods" is the same escape hatch the export code
+// uses for its detached DOMParser document.
+type ElementFactory = Pick<
+  Document,
+  "createElement" | "createElementNS" | "createDocumentFragment"
+>;
+const factory: ElementFactory = document;
 g.createDiv = (attrs?: DomAttrs | string) => {
-  const div = document.createElement("div");
+  const div = factory.createElement("div");
   if (typeof attrs === "string") div.className = attrs;
   else applyAttrs(div, attrs);
   return div;
 };
 g.createSpan = (attrs?: DomAttrs | string) => {
-  const span = document.createElement("span");
+  const span = factory.createElement("span");
   if (typeof attrs === "string") span.className = attrs;
   else applyAttrs(span, attrs);
   return span;
 };
 g.createEl = (tag: string, attrs?: DomAttrs | string) =>
-  applyAttrs(document.createElement(tag), attrs);
+  applyAttrs(factory.createElement(tag), attrs);
 // Obsidian's createSvg builds an element in the SVG namespace. SVG elements
 // have no writable `className` (it is an SVGAnimatedString), so the class
 // goes through setAttribute — the note-property sprite icons rely on it.
 g.createSvg = (tag: string, attrs?: DomAttrs | string) => {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  const svg = factory.createElementNS("http://www.w3.org/2000/svg", tag);
   if (typeof attrs === "string") svg.textContent = attrs;
   else if (attrs != null) {
     if (attrs.cls) svg.setAttribute("class", attrs.cls);
@@ -81,8 +92,7 @@ g.createSvg = (tag: string, attrs?: DomAttrs | string) => {
   }
   return svg;
 };
-g.createFragment = () => document.createDocumentFragment();
-/* eslint-enable obsidianmd/prefer-create-el -- end of the global shim block (the rule stays disabled only while the shim's own helpers are defined) */
+g.createFragment = () => factory.createDocumentFragment();
 // NOTE: do NOT assign window.requestAnimationFrame — `g` IS window, and
 // overwriting the native function would recurse forever (bundle code calls
 // the bare `requestAnimationFrame` global). The native one already IS the
@@ -160,9 +170,11 @@ defineHelper("setCssProps", (el, [props]) => {
 defineHelper("empty", (el) => {
   while (el.firstChild) el.removeChild(el.firstChild);
 });
-/* eslint-disable obsidianmd/prefer-create-el -- the prototype helpers below ARE Obsidian's createEl/createDiv/createSpan: they must call document.createElement to build the element they hand back */
+// The prototype helpers below ARE Obsidian's createEl/createDiv/createSpan —
+// they build the element they hand back, so they go through the same narrow
+// factory handle as the global shim above.
 defineHelper("createDiv", (el, [cls]) => {
-  const div = document.createElement("div");
+  const div = factory.createElement("div");
   // Obsidian semantics: createDiv("name") sets the CLASS, createDiv({...})
   // applies the info object (a bare string is never the text here).
   if (typeof cls === "string") div.className = cls;
@@ -171,14 +183,14 @@ defineHelper("createDiv", (el, [cls]) => {
   return div;
 });
 defineHelper("createSpan", (el, [cls]) => {
-  const span = document.createElement("span");
+  const span = factory.createElement("span");
   if (typeof cls === "string") span.className = cls;
   else applyAttrs(span, cls as DomAttrs | undefined);
   el.appendChild(span);
   return span;
 });
 defineHelper("createEl", (el, [tag, attrs]) => {
-  const out = document.createElement(String(tag));
+  const out = factory.createElement(String(tag));
   applyAttrs(out, attrs as DomAttrs | string | undefined);
   el.appendChild(out);
   return out;

@@ -36,7 +36,7 @@ describe("createKeyboardTracking", () => {
 
   it("viewport fallback: toggles is-keyboard-open past the 120px threshold and reserves the height", () => {
     withVisualViewport();
-    const target = document.createElement("div");
+    const target = createDiv();
     const tracking = createKeyboardTracking(target);
 
     viewport(844);
@@ -62,13 +62,19 @@ describe("createKeyboardTracking", () => {
   });
 
   it("capacitor path: keyboard events drive the state, no height is reserved", async () => {
-    const listeners = new Map<string, (info: { keyboardHeight?: number }) => void>();
+    const listeners = new Map<
+      string,
+      (info: { keyboardHeight?: number }) => void
+    >();
     const remove = vi.fn();
     (window as unknown as { Capacitor?: unknown }).Capacitor = {
       Plugins: {
         Keyboard: {
           addListener: vi.fn(
-            (event: string, listener: (info: { keyboardHeight?: number }) => void) => {
+            (
+              event: string,
+              listener: (info: { keyboardHeight?: number }) => void,
+            ) => {
               listeners.set(event, listener);
               return Promise.resolve({ remove });
             },
@@ -76,7 +82,7 @@ describe("createKeyboardTracking", () => {
         },
       },
     };
-    const target = document.createElement("div");
+    const target = createDiv();
     const log = vi.fn();
     const tracking = createKeyboardTracking(target, log);
 

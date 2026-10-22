@@ -66,7 +66,9 @@ export const TaskItem = Node.create<TaskItemOptions>({
   },
 
   content() {
-    return this.options.nested ? "paragraph block*" : "paragraph+";
+    return (this.options).nested
+      ? "paragraph block*"
+      : "paragraph+";
   },
 
   addAttributes() {
@@ -181,19 +183,23 @@ export const TaskItem = Node.create<TaskItemOptions>({
             });
           }
 
+          const onReadOnlyChecked = (this.options)
+            .onReadOnlyChecked;
           if (
             !editor.isEditable &&
-            this.options.onReadOnlyChecked &&
-            !this.options.onReadOnlyChecked(node, checked)
+            onReadOnlyChecked &&
+            !onReadOnlyChecked(node, checked)
           ) {
             checkboxEl.checked = !checkboxEl.checked;
           }
         },
       };
 
-      Object.entries(this.options.HTMLAttributes).forEach(([key, value]) => {
-        element.setAttribute(key, value);
-      });
+      Object.entries((this.options).HTMLAttributes).forEach(
+        ([key, value]) => {
+          element.setAttribute(key, value);
+        },
+      );
 
       element.dataset.checked = String(node.attrs.checked);
 
@@ -236,7 +242,10 @@ export const TaskItem = Node.create<TaskItemOptions>({
           element.props = {
             ...element.props,
             checked: !!updatedNode.attrs.checked,
-            foldable: isFoldableItem(this.options, updatedNode),
+            foldable: isFoldableItem(
+              this.options,
+              updatedNode,
+            ),
           };
 
           return true;

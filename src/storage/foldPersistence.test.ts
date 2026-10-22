@@ -3,10 +3,7 @@ import { Editor } from "../texto/core/Editor";
 import type { JSONContent } from "../texto/core/@types";
 import { getExtensions } from "../texto/getExtensions";
 import { getFoldedHeadingPositions } from "../texto/extensions/heading/folding";
-import {
-  createFoldPersistence,
-  foldStorageKey,
-} from "./foldPersistence";
+import { createFoldPersistence, foldStorageKey } from "./foldPersistence";
 
 function testContent(): JSONContent {
   return {
@@ -41,7 +38,7 @@ interface Fixture {
 const fixtures: Fixture[] = [];
 
 function buildEditor(content: JSONContent = testContent()): Fixture {
-  const el = document.createElement("div");
+  const el = createDiv();
   document.body.appendChild(el);
   const editor = new Editor({
     element: el,
@@ -150,9 +147,9 @@ describe("createFoldPersistence", () => {
     fixture.editor.commands.foldHeading(fixture.headingA);
 
     persistence.sync(fixture.editor);
-    expect(
-      app.saved.has(foldStorageKey("heading", "old/book.um/page")),
-    ).toBe(true);
+    expect(app.saved.has(foldStorageKey("heading", "old/book.um/page"))).toBe(
+      true,
+    );
 
     scope = "renamed/book.um/page";
     fixture.editor.commands.unfoldHeading(fixture.headingA);
@@ -161,9 +158,9 @@ describe("createFoldPersistence", () => {
     expect(
       app.saved.has(foldStorageKey("heading", "renamed/book.um/page")),
     ).toBe(false);
-    expect(
-      app.saved.has(foldStorageKey("heading", "old/book.um/page")),
-    ).toBe(true);
+    expect(app.saved.has(foldStorageKey("heading", "old/book.um/page"))).toBe(
+      true,
+    );
   });
 
   it("restore filters stale positions that no longer point at the node kind", () => {
@@ -214,7 +211,7 @@ describe("createFoldPersistence", () => {
     // …then the page is edited on mobile, where the folding plugins are
     // disabled: the absent plugin state reads as "no folds", and a naive
     // sync would clear the desktop's saved value. It must be a no-op.
-    const el = document.createElement("div");
+    const el = createDiv();
     document.body.appendChild(el);
     let mobileEditor: Editor | null = new Editor({
       element: el,

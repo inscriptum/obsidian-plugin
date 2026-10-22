@@ -54,13 +54,13 @@ function setHljsCodeBlock(
           .insertContentAt(parentNodePos, {
             type: this.name,
             attrs: attributes,
-            content: jsonContent as JSONContent[],
+            content: jsonContent as unknown as JSONContent[],
           });
       } else {
         command.insertContent({
           type: this.name,
           attrs: attributes,
-          content: jsonContent as JSONContent[],
+          content: jsonContent as unknown as JSONContent[],
         });
       }
 

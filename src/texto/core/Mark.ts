@@ -1,33 +1,31 @@
 import type { AnyConfig } from "./@types/AnyConfig";
-import type { AnyRecord } from "./@types";
 import type { MarkConfig } from "./@types/MarkConfig";
 import type { Editor } from "./Editor";
 import { getExtensionField } from "./helpers/getExtensionField";
 import { callOrReturn } from "./utilities/callOrReturn";
 import { mergeDeep } from "./utilities/mergeDeep";
 
-// Options/Storage default to `any` for covariance (Mark<CustomOptions> must stay assignable to Mark)
+// Options/Storage default to `object` — the widest honest type: it keeps
+// Mark<CustomOptions> assignable to Mark (covariance) without `any`.
 export class Mark<
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- default `any` keeps Mark<CustomOptions> assignable to Mark (covariance)
-  Options extends AnyRecord = any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- default `any` keeps Mark<CustomOptions> assignable to Mark (covariance)
-  Storage extends AnyRecord = any,
+  Options extends object = object,
+  Storage extends object = object,
 > {
   type = "mark";
 
   name = "mark";
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential defaults must stay `any` so Mark<Custom> is assignable to Mark
-  parent: Mark<any, any> | null = null;
+  // self-referential defaults: `object` keeps Mark<Custom> assignable to Mark
+  parent: Mark<object, object> | null = null;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential defaults must stay `any` so Mark<Custom> is assignable to Mark
-  child: Mark<any, any> | null = null;
+  // self-referential defaults: `object` keeps Mark<Custom> assignable to Mark
+  child: Mark<object, object> | null = null;
 
   options: Options = {} as Options;
 
   storage: Storage;
 
-  config: MarkConfig = {
+  config: MarkConfig<Options, Storage> = {
     name: this.name,
   };
 
@@ -38,7 +36,7 @@ export class Mark<
     this.config = {
       ...this.config,
       ...config,
-    } as MarkConfig;
+    };
 
     this.name = this.config.name;
 
@@ -50,18 +48,17 @@ export class Mark<
       ) as Options;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- addStorage returns Storage (default `any`) via dynamic getExtensionField
-    this.storage =
-      callOrReturn(
-        getExtensionField<AnyConfig["addStorage"]>(this, "addStorage", {
-          name: this.name,
-          options: this.options,
-        }),
-      ) || {};
+    // The dynamic dispatch erases the concrete Storage type, so the value is
+    // narrowed back to it here.
+    this.storage = (callOrReturn(
+      getExtensionField<AnyConfig["addStorage"]>(this, "addStorage", {
+        name: this.name,
+        options: this.options,
+      }),
+    ) || {}) as Storage;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MarkConfig generic defaults mirror the class defaults (covariance)
-  static create<O extends AnyRecord = any, S extends AnyRecord = any>(
+  static create<O extends object = object, S extends object = object>(
     config: Partial<MarkConfig<O, S>> = {},
   ) {
     return new Mark<O, S>(config);
@@ -74,20 +71,19 @@ export class Mark<
 
     extension.options = mergeDeep(this.options, options) as Options;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- addStorage returns Storage (default `any`) via dynamic getExtensionField
     extension.storage = callOrReturn(
       getExtensionField<AnyConfig["addStorage"]>(extension, "addStorage", {
         name: extension.name,
         options: extension.options,
       }),
-    );
+    ) as Storage;
 
     return extension;
   }
 
   extend<
-    ExtendedOptions extends AnyRecord = Options,
-    ExtendedStorage extends AnyRecord = Storage,
+    ExtendedOptions extends object = Options,
+    ExtendedStorage extends object = Storage,
   >(
     extendedConfig: Partial<MarkConfig<ExtendedOptions, ExtendedStorage>> = {},
   ) {

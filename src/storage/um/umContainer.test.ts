@@ -158,10 +158,11 @@ describe("parseUmContainer / serializeUmContainer", () => {
 
     const a = nb.serialize();
     const b = nb.serialize();
-    expect(Buffer.from(a).equals(Buffer.from(b))).toBe(true);
+    // The container is serialized to bytes — compare them element-wise.
+    expect(Array.from(a)).toEqual(Array.from(b));
     // A parse→serialize round trip is stable too.
     const c = serializeUmContainer(parseUmContainer(a));
-    expect(Buffer.from(c).equals(Buffer.from(a))).toBe(true);
+    expect(Array.from(c)).toEqual(Array.from(a));
   });
 
   it("reindexes non-contiguous orders while preserving relative order (spec 8.3)", () => {
@@ -291,7 +292,7 @@ describe("UmNotepad", () => {
     expect(typeof dup?.modifiedAt).toBe("number");
 
     // A real content change moves the stamp forward.
-    await new Promise((r) => setTimeout(r, 5));
+    await new Promise((r) => window.setTimeout(r, 5));
     nb.setNoteContent(nb.notes()[0].id, helloDoc("Rewritten"));
     const after = nb.note(nb.notes()[0].id)?.modifiedAt;
     expect(after).not.toBe(before);
@@ -368,7 +369,7 @@ describe("UmNotepad", () => {
     const nb = notepadWithTwoNotes();
     const data = parseUmContainer(nb.serialize());
     const first = data.manifest.notes[0];
-    first.title = "stale manifest title";
+    first.title = "Stale manifest title";
     const doc = data.notes.get(first.id)!;
     // Document's first line says "hhhhh" — it must win over the manifest.
     doc.content![0] = {

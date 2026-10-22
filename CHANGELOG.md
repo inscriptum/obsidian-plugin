@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Inscriptum is now a ~6 MB plugin (the diagram engine is bundled in). Obsidian Sync on the Standard plan does not transfer files that big, so install or update the plugin on each device yourself — the rest of your vault syncs as usual.
+
+### Fixed
+
+- On Obsidian 1.13 and newer the settings screen shows your saved values instead of empty fields.
+
 ## [0.12.0] - 2026-10-21
 
 ### Changed

@@ -30,7 +30,7 @@ export function injectExtensionAttributesToParseRule<PR extends ParseRule>(
 
       const newAttributes = extensionAttributes.reduce((items, item) => {
         const value = item.attribute.parseHTML
-          ? (item.attribute.parseHTML(node) as unknown)
+          ? item.attribute.parseHTML(node)
           : fromString(node.getAttribute(item.name));
 
         if (value === null || value === undefined) {

@@ -1,33 +1,30 @@
 import type { AnyConfig } from "./@types/AnyConfig";
-import type { AnyRecord } from "./@types";
 import type { NodeConfig } from "./@types/NodeConfig";
 import { getExtensionField } from "./helpers/getExtensionField";
 import { callOrReturn } from "./utilities/callOrReturn";
 import { mergeDeep } from "./utilities/mergeDeep";
 
-// Options/Storage default to `any` for covariance (Node<CustomOptions> must stay assignable to Node)
+// Options/Storage default to `object` — the widest honest type: it keeps
+// Node<CustomOptions> assignable to Node (covariance) without `any`.
 export class Node<
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- default `any` keeps Node<CustomOptions> assignable to Node (covariance)
-  Options extends AnyRecord = any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- default `any` keeps Node<CustomOptions> assignable to Node (covariance)
-  Storage extends AnyRecord = any,
+  Options extends object = object,
+  Storage extends object = object,
 > {
   type = "node";
 
   name = "node";
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential defaults must stay `any` so Node<Custom> is assignable to Node
-  parent: Node<any, any> | null = null;
+  // self-referential defaults: `object` keeps Node<Custom> assignable to Node
+  parent: Node<object, object> | null = null;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential defaults must stay `any` so Node<Custom> is assignable to Node
-  child: Node<any, any> | null = null;
+  // self-referential defaults: `object` keeps Node<Custom> assignable to Node
+  child: Node<object, object> | null = null;
 
   options: Options = {} as Options;
 
   storage: Storage;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- self-referential defaults must stay `any` so Node<Custom> is assignable to Node
-  config: NodeConfig<any, any> = {
+  config: NodeConfig<Options, Storage> = {
     name: this.name,
   };
 
@@ -47,19 +44,18 @@ export class Node<
       ) as Options;
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- addStorage returns Storage (default `any`) via dynamic getExtensionField
-    this.storage =
-      callOrReturn(
-        getExtensionField<AnyConfig["addStorage"]>(this, "addStorage", {
-          name: this.name,
-          options: this.options,
-        }),
-      ) || {};
+    // The dynamic dispatch erases the concrete Storage type, so the value is
+    // narrowed back to it here.
+    this.storage = (callOrReturn(
+      getExtensionField<AnyConfig["addStorage"]>(this, "addStorage", {
+        name: this.name,
+        options: this.options,
+      }),
+    ) || {}) as Storage;
   }
 
   // TODO: delete all static create methods... or... move to somewhere
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- NodeConfig generic defaults mirror the class defaults (covariance)
-  static create<O extends AnyRecord = any, S extends AnyRecord = any>(
+  static create<O extends object = object, S extends object = object>(
     config: Partial<NodeConfig<O, S>> = {},
   ) {
     return new Node<O, S>(config);
@@ -72,20 +68,19 @@ export class Node<
 
     extension.options = mergeDeep(this.options, options) as Options;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- addStorage returns Storage (default `any`) via dynamic getExtensionField
     extension.storage = callOrReturn(
       getExtensionField<AnyConfig["addStorage"]>(extension, "addStorage", {
         name: extension.name,
         options: extension.options,
       }),
-    );
+    ) as Storage;
 
     return extension;
   }
 
   extend<
-    ExtendedOptions extends AnyRecord = Options,
-    ExtendedStorage extends AnyRecord = Storage,
+    ExtendedOptions extends object = Options,
+    ExtendedStorage extends object = Storage,
   >(
     extendedConfig: Partial<NodeConfig<ExtendedOptions, ExtendedStorage>> = {},
   ) {
@@ -107,13 +102,12 @@ export class Node<
       }),
     ) as ExtendedOptions;
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- addStorage returns Storage (default `any`) via dynamic getExtensionField
     extension.storage = callOrReturn(
       getExtensionField<AnyConfig["addStorage"]>(extension, "addStorage", {
         name: extension.name,
         options: extension.options,
       }),
-    );
+    ) as ExtendedStorage;
 
     return extension;
   }

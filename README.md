@@ -79,6 +79,14 @@ If you want to try the latest development versions before they are released, ins
 4. Reload Obsidian.
 5. Enable **Inscriptum** under **Settings → Community plugins**.
 
+### A note on Obsidian Sync
+
+The plugin ships as a single `main.js` of about 6 MB (the Mermaid engine for
+diagrams is bundled in). Obsidian Sync does not transfer files above 5 MB on
+the Standard plan, so the plugin folder is **not synced** there: on your other
+devices, install or update Inscriptum yourself (community list or a manual
+copy). Everything else in the vault syncs as usual.
+
 ## Development
 
 Clone the repository and install dependencies:

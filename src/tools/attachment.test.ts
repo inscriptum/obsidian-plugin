@@ -5,6 +5,7 @@ import {
   attachSelectedFile,
   formatFileSize,
   openAttachmentFile,
+  type AttachChoiceDialog,
 } from "./attachment";
 
 function pickedFile(path: string, name = "report.pdf", size = 2048): File {
@@ -22,12 +23,16 @@ function makeNote(path = "notes/note.md"): TFile {
 }
 
 /** Notice.messages exists only on the vitest mock (see src/__mocks__/obsidian.ts). */
-const noticeMessages = () => (Notice as unknown as { messages: string[] }).messages;
+const noticeMessages = () =>
+  (Notice as unknown as { messages: string[] }).messages;
 
 function makeApp({
   vaultFiles = {},
   basePath = "/vault",
-}: { vaultFiles?: Record<string, unknown>; basePath?: string } = {}) {
+}: {
+  vaultFiles?: Record<string, unknown>;
+  basePath?: string;
+} = {}) {
   const created: string[] = [];
   const openWithDefaultApp = vi.fn();
   const trashFile = vi.fn();
@@ -72,7 +77,7 @@ describe("attachSelectedFile", () => {
       vaultFiles: { "docs/report.pdf": {} },
     });
     const { update, calls } = makeUpdate();
-    const choose = vi.fn();
+    const choose = vi.fn<AttachChoiceDialog>();
 
     await attachSelectedFile(
       app,
@@ -99,7 +104,7 @@ describe("attachSelectedFile", () => {
   it("leaves the chip untouched while the dialog is open", async () => {
     const { app, trashFile } = makeApp();
     const { update, calls } = makeUpdate();
-    const choose = vi.fn();
+    const choose = vi.fn<AttachChoiceDialog>();
 
     await attachSelectedFile(
       app,
@@ -119,7 +124,7 @@ describe("attachSelectedFile", () => {
   it("offers the dialog for an external file; external link stores the absolute path with mode", async () => {
     const { app, created, trashFile } = makeApp();
     const { update, calls } = makeUpdate();
-    const choose = vi.fn();
+    const choose = vi.fn<AttachChoiceDialog>();
 
     await attachSelectedFile(
       app,
@@ -152,7 +157,7 @@ describe("attachSelectedFile", () => {
   it("dialog copy choice stores a copy next to the note and links internally", async () => {
     const { app, created, trashFile } = makeApp();
     const { update, calls } = makeUpdate();
-    const choose = vi.fn();
+    const choose = vi.fn<AttachChoiceDialog>();
 
     await attachSelectedFile(
       app,
@@ -166,7 +171,10 @@ describe("attachSelectedFile", () => {
     await vi.waitFor(() => expect(created).toEqual(["report.pdf"]));
 
     const last = calls.at(-1)!;
-    expect(last.data).toMatchObject({ id: "report.pdf", filename: "report.pdf" });
+    expect(last.data).toMatchObject({
+      id: "report.pdf",
+      filename: "report.pdf",
+    });
     expect(last.data?.["mode"]).toBeUndefined();
     expect(last.state?.fileStatus).toBe("attached");
     // The copy writes a new file; it never removes or trashes anything.
@@ -176,7 +184,7 @@ describe("attachSelectedFile", () => {
   it("dialog dismiss calls cancel (chip restore), attaching nothing", async () => {
     const { app, created, trashFile } = makeApp();
     const { update } = makeUpdate();
-    const choose = vi.fn();
+    const choose = vi.fn<AttachChoiceDialog>();
 
     await attachSelectedFile(
       app,
@@ -196,7 +204,7 @@ describe("attachSelectedFile", () => {
   it("copies silently when the picker hides the path (mobile fallback)", async () => {
     const { app, created } = makeApp();
     const { update, calls } = makeUpdate();
-    const choose = vi.fn();
+    const choose = vi.fn<AttachChoiceDialog>();
     const file = new File(["x"], "report.pdf");
 
     await attachSelectedFile(app, makeNote(), file, update, cancel, choose);
@@ -212,7 +220,7 @@ describe("attachSelectedFile", () => {
     try {
       const { app, created } = makeApp();
       const { update, calls } = makeUpdate();
-      const choose = vi.fn();
+      const choose = vi.fn<AttachChoiceDialog>();
 
       await attachSelectedFile(
         app,
@@ -300,9 +308,7 @@ describe("openAttachmentFile", () => {
     try {
       openAttachmentFile(app, { id: "/outside/a.pdf", mode: "external" });
       await vi.waitFor(() =>
-        expect(noticeMessages()).toContain(
-          "Cannot open file: /outside/a.pdf",
-        ),
+        expect(noticeMessages()).toContain("Cannot open file: /outside/a.pdf"),
       );
     } finally {
       restore();
