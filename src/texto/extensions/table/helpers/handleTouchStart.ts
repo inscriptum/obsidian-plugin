@@ -239,6 +239,7 @@ function runCellDrag(
 ): void {
   let topLeftAnchor = anchorPos;
   let isFirstMove = true;
+  let movedSelection = false;
 
   function point(event: TouchEvent) {
     return event.touches[0] ?? event.changedTouches[0];
@@ -253,6 +254,12 @@ function runCellDrag(
     // Suppress the synthetic click: it would collapse the freshly built
     // cell selection back to a text cursor.
     event.preventDefault();
+    // A press released without any movement selects the anchor cell — the
+    // long-press twin of the desktop circle-click single-cell selection.
+    if (!movedSelection && anchorPos != null) {
+      const $anchor = view.state.doc.resolve(anchorPos);
+      dispatchCellSelection(view, $anchor, $anchor);
+    }
     if (tableEditingKey.getState(view.state) != null) {
       view.dispatch(view.state.tr.setMeta(tableEditingKey, -1));
     }
@@ -281,6 +288,7 @@ function runCellDrag(
     isFirstMove = false;
     if (!drag) return;
 
+    movedSelection = true;
     topLeftAnchor = drag.topLeft;
     dispatchCellSelection(view, drag.anchor, drag.head);
   }

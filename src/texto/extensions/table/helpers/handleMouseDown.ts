@@ -220,6 +220,7 @@ export function handleMouseDown(
   // degrade on mobile (workspace-drawer-backdrop).
   let topLeftAnchor = Number(target.dataset.cellPos) || null;
   let isFirstMove = true;
+  let movedSelection = false;
 
   function setCellSelection($anchor: ResolvedPos | null, event: MouseEvent) {
     if (!$anchor) return;
@@ -249,6 +250,7 @@ export function handleMouseDown(
     }
 
     const selection = new TextoCellSelection($anchor, $head);
+    movedSelection = true;
     view.dispatch(
       view.state.tr.setSelection(selection).setMeta(tableEditingKey, selection),
     );
@@ -261,6 +263,18 @@ export function handleMouseDown(
     win.removeEventListener("mouseup", stop);
     if (tableEditingKey.getState(view.state) != null) {
       view.dispatch(view.state.tr.setMeta(tableEditingKey, -1));
+    }
+    // A circle press without any movement selects the anchor cell — the
+    // only way to get a single-cell selection on desktop (a plain click in
+    // a cell places the caret, the drag needs a second cell).
+    if (!movedSelection && topLeftAnchor != null) {
+      const selection = new TextoCellSelection(
+        view.state.doc.resolve(topLeftAnchor),
+      );
+      view.dispatch(
+        view.state.tr.setSelection(selection).setMeta(tableEditingKey, selection),
+      );
+      scheduleOverlayRefresh(view);
     }
     // The circle-mousedown is preventDefault-ed, so the browser never moves
     // focus into the editor: without an explicit focus the clipboard

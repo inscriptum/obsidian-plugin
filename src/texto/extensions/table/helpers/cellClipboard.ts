@@ -2,6 +2,7 @@ import { Fragment, Slice, type Node as ProseMirrorNode } from "prosemirror-model
 import { Plugin, TextSelection, type EditorState, type Transaction } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import {
+  addColumn,
   CellSelection,
   deleteRow,
   deleteTable,
@@ -304,6 +305,64 @@ function insertRowsAfterCaret(
   return true;
 }
 
+/** Paste a copied column at a caret: a new column is inserted right of the
+ *  caret's column (the addColumn conventions — merges crossing it extend)
+ *  and filled with the copied cells row by row, table top down. Rows below
+ *  the copied grid stay empty; extra copied rows are dropped. */
+function insertColumnAfterCaret(
+  state: EditorState,
+  dispatch: (tr: Transaction) => void,
+  grid: Array<Array<ProseMirrorNode>>,
+): boolean {
+  const $cell = selectionCell(state);
+  const table = $cell.node(-1);
+  const tableStart = $cell.start(-1);
+  const map = TableMap.get(table);
+  const cursorRect = map.findCell($cell.pos - tableStart);
+  const insertAt = cursorRect.right; // 0-based index of the new column
+
+  const tr = state.tr;
+  // addColumn's JS implementation only destructures {map, tableStart, table}
+  // — the TableRect type demands the rect fields the code never reads.
+  addColumn(tr, { map, tableStart, table } as unknown as TableRect, insertAt);
+
+  // Fill the new column's cells with the copied contents. Every position is
+  // computed against the post-addColumn document; the fills run bottom-up so
+  // an earlier (upper) position stays valid after a lower edit. addColumn
+  // creates plain body cells at the right edge — the header row gets a
+  // header cell instead (the row's own type wins).
+  const filled = tr.doc.nodeAt(tableStart - 1);
+  if (!filled) {
+    return false;
+  }
+  const filledMap = TableMap.get(filled);
+  const rowsToFill = Math.min(filledMap.height, grid.length);
+  for (let row = rowsToFill - 1; row >= 0; row -= 1) {
+    const cellPos = tableStart + filledMap.map[row * filledMap.width + insertAt];
+    const target = tr.doc.nodeAt(cellPos);
+    const rowType = filled.child(row).child(0)?.type ?? target?.type;
+    const source = grid[row][0];
+    if (!target || !rowType || !source) {
+      continue;
+    }
+    const newCell = rowType.create(target.attrs, source.content);
+    tr.replace(cellPos, cellPos + target.nodeSize, new Slice(Fragment.from(newCell), 0, 0));
+  }
+
+  // Caret into the new column at the caret row (recomputed — the fills
+  // shifted the lower rows).
+  const finalTable = tr.doc.nodeAt(tableStart - 1);
+  if (finalTable) {
+    const finalMap = TableMap.get(finalTable);
+    const caretRow = Math.min(cursorRect.top, finalMap.height - 1);
+    const selOffset = finalMap.map[caretRow * finalMap.width + insertAt];
+    tr.setSelection(TextSelection.near(tr.doc.resolve(tableStart + selOffset + 1)));
+  }
+  tr.scrollIntoView();
+  dispatch(tr);
+  return true;
+}
+
 /** Paste handling for table fragments (owner semantics above). Returns false
  *  for non-table content so the default paste path takes over. */
 function handleCellPaste(view: EditorView, slice: Slice): boolean {
@@ -320,6 +379,11 @@ function handleCellPaste(view: EditorView, slice: Slice): boolean {
   }
   if (!isInTable(state)) {
     return false;
+  }
+  // A single-cell-wide, multi-row copy is a column (Excel semantics):
+  // pasting it at a caret inserts a new column, it does not insert rows.
+  if (grid.length > 1 && grid.every((sourceRow) => sourceRow.length === 1)) {
+    return insertColumnAfterCaret(state, dispatch, grid);
   }
   // Excel: a single copied cell pasted at a caret replaces the caret cell's
   // content (target attributes preserved), it does not insert a row.

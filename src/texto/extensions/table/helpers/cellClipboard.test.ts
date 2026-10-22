@@ -400,6 +400,58 @@ describe("paste at a caret", () => {
     const mergedNode = next.doc.nodeAt(positions[0]);
     expect(mergedNode?.attrs.rowspan).toBe(3);
   });
+
+  it("pastes a copied column at a caret: a new column, not rows", () => {
+    // 3x2 target; the copy is a 2-cell vertical run (a column-shaped grid).
+    const doc = twoTablesDoc();
+    const [b0] = cellPositions(doc, 1);
+    const state = stateWithSelection(doc, TextSelection.create(doc, b0 + 1));
+    const next = paste(state, new Slice(Fragment.fromArray([
+      row([cell("K0")]),
+      row([cell("K1")]),
+    ]), 1, 1));
+    // A column is inserted right of the caret column, filled top down.
+    expect(cellTexts(next.doc, 1)).toEqual([
+      "B00", "K0", "B01",
+      "B10", "K1", "B11",
+    ]);
+    // Still 2 rows — rows must not appear.
+    let rowCount = 0;
+    let seen = -1;
+    next.doc.descendants((node) => {
+      if (node.type.name === "table") { seen += 1; return seen === 1; }
+      if (seen === 1 && node.type.name === "tableRow") rowCount += 1;
+      return true;
+    });
+    expect(rowCount).toBe(2);
+  });
+
+  it("column paste fills only the available rows and keeps types", () => {
+    // Target: header row + 1 body row; the copy is a 2-row single-cell grid
+    // (a column) — both rows fill, the copy's second cell is dropped.
+    const doc = schema.nodes.noteDoc.create(null, [
+      schema.nodes.noteTitle.create(null, [schema.text("T")]),
+      table([row([cell("A0"), cell("A1")])]),
+      schema.nodes.paragraph.create(null, [schema.text("between")]),
+      table([
+        row([headerCell("Bh"), cell("B0")]),
+        row([cell("B1"), cell("B2")]),
+      ]),
+    ]);
+    const positions = cellPositions(doc, 1);
+    const state = stateWithSelection(doc, TextSelection.create(doc, positions[1] + 1));
+    const next = paste(state, new Slice(Fragment.fromArray([
+      row([headerCell("K")]),
+      row([cell("K2")]),
+      row([cell("K3")]),
+    ]), 1, 1));
+    // The column is inserted right of the caret's column (B0 is the second
+    // column); the third copied row is dropped (the target has only two).
+    expect(cellTexts(next.doc, 1)).toEqual(["Bh", "B0", "K", "B1", "B2", "K2"]);
+    // The filled cell of the header row is a header cell.
+    const newTop = next.doc.nodeAt(cellPositions(next.doc, 1)[2]);
+    expect(newTop?.type.name).toBe("tableHeader");
+  });
 });
 
 describe("cut (Excel semantics)", () => {
