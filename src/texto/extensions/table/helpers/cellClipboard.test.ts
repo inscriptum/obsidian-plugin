@@ -34,6 +34,12 @@ function boldCell(text: string): ProseMirrorNode {
   ]);
 }
 
+function headerCell(text: string): ProseMirrorNode {
+  return schema.nodes.tableHeader.create(null, [
+    schema.nodes.paragraph.create(null, [schema.text(text)]),
+  ]);
+}
+
 /** A doc with two plain 2x2 body tables and a paragraph between them. */
 function twoTablesDoc(): ProseMirrorNode {
   const cellA = (t: string) => cell(t);
@@ -234,6 +240,72 @@ describe("paste onto a cell selection", () => {
     ]), 1, 1));
     expect(cellTexts(next.doc, 1)).toEqual(["X0", "X1", "KEEP1", "X2", "X3", "KEEP2"]);
   });
+
+  it("pastes a whole-table copy onto a selection (the original bug shape)", () => {
+    // A full-table copy travels as Slice([table], 1, 1); pasting it used to
+    // nest the table into the selected cells.
+    const doc = twoTablesDoc();
+    const sourceTable = table([
+      row([cell("S0"), cell("S1")]),
+      row([cell("S2"), cell("S3")]),
+    ]);
+    const state = stateWithSelection(doc, rectSelection(doc, 1));
+    const next = paste(state, new Slice(Fragment.from(sourceTable), 1, 1));
+    expect(cellTexts(next.doc, 1)).toEqual(["S0", "S1", "S2", "S3"]);
+    // No nested table anywhere.
+    let nested = 0;
+    next.doc.descendants((node) => {
+      if (node.type.name === "tableCell") {
+        node.content.forEach((child) => {
+          if (child.type.name === "table") nested += 1;
+        });
+      }
+      return true;
+    });
+    expect(nested).toBe(0);
+  });
+
+  it("tiles source cells in order over a merged target cell", () => {
+    // Target: col 0 spans two columns (colspan 2), col 2 is separate.
+    const doc = schema.nodes.noteDoc.create(null, [
+      schema.nodes.noteTitle.create(null, [schema.text("T")]),
+      table([row([cell("A0"), cell("A1")])]),
+      schema.nodes.paragraph.create(null, [schema.text("between")]),
+      table([
+        row([
+          schema.nodes.tableCell.create({ colspan: 2 }, [
+            schema.nodes.paragraph.create(null, [schema.text("WIDE")]),
+          ]),
+          cell("C"),
+        ]),
+      ]),
+    ]);
+    const positions = cellPositions(doc, 1);
+    const state = stateWithSelection(
+      doc,
+      new CellSelection(doc.resolve(positions[0]), doc.resolve(positions[1])),
+    );
+    const next = paste(state, new Slice(Fragment.fromArray([
+      row([cell("X"), cell("Y")]),
+    ]), 1, 1));
+    // The merged cell takes the first source cell, C takes the second one.
+    expect(cellTexts(next.doc, 1)).toEqual(["X", "Y"]);
+    const target = next.doc.nodeAt(positions[0]);
+    expect(target?.attrs.colspan).toBe(2);
+  });
+
+  it("pastes header cells onto a header selection", () => {
+    const doc = twoTablesDoc(); // both tables have header rows
+    const positions = cellPositions(doc, 1);
+    const state = stateWithSelection(
+      doc,
+      new CellSelection(doc.resolve(positions[0]), doc.resolve(positions[1])),
+    );
+    const next = paste(state, new Slice(Fragment.fromArray([
+      row([headerCell("H0"), headerCell("H1")]),
+    ]), 1, 1));
+    expect(cellTexts(next.doc, 1)).toEqual(["H0", "H1", "B10", "B11"]);
+  });
 });
 
 describe("paste at a caret", () => {
@@ -295,6 +367,38 @@ describe("paste at a caret", () => {
     const positions = cellPositions(next.doc, 1);
     const padded = next.doc.nodeAt(positions[5]);
     expect(padded?.lastChild?.type.name).toBe("paragraph");
+  });
+
+  it("inserts rows under a rowspan: merges extend, rows fill free columns", () => {
+    // 3-col table; col 0 is merged across rows 0-1 (rowspan 2). The caret
+    // sits in row 0, so the insertion point is crossed by the merge.
+    const merged = schema.nodes.tableCell.create({ rowspan: 2 }, [
+      schema.nodes.paragraph.create(null, [schema.text("M")]),
+    ]);
+    const doc = schema.nodes.noteDoc.create(null, [
+      schema.nodes.noteTitle.create(null, [schema.text("T")]),
+      table([
+        row([merged, cell("c01"), cell("c02")]),
+        row([cell("c11"), cell("c12")]),
+        row([cell("c21"), cell("c22"), cell("c23")]),
+      ]),
+    ]);
+    const positions = cellPositions(doc, 0);
+    const state = stateWithSelection(doc, TextSelection.create(doc, positions[1] + 1));
+    const next = paste(state, new Slice(Fragment.fromArray([
+      row([cell("X"), cell("Y")]),
+    ]), 1, 1));
+    // The new row holds cells at the free columns (1-2) only; col 0 is the
+    // extended merge.
+    expect(cellTexts(next.doc, 0)).toEqual([
+      "M", "c01", "c02",
+      "X", "Y",
+      "c11", "c12",
+      "c21", "c22", "c23",
+    ]);
+    // The merge crossing the insertion point extended by one row.
+    const mergedNode = next.doc.nodeAt(positions[0]);
+    expect(mergedNode?.attrs.rowspan).toBe(3);
   });
 });
 

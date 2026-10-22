@@ -64,11 +64,13 @@ function insertedCellAttrs(source: ProseMirrorNode, span: number): Record<string
  * The rectangular cell grid carried by a clipboard slice: an array of rows,
  * each an array of cell nodes. Accepts the shapes a table copy produces —
  * bare rows, a whole table node, or a run of cells (a single-cell copy with
- * open depths). Returns null for plain (non-table) content.
+ * open depths). Returns null for plain (non-table) content. The unwrap is an
+ * unconditional single-child walk: a chain of nested tables of any depth
+ * bottoms out at its innermost content.
  */
 export function extractCellGrid(slice: Slice): Array<Array<ProseMirrorNode>> | null {
   let content = slice.content;
-  for (let i = 0; i < 4 && content.childCount === 1; i += 1) {
+  while (content.childCount === 1) {
     // .spec is untyped (any) in prosemirror-model — cast explicitly.
     if ((content.child(0).type.spec.tableRole as string | undefined) !== "table") {
       break;
@@ -142,7 +144,10 @@ function replaceRectWithGrid(
     const gridRow = grid[(row - rect.top) % gridH];
     const cells: Array<ProseMirrorNode> = [];
     const seenOffsets = new Set<number>();
-    let gridCol = 0;
+    // Source placements consume the SOURCE grid in order: the cursor
+    // advances by the placed cell's own colspan (1 after a clipboard
+    // round-trip), so a merged target cell no longer skips source cells.
+    let srcIdx = 0;
     for (let col = 0; col < map.width; col += 1) {
       const offset = map.map[row * map.width + col];
       if (seenOffsets.has(offset)) {
@@ -158,14 +163,12 @@ function replaceRectWithGrid(
       }
       const span = target.attrs.colspan as number;
       const insideRect = col >= rect.left && col + span <= rect.right;
-      const source = insideRect ? gridRow[gridCol % gridW] : null;
+      const source = insideRect ? gridRow[srcIdx % gridW] : null;
       if (insideRect && source) {
         cells.push(target.type.create(target.attrs, source.content));
+        srcIdx += (source.attrs.colspan as number) || 1;
       } else {
         cells.push(target);
-      }
-      if (insideRect) {
-        gridCol += span;
       }
     }
     newRows.push(rowNode.copy(Fragment.fromArray(cells)));
@@ -201,7 +204,10 @@ function replaceRectWithGrid(
 
 /** Insert the copied rows as new rows after the caret row, aligned to the
  *  target column count (extra source columns dropped, missing ones become
- *  empty cells). The new rows mirror the caret row's cell type. */
+ *  empty cells). Columns continuing a rowspan from above are no place for a
+ *  new cell: the crossing merges extend by the number of inserted rows and
+ *  the new rows carry cells at the free columns only — the same convention
+ *  as prosemirror-tables' own addRow. Cell types mirror the caret row. */
 function insertRowsAfterCaret(
   state: EditorState,
   dispatch: (tr: Transaction) => void,
@@ -214,35 +220,82 @@ function insertRowsAfterCaret(
   const targetWidth = map.width;
   const cursorRect = map.findCell($cell.pos - tableStart);
   const insertAfterRow = cursorRect.bottom; // the row below the caret row
-  const referenceRow = table.child(Math.min(insertAfterRow - 1, table.childCount - 1));
-  const cellType = referenceRow.childCount
-    ? referenceRow.child(0).type
-    : tableNodeTypes(state.schema).cell;
+  const fallbackType = tableNodeTypes(state.schema).cell;
+  // Column type reference: the caret row's cell at the same column.
+  const typeAt = (col: number): ProseMirrorNode["type"] => {
+    if (insertAfterRow > 0) {
+      const node = table.nodeAt(map.map[(insertAfterRow - 1) * targetWidth + col]);
+      if (node) {
+        return node.type;
+      }
+    }
+    return fallbackType;
+  };
+  // Free columns of the insertion point vs columns continuing a rowspan.
+  const covered = new Set<number>(); // cell offsets in table content coords
+  const freeCols: number[] = [];
+  if (insertAfterRow < map.height) {
+    for (let col = 0; col < targetWidth; col += 1) {
+      const index = insertAfterRow * targetWidth + col;
+      if (map.map[index] === map.map[index - targetWidth]) {
+        covered.add(map.map[index]);
+      } else {
+        freeCols.push(col);
+      }
+    }
+  } else {
+    for (let col = 0; col < targetWidth; col += 1) {
+      freeCols.push(col);
+    }
+  }
 
   const newRows: Array<ProseMirrorNode> = [];
   for (const sourceRow of grid) {
-    const cells: Array<ProseMirrorNode> = [];
-    let col = 0;
-    for (const sourceCell of sourceRow) {
-      if (col >= targetWidth) {
-        break; // extra source columns are ignored (owner decision)
-      }
-      const span = Math.min(sourceCell.attrs.colspan as number, targetWidth - col);
-      cells.push(cellType.create(insertedCellAttrs(sourceCell, span), sourceCell.content));
-      col += span;
+    if (!sourceRow.length) {
+      return false;
     }
-    while (col < targetWidth) {
-      const empty = cellType.createAndFill();
-      if (!empty) {
-        return false;
+    const cells: Array<ProseMirrorNode> = [];
+    let srcIdx = 0;
+    let i = 0;
+    while (i < freeCols.length) {
+      const col = freeCols[i];
+      // A pasted cell cannot span across a column covered by a merge.
+      let run = 1;
+      while (i + run < freeCols.length && freeCols[i + run] === col + run) {
+        run += 1;
       }
-      cells.push(empty);
-      col += 1;
+      if (srcIdx < sourceRow.length) {
+        const sourceCell = sourceRow[srcIdx];
+        const span = Math.min(sourceCell.attrs.colspan as number, run);
+        cells.push(typeAt(col).create(insertedCellAttrs(sourceCell, span), sourceCell.content));
+        srcIdx += 1;
+        i += span;
+      } else {
+        // Source columns exhausted — the rest are empty cells (owner
+        // decision); the source grid never recycles here.
+        const empty = typeAt(col).createAndFill();
+        if (!empty) {
+          return false;
+        }
+        cells.push(empty);
+        i += 1;
+      }
     }
     newRows.push(state.schema.nodes.tableRow.createChecked(null, cells));
   }
 
   const tr = state.tr;
+  // Extend the vertical merges crossing the insertion point.
+  for (const offset of covered) {
+    const node = table.nodeAt(offset);
+    if (!node) {
+      continue;
+    }
+    tr.setNodeMarkup(tableStart + offset, null, {
+      ...node.attrs,
+      rowspan: ((node.attrs.rowspan as number) || 1) + grid.length,
+    });
+  }
   const pos = tableStart + rowStartOffset(table, insertAfterRow);
   tr.insert(pos, Fragment.fromArray(newRows));
   tr.setSelection(TextSelection.near(tr.doc.resolve(tr.mapping.map(pos + 1))));
@@ -303,7 +356,11 @@ function handleCellPaste(view: EditorView, slice: Slice): boolean {
 export function cutCellSelection(view: EditorView): boolean {
   const { state } = view;
   const { selection } = state;
-  if (!(selection instanceof CellSelection) || selection.empty || !isInTable(state)) {
+  // Every CellSelection gets the Excel treatment, including a 1×1 one
+  // (copy + clear). Do NOT use CellSelection.empty here: from/to bound the
+  // head cell's content range, so `empty` is true for any rect whose head
+  // cell happens to be empty.
+  if (!(selection instanceof CellSelection) || !isInTable(state)) {
     return false;
   }
 
