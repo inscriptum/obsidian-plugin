@@ -181,6 +181,7 @@ export function cellInTableAtPoint(
 export function handleMouseDown(
   view: EditorView,
   startEvent: MouseEvent,
+  isMobileView = false,
 ): boolean {
   // The synthetic compatibility mousedown that Android dispatches right after
   // a touch cell drag would collapse the freshly built TextoCellSelection
@@ -260,6 +261,14 @@ export function handleMouseDown(
     win.removeEventListener("mouseup", stop);
     if (tableEditingKey.getState(view.state) != null) {
       view.dispatch(view.state.tr.setMeta(tableEditingKey, -1));
+    }
+    // The circle-mousedown is preventDefault-ed, so the browser never moves
+    // focus into the editor: without an explicit focus the clipboard
+    // shortcuts (Cmd+C/X/V) die on the document body and copy nothing.
+    // Mobile keeps the focus where it is — focusing would pop the soft
+    // keyboard (mobile copy/paste runs through the bubble menu instead).
+    if (!isMobileView && view.state.selection instanceof TextoCellSelection) {
+      view.focus();
     }
   }
 

@@ -152,7 +152,7 @@ export function handleCellSelection(isMobileView: boolean) {
               document.body.classList.add("texto-table__cell-dragging");
             }
           });
-          return handleMouseDown(view, event);
+          return handleMouseDown(view, event, isMobileView);
         },
         // Swallow the synthetic compatibility mouse events (mouseup/click)
         // that Android dispatches after a touch cell drag: a click would
