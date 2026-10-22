@@ -6,7 +6,7 @@ import { findDocumentMatches } from "../search/documentSearch";
 import type { JSONContent } from "../texto/core/@types";
 
 function editorFor(content: JSONContent): Editor {
-  const el = document.createElement("div");
+  const el = createDiv();
   document.body.appendChild(el);
   const editor = new Editor({
     element: el,

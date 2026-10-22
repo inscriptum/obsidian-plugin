@@ -257,7 +257,7 @@ describe("noteStorage", () => {
       vault.adapter.stat
         .mockResolvedValueOnce({ size: 100 }) // before write
         .mockResolvedValue({ size: 0 }); // after write — storage lied
-      localStorage.setItem("inscriptum-write-log", "1");
+      window.localStorage.setItem("inscriptum-write-log", "1");
 
       await writeNote(
         file,
@@ -267,17 +267,21 @@ describe("noteStorage", () => {
       );
 
       expect(vault.adapter.append).toHaveBeenCalledTimes(1);
-      const line = JSON.parse(vault.adapter.append.mock.calls[0][1]);
+      const line = JSON.parse(vault.adapter.append.mock.calls[0][1]) as {
+        result: string;
+        priorBytes: number;
+        trigger: string;
+      };
       expect(line.result).toBe("verify-failed");
       expect(line.priorBytes).toBe(100);
       expect(line.trigger).toBe("autosave");
-      localStorage.removeItem("inscriptum-write-log");
+      window.localStorage.removeItem("inscriptum-write-log");
     });
   });
 
   describe("write log", () => {
     it("is silent by default — no log file, no console spam", async () => {
-      localStorage.removeItem("inscriptum-write-log");
+      window.localStorage.removeItem("inscriptum-write-log");
       const file = new TFile("test.note");
       const vault = new Vault();
       vault.adapter.stat.mockResolvedValue({ size: 5 });
@@ -291,7 +295,7 @@ describe("noteStorage", () => {
     });
 
     it("appends a JSONL entry per write when enabled", async () => {
-      localStorage.setItem("inscriptum-write-log", "1");
+      window.localStorage.setItem("inscriptum-write-log", "1");
       const file = new TFile("notes/test.note");
       const vault = new Vault();
       vault.adapter.stat.mockResolvedValue({ size: 42 });
@@ -306,7 +310,7 @@ describe("noteStorage", () => {
       expect(vault.adapter.append).toHaveBeenCalledTimes(1);
       const [logPath, line] = vault.adapter.append.mock.calls[0];
       expect(logPath).toBe(".inscriptum-log.jsonl");
-      const entry = JSON.parse(line);
+      const entry = JSON.parse(line) as { kind: string };
       expect(entry.kind).toBe("note-write");
       expect(entry).toMatchObject({
         path: "notes/test.note",
@@ -319,11 +323,11 @@ describe("noteStorage", () => {
       expect(vault.adapter.write.mock.calls[0][0]).toMatch(
         /^notes\/\.test\.note\..+\.tmp$/,
       );
-      localStorage.removeItem("inscriptum-write-log");
+      window.localStorage.removeItem("inscriptum-write-log");
     });
 
     it("a broken log sink never breaks the save", async () => {
-      localStorage.setItem("inscriptum-write-log", "1");
+      window.localStorage.setItem("inscriptum-write-log", "1");
       const file = new TFile("test.note");
       const vault = new Vault();
       vault.adapter.stat.mockResolvedValue({ size: 1 });
@@ -335,7 +339,7 @@ describe("noteStorage", () => {
           content: [],
         }),
       ).resolves.toBeUndefined();
-      localStorage.removeItem("inscriptum-write-log");
+      window.localStorage.removeItem("inscriptum-write-log");
     });
   });
 
@@ -343,13 +347,13 @@ describe("noteStorage", () => {
     const flag = "inscriptum-write-log";
 
     it("is off by default — no setting, no localStorage flag", () => {
-      localStorage.removeItem(flag);
+      window.localStorage.removeItem(flag);
       setWriteLogEnabled(false);
       expect(isWriteLogEnabled()).toBe(false);
     });
 
     it("the plugin setting forces the log on", () => {
-      localStorage.removeItem(flag);
+      window.localStorage.removeItem(flag);
       setWriteLogEnabled(true);
       expect(isWriteLogEnabled()).toBe(true);
       setWriteLogEnabled(false);
@@ -357,9 +361,9 @@ describe("noteStorage", () => {
 
     it("the localStorage flag still works as a quick dev override", () => {
       setWriteLogEnabled(false);
-      localStorage.setItem(flag, "1");
+      window.localStorage.setItem(flag, "1");
       expect(isWriteLogEnabled()).toBe(true);
-      localStorage.removeItem(flag);
+      window.localStorage.removeItem(flag);
       expect(isWriteLogEnabled()).toBe(false);
     });
   });

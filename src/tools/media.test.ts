@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { EditorState, NodeSelection } from "prosemirror-state";
+import {
+  EditorState,
+  NodeSelection,
+  type Transaction,
+} from "prosemirror-state";
 import { buildSchema } from "../../tests/helpers/buildSchema";
 import { removeMediaNode, setImageNodeLayout } from "./media";
 
@@ -28,7 +32,7 @@ function makeEditorWithImage(align?: string) {
     doc,
     selection: NodeSelection.create(doc, pos),
   });
-  const dispatch = vi.fn();
+  const dispatch = vi.fn<(tr: Transaction) => void>();
   const editor = {
     state,
     view: { dispatch },
@@ -49,11 +53,14 @@ describe("setImageNodeLayout", () => {
   it("keeps the other attrs intact", () => {
     const { editor, dispatch, pos } = makeEditorWithImage();
     setImageNodeLayout(editor, "center");
-    const tr = dispatch.mock.calls[0][0];
-    const attrs = tr.doc.nodeAt(pos)?.attrs;
-    expect(attrs.key).toBe("k-img");
-    expect(attrs.data.id).toBe("img.png");
-    expect(attrs.align).toBe("center");
+    const tr = dispatch.mock.calls[0]?.[0];
+    // ProseMirror keeps node attrs untyped — narrow to what the test reads.
+    const attrs = tr?.doc.nodeAt(pos)?.attrs as
+      | { key: string; data: { id: string }; align: string }
+      | undefined;
+    expect(attrs?.key).toBe("k-img");
+    expect(attrs?.data.id).toBe("img.png");
+    expect(attrs?.align).toBe("center");
   });
 
   it("is a no-op when the selection is not a NodeSelection", () => {
@@ -87,7 +94,7 @@ describe("removeMediaNode — attachment unlink policy", () => {
       doc,
       selection: NodeSelection.create(doc, pos),
     });
-    const dispatch = vi.fn();
+    const dispatch = vi.fn<(tr: Transaction) => void>();
     const editor = {
       state,
       view: { dispatch },

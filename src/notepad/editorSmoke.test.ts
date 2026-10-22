@@ -8,7 +8,7 @@ function build(
   content: JSONContent,
   profile: "note" | "title" | "plain" = "note",
 ): { ok: boolean; error?: string } {
-  const el = document.createElement("div");
+  const el = createDiv();
   document.body.appendChild(el);
   let error: string | undefined;
   const editor = new Editor({
@@ -81,9 +81,18 @@ describe("editor smoke: content shapes used by NotepadView", () => {
           type: "noteProperty",
           attrs: { type: "list" },
           content: [
-            { type: "notePropertyName", content: [{ type: "text", text: "tags" }] },
-            { type: "notePropertyValue", content: [{ type: "text", text: "one" }] },
-            { type: "notePropertyValue", content: [{ type: "text", text: "two" }] },
+            {
+              type: "notePropertyName",
+              content: [{ type: "text", text: "tags" }],
+            },
+            {
+              type: "notePropertyValue",
+              content: [{ type: "text", text: "one" }],
+            },
+            {
+              type: "notePropertyValue",
+              content: [{ type: "text", text: "two" }],
+            },
           ],
         },
         { type: "paragraph" },
