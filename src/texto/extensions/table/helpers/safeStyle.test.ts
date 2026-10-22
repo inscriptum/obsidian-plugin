@@ -20,6 +20,12 @@ describe("safeColorValue (inline-style injection guard)", () => {
     expect(safeColorValue("#b3a3f7; color: red")).toBeNull();
     expect(safeColorValue("")).toBeNull();
   });
+
+  it("rejects non-strings (clipboard-parsed cells used to carry [])", () => {
+    expect(safeColorValue([] as never)).toBeNull();
+    expect(safeColorValue(undefined as never)).toBeNull();
+    expect(safeColorValue({} as never)).toBeNull();
+  });
 });
 
 describe("bordersToStyle injection guard", () => {
