@@ -90,7 +90,7 @@ export const Link = Mark.create<LinkOptions>({
   },
 
   inclusive() {
-    return (this.options as LinkOptions).autolink;
+    return (this.options).autolink;
   },
 
   addOptions() {

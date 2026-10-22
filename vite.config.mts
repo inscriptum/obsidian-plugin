@@ -23,7 +23,10 @@ function sourceHash(root: string): string {
       if (stat.isDirectory()) {
         walk(full);
       } else if (/\.(ts|tsx|css|json|mjs|html)$/.test(entry)) {
-        hash.update(path.relative(root, full));
+        // Normalize the separators: the same sources must hash the same on
+        // every platform, or the release build (Linux) and the review's
+        // rebuild would carry different build tags.
+        hash.update(path.relative(root, full).split(path.sep).join("/"));
         hash.update(readFileSync(full));
       }
     }

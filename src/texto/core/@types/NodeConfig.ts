@@ -14,6 +14,7 @@ import type {
   AnyCommands,
   AnyExtension,
   Attributes,
+  BivariantFn,
   GlobalAttributes,
   NodeViewRenderer,
 } from ".";
@@ -110,8 +111,8 @@ export interface NodeConfig<Options = object, Storage = object>
    */
   addNodeView?(this: {
     name: string;
-    options: object;
-    storage: object;
+    options: Options;
+    storage: Storage;
     editor: Editor;
     type: NodeType;
     parent: unknown;
@@ -127,132 +128,165 @@ export interface NodeConfig<Options = object, Storage = object>
    */
   content?:
     | NodeSpec["content"]
-    | ((this: {
-        name: string;
-        options: object;
-        storage: object;
-        parent: unknown;
-      }) => NodeSpec["content"]);
+    | BivariantFn<
+      {
+          name: string;
+          options: Options;
+          storage: Storage;
+          parent: unknown;
+      },
+      NodeSpec["content"]
+    >;
 
   /**
    * Marks
    */
   marks?:
     | NodeSpec["marks"]
-    | ((this: {
-        name: string;
-        options: object;
-        storage: object;
-        parent: unknown;
-      }) => NodeSpec["marks"]);
+    | BivariantFn<
+      {
+          name: string;
+          options: Options;
+          storage: Storage;
+          parent: unknown;
+      },
+      NodeSpec["marks"]
+    >;
 
   /**
    * Group
    */
   group?:
     | NodeSpec["group"]
-    | ((this: {
-        name: string;
-        options: object;
-        storage: object;
-        parent: unknown;
-      }) => NodeSpec["group"]);
+    | BivariantFn<
+      {
+          name: string;
+          options: Options;
+          storage: Storage;
+          parent: unknown;
+      },
+      NodeSpec["group"]
+    >;
 
   /**
    * Inline
    */
   inline?:
     | NodeSpec["inline"]
-    | ((this: {
-        name: string;
-        options: object;
-        storage: object;
-        parent: unknown;
-      }) => NodeSpec["inline"]);
+    | BivariantFn<
+      {
+          name: string;
+          options: Options;
+          storage: Storage;
+          parent: unknown;
+      },
+      NodeSpec["inline"]
+    >;
 
   /**
    * Atom
    */
   atom?:
     | NodeSpec["atom"]
-    | ((this: {
-        name: string;
-        options: object;
-        storage: object;
-        parent: unknown;
-      }) => NodeSpec["atom"]);
+    | BivariantFn<
+      {
+          name: string;
+          options: Options;
+          storage: Storage;
+          parent: unknown;
+      },
+      NodeSpec["atom"]
+    >;
 
   /**
    * Selectable
    */
   selectable?:
     | NodeSpec["selectable"]
-    | ((this: {
-        name: string;
-        options: object;
-        storage: object;
-        parent: unknown;
-      }) => NodeSpec["selectable"]);
+    | BivariantFn<
+      {
+          name: string;
+          options: Options;
+          storage: Storage;
+          parent: unknown;
+      },
+      NodeSpec["selectable"]
+    >;
 
   /**
    * Draggable
    */
   draggable?:
     | NodeSpec["draggable"]
-    | ((this: {
-        name: string;
-        options: object;
-        storage: object;
-        parent: unknown;
-      }) => NodeSpec["draggable"]);
+    | BivariantFn<
+      {
+          name: string;
+          options: Options;
+          storage: Storage;
+          parent: unknown;
+      },
+      NodeSpec["draggable"]
+    >;
 
   /**
    * Code
    */
   code?:
     | NodeSpec["code"]
-    | ((this: {
-        name: string;
-        options: object;
-        storage: object;
-        parent: unknown;
-      }) => NodeSpec["code"]);
+    | BivariantFn<
+      {
+          name: string;
+          options: Options;
+          storage: Storage;
+          parent: unknown;
+      },
+      NodeSpec["code"]
+    >;
 
   /**
    * Whitespace
    */
   whitespace?:
     | NodeSpec["whitespace"]
-    | ((this: {
-        name: string;
-        options: object;
-        storage: object;
-        parent: unknown;
-      }) => NodeSpec["whitespace"]);
+    | BivariantFn<
+      {
+          name: string;
+          options: Options;
+          storage: Storage;
+          parent: unknown;
+      },
+      NodeSpec["whitespace"]
+    >;
 
   /**
    * Defining
    */
   defining?:
     | NodeSpec["defining"]
-    | ((this: {
-        name: string;
-        options: object;
-        storage: object;
-        parent: unknown;
-      }) => NodeSpec["defining"]);
+    | BivariantFn<
+      {
+          name: string;
+          options: Options;
+          storage: Storage;
+          parent: unknown;
+      },
+      NodeSpec["defining"]
+    >;
 
   /**
    * Isolating
    */
   isolating?:
     | NodeSpec["isolating"]
-    | ((this: {
-        name: string;
-        options: object;
-        storage: object;
-        parent: unknown;
-      }) => NodeSpec["isolating"]);
+    | BivariantFn<
+      {
+          name: string;
+          options: Options;
+          storage: Storage;
+          parent: unknown;
+      },
+      NodeSpec["isolating"]
+    >;
 
   /**
    * Parse HTML

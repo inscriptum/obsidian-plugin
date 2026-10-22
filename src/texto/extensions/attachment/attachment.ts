@@ -151,7 +151,7 @@ export const Attachment = Node.create<AttachmentOptions>({
         element,
         node,
         editor,
-        this.options as AttachmentOptions,
+        this.options,
         getPos(),
       );
 
@@ -166,7 +166,7 @@ export const Attachment = Node.create<AttachmentOptions>({
             element,
             updatedNode,
             editor,
-            this.options as AttachmentOptions,
+            this.options,
             getPos(),
           );
 

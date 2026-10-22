@@ -66,7 +66,7 @@ export const TaskItem = Node.create<TaskItemOptions>({
   },
 
   content() {
-    return (this.options as TaskItemOptions).nested
+    return (this.options).nested
       ? "paragraph block*"
       : "paragraph+";
   },
@@ -158,14 +158,14 @@ export const TaskItem = Node.create<TaskItemOptions>({
       element.props = {
         checked: !!node.attrs.checked,
         content: contentEl,
-        foldable: isFoldableItem(this.options as TaskItemOptions, node),
+        foldable: isFoldableItem(this.options, node),
         handleChevronClick: () => {
           if (editor.isEditable && isFunction(getPos)) {
             toggleFoldAt(editor, getPos());
           }
         },
         editor,
-        options: this.options as TaskItemOptions,
+        options: this.options,
         handleCheckboxClick: (checkboxEl) => {
           const { checked } = checkboxEl;
 
@@ -183,7 +183,7 @@ export const TaskItem = Node.create<TaskItemOptions>({
             });
           }
 
-          const onReadOnlyChecked = (this.options as TaskItemOptions)
+          const onReadOnlyChecked = (this.options)
             .onReadOnlyChecked;
           if (
             !editor.isEditable &&
@@ -195,7 +195,7 @@ export const TaskItem = Node.create<TaskItemOptions>({
         },
       };
 
-      Object.entries((this.options as TaskItemOptions).HTMLAttributes).forEach(
+      Object.entries((this.options).HTMLAttributes).forEach(
         ([key, value]) => {
           element.setAttribute(key, value);
         },
@@ -243,7 +243,7 @@ export const TaskItem = Node.create<TaskItemOptions>({
             ...element.props,
             checked: !!updatedNode.attrs.checked,
             foldable: isFoldableItem(
-              this.options as TaskItemOptions,
+              this.options,
               updatedNode,
             ),
           };
