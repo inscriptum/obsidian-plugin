@@ -89,8 +89,16 @@ const BUBBLE_ICON_PATHS: Record<string, string> = {
   split: `<path d="M4 6h16v12h-16z"/><path d="M12 6v12"/><path d="M4 12h16"/>`,
   delRow: `<path d="M4 18v-4a1 1 0 0 1 1 -1h14a1 1 0 0 1 1 1v4a1 1 0 0 1 -1 1h-14a1 1 0 0 1 -1 -1z"/><path d="M9 12h6"/>`,
   delCol: `<path d="M4 6v14a1 1 0 0 0 1 1h14a1 1 0 0 0 1 -1v-14a1 1 0 0 0 -1 -1h-14a1 1 0 0 0 -1 1z"/><path d="M12 9v6"/>`,
+  /* Duplicate row/column: a ghost outline (the original) above/left of the
+     solid copy — "this plus its copy". */
+  dupRow: `<rect x="4" y="4" width="16" height="6" rx="1" opacity="0.4"/><rect x="4" y="13" width="16" height="6" rx="1"/>`,
+  dupCol: `<rect x="4" y="4" width="6" height="16" rx="1" opacity="0.4"/><rect x="13" y="4" width="6" height="16" rx="1"/>`,
   header: `<path d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z"/><path d="M3 10h18"/>`,
   delTable: `<path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/><path d="M9 7v-3h6v3"/>`,
+  /* Clipboard actions of the table bar (copy from the toolbar set). */
+  copy: TOOLBAR_ICON_PATHS.copy,
+  cut: `<circle cx="6" cy="6" r="3"/><path d="M8.12 8.12 12 12"/><path d="M20 4 8.12 15.88"/><circle cx="6" cy="18" r="3"/><path d="M14.8 14.8 20 20"/>`,
+  paste: `<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11v6"/><path d="M9 14h6"/>`,
   /* Paint bucket (Lucide, MIT) — the "cell fill" button of the table panel. */
   paintBucket: `<path d="m19 11-8-8-8.6 8.6a2 2 0 0 0 0 2.8l5.2 5.2c.8.8 2 .8 2.8 0L19 11Z"/><path d="m5 2 5 5"/><path d="M2 13h15"/><path d="M22 20a2 2 0 1 1-4 0c0-1.6 1.7-2.4 2-4 .3 1.6 2 2.4 2 4Z"/>`,
   /* Border-picker schemas: a ghost (dashed, faint) cell grid with the

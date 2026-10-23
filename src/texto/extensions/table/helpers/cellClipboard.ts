@@ -446,6 +446,118 @@ export function cutCellSelection(view: EditorView): boolean {
   return true;
 }
 
+/** The clipboard scope of a cell-level copy/cut/paste: a cell selection, or
+ *  — when the caret stands in a cell — that single cell (1×1). The toolbar
+ *  buttons work in both cases; on desktop the caret in a cell is the only
+ *  single-cell affordance once the circle is gone. */
+function clipboardSlice(view: EditorView): { slice: Slice; caretCellPos: number | null } | null {
+  const { state } = view;
+  const { selection } = state;
+  if (selection instanceof CellSelection) {
+    if (!isInTable(state)) return null;
+    return { slice: selection.content(), caretCellPos: null };
+  }
+  if (!isInTable(state)) return null;
+  const $cell = selectionCell(state);
+  const table = $cell.node(-1);
+  const tableStart = $cell.start(-1);
+  const map = TableMap.get(table);
+  const cellOffset = $cell.pos - tableStart;
+  const cellPos = tableStart + map.map[map.findCell(cellOffset).top * map.width + map.colCount(cellOffset)];
+  const cell = state.doc.nodeAt(cellPos);
+  if (!cell) return null;
+  return { slice: new Slice(Fragment.from(cell), 1, 1), caretCellPos: cellPos };
+}
+
+/** Copy for the toolbar buttons: a cell selection or the caret cell (1×1)
+ *  goes to the system clipboard as a table. Returns false when the state
+ *  offers no cell scope. */
+export function copyTableSelection(view: EditorView): boolean {
+  const scope = clipboardSlice(view);
+  if (!scope) {
+    return false;
+  }
+  const { dom, text } = view.serializeForClipboard(scope.slice);
+  void copyToSystemClipboard(dom.innerHTML, text);
+  return true;
+}
+
+/** Cut for the toolbar buttons: copy (above), then Excel semantics for a
+ *  cell selection; a bare caret cell only has its content cleared. */
+export function cutTableSelection(view: EditorView): boolean {
+  const { state } = view;
+  const scope = clipboardSlice(view);
+  if (!scope) {
+    return false;
+  }
+  if (!copyTableSelection(view)) {
+    return false;
+  }
+  const { selection } = state;
+  if (selection instanceof CellSelection) {
+    const rect = selectedRect(state);
+    const fullRows = rect.left === 0 && rect.right === rect.map.width;
+    if (fullRows) {
+      const wholeTable = rect.top === 0 && rect.bottom === rect.map.height;
+      (wholeTable ? deleteTable : deleteRow)(state, view.dispatch.bind(view));
+    } else {
+      view.dispatch(state.tr.deleteSelection().scrollIntoView());
+    }
+    return true;
+  }
+  const cellPos = scope.caretCellPos;
+  if (cellPos == null) {
+    return false;
+  }
+  const cell = state.doc.nodeAt(cellPos);
+  if (!cell) {
+    return false;
+  }
+  const tr = state.tr;
+  tr.replace(cellPos + 1, cellPos + cell.nodeSize - 1, Slice.empty);
+  view.dispatch(tr.scrollIntoView());
+  return true;
+}
+
+/** Paste for the toolbar buttons: read the system clipboard and feed it
+ *  through the editor's own paste pipeline (a synthetic paste event — the
+ *  same event the system paste dispatches). Degrades to plain text when the
+ *  rich read is unavailable. Must run inside the click's user gesture. */
+export async function pasteFromSystemClipboard(view: EditorView): Promise<boolean> {
+  let html: string | null = null;
+  let text: string | null = null;
+  try {
+    if (navigator.clipboard?.read) {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        if (html == null && item.types.includes("text/html")) {
+          html = await (await item.getType("text/html")).text();
+        }
+        if (text == null && item.types.includes("text/plain")) {
+          text = await (await item.getType("text/plain")).text();
+        }
+      }
+    }
+  } catch {
+    // rich read denied/unavailable — fall through to plain text
+  }
+  if (html == null && text == null) {
+    try {
+      text = await navigator.clipboard.readText();
+    } catch {
+      return false;
+    }
+  }
+  const dt = new DataTransfer();
+  if (html != null) dt.setData("text/html", html);
+  if (text != null) dt.setData("text/plain", text);
+  view.focus();
+  view.dom.dispatchEvent(
+    new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }),
+  );
+  return true;
+}
+
 async function copyToSystemClipboard(html: string, text: string): Promise<void> {
   try {
     if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
