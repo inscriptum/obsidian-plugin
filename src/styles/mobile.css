@@ -673,16 +673,6 @@
    handle (rendered by the handleCellSelection plugin, see
    src/texto/extensions/table). */
 
-/* Hide the drag-selection circle on mobile: cell selection is done with a
-   long-press anywhere in the cell, so the circle is only clutter (and a
-   touch trap in the cell corner). Its container (.texto-table__overlay_overlay-circle)
-   is display:none'd entirely, so touches pass through to the cell below
-   (long-press selection / resize handle). Desktop keeps the circle drag. */
-.note-view-container.is-mobile .texto-table__overlay_overlay-circle,
-.notepad-view-container.is-mobile .texto-table__overlay_overlay-circle {
-  display: none;
-}
-
 /* The resize handle is a pure overlay: it is absolutely positioned over the
    column border and must not affect the table's own width. The wrapper gets a
    right padding on mobile (see below) so the handle of the last column fits
@@ -733,15 +723,6 @@
 .notepad-view-container.is-mobile .ProseMirror .table-wrapper table td,
 .notepad-view-container.is-mobile .ProseMirror .table-wrapper table th {
   touch-action: none;
-}
-
-/* The selection frame stays above the column resize handle.
-   NOTE: z-index is set on the overlay, not on the circle itself — the circle
-   lives inside the overlay's stacking context, so its own z-index cannot
-   compete with the handle outside of it. */
-.note-view-container.is-mobile .texto-table__overlay,
-.notepad-view-container.is-mobile .texto-table__overlay {
-  z-index: 4;
 }
 
 .note-view-container.is-mobile .texto-table__resize-handle::before,

@@ -121,17 +121,18 @@ describe("resize handle decorations (mobile view)", () => {
   });
 
   it("adds a resize handle per row segment on mobile (caret in cell)", () => {
-    // 2x2: overlay + 2 handle segments (one per row).
-    expect(decorations(true, caretInFirstCell)).toHaveLength(3);
+    // 2x2: 2 handle segments (one per row); the selection circle is gone.
+    expect(decorations(true, caretInFirstCell)).toHaveLength(2);
   });
 
-  it("adds resize handles next to the multi-cell overlay on mobile", () => {
+  it("adds resize handles next to a multi-cell selection on mobile", () => {
     const cellRange = (doc: ProseMirrorNode) => {
       const [p1, , , p4] = cellPositions(doc);
       return CellSelection.create(doc, p1, p4);
     };
 
-    // Overlay + 2 handle segments (the .selectedCell class is added by tableEditing).
-    expect(decorations(true, cellRange)).toHaveLength(3);
+    // 2 handle segments (the .selectedCell class is added by tableEditing);
+    // the selection circle is gone on both platforms.
+    expect(decorations(true, cellRange)).toHaveLength(2);
   });
 });
