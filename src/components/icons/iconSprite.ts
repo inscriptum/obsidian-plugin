@@ -56,6 +56,10 @@ const TOOLBAR_ICON_PATHS = {
   x: `<path d="M18 6l-12 12"/><path d="M6 6l12 12"/>`,
   /* Title-page property rows: value-type markers and the add-row button
      (Lucide shapes: type, tag, plus — MIT). */
+  /* Undo/redo — Tabler arrow-back-up / arrow-forward-up (MIT); mobile
+     toolbar only (desktop uses the keyboard shortcuts). */
+  undo: `<path d="M9 14l-4 -4l4 -4" /><path d="M5 10h11a4 4 0 1 1 0 8h-1" />`,
+  redo: `<path d="M15 14l4 -4l-4 -4" /><path d="M19 10h-11a4 4 0 1 0 0 8h1" />`,
   propText: `<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>`,
   propTag: `<path d="M4 4h7.172a2 2 0 0 1 1.414.586l8.704 8.704a2.426 2.426 0 0 1 0 3.42l-6.58 6.58a2.426 2.426 0 0 1 -3.42 0L2.586 14.586A2 2 0 0 1 2 13.172V6a2 2 0 0 1 2-2z"/><path d="M7.5 7.5h.01"/>`,
   propPlus: `<path d="M12 5v14"/><path d="M5 12h14"/>`,
