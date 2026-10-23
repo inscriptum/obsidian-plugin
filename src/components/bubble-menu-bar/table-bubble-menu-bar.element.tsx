@@ -241,6 +241,12 @@ export const TableBubbleMenuElement = litView.element({
       case "colRight":
         e.chain().focus().addColumnAfter().run();
         break;
+      case "dupRow":
+        e.chain().focus().duplicateRow().run();
+        break;
+      case "dupCol":
+        e.chain().focus().duplicateColumn().run();
+        break;
       case "merge":
         e.chain().focus().mergeCells().run();
         break;
@@ -445,6 +451,22 @@ export const TableBubbleMenuElement = litView.element({
               onclick={() => applyTableAction("colRight")}
             >
               {bubbleIconNodes.colRight()}
+            </button>
+            <button
+              class="bb-btn"
+              data-tip="Duplicate row"
+              onmousedown={(e: MouseEvent) => e.preventDefault()}
+              onclick={() => applyTableAction("dupRow")}
+            >
+              {bubbleIconNodes.dupRow()}
+            </button>
+            <button
+              class="bb-btn"
+              data-tip="Duplicate column"
+              onmousedown={(e: MouseEvent) => e.preventDefault()}
+              onclick={() => applyTableAction("dupCol")}
+            >
+              {bubbleIconNodes.dupCol()}
             </button>
             <span class="bubble-menu-sep"></span>
             <button
