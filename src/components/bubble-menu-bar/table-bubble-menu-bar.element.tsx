@@ -20,6 +20,11 @@ import type {
   BorderPen,
   BorderSideName,
 } from "../../texto/extensions/table/helpers/borders";
+import {
+  copyTableSelection,
+  cutTableSelection,
+  pasteFromSystemClipboard,
+} from "../../texto/extensions/table/helpers/cellClipboard";
 import type { BubbleIconName } from "../icons/iconSprite";
 import { bubbleIconNodes } from "./icons.svgnode";
 
@@ -268,6 +273,22 @@ export const TableBubbleMenuElement = litView.element({
       .run();
   };
 
+  /* ── Clipboard actions (issue table-clipboard-buttons): a cell selection
+     or the caret cell (1×1). Paste reads the system clipboard inside the
+     click gesture and feeds it through the editor's paste pipeline. ── */
+  const copyCells = () => {
+    copyTableSelection(props.editor.view);
+  };
+  const cutCells = () => {
+    cutTableSelection(props.editor.view);
+  };
+  const pasteCells = () => {
+    void pasteFromSystemClipboard(props.editor.view);
+  };
+  const canReadClipboard =
+    typeof navigator !== "undefined" &&
+    !!(navigator.clipboard?.read || navigator.clipboard?.readText);
+
   const syncCaret = () => {
     const editor = props.editor;
     if (editor.isDestroyed || !editor.view) return;
@@ -425,6 +446,33 @@ export const TableBubbleMenuElement = litView.element({
             >
               {bubbleIconNodes.colRight()}
             </button>
+            <span class="bubble-menu-sep"></span>
+            <button
+              class="bb-btn"
+              data-tip="Copy cells"
+              onmousedown={(e: MouseEvent) => e.preventDefault()}
+              onclick={copyCells}
+            >
+              {bubbleIconNodes.copy()}
+            </button>
+            <button
+              class="bb-btn"
+              data-tip="Cut cells"
+              onmousedown={(e: MouseEvent) => e.preventDefault()}
+              onclick={cutCells}
+            >
+              {bubbleIconNodes.cut()}
+            </button>
+            {canReadClipboard && (
+              <button
+                class="bb-btn"
+                data-tip="Paste cells"
+                onmousedown={(e: MouseEvent) => e.preventDefault()}
+                onclick={pasteCells}
+              >
+                {bubbleIconNodes.paste()}
+              </button>
+            )}
             <span class="bubble-menu-sep"></span>
             <button
               class={cls("bb-btn", !tableState.multiCell && "is-disabled")}
