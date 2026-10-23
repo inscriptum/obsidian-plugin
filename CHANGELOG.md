@@ -7,9 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Table cells get Copy, Cut and Paste buttons in the table toolbar — the cell clipboard finally works on mobile too, where there is no Cmd+C. The buttons also accept a bare caret in a cell (that cell counts as the selection).
+- Duplicate Row and Duplicate Column actions: an exact copy appears right next to the original, header row included.
+- Select a table cell by holding the mouse button on it for a moment (desktop). The old selection circle is gone — dragging across cells selects them like in Notion.
+
 ### Fixed
 
-- Ячейки и строки таблиц наконец переходят из таблицы в таблицу: вставка на выделение заменяет содержимое ячеек (заливка и ширины целевых ячеек остаются своими), скопированные строки вставляются новыми рядами, а «вырезать» убирает выделенные строки целиком — вместо вложенной таблицы и сломанной вёрстки.
+- Pasting copied cells into another table replaces the selected cells' content instead of nesting a whole table inside a cell and breaking the layout. Pasting copied rows adds them as new rows aligned to the target table's columns, and Cut removes fully selected rows outright, Excel-style.
 
 ## [0.12.1] - 2026-10-22
 
