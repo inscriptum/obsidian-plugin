@@ -88,6 +88,14 @@ export function drawCellSelection(
   state: EditorState,
   isMobileView: boolean,
 ): DecorationSource | null {
+  // Desktop: native selection only — the circle and the custom mouse
+  // gesture are a touch affordance (issue table-selection-native-drag).
+  // The selected-cell highlight comes from tableEditing's .selectedCell
+  // decorations, and a plain click in a cell places the caret.
+  if (!isMobileView) {
+    return null;
+  }
+
   // While a drag is active, overlayForDraw returns the SAME instance as in
   // the previous frame — ProseMirror reuses the circle's DOM node, so the
   // touch target is not removed (otherwise the browser cancels the gesture,
@@ -99,7 +107,7 @@ export function drawCellSelection(
   // under the cursor or the head cell of the selection). During a selection
   // drag the handles are not needed and recreating them repaints the table
   // subtree, removing the circle (the touch target) — so they are skipped.
-  if (isMobileView && !isCellDragActive()) {
+  if (!isCellDragActive()) {
     const { selection } = state;
     const cellPos =
       selection instanceof CellSelection
@@ -152,6 +160,13 @@ export function handleCellSelection(isMobileView: boolean) {
               document.body.classList.add("texto-table__cell-dragging");
             }
           });
+          // Desktop: native selection — a click places the caret, a drag
+          // builds the cell rectangle (prosemirror-tables' own handler).
+          // The circle gesture is a touch affordance and stays mobile-only
+          // (issue table-selection-native-drag).
+          if (!isMobileView) {
+            return false;
+          }
           return handleMouseDown(view, event, isMobileView);
         },
         // Swallow the synthetic compatibility mouse events (mouseup/click)
