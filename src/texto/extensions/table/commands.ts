@@ -139,29 +139,28 @@ function duplicateRowOverride(this: AddCommandsThis): Command {
       const tr = state.tr;
 
       // Merges crossing the insertion line (below the rect) extend over the
-      // inserted copies.
+      // inserted copies; the columns they cover belong to them in every
+      // inserted row.
+      const coveredCols = new Set<number>();
       if (rect.bottom < rect.map.height) {
-        const covered = new Set<number>();
         for (let col = 0; col < rect.map.width; col += 1) {
           const index = rect.bottom * rect.map.width + col;
           if (rect.map.map[index] === rect.map.map[index - rect.map.width]) {
-            covered.add(rect.map.map[index]);
+            coveredCols.add(col);
+            const node = rect.table.nodeAt(rect.map.map[index]);
+            if (node) {
+              tr.setNodeMarkup(rect.tableStart + rect.map.map[index], null, {
+                ...node.attrs,
+                rowspan: ((node.attrs.rowspan as number) || 1) + count,
+              });
+            }
           }
-        }
-        for (const offset of covered) {
-          const node = rect.table.nodeAt(offset);
-          if (!node) {
-            continue;
-          }
-          tr.setNodeMarkup(rect.tableStart + offset, null, {
-            ...node.attrs,
-            rowspan: ((node.attrs.rowspan as number) || 1) + count,
-          });
         }
       }
 
       // Clone the rect's rows; a rowspan reaching past the rect bottom is
-      // clipped to the copy region.
+      // clipped to the copy region, and columns covered by an extended
+      // merge get no cell in the copies.
       const rows: ProseMirrorNode[] = [];
       for (let row = rect.top; row < rect.bottom; row += 1) {
         const rowNode = rect.table.child(row);
@@ -170,6 +169,9 @@ function duplicateRowOverride(this: AddCommandsThis): Command {
         const cells: ProseMirrorNode[] = [];
         const seen = new Set<number>();
         for (let col = 0; col < rect.map.width; col += 1) {
+          if (coveredCols.has(col)) {
+            continue;
+          }
           const offset = rect.map.map[row * rect.map.width + col];
           if (seen.has(offset)) {
             continue;

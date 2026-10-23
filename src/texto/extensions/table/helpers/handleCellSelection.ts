@@ -321,9 +321,12 @@ function startDesktopLongPress(view: EditorView, startEvent: MouseEvent): void {
     }
     event.preventDefault();
     const $head = cellAtPoint(view, event.clientX, event.clientY);
-    if ($head) {
-      dispatchSelection($head);
+    // The rectangle must not cross a table boundary: a head from another
+    // table would build a selection with endpoints in different tables.
+    if (!$head || !anchor || $head.node(-1) !== anchor.node(-1)) {
+      return;
     }
+    dispatchSelection($head);
   };
 
   const onUp = (): void => {

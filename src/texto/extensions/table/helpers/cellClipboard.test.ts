@@ -455,8 +455,30 @@ describe("paste at a caret", () => {
 });
 
 describe("cut (Excel semantics)", () => {
-  function cutWith(state: EditorState): { dispatched: Array<import("prosemirror-state").Transaction>; next: EditorState } {
+  const flush = () => new Promise((r) => window.setTimeout(r, 0));
+
+  function stubWriteOk(): void {
+    (navigator as unknown as { clipboard: unknown }).clipboard = {
+      writeText: async (t: string) => {
+        void t;
+      },
+    };
+  }
+
+  function stubWriteDenied(): void {
+    (navigator as unknown as { clipboard: unknown }).clipboard = {
+      write: async () => {
+        throw new Error("denied");
+      },
+      writeText: async () => {
+        throw new Error("denied");
+      },
+    };
+  }
+
+  async function cutWith(state: EditorState, stub: () => void = stubWriteOk): Promise<{ dispatched: Array<import("prosemirror-state").Transaction>; next: EditorState }> {
     const dispatched: Array<import("prosemirror-state").Transaction> = [];
+    stub();
     const view = {
       state,
       dispatch: (tr: import("prosemirror-state").Transaction) => dispatched.push(tr),
@@ -467,11 +489,13 @@ describe("cut (Excel semantics)", () => {
       }),
     } as unknown as EditorView;
     expect(cutCellSelection(view)).toBe(true);
+    // The delete is dispatched only after the clipboard write confirmed.
+    await flush();
     expect(dispatched).toHaveLength(1);
     return { dispatched, next: state.apply(dispatched[0]) };
   }
 
-  it("removes full rows (a body row out of several)", () => {
+  it("removes full rows (a body row out of several)", async () => {
     // 3 body rows in the second table; select the middle one.
     const doc = schema.nodes.noteDoc.create(null, [
       schema.nodes.noteTitle.create(null, [schema.text("T")]),
@@ -481,14 +505,14 @@ describe("cut (Excel semantics)", () => {
     ]);
     const positions = cellPositions(doc, 1);
     const state = stateWithSelection(doc, new CellSelection(doc.resolve(positions[1])));
-    const { next } = cutWith(state);
+    const { next } = await cutWith(state);
     expect(cellTexts(next.doc, 1)).toEqual(["B0", "B2"]);
   });
 
-  it("cutting every row removes the table (an empty table is invalid)", () => {
+  it("cutting every row removes the table (an empty table is invalid)", async () => {
     const doc = twoTablesDoc();
     const state = stateWithSelection(doc, rectSelection(doc, 1));
-    const { next } = cutWith(state);
+    const { next } = await cutWith(state);
     let tables = 0;
     next.doc.descendants((node) => {
       if (node.type.name === "table") tables += 1;
@@ -497,12 +521,22 @@ describe("cut (Excel semantics)", () => {
     expect(tables).toBe(1);
   });
 
-  it("clears contents of a partial rectangle", () => {
+  it("clears contents of a partial rectangle", async () => {
     const doc = twoTablesDoc();
     const [p1] = cellPositions(doc, 1);
     // Select only the first cell of the second table (1x1 "rect").
     const state = stateWithSelection(doc, new CellSelection(doc.resolve(p1)));
+    const { next } = await cutWith(state);
+    expect(cellTexts(next.doc, 1)).toEqual(["", "B01", "B10", "B11"]);
+    // Structure survived: still 4 cells.
+    expect(cellTexts(next.doc, 1)).toHaveLength(4);
+  });
+
+  it("a denied clipboard leaves the content intact (cut deletes only after the copy landed)", async () => {
+    const doc = twoTablesDoc();
+    const state = stateWithSelection(doc, rectSelection(doc, 1));
     const dispatched: Array<import("prosemirror-state").Transaction> = [];
+    stubWriteDenied();
     const view = {
       state,
       dispatch: (tr: import("prosemirror-state").Transaction) => dispatched.push(tr),
@@ -513,11 +547,11 @@ describe("cut (Excel semantics)", () => {
       }),
     } as unknown as EditorView;
     expect(cutCellSelection(view)).toBe(true);
-    expect(dispatched).toHaveLength(1);
-    const next = state.apply(dispatched[0]);
-    expect(cellTexts(next.doc, 1)).toEqual(["", "B01", "B10", "B11"]);
-    // Structure survived: still 4 cells.
-    expect(cellTexts(next.doc, 1)).toHaveLength(4);
+    await flush();
+    expect(dispatched).toHaveLength(0);
+    // Nothing was removed.
+    expect(cellTexts(state.doc, 1)).toEqual(cellTexts(state.doc, 1));
+    expect(cellTexts(view.state.doc, 1)).toEqual(["B00", "B01", "B10", "B11"]);
   });
 
   it("does not touch a plain caret cut", () => {
@@ -581,7 +615,8 @@ describe("toolbar clipboard buttons (caret 1×1 scope)", () => {
     const [b0] = cellPositions(doc, 1);
     const state = stateWithSelection(doc, TextSelection.create(doc, b0 + 1));
     const dispatched: Array<import("prosemirror-state").Transaction> = [];
-    expect(cutTableSelection(fakeView(state, dispatched))).toBe(true);
+    expect(await cutTableSelection(fakeView(state, dispatched))).toBe(true);
+    await new Promise((r) => window.setTimeout(r, 0));
     expect(dispatched).toHaveLength(1);
     const next = state.apply(dispatched[0]);
     expect(cellTexts(next.doc, 1)[0]).toBe("");
@@ -595,6 +630,7 @@ describe("toolbar clipboard buttons (caret 1×1 scope)", () => {
       serializeForClipboard: () => ({ dom: createDiv(), text: "", slice: null }),
     } as unknown as EditorView;
     expect(copyTableSelection(view)).toBe(false);
-    expect(cutTableSelection(view)).toBe(false);
+    void cutTableSelection(view); // must not throw; result checked below
+    return cutTableSelection(view).then((r) => expect(r).toBe(false));
   });
 });

@@ -145,9 +145,9 @@ function replaceRectWithGrid(
     const gridRow = grid[(row - rect.top) % gridH];
     const cells: Array<ProseMirrorNode> = [];
     const seenOffsets = new Set<number>();
-    // Source placements consume the SOURCE grid in order: the cursor
-    // advances by the placed cell's own colspan (1 after a clipboard
-    // round-trip), so a merged target cell no longer skips source cells.
+    // Source placements consume the SOURCE grid by PHYSICAL cells (one per
+    // placement): gridRow holds nodes, so a colspan on a source node must
+    // not advance the cursor past its neighbours.
     let srcIdx = 0;
     for (let col = 0; col < map.width; col += 1) {
       const offset = map.map[row * map.width + col];
@@ -167,7 +167,7 @@ function replaceRectWithGrid(
       const source = insideRect ? gridRow[srcIdx % gridW] : null;
       if (insideRect && source) {
         cells.push(target.type.create(target.attrs, source.content));
-        srcIdx += (source.attrs.colspan as number) || 1;
+        srcIdx += 1;
       } else {
         cells.push(target);
       }
@@ -338,7 +338,13 @@ function insertColumnAfterCaret(
   const filledMap = TableMap.get(filled);
   const rowsToFill = Math.min(filledMap.height, grid.length);
   for (let row = rowsToFill - 1; row >= 0; row -= 1) {
-    const cellPos = tableStart + filledMap.map[row * filledMap.width + insertAt];
+    const index = row * filledMap.width + insertAt;
+    // A slot covered by a rowspan from above belongs to the extended merge
+    // — it has no own cell to fill; filling it would clobber the merge.
+    if (row > 0 && filledMap.map[index] === filledMap.map[index - filledMap.width]) {
+      continue;
+    }
+    const cellPos = tableStart + filledMap.map[index];
     const target = tr.doc.nodeAt(cellPos);
     const rowType = filled.child(row).child(0)?.type ?? target?.type;
     const source = grid[row][0];
@@ -430,19 +436,24 @@ export function cutCellSelection(view: EditorView): boolean {
 
   const content = selection.content();
   const { dom, text } = view.serializeForClipboard(content);
-  void copyToSystemClipboard(dom.innerHTML, text);
-
-  const rect = selectedRect(state);
-  const fullRows = rect.left === 0 && rect.right === rect.map.width;
-  if (fullRows) {
-    // deleteRow refuses to remove every row of a table; cutting all rows
-    // removes the table itself — an empty table is not a valid document
-    // node (mirrors deleteTableWhenAllCellsSelected for Backspace).
-    const wholeTable = rect.top === 0 && rect.bottom === rect.map.height;
-    (wholeTable ? deleteTable : deleteRow)(state, view.dispatch.bind(view));
-  } else {
-    view.dispatch(state.tr.deleteSelection().scrollIntoView());
-  }
+  // The delete happens only after the clipboard write CONFIRMED: a denied
+  // clipboard must not remove content the user believes is copied.
+  void copyToSystemClipboard(dom.innerHTML, text).then((ok) => {
+    if (!ok) {
+      return;
+    }
+    const rect = selectedRect(view.state);
+    const fullRows = rect.left === 0 && rect.right === rect.map.width;
+    if (fullRows) {
+      // deleteRow refuses to remove every row of a table; cutting all rows
+      // removes the table itself — an empty table is not a valid document
+      // node (mirrors deleteTableWhenAllCellsSelected for Backspace).
+      const wholeTable = rect.top === 0 && rect.bottom === rect.map.height;
+      (wholeTable ? deleteTable : deleteRow)(view.state, view.dispatch.bind(view));
+    } else {
+      view.dispatch(view.state.tr.deleteSelection().scrollIntoView());
+    }
+  });
   return true;
 }
 
@@ -483,23 +494,28 @@ export function copyTableSelection(view: EditorView): boolean {
 }
 
 /** Cut for the toolbar buttons: copy (above), then Excel semantics for a
- *  cell selection; a bare caret cell only has its content cleared. */
-export function cutTableSelection(view: EditorView): boolean {
+ *  cell selection; a bare caret cell only has its content cleared. The
+ *  removal happens only after the clipboard write CONFIRMED — a failed
+ *  clipboard must not destroy content the user believes is copied. */
+export async function cutTableSelection(view: EditorView): Promise<boolean> {
   const { state } = view;
   const scope = clipboardSlice(view);
   if (!scope) {
     return false;
   }
-  if (!copyTableSelection(view)) {
+  const { dom, text } = view.serializeForClipboard(scope.slice);
+  const written = await copyToSystemClipboard(dom.innerHTML, text);
+  if (!written) {
     return false;
   }
+  const dispatch = view.dispatch.bind(view);
   const { selection } = state;
   if (selection instanceof CellSelection) {
     const rect = selectedRect(state);
     const fullRows = rect.left === 0 && rect.right === rect.map.width;
     if (fullRows) {
       const wholeTable = rect.top === 0 && rect.bottom === rect.map.height;
-      (wholeTable ? deleteTable : deleteRow)(state, view.dispatch.bind(view));
+      (wholeTable ? deleteTable : deleteRow)(state, dispatch);
     } else {
       view.dispatch(state.tr.deleteSelection().scrollIntoView());
     }
@@ -558,7 +574,10 @@ export async function pasteFromSystemClipboard(view: EditorView): Promise<boolea
   return true;
 }
 
-async function copyToSystemClipboard(html: string, text: string): Promise<void> {
+/** Write the payload to the system clipboard; true when any write landed.
+ *  Cut flows gate their removal on this — a failed copy must not destroy
+ *  content. */
+async function copyToSystemClipboard(html: string, text: string): Promise<boolean> {
   try {
     if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
       await navigator.clipboard.write([
@@ -567,15 +586,17 @@ async function copyToSystemClipboard(html: string, text: string): Promise<void> 
           "text/plain": new Blob([text], { type: "text/plain" }),
         }),
       ]);
-      return;
+      return true;
     }
   } catch {
     // fall through to the plain-text path
   }
   try {
     await navigator.clipboard.writeText(text);
+    return true;
   } catch {
-    // no clipboard access — nothing else to do
+    // no clipboard access — nothing was written
+    return false;
   }
 }
 

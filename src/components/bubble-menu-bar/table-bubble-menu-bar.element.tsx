@@ -286,10 +286,10 @@ export const TableBubbleMenuElement = litView.element({
     copyTableSelection(props.editor.view);
   };
   const cutCells = () => {
-    cutTableSelection(props.editor.view);
+    void cutTableSelection(props.editor.view).catch(() => {});
   };
   const pasteCells = () => {
-    void pasteFromSystemClipboard(props.editor.view);
+    void pasteFromSystemClipboard(props.editor.view).catch(() => {});
   };
   const canReadClipboard =
     typeof navigator !== "undefined" &&

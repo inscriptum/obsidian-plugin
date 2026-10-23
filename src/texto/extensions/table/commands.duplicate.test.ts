@@ -4,6 +4,8 @@ import { describe, expect, it } from "vitest";
 
 import { buildSchema } from "../../../../tests/helpers/buildSchema";
 
+import { TableMap } from "prosemirror-tables";
+
 import { addCommands } from "./commands";
 
 const schema = buildSchema();
@@ -116,9 +118,20 @@ describe("duplicateRow", () => {
       1,
     );
     const texts = cellTexts(next);
-    // The clone of row 0 is a full copy with the merge unmerged (M keeps
-    // spanning only the original rows).
-    expect(texts).toEqual(["M", "c01", "c02", "M", "c01", "c02", "c11", "c12"]);
+    // The merge crossing the insertion line extends over the copy row; the
+    // clone row fills only the free columns (the covered column has no cell
+    // in it — the extended M spans it).
+    expect(texts).toEqual(["M", "c01", "c02", "c01", "c02", "c11", "c12"]);
+    // Table shape survived: the map still resolves a consistent 3-column
+    // grid (no extra columns, no phantom rows).
+    let tableNodeRef: import("prosemirror-model").Node | undefined;
+    next.doc.descendants((n) => {
+      if (tableNodeRef == null && n.type.name === "table") tableNodeRef = n;
+      return tableNodeRef == null;
+    });
+    const map = TableMap.get(tableNodeRef as import("prosemirror-model").Node);
+    expect(map.width).toBe(3);
+    expect(map.height).toBe(3);
   });
 });
 
