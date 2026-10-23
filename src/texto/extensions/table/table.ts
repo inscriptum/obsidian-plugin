@@ -11,6 +11,7 @@ import { NodeView } from "prosemirror-view";
 
 import { addCommands } from "./commands";
 import { deleteTableWhenAllCellsSelected } from "./helpers";
+import { cellClipboardPlugin, cutCellSelection } from "./helpers/cellClipboard";
 import { cellTrailingParagraphPlugin } from "./helpers/cellTrailingParagraph";
 import { createColGroup } from "./helpers/createColGroup";
 import { handleCellSelection } from "./helpers/handleCellSelection";
@@ -132,6 +133,9 @@ export const Table = Node.create<TableOptions, AnyObject>({
       "Mod-Backspace": deleteTableWhenAllCellsSelected,
       Delete: deleteTableWhenAllCellsSelected,
       "Mod-Delete": deleteTableWhenAllCellsSelected,
+      // Excel cut semantics for cell selections (rows are removed, partial
+      // rectangles are cleared); the block is copied to the clipboard first.
+      "Mod-x": () => cutCellSelection(this.editor.view),
     };
   },
 
@@ -145,6 +149,9 @@ export const Table = Node.create<TableOptions, AnyObject>({
       // whose last block is a cursor-hostile atom (cell-level twin of the
       // note trailing-paragraph invariant).
       cellTrailingParagraphPlugin(),
+      // Table clipboard semantics (cell-rect paste, row insert, Excel cut);
+      // before tableEditing, whose handlePaste it replaces for table content.
+      cellClipboardPlugin(),
       ...(isResizable
         ? [
             columnResizing({

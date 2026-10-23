@@ -114,22 +114,25 @@ describe("resize handle decorations (mobile view)", () => {
   const caretInFirstCell = (doc: ProseMirrorNode) =>
     TextSelection.create(doc, cellPositions(doc)[0] + 1);
 
-  it("renders only the overlay on desktop (caret in cell)", () => {
-    expect(decorations(false, caretInFirstCell)).toHaveLength(1);
+  it("draws nothing on desktop — native selection (caret in cell)", () => {
+    // The circle and the custom mouse gesture are a touch affordance; on
+    // desktop the selection is native (issue table-selection-native-drag).
+    expect(decorations(false, caretInFirstCell)).toHaveLength(0);
   });
 
   it("adds a resize handle per row segment on mobile (caret in cell)", () => {
-    // 2x2: overlay + 2 handle segments (one per row).
-    expect(decorations(true, caretInFirstCell)).toHaveLength(3);
+    // 2x2: 2 handle segments (one per row); the selection circle is gone.
+    expect(decorations(true, caretInFirstCell)).toHaveLength(2);
   });
 
-  it("adds resize handles next to the multi-cell overlay on mobile", () => {
+  it("adds resize handles next to a multi-cell selection on mobile", () => {
     const cellRange = (doc: ProseMirrorNode) => {
       const [p1, , , p4] = cellPositions(doc);
       return CellSelection.create(doc, p1, p4);
     };
 
-    // Overlay + 2 handle segments (the .selectedCell class is added by tableEditing).
-    expect(decorations(true, cellRange)).toHaveLength(3);
+    // 2 handle segments (the .selectedCell class is added by tableEditing);
+    // the selection circle is gone on both platforms.
+    expect(decorations(true, cellRange)).toHaveLength(2);
   });
 });

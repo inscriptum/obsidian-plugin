@@ -1,3 +1,4 @@
+import type { ResolvedPos } from "prosemirror-model";
 import { EditorState, Plugin } from "prosemirror-state";
 import {
   cellAround,
@@ -18,13 +19,14 @@ import {
   isCellDragActive,
   isTouchCompatMouseSuppressed,
   consumeTouchCompatMouse,
-  overlayForDraw,
 } from "./cellDragFreeze";
-import { handleMouseDown } from "./handleMouseDown";
+import { cellAtPoint, handleMouseDown } from "./handleMouseDown";
 import {
   handlePointerDown,
   handleTouchMoveDuringDrag,
   handleTouchStart,
+  LONG_PRESS_MS,
+  LONG_PRESS_SLOP,
 } from "./handleTouchStart";
 import { TextoCellSelection } from "./TextoCellSelection";
 
@@ -88,18 +90,21 @@ export function drawCellSelection(
   state: EditorState,
   isMobileView: boolean,
 ): DecorationSource | null {
-  // While a drag is active, overlayForDraw returns the SAME instance as in
-  // the previous frame — ProseMirror reuses the circle's DOM node, so the
-  // touch target is not removed (otherwise the browser cancels the gesture,
-  // see cellDragFreeze.ts).
-  const overlay = overlayForDraw(state);
-  const decorations: Decoration[] = overlay ? [overlay] : [];
+  // The selection circle is gone on BOTH platforms (issue
+  // table-selection-native-drag): desktop selects with the native mouse
+  // drag, mobile with the long-press drag — the picked-cell highlight of
+  // that gesture is its own direct-DOM rectangle (handleTouchStart.ts), and
+  // the selected cells are highlighted by tableEditing's .selectedCell
+  // decorations. Mobile keeps the column resize handles.
+  if (!isMobileView) {
+    return null;
+  }
 
-  // Mobile view: a column resize handle next to the current cell (the cell
-  // under the cursor or the head cell of the selection). During a selection
-  // drag the handles are not needed and recreating them repaints the table
-  // subtree, removing the circle (the touch target) — so they are skipped.
-  if (isMobileView && !isCellDragActive()) {
+  const decorations: Decoration[] = [];
+
+  // During a selection drag the handles are not needed: recreating them
+  // repaints the table subtree mid-gesture.
+  if (!isCellDragActive()) {
     const { selection } = state;
     const cellPos =
       selection instanceof CellSelection
@@ -152,6 +157,15 @@ export function handleCellSelection(isMobileView: boolean) {
               document.body.classList.add("texto-table__cell-dragging");
             }
           });
+          // Desktop: native selection — a click places the caret, an
+          // immediate drag builds the cell rectangle (prosemirror-tables'
+          // own handler), and holding the button still selects the cell
+          // under it (the mouse long-press, the desktop twin of the mobile
+          // long-press).
+          if (!isMobileView) {
+            startDesktopLongPress(view, event);
+            return false;
+          }
           return handleMouseDown(view, event);
         },
         // Swallow the synthetic compatibility mouse events (mouseup/click)
@@ -252,4 +266,84 @@ export function handleCellSelection(isMobileView: boolean) {
       return null;
     },
   });
+}
+
+/**
+ * Desktop long-press (issue table-selection-native-drag): holding the mouse
+ * button still on a cell for a moment selects that cell — the mouse twin of
+ * the mobile long-press, and the only single-cell affordance once the
+ * circle is gone. A plain click (release before the timer, or moving out of
+ * the slop) stays untouched: the caret was already placed by the default
+ * mousedown handling and an immediate drag builds the rectangle natively.
+ *
+ * While the selection is active, moving extends the rectangle and the
+ * moves are preventDefault-ed so the native text-selection drag does not
+ * fight the dispatched cell selection.
+ */
+function startDesktopLongPress(view: EditorView, startEvent: MouseEvent): void {
+  const startX = startEvent.clientX;
+  const startY = startEvent.clientY;
+  const doc = view.dom.ownerDocument;
+  let timer = 0;
+  let active = false;
+  let anchor: ResolvedPos | null = null;
+
+  const stop = (): void => {
+    doc.removeEventListener("mousemove", onMove);
+    doc.removeEventListener("mouseup", onUp);
+    window.clearTimeout(timer);
+    if (active && !view.isDestroyed && view.state.selection instanceof TextoCellSelection) {
+      view.focus();
+    }
+  };
+
+  const dispatchSelection = ($head: ResolvedPos): void => {
+    if (!anchor || $head.pos === anchor.pos) {
+      return;
+    }
+    // NO tableEditingKey meta here: prosemirror-tables' own mouse-drag
+    // tracking is still active (our mousedown did not preventDefault) and
+    // reads that state as a numeric anchor — a selection object in it
+    // crashes its move handler. The two dispatches agree on the rectangle.
+    view.dispatch(view.state.tr.setSelection(new TextoCellSelection(anchor, $head)));
+  };
+
+  const onMove = (event: MouseEvent): void => {
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    if (!active) {
+      // Moved out of the slop before the timer: an ordinary drag — the
+      // native rectangle selection handles it, the long-press is off.
+      if (dx * dx + dy * dy > LONG_PRESS_SLOP * LONG_PRESS_SLOP) {
+        stop();
+      }
+      return;
+    }
+    event.preventDefault();
+    const $head = cellAtPoint(view, event.clientX, event.clientY);
+    // The rectangle must not cross a table boundary: a head from another
+    // table would build a selection with endpoints in different tables.
+    if (!$head || !anchor || $head.node(-1) !== anchor.node(-1)) {
+      return;
+    }
+    dispatchSelection($head);
+  };
+
+  const onUp = (): void => {
+    stop();
+  };
+
+  timer = window.setTimeout(() => {
+    active = true;
+    const $cell = cellAtPoint(view, startX, startY);
+    if (!$cell) {
+      stop();
+      return;
+    }
+    anchor = $cell;
+    view.dispatch(view.state.tr.setSelection(new TextoCellSelection($cell)));
+  }, LONG_PRESS_MS);
+
+  doc.addEventListener("mousemove", onMove);
+  doc.addEventListener("mouseup", onUp);
 }

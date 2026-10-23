@@ -16,8 +16,13 @@ export const SAFE_HEX_COLOR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
 export const SAFE_RGB_COLOR =
   /^rgba?\(\s*[0-9.]+\s*,\s*[0-9.]+\s*,\s*[0-9.]+\s*(?:,\s*[0-9.]+\s*)?\)$/i;
 
-/** A color value safe for inline-style interpolation, or null. */
+/** A color value safe for inline-style interpolation, or null. Stored attrs
+ *  are untrusted: a non-string (e.g. the [] that tableCell.parseHTML used to
+ *  emit for cells parsed from clipboard HTML) must not reach .trim(). */
 export function safeColorValue(value: string): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
   const v = value.trim();
   if (SAFE_HEX_COLOR.test(v) || SAFE_RGB_COLOR.test(v)) {
     return v;

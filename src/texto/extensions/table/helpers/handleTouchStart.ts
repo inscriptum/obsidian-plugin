@@ -9,18 +9,13 @@ import {
   setPendingCellGestureCancel,
 } from "./cellDragFreeze";
 import { startColumnTouchResize } from "./columnTouchResize";
-import { cellAtPoint, cellInTableAtPoint } from "./handleMouseDown";
-import { scheduleOverlayRefresh } from "./overlay";
 import { TextoCellSelection } from "./TextoCellSelection";
 
-/** Clearance for the first move of a circle drag — see handleMouseDown.ts. */
-const CIRCLE_CLEARANCE = 18;
-
 /** How long a finger must rest on a cell before cell selection starts. */
-const LONG_PRESS_MS = 450;
+export const LONG_PRESS_MS = 450;
 
 /** Max finger movement (px) during the long-press that still counts as a press. */
-const LONG_PRESS_SLOP = 10;
+export const LONG_PRESS_SLOP = 10;
 
 /**
  * Body class added while a finger is down on a table cell. It disables
@@ -46,13 +41,13 @@ const PICKING_RECT_CLASS = "texto-table__cell-picking-rect";
 
 /**
  * Touch handler for tables on mobile (and touchscreens on desktop):
- * - touch on the selection circle (`.texto-table__overlay_overlay-circle`) —
- *   drag cell selection, the touch counterpart of the mouse gesture;
  * - touch on a resize handle (`.texto-table__resize-handle`) — column
  *   width drag-resize.
  *
- * Long-press on a table cell is handled separately in handlePointerDown:
- * see there for why it must run on Pointer Events instead of touch events.
+ * Cell selection is the long-press gesture (startLongPressCellSelection,
+ * below) — handled separately in handlePointerDown: see there for why it
+ * runs on Pointer Events instead of touch events. The old circle drag this
+ * file used to carry is gone (issue table-selection-native-drag).
  *
  * All other touches pass through (cursor placement / editing via compat
  * mouse events).
@@ -68,35 +63,6 @@ export function handleTouchStart(
 
   if (target.classList.contains("texto-table__resize-handle")) {
     return startColumnTouchResize(view, startEvent, target);
-  }
-
-  // The touch zone is the outer circle element, but the finger can land on
-  // the inner visual dot (.texto-table__overlay_circle) — resolve the touch
-  // zone through the overlay.
-  const overlay = target.closest(".texto-table__overlay");
-  const circle =
-    (overlay?.querySelector(
-      ".texto-table__overlay_overlay-circle",
-    ) as HTMLElement | null) ??
-    target.closest(".texto-table__overlay_overlay-circle");
-  if (circle) {
-    if (startEvent.touches.length !== 1) {
-      return false;
-    }
-
-    beginCellDrag();
-
-    // The anchor cell position is recorded by the decoration in the
-    // circle's data-cell-pos — this is more reliable than geometry:
-    // posAtCoords can degrade on mobile (workspace-drawer-backdrop).
-    runCellDrag(
-      view,
-      startEvent,
-      Number(circle.dataset.cellPos) || null,
-      CIRCLE_CLEARANCE,
-    );
-    startEvent.preventDefault();
-    return true;
   }
 
   return false;
@@ -124,11 +90,8 @@ export function handlePointerDown(
     return false;
   }
 
-  // The circle and the resize handles have their own touch-based gestures.
-  if (
-    target.classList.contains("texto-table__resize-handle") ||
-    target.closest(".texto-table__overlay")
-  ) {
+  // The resize handles have their own touch-based gesture.
+  if (target.classList.contains("texto-table__resize-handle")) {
     return false;
   }
 
@@ -140,54 +103,6 @@ export function handlePointerDown(
   return startLongPressCellSelection(view, event, startCellEl as HTMLElement);
 }
 
-/**
- * Resolves the drag endpoints for the circle drag: the anchor cell (from the
- * gesture start point or a recorded position) and the head cell under the
- * current point.
- *
- * `clearance` shifts the head point up-left on the first move of a circle
- * drag, where the pointer stands on the circle in the cell corner.
- */
-function dragToCellHead(
-  view: EditorView,
-  topLeftAnchor: number | null,
-  anchorX: number,
-  anchorY: number,
-  headX: number,
-  headY: number,
-  isFirstMove: boolean,
-  clearance: number,
-): { anchor: ResolvedPos; head: ResolvedPos; topLeft: number } | null {
-  const $anchor =
-    topLeftAnchor != null
-      ? view.state.doc.resolve(topLeftAnchor)
-      : cellAtPoint(view, anchorX, anchorY, isFirstMove ? clearance : 0);
-  if (!$anchor) {
-    return null;
-  }
-
-  const $head =
-    cellAtPoint(view, headX, headY, isFirstMove ? clearance : 0) ??
-    cellInTableAtPoint(view, topLeftAnchor ?? $anchor.pos, headX, headY);
-  if (!$head) {
-    return null;
-  }
-
-  return {
-    anchor: $anchor,
-    head: $head,
-    topLeft: topLeftAnchor ?? $anchor.pos,
-  };
-}
-
-/**
- * The ProseMirror position of the cell node for a td/th element.
- *
- * Uses view.posAtDOM (a direct DOM→doc mapping) instead of posAtCoords:
- * posAtCoords is hit-test based and degrades on mobile (it can resolve the
- * same screen point to different cells between gestures), while posAtDOM is
- * exact for a node we already hold.
- */
 function cellPosFromDom(
   view: EditorView,
   cellEl: HTMLElement,
@@ -216,85 +131,8 @@ function dispatchCellSelection(
   view.dispatch(
     view.state.tr.setSelection(selection).setMeta(tableEditingKey, selection),
   );
-  scheduleOverlayRefresh(view);
 }
 
-/**
- * Touch drag for the selection circle: touchmove builds a TextoCellSelection
- * from the anchor cell to the cell under the finger.
- *
- * The overlay decoration is frozen for the whole gesture (beginCellDrag) so
- * ProseMirror reuses the circle DOM node instead of recreating it — removing
- * the touch target mid-gesture makes the browser cancel the touch
- * (touchcancel), which killed the drag after its first move. Unlike the
- * long-press gesture this path is safe on touch events: the circle is a
- * widget whose node survives the re-render (the freeze), and preventDefault
- * on touchstart suppresses the compatibility mouse events entirely.
- */
-function runCellDrag(
-  view: EditorView,
-  startEvent: TouchEvent,
-  anchorPos: number | null,
-  clearance: number,
-): void {
-  let topLeftAnchor = anchorPos;
-  let isFirstMove = true;
-
-  function point(event: TouchEvent) {
-    return event.touches[0] ?? event.changedTouches[0];
-  }
-
-  function stop(event: TouchEvent) {
-    endCellDrag();
-    root.removeEventListener("touchmove", move);
-    root.removeEventListener("touchend", end);
-    root.removeEventListener("touchcancel", stop);
-    document.body.classList.remove(CELL_SELECTING_CLASS);
-    // Suppress the synthetic click: it would collapse the freshly built
-    // cell selection back to a text cursor.
-    event.preventDefault();
-    if (tableEditingKey.getState(view.state) != null) {
-      view.dispatch(view.state.tr.setMeta(tableEditingKey, -1));
-    }
-  }
-
-  function end(event: TouchEvent) {
-    stop(event);
-  }
-
-  function move(event: TouchEvent) {
-    // Keep the drag from turning into document scrolling.
-    event.preventDefault();
-
-    const start = point(startEvent);
-    const current = point(event);
-    const drag = dragToCellHead(
-      view,
-      topLeftAnchor,
-      start.clientX,
-      start.clientY,
-      current.clientX,
-      current.clientY,
-      isFirstMove,
-      clearance,
-    );
-    isFirstMove = false;
-    if (!drag) return;
-
-    topLeftAnchor = drag.topLeft;
-    dispatchCellSelection(view, drag.anchor, drag.head);
-  }
-
-  const root = view.dom.ownerDocument;
-  root.addEventListener("touchmove", move, { passive: false });
-  root.addEventListener("touchend", end);
-  root.addEventListener("touchcancel", stop);
-}
-
-/**
- * The table element the given cell belongs to (visible one — the geometry of
- * hidden duplicate leaves is all zeros).
- */
 function cellTable(cell: HTMLElement): HTMLTableElement | null {
   const wrapper = cell.closest(".table-wrapper");
   const table = wrapper?.querySelector("table") ?? cell.closest("table");

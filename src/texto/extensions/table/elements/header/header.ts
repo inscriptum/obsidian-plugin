@@ -58,7 +58,7 @@ export const TableHeader = Node.create<TableHeaderOptions>({
           dataColor: string | null;
           backgroundColor: string | null;
         }) => {
-          if (!attributes.dataColor) {
+          if (typeof attributes.dataColor !== "string") {
             return {};
           }
 
@@ -75,8 +75,11 @@ export const TableHeader = Node.create<TableHeaderOptions>({
             : { ["data-color"]: attributes.dataColor };
         },
         parseHTML: (element) => {
+          // A string or nothing — an array here (the old quirk) flowed into
+          // saved documents through clipboard-parsed cells and crashed the
+          // color rendering on every later open.
           const dataColor = element.dataset["color"];
-          return dataColor ? [dataColor] : [];
+          return dataColor ? dataColor : null;
         },
       },
       backgroundColor: {

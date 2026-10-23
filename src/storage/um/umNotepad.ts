@@ -4,6 +4,10 @@ import {
   hasCellTrailingImage,
 } from "../../texto/extensions/table/helpers/cellTrailingParagraph";
 import {
+  hasCellColorAttrQuirk,
+  normalizeCellColorAttrsJSON,
+} from "../../texto/extensions/table/helpers/cellColorAttrs";
+import {
   assetExtension,
   assetPathForId,
   collectReferencedAssetIds,
@@ -110,6 +114,15 @@ export class UmNotepad {
     // title-page header normalization above; persists on the next save.
     if (hasCellTrailingImage(prepared)) {
       prepared = ensureCellTrailingParagraphJSON(prepared);
+      this.data.notes.set(id, prepared);
+      this.dirtyNotes.add(id);
+    }
+
+    // Cell color attrs (table-clipboard task): clipboard-parsed cells used
+    // to carry dataColor as an array, which crashed the color rendering on
+    // the next open. Normalize on read, like the trailing repair above.
+    if (hasCellColorAttrQuirk(prepared)) {
+      normalizeCellColorAttrsJSON(prepared);
       this.data.notes.set(id, prepared);
       this.dirtyNotes.add(id);
     }
