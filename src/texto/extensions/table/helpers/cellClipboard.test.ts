@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildSchema } from "../../../../../tests/helpers/buildSchema";
 
-import { cellClipboardPlugin, cutCellSelection, extractCellGrid } from "./cellClipboard";
+import { cellClipboardPlugin, copyTableSelection, cutCellSelection, cutTableSelection, extractCellGrid } from "./cellClipboard";
 
 const schema = buildSchema();
 
@@ -527,5 +527,74 @@ describe("cut (Excel semantics)", () => {
       throw new Error("must not dispatch");
     });
     expect(cutCellSelection(view)).toBe(false);
+  });
+});
+
+describe("toolbar clipboard buttons (caret 1×1 scope)", () => {
+  /** Stub navigator.clipboard; captures the written payload as strings. */
+  const stubClipboard = (captured: Record<string, string>) => {
+    (navigator as unknown as { clipboard: unknown }).clipboard = {
+      write: async (items: Array<{ types: string[]; getType: (t: string) => Promise<Blob> }>) => {
+        for (const item of items) {
+          for (const type of item.types) {
+            captured[type] = await (await item.getType(type)).text();
+          }
+        }
+      },
+      writeText: async (t: string) => {
+        captured["text/plain"] = t;
+      },
+      read: async () => [],
+      readText: async () => "",
+    };
+  };
+
+  const fakeView = (state: EditorState, dispatched: Array<import("prosemirror-state").Transaction>) =>
+    ({
+      state,
+      dispatch: (tr: import("prosemirror-state").Transaction) => dispatched.push(tr),
+      serializeForClipboard: (slice: Slice) => {
+        const dom = createDiv();
+        dom.appendChild(DOMSerializer.fromSchema(schema).serializeFragment(slice.content));
+        return { dom, text: slice.content.textBetween(0, slice.content.size, "\n\n"), slice };
+      },
+    }) as unknown as EditorView;
+
+  it("copyTableSelection copies the caret cell as a 1×1 table", async () => {
+    const captured: Record<string, string> = {};
+    stubClipboard(captured);
+    const doc = twoTablesDoc();
+    const [b0] = cellPositions(doc, 1);
+    const state = stateWithSelection(doc, TextSelection.create(doc, b0 + 1));
+    expect(copyTableSelection(fakeView(state, []))).toBe(true);
+    await Promise.resolve();
+    await Promise.resolve();
+    // jsdom has no ClipboardItem — the write degrades to plain text, which
+    // is exactly the fallback the production code promises.
+    expect(captured["text/plain"]).toContain("B00");
+  });
+
+  it("cutTableSelection clears the caret cell", async () => {
+    const captured: Record<string, string> = {};
+    stubClipboard(captured);
+    const doc = twoTablesDoc();
+    const [b0] = cellPositions(doc, 1);
+    const state = stateWithSelection(doc, TextSelection.create(doc, b0 + 1));
+    const dispatched: Array<import("prosemirror-state").Transaction> = [];
+    expect(cutTableSelection(fakeView(state, dispatched))).toBe(true);
+    expect(dispatched).toHaveLength(1);
+    const next = state.apply(dispatched[0]);
+    expect(cellTexts(next.doc, 1)[0]).toBe("");
+  });
+
+  it("both no-op outside a table", () => {
+    const state = stateWithSelection(twoTablesDoc(), TextSelection.create(twoTablesDoc(), 1));
+    const view = {
+      state,
+      dispatch: () => {},
+      serializeForClipboard: () => ({ dom: createDiv(), text: "", slice: null }),
+    } as unknown as EditorView;
+    expect(copyTableSelection(view)).toBe(false);
+    expect(cutTableSelection(view)).toBe(false);
   });
 });
