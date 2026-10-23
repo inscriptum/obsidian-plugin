@@ -9,6 +9,7 @@ import { headingFoldingKey } from "../texto/extensions/heading/folding";
 import { taskFoldingKey } from "../texto/extensions/task-item-folding/taskFoldingPlugin";
 import { NotepadView } from "../NotepadView";
 import { installIconSprite } from "../components/icons/iconSprite";
+import { ToolbarElement } from "../components/toolbar/toolbar.element";
 import { UmNotepad } from "../storage/um/umNotepad";
 import { exportNotepadAsWebsite } from "../export/exportNotepadWebsite";
 import type { UmContainerData, UmNoteDescriptor } from "../storage/um/umTypes";
@@ -237,6 +238,11 @@ export { Editor, headingFoldingKey, taskFoldingKey };
 interface E2EApi {
   /** Mount a fresh editor with the given doc JSON (replaces the previous one). */
   mount: (doc: unknown) => string;
+  /** Mount an editor plus its note-toolbar. Mobile mode by default (a fake
+   *  selectionBar is passed, so the toolbar renders the mobile row with the
+   *  undo/redo buttons); opts.mobile=false mounts the desktop branch —
+   *  for toolbar interaction tests. */
+  mountToolbar: (doc: unknown, opts?: { mobile?: boolean }) => string;
   /** The editor mounted last (null before the first mount). */
   readonly editor: Editor | null;
   /** Doc JSON of the current editor. */
@@ -297,6 +303,21 @@ function mountEditor(doc: unknown): string {
 
 const e2eApi: E2EApi = {
   mount: mountEditor,
+  mountToolbar: (doc: unknown, opts?: { mobile?: boolean }): string => {
+    const mobile = opts?.mobile ?? true;
+    mountEditor(doc);
+    installIconSprite();
+    const editor = currentEditor;
+    if (editor == null) return "editor";
+    const toolbar = new ToolbarElement();
+    toolbar.addClass("note-toolbar-host");
+    toolbar.props.editor = editor;
+    // A fake selection bar switches the toolbar into its mobile branch —
+    // the only place the undo/redo buttons render (mobile-only feature).
+    if (mobile) toolbar.props.selectionBar = createDiv("fake-selection-bar");
+    appContainer().appendChild(toolbar);
+    return mobile ? "editor+toolbar(mobile)" : "editor+toolbar(desktop)";
+  },
   get editor() {
     return currentEditor;
   },

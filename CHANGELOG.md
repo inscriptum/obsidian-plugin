@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Undo and Redo buttons in the mobile toolbar — on a phone you can finally take an edit back (or return it) with a tap; buttons dim when there is nothing to undo or redo. On desktop the keyboard shortcuts work as before.
 - Table cells get Copy, Cut and Paste buttons in the table toolbar — the cell clipboard finally works on mobile too, where there is no Cmd+C. The buttons also accept a bare caret in a cell (that cell counts as the selection).
 - Duplicate Row and Duplicate Column actions: an exact copy appears right next to the original, header row included.
 - Select a table cell by holding the mouse button on it for a moment (desktop). The old selection circle is gone — dragging across cells selects them like in Notion.

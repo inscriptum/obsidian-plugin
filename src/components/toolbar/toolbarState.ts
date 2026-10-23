@@ -11,6 +11,9 @@ export interface ToolbarState {
   orderedList: boolean;
   codeBlock: boolean;
   link: boolean;
+  /** Undo/redo availability — the mobile toolbar disables its buttons on these. */
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 /**
@@ -18,7 +21,7 @@ export interface ToolbarState {
  * Pure function of editor.isActive — easy to test with a mock editor.
  */
 export function getToolbarState(
-  editor: Pick<Editor, "isActive">,
+  editor: Pick<Editor, "isActive" | "can">,
 ): ToolbarState {
   return {
     paragraph: editor.isActive("paragraph"),
@@ -31,5 +34,7 @@ export function getToolbarState(
     orderedList: editor.isActive("orderedList"),
     codeBlock: editor.isActive("hljsCodeBlock"),
     link: editor.isActive("link"),
+    canUndo: editor.can().undo(),
+    canRedo: editor.can().redo(),
   };
 }
