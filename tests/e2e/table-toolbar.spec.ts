@@ -160,10 +160,20 @@ test.describe("table toolbar dock + cells bubble", () => {
     await clickInsideNotepadText(page, cellA2.locator("p"), "A2");
 
     // The table bar is docked into the toolbar; the typography groups are gone.
+    // 17 buttons: row/col add + duplicate ×2 + clipboard ×3 + merge/split +
+    // delete ×2 + header + fill + borders + delete table (see the bar's render).
     await expect(page.locator(".note-toolbar__table-bar")).toBeVisible();
     await expect(
       page.locator(".note-toolbar__table-bar .bubble-menu-table-bar button"),
-    ).toHaveCount(12);
+    ).toHaveCount(17);
+    // The clipboard buttons of issue table-clipboard-buttons are in the bar.
+    for (const tip of ["Copy cells", "Cut cells", "Paste cells"]) {
+      await expect(
+        page.locator(
+          `.note-toolbar__table-bar .bubble-menu-table-bar button[data-tip="${tip}"]`,
+        ),
+      ).toBeVisible();
+    }
     await expect(page.locator(".note-toolbar .note-toolbar__btn")).toHaveCount(
       0,
     );
