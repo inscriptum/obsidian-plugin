@@ -6,8 +6,9 @@ import {
   type Transaction,
 } from "prosemirror-state";
 import { TextoCellSelection } from "./helpers/TextoCellSelection";
-import type { Node as ProseMirrorNode } from "prosemirror-model";
+import { Fragment, type Node as ProseMirrorNode, Slice } from "prosemirror-model";
 import {
+  addColumn,
   addColumnAfter,
   addColumnBefore,
   addRowAfter,
@@ -108,6 +109,142 @@ function deleteRowOverride(this: AddCommandsThis): Command {
 function deleteTableOverride(this: AddCommandsThis): Command {
   return ({ state, dispatch }) => {
     return deleteTable(state, dispatch);
+  };
+}
+
+/* ─── Duplicate row/column (issue table-duplicate-row-column): clone the
+   selection's rows below itself / its column right of itself, like
+   Notion's "Duplicate". Merges crossing the paste line extend (the
+   addRow/addColumn convention); merges crossing the SELECTION boundary
+   are cloned unmerged (rowspan/colspan clamped to the copy region). ── */
+
+/** Offset of the start of the row with the given index, in table content
+ *  coordinates. */
+function dupRowStartOffset(table: ProseMirrorNode, rowIndex: number): number {
+  let offset = 0;
+  for (let i = 0; i < rowIndex; i += 1) {
+    offset += table.child(i).nodeSize;
+  }
+  return offset;
+}
+
+function duplicateRowOverride(this: AddCommandsThis): Command {
+  return ({ state, dispatch }) => {
+    if (!isInTable(state)) {
+      return false;
+    }
+    if (dispatch) {
+      const rect = selectedRect(state);
+      const count = rect.bottom - rect.top;
+      const tr = state.tr;
+
+      // Merges crossing the insertion line (below the rect) extend over the
+      // inserted copies.
+      if (rect.bottom < rect.map.height) {
+        const covered = new Set<number>();
+        for (let col = 0; col < rect.map.width; col += 1) {
+          const index = rect.bottom * rect.map.width + col;
+          if (rect.map.map[index] === rect.map.map[index - rect.map.width]) {
+            covered.add(rect.map.map[index]);
+          }
+        }
+        for (const offset of covered) {
+          const node = rect.table.nodeAt(offset);
+          if (!node) {
+            continue;
+          }
+          tr.setNodeMarkup(rect.tableStart + offset, null, {
+            ...node.attrs,
+            rowspan: ((node.attrs.rowspan as number) || 1) + count,
+          });
+        }
+      }
+
+      // Clone the rect's rows; a rowspan reaching past the rect bottom is
+      // clipped to the copy region.
+      const rows: ProseMirrorNode[] = [];
+      for (let row = rect.top; row < rect.bottom; row += 1) {
+        const rowNode = rect.table.child(row);
+        const rowStart = dupRowStartOffset(rect.table, row);
+        const rowEnd = rowStart + rowNode.nodeSize;
+        const cells: ProseMirrorNode[] = [];
+        const seen = new Set<number>();
+        for (let col = 0; col < rect.map.width; col += 1) {
+          const offset = rect.map.map[row * rect.map.width + col];
+          if (seen.has(offset)) {
+            continue;
+          }
+          seen.add(offset);
+          if (offset < rowStart || offset >= rowEnd) {
+            continue;
+          }
+          const cellNode = rect.table.nodeAt(offset);
+          if (!cellNode) {
+            continue;
+          }
+          const maxSpan = rect.bottom - row;
+          cells.push(
+            ((cellNode.attrs.rowspan as number) || 1) > maxSpan
+              ? cellNode.type.create({ ...cellNode.attrs, rowspan: maxSpan }, cellNode.content)
+              : cellNode,
+          );
+        }
+        rows.push(rowNode.copy(Fragment.fromArray(cells)));
+      }
+
+      const pos = rect.tableStart + dupRowStartOffset(rect.table, rect.bottom);
+      tr.insert(pos, Fragment.fromArray(rows));
+      dispatch(tr.scrollIntoView());
+    }
+    return true;
+  };
+}
+
+function duplicateColumnOverride(this: AddCommandsThis): Command {
+  return ({ state, dispatch }) => {
+    if (!isInTable(state)) {
+      return false;
+    }
+    if (dispatch) {
+      const rect = selectedRect(state);
+      const tr = state.tr;
+      addColumn(tr, rect, rect.right);
+
+      // Fill the new column with clones of the selection's last column,
+      // bottom-up (an upper position stays valid after a lower edit). Rows
+      // whose slot is a rowspan continuation get nothing; a cloned cell
+      // with spans is unmerged (spans crossing the selection boundary are
+      // not reproduced).
+      const newTable = tr.doc.nodeAt(rect.tableStart - 1);
+      if (newTable) {
+        const newMap = TableMap.get(newTable);
+        const width = newMap.width;
+        for (let row = newMap.height - 1; row >= 0; row -= 1) {
+          const index = row * width + rect.right;
+          if (row > 0 && newMap.map[index] === newMap.map[index - width]) {
+            continue;
+          }
+          const newCellPos = rect.tableStart + newMap.map[index];
+          const newCell = tr.doc.nodeAt(newCellPos);
+          const srcOffset = rect.map.map[row * rect.map.width + (rect.right - 1)];
+          const src = rect.table.nodeAt(srcOffset);
+          if (!newCell || !src) {
+            continue;
+          }
+          const clone =
+            ((src.attrs.rowspan as number) || 1) > 1 || ((src.attrs.colspan as number) || 1) > 1
+              ? src.type.create({ ...src.attrs, rowspan: 1, colspan: 1 }, src.content)
+              : src;
+          tr.replace(
+            newCellPos,
+            newCellPos + newCell.nodeSize,
+            new Slice(Fragment.from(clone), 0, 0),
+          );
+        }
+      }
+      dispatch(tr.scrollIntoView());
+    }
+    return true;
   };
 }
 
@@ -534,6 +671,8 @@ export function addCommands(this: AddCommandsThis) {
     deleteTable: deleteTableOverride.bind(this),
     deleteRow: deleteRowOverride.bind(this),
     addRowAfter: addRowAfterOverride.bind(this),
+    duplicateRow: duplicateRowOverride.bind(this),
+    duplicateColumn: duplicateColumnOverride.bind(this),
     clearTable: clearTable.bind(this),
   };
 }
