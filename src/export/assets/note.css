@@ -498,3 +498,9 @@ article .note-property-value:first-of-type {
 article p.note-property-value:empty {
   display: none;
 }
+
+/* 3. Internal vault links (wikiLink mark): never clickable on the site —
+      rendered as accent-highlighted text (owner decision, issue wikilinks). */
+article .texto-wikilink {
+  color: var(--note-accent-text, #7c6af7);
+}

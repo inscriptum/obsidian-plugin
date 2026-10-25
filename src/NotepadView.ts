@@ -1605,6 +1605,14 @@ export class NotepadView extends FileView {
           openAttachmentFile(app, attrs.data);
         },
       },
+      wiki: {
+        listFiles: () =>
+          app.vault.getFiles().map((f) => ({ path: f.path, name: f.basename })),
+        isResolved: (path) => app.vault.getAbstractFileByPath(path) != null,
+        openTarget: (path) => {
+          void app.workspace.openLinkText(path, this.file?.path ?? "", false);
+        },
+      },
     };
   }
 

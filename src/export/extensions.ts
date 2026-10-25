@@ -7,6 +7,7 @@ import {
   NotePropertyValue,
 } from "../texto/extensions/note-property";
 import { Link } from "../texto/extensions/link";
+import { WikiLink } from "../texto/extensions/wikilink";
 import { Image } from "../texto/extensions/image";
 import { Attachment } from "../texto/extensions/attachment";
 import {
@@ -93,6 +94,9 @@ export function getExportExtensions(): Extensions {
       },
     }),
     Link,
+    // No wiki hooks on the site: the mark renders as a plain highlighted
+    // span (owner decision — internal links are not clickable in export).
+    WikiLink,
     Image,
     Attachment,
     HljsCodeBlock.configure({ printContentAsHTML: true }),

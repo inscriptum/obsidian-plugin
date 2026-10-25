@@ -263,6 +263,15 @@ interface E2EApi {
 let currentEditor: Editor | null = null;
 let lastError: unknown = null;
 
+/** Fake vault backing the wiki hooks: tests populate `files` before typing
+ *  and read `opens` to assert click-to-open. */
+declare global {
+  interface Window {
+    __e2eWiki: { files: { path: string; name: string }[]; opens: string[] };
+  }
+}
+window.__e2eWiki ??= { files: [], opens: [] };
+
 function appContainer(): HTMLElement {
   const existing = document.getElementById("app");
   if (existing != null) {
@@ -288,10 +297,25 @@ function mountEditor(doc: unknown): string {
   note.appendChild(article);
   app.appendChild(note);
 
+  // Fake vault for the «[[» suggest (tests set window.__e2eWiki.files).
+  const wikiFiles = (): { path: string; name: string }[] =>
+    (window.__e2eWiki?.files ?? []) as { path: string; name: string }[];
+
   currentEditor = new Editor({
     element: article,
     content: doc as JSONContent,
-    extensions: getExtensions({}, {}),
+    extensions: getExtensions(
+      {
+        wiki: {
+          listFiles: wikiFiles,
+          isResolved: (path) => wikiFiles().some((f) => f.path === path),
+          openTarget: (path) => {
+            window.__e2eWiki.opens.push(path);
+          },
+        },
+      },
+      {},
+    ),
     editable: true,
     onError: (err) => {
       lastError = err;

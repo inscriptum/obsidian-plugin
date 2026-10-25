@@ -276,3 +276,54 @@
 .theme-light .texto-editor .ProseMirror mark {
   background: rgba(245, 158, 11, 0.22);
 }
+
+/* ── Wiki-link «[[» suggest popup ────────────────────────────────────────
+   Body-level floating list under the caret (see wikiSuggest.ts). Lives on
+   document.body, so it is host-independent (.note and Notebook pages). */
+.texto-wiki-suggest {
+  position: fixed;
+  z-index: 1000;
+  min-width: 240px;
+  max-width: min(340px, calc(100vw - 16px));
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--background-primary, #1e1e23);
+  border: 1px solid var(--background-modifier-border, #333);
+  border-radius: var(--radius-m, 8px);
+  box-shadow: var(--shadow-s, 0 4px 16px rgba(0, 0, 0, 0.3));
+}
+
+.texto-wiki-suggest__item {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  margin: 0;
+  border: none;
+  border-radius: var(--radius-s, 5px);
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text-normal, #dadada);
+}
+
+.texto-wiki-suggest__item:hover,
+.texto-wiki-suggest__item.is-selected {
+  background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
+}
+
+.texto-wiki-suggest__name {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.texto-wiki-suggest__path {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--text-faint, #999);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
