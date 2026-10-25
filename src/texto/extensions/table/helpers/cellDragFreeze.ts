@@ -1,24 +1,19 @@
 let dragActive = false;
 
 /**
- * Suppression window for the synthetic compatibility mouse events
- * (mousedown/mouseup/click) that Android dispatches right after a touch cell
- * drag ends.
+ * Suppression window for the compatibility mouse events
+ * (mousedown/mouseup/click) that a WebView dispatches after a touch ends.
  *
- * Why a window instead of a touchend-based grace: on Android the synthetic
- * `touchend` is not reliably delivered to our document listener (the WebView
- * cancels the touch once the long-press gesture takes over), so a
- * touchend-keyed grace never opens and the compat mousedown collapses the
- * freshly built TextoCellSelection back to a caret. The circle drag avoids
- * this only because it calls preventDefault() on touchstart, which suppresses
- * the compat events entirely — the long-press gesture must not preventDefault
- * touchstart (otherwise a plain tap could no longer place the caret for
- * editing), so we suppress the compat mouse events here instead.
- *
+ * Since issue table-longpress-selection-reset, touches that start on a cell
+ * are preventDefault'ed (handleTouchStart), so the browser does not
+ * synthesize compat events for them at all — a cell gesture replays its own
+ * tap events instead. The window still guards the freshly built
+ * TextoCellSelection against compat events of OTHER touch sequences that end
+ * right after a drag (e.g. a second finger down elsewhere on the page): a
+ * stray mousedown would collapse the cell selection back to a text cursor.
  * The window opens when the gesture starts (beginCellDrag) and is renewed on
- * a bounded grace when the gesture ends (endCellDrag), covering the compat
- * events that arrive right after the finger lifts. Consuming the first
- * synthetic mousedown narrows the window to cover just the following
+ * a bounded grace when the gesture ends (endCellDrag). Consuming the first
+ * stray mousedown narrows the window to cover just the following
  * mouseup/click. The window always expires on its own, so no legitimate
  * later tap is ever swallowed.
  */

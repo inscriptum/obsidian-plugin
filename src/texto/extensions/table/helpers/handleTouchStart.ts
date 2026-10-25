@@ -1,5 +1,6 @@
 import type { ResolvedPos } from "prosemirror-model";
 import type { EditorView } from "prosemirror-view";
+import { TextSelection } from "prosemirror-state";
 import { tableEditingKey } from "prosemirror-tables";
 
 import {
@@ -43,14 +44,23 @@ const PICKING_RECT_CLASS = "texto-table__cell-picking-rect";
  * Touch handler for tables on mobile (and touchscreens on desktop):
  * - touch on a resize handle (`.texto-table__resize-handle`) — column
  *   width drag-resize.
+ * - touch on a cell — preventDefault'ed: the native WebView long-press
+ *   machinery (word selection → context menu → touch-stream cancellation)
+ *   must never see a touch that starts inside a cell. Evidence (2026-10-24,
+ *   Android emulator, fresh page, guards active): the word under a
+ *   stationary finger got selected ~540 ms after pointerdown despite
+ *   user-select: none, and the resulting pointercancel killed the cell
+ *   gesture right after its own activation — the "selection appears and
+ *   immediately resets" report of issue table-longpress-selection-reset.
+ *   Preventing the touchstart suppresses that machinery entirely (the same
+ *   lever the old selection circle pulled), so taps get their caret from
+ *   the synthesized compat events of the long-press gesture instead of the
+ *   browser's (see dispatchTapCompatEvents in startLongPressCellSelection).
  *
  * Cell selection is the long-press gesture (startLongPressCellSelection,
  * below) — handled separately in handlePointerDown: see there for why it
  * runs on Pointer Events instead of touch events. The old circle drag this
  * file used to carry is gone (issue table-selection-native-drag).
- *
- * All other touches pass through (cursor placement / editing via compat
- * mouse events).
  */
 export function handleTouchStart(
   view: EditorView,
@@ -63,6 +73,10 @@ export function handleTouchStart(
 
   if (target.classList.contains("texto-table__resize-handle")) {
     return startColumnTouchResize(view, startEvent, target);
+  }
+
+  if (target.closest("td, th")) {
+    startEvent.preventDefault();
   }
 
   return false;
@@ -257,7 +271,7 @@ function startLongPressCellSelection(
     window.clearTimeout(timer);
     viewDom.removeEventListener("pointermove", onMove);
     viewDom.removeEventListener("pointerup", onUp);
-    viewDom.removeEventListener("pointercancel", onUp);
+    viewDom.removeEventListener("pointercancel", onCancel);
     body.classList.remove(CELL_SELECTING_CLASS);
     clearPicked();
   }
@@ -266,7 +280,12 @@ function startLongPressCellSelection(
     // Pre-activation listeners are replaced by the drag ones.
     viewDom.removeEventListener("pointermove", onMove);
     viewDom.removeEventListener("pointerup", onUp);
-    viewDom.removeEventListener("pointercancel", onUp);
+    viewDom.removeEventListener("pointercancel", onCancel);
+    // The lost-pointerup backstop guards the pending-timer window only;
+    // the drag phase ends through its own dragEnd/dragCancel.
+    viewDom.removeEventListener("touchend", onTouchEnd);
+    viewDom.removeEventListener("touchcancel", onTouchEnd);
+    window.clearTimeout(timer);
 
     anchorDom = startCell.isConnected
       ? startCell
@@ -328,6 +347,10 @@ function startLongPressCellSelection(
   }
 
   function onMove(event: PointerEvent): void {
+    // A secondary finger must not turn the primary gesture into scrolling.
+    if (event.pointerId !== pointerId) {
+      return;
+    }
     // The finger moved too far: this is scrolling, not a long press.
     const dx = event.clientX - startX;
     const dy = event.clientY - startY;
@@ -345,7 +368,12 @@ function startLongPressCellSelection(
     window.clearTimeout(timer);
     viewDom.removeEventListener("pointermove", onMove);
     viewDom.removeEventListener("pointerup", onUp);
-    viewDom.removeEventListener("pointercancel", onUp);
+    viewDom.removeEventListener("pointercancel", onCancel);
+    // The press became a scroll: no tap to replay on touchend, and the
+    // lost-pointerup backstop has nothing to guard anymore.
+    gestureCancelled = true;
+    viewDom.removeEventListener("touchend", onTouchEnd);
+    viewDom.removeEventListener("touchcancel", onTouchEnd);
     body.classList.remove(CELL_SELECTING_CLASS);
 
     let lastX = event.clientX;
@@ -381,9 +409,72 @@ function startLongPressCellSelection(
     viewDom.addEventListener("pointercancel", scrollEnd);
   }
 
-  function onUp(): void {
+  // The tap of THIS gesture was replayed (or is about to be); a touchend
+  // after it must not replay anything. Also set when the gesture was taken
+  // away (pointercancel) — there is no tap to replay then either.
+  let tapHandled = false;
+  let gestureCancelled = false;
+
+  function onUp(event: PointerEvent): void {
+    // A secondary finger's lift must not place a caret at its own point.
+    if (event.pointerId !== pointerId) {
+      return;
+    }
     // Released before the timer fired: a regular tap.
+    tapHandled = true;
     cleanup();
+    dispatchTapCompatEvents(event.clientX, event.clientY);
+  }
+
+  /** Gesture taken away pre-activation: plain teardown, no tap to replay. */
+  function onCancel(): void {
+    gestureCancelled = true;
+    cleanup();
+  }
+
+  /**
+   * Replays the compatibility mouse sequence (mousedown → mouseup → click)
+   * of a tap. The real sequence is suppressed — handleTouchStart preventDefaults
+   * the touchstart on cells to keep the native long-press machinery out — so
+   * link clicks (clickHandler), checkbox toggles and other DOM click handlers
+   * are driven by these events instead.
+   *
+   * The caret cannot be left to that sequence: on a trusted click the
+   * BROWSER moves the native selection (ProseMirror only syncs it), and a
+   * synthetic event never does. So the caret is set through the editor
+   * explicitly — and focus() with it, which is what raises the keyboard.
+   */
+  function dispatchTapCompatEvents(x: number, y: number): void {
+    const target =
+      document.elementFromPoint(x, y) ?? (startCell.isConnected ? startCell : viewDom);
+    const mouseInit: MouseEventInit = {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      button: 0,
+      clientX: x,
+      clientY: y,
+    };
+    target.dispatchEvent(
+      new MouseEvent("mousedown", { ...mouseInit, buttons: 1, detail: 1 }),
+    );
+    target.dispatchEvent(
+      new MouseEvent("mouseup", { ...mouseInit, buttons: 0, detail: 1 }),
+    );
+    target.dispatchEvent(
+      new MouseEvent("click", { ...mouseInit, buttons: 0, detail: 1 }),
+    );
+
+    const pos = view.posAtCoords({ left: x, top: y });
+    if (pos) {
+      view.focus();
+      const $pos = view.state.doc.resolve(pos.pos);
+      view.dispatch(
+        view.state.tr
+          .setSelection(TextSelection.near($pos))
+          .setMeta("pointer", true),
+      );
+    }
   }
 
   // Capture the pointer on view.dom so the move/up events keep coming even
@@ -399,7 +490,37 @@ function startLongPressCellSelection(
   body.classList.add(CELL_SELECTING_CLASS);
   viewDom.addEventListener("pointermove", onMove);
   viewDom.addEventListener("pointerup", onUp);
-  viewDom.addEventListener("pointercancel", onUp);
+  viewDom.addEventListener("pointercancel", onCancel);
+  // Backstop for a lost pointerup (the touched cell can be re-rendered away
+  // by the mobile-tap reconciliation): the native touch stream still ends
+  // with touchend even though the touchstart was prevented. Without the
+  // pointerup there are no compat events and no caret — replay the tap from
+  // the gesture origin here. The backstop guards only the pre-activation
+  // window: activate() unbinds it when the drag phase takes over.
+  const onTouchEnd = (event: TouchEvent) => {
+    if (event.type === "touchcancel") {
+      gestureCancelled = true;
+      viewDom.removeEventListener("touchend", onTouchEnd);
+      viewDom.removeEventListener("touchcancel", onTouchEnd);
+      return;
+    }
+    // A secondary finger's touchend must not replay the primary's tap
+    // (Chromium: a touch pointer's pointerId equals its touch identifier).
+    const ours = Array.from(event.changedTouches).some(
+      (t) => t.identifier === pointerId,
+    );
+    if (!ours) {
+      return;
+    }
+    viewDom.removeEventListener("touchend", onTouchEnd);
+    viewDom.removeEventListener("touchcancel", onTouchEnd);
+    if (!tapHandled && !gestureCancelled) {
+      cleanup();
+      dispatchTapCompatEvents(startX, startY);
+    }
+  };
+  viewDom.addEventListener("touchend", onTouchEnd);
+  viewDom.addEventListener("touchcancel", onTouchEnd);
   timer = window.setTimeout(activate, LONG_PRESS_MS);
   // If the pointerup of this tap is lost (the touched cell can be re-rendered
   // away by the mobile-tap reconciliation), the pending timer would still
