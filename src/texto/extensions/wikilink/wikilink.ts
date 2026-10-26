@@ -156,8 +156,8 @@ function buildWikiDecorations(state: EditorState, hooks: WikiHooks): DecorationS
   const decorations: Decoration[] = [];
   for (const match of findWikiMatches(state)) {
     if (selectionOverlaps(state, match)) continue;
-    // Hide the opening part («[[target» and the pipe with a label prefix).
-    const openEnd = match.label != null ? match.textFrom - 1 : match.textFrom;
+    // Hide the opening part («[[target» + the pipe when a label follows).
+    const openEnd = match.textFrom;
     decorations.push(
       Decoration.inline(
         match.from,
