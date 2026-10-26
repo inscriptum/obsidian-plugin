@@ -46,7 +46,7 @@ const TITLE_PROPERTY_NODES = [
   "notePropertyValue:inline*",
 ];
 
-const MARKS = "bold,code,highlight,hljsMark,italic,link,strike,textStyle,underline";
+const MARKS = "bold,code,highlight,hljsMark,italic,link,strike,textStyle,underline,wikiLink";
 
 function canonicalShape(profile: EditorProfileId): string {
   const schema = getProfileSchema(profile);

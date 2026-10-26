@@ -16,6 +16,10 @@ declare global {
       lastError(): unknown;
       openGallery(items: unknown[], index: number): void;
     };
+    __e2eWiki: {
+      files: { path: string; name: string }[];
+      opens: string[];
+    };
     __e2eNotepad: {
       mount(
         pages: {
