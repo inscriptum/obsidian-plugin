@@ -352,3 +352,22 @@
   text-overflow: ellipsis;
 }
 
+
+/* ── Wiki-link inline syntax (see texto/extensions/wikilink) ─────────────
+   Decorations hide the brackets/target/pipe and style the visible label. */
+.texto-editor .ProseMirror .texto-wiki-hide {
+  display: none;
+}
+
+.texto-editor .ProseMirror .texto-wikilink {
+  color: var(--text-accent, #7c6af7);
+  cursor: pointer;
+}
+
+.texto-editor .ProseMirror .texto-wikilink:hover {
+  color: var(--text-accent-hover, #8f7ffc);
+}
+
+.texto-editor .ProseMirror .texto-wikilink.is-unresolved {
+  color: var(--text-faint, #777);
+}

@@ -80,8 +80,23 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
         popup: !!document.querySelector(".texto-wiki-suggest"),
       };
     });
-    console.log("FLOWDBG:", JSON.stringify(dbg));
     await expect(page.locator(link)).toHaveText("My Plan");
+    // the brackets, target and pipe are hidden — only the label is visible
+    const visible = await page.evaluate(() => {
+      const ed = window.__e2e.editor;
+      if (ed == null) return null;
+      const pEl = ed.view.dom.querySelector("p");
+      let out = "";
+      const walk = (n: Node) => {
+        if (n.nodeType === 3) out += n.textContent ?? "";
+        else if (n.nodeType === 1 && getComputedStyle(n as HTMLElement).display !== "none") {
+          Array.from(n.childNodes).forEach(walk);
+        }
+      };
+      pEl?.childNodes.forEach(walk);
+      return out;
+    });
+    expect(visible).toBe("plain p1 see My Plan");
   });
 
   test("Enter accepts: replaces through the closing brackets, renders as a link", async ({
