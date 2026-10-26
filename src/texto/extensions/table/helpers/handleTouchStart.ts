@@ -15,6 +15,12 @@ import { TextoCellSelection } from "./TextoCellSelection";
 /** How long a finger must rest on a cell before cell selection starts. */
 export const LONG_PRESS_MS = 450;
 
+/** Double-tap window for the in-cell word selection (mobile twin of the
+ *  desktop double-click): two taps within this time and this distance
+ *  select the word under the finger. */
+const DOUBLE_TAP_MS = 300;
+const DOUBLE_TAP_SLOP = 20;
+
 /** Max finger movement (px) during the long-press that still counts as a press. */
 export const LONG_PRESS_SLOP = 10;
 
@@ -414,16 +420,21 @@ function startLongPressCellSelection(
   // away (pointercancel) — there is no tap to replay then either.
   let tapHandled = false;
   let gestureCancelled = false;
+  const isDoubleTap = isDoubleTapAt(startX, startY);
 
   function onUp(event: PointerEvent): void {
     // A secondary finger's lift must not place a caret at its own point.
     if (event.pointerId !== pointerId) {
       return;
     }
-    // Released before the timer fired: a regular tap.
+    // Released before the timer fired: a regular tap (or the second tap of
+    // a double-tap → word selection, the mobile twin of the desktop
+    // double-click).
     tapHandled = true;
+    const double = isDoubleTap;
+    registerTap(startX, startY);
     cleanup();
-    dispatchTapCompatEvents(event.clientX, event.clientY);
+    dispatchTapCompatEvents(event.clientX, event.clientY, double);
   }
 
   /** Gesture taken away pre-activation: plain teardown, no tap to replay. */
@@ -444,7 +455,7 @@ function startLongPressCellSelection(
    * synthetic event never does. So the caret is set through the editor
    * explicitly — and focus() with it, which is what raises the keyboard.
    */
-  function dispatchTapCompatEvents(x: number, y: number): void {
+  function dispatchTapCompatEvents(x: number, y: number, wordSelect = false): void {
     const target =
       document.elementFromPoint(x, y) ?? (startCell.isConnected ? startCell : viewDom);
     const mouseInit: MouseEventInit = {
@@ -469,6 +480,21 @@ function startLongPressCellSelection(
     if (pos) {
       view.focus();
       const $pos = view.state.doc.resolve(pos.pos);
+      if (wordSelect) {
+        // Second tap of a double-tap: select the word under the finger —
+        // the native long-press word selection is suppressed on cells, so
+        // this is the mobile text-selection affordance (owner model: text
+        // selection stays available until a long-press selects the cell).
+        const range = wordRangeAt(view, $pos);
+        if (range) {
+          view.dispatch(
+            view.state.tr
+              .setSelection(TextSelection.create(view.state.doc, range.from, range.to))
+              .setMeta("pointer", true),
+          );
+          return;
+        }
+      }
       view.dispatch(
         view.state.tr
           .setSelection(TextSelection.near($pos))
@@ -576,4 +602,46 @@ export function handleTouchMoveDuringDrag(event: TouchEvent): void {
   if (isCellDragActive()) {
     event.preventDefault();
   }
+}
+
+
+/** Word boundaries around a resolved position (null when not in text).
+ *  Mirrors the desktop double-click: letters/digits/underscore count as
+ *  word characters, everything else separates. */
+function wordRangeAt(
+  view: EditorView,
+  $pos: ResolvedPos,
+): { from: number; to: number } | null {
+  const parent = $pos.parent;
+  if (!parent.isTextblock) return null;
+  const child = parent.childAfter($pos.parentOffset);
+  const textNode = child.node;
+  if (!textNode?.isText || typeof textNode.text !== "string") return null;
+  const text = textNode.text;
+  const rel = $pos.parentOffset - child.offset;
+  const isWord = (ch: string | undefined) => ch != null && /\p{L}\p{N}_/u.test(ch);
+  let from = rel;
+  let to = rel;
+  while (from > 0 && isWord(text[from - 1])) from -= 1;
+  while (to < text.length && isWord(text[to])) to += 1;
+  if (from === to) return null;
+  const nodeStart = $pos.start() + child.offset;
+  return { from: nodeStart + from, to: nodeStart + to };
+}
+
+/** Double-tap memory (module scope: taps outlive one gesture). */
+let lastTap: { at: number; x: number; y: number } | null = null;
+
+function isDoubleTapAt(x: number, y: number): boolean {
+  if (lastTap == null) return false;
+  const dx = x - lastTap.x;
+  const dy = y - lastTap.y;
+  return (
+    Date.now() - lastTap.at <= DOUBLE_TAP_MS &&
+    dx * dx + dy * dy <= DOUBLE_TAP_SLOP * DOUBLE_TAP_SLOP
+  );
+}
+
+function registerTap(x: number, y: number): void {
+  lastTap = { at: Date.now(), x, y };
 }
