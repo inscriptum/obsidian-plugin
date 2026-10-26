@@ -342,18 +342,33 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
     },
   });
 
-  /** Whether the transaction looks like the Enter keypress: a block split
-   *  or an inserted hardBreak. IME commits are plain text replaces — they
-   *  never match. */
+  /** Whether the transaction looks like the Enter keypress. splitBlock
+   *  serializes as a replace/replaceAround whose slice carries empty
+   *  paragraphs (a direct SplitStep shows up as stepType "split"), and
+   *  Shift-Enter inserts a hardBreak; the IME newline path may arrive as a
+   *  plain "\n" text insert. Real typing (IME commits, paste of text) does
+   *  not match; pasting empty paragraphs while the suggest is open is the
+   *  only false positive — vanishingly rare, and undoable. */
   function looksLikeEnter(tr: Transaction): boolean {
     if (!tr.docChanged) return false;
     for (const step of tr.steps) {
       const json = step.toJSON() as {
         stepType?: string;
-        slice?: { content?: { type?: string }[] };
+        slice?: { content?: { type?: string; content?: unknown; text?: string }[] };
       };
       if (json.stepType === "split") return true;
-      if (json.slice?.content?.some((n) => n.type === "hardBreak")) return true;
+      const sliceContent = json.slice?.content;
+      if (!sliceContent?.length) continue;
+      if (sliceContent.some((n) => n.type === "hardBreak")) return true;
+      if (
+        sliceContent.every(
+          (n) =>
+            (n.type === "paragraph" && n.content == null) ||
+            (n.type === "text" && n.text === "\n"),
+        )
+      ) {
+        return true;
+      }
     }
     return false;
   }

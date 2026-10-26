@@ -117,6 +117,50 @@ const WIKI_HOOKS: ExtensionHooks = {
   },
 };
 
+describe("filterTransaction: Enter on Android", () => {
+  // prosemirror-view skips handleKeyDown for Enter on Android — the plugin
+  // must intercept the Enter-produced split transaction instead.
+  function makeEditorWithView(hooks: ExtensionHooks): Editor {
+    return new Editor({
+      element: document.createElement("div"),
+      content: {
+        type: "noteDoc",
+        content: [
+          { type: "noteTitle", content: [{ type: "text", text: "T" }] },
+          { type: "paragraph", content: [{ type: "text", text: "see [[plann" }] },
+        ],
+      },
+      extensions: getExtensions(hooks),
+      editable: true,
+    });
+  }
+
+  it("blocks the split and accepts the highlighted file", async () => {
+    const editor = makeEditorWithView(WIKI_HOOKS);
+    const doc = editor.state.doc;
+    const para = doc.child(1);
+    const cursor = 4 + para.content.size;
+    editor.view.dispatch(
+      editor.state.tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+    expect(wikiSuggestKey.getState(editor.state)?.active).toBe(true);
+
+    // the Android Enter: a bare split transaction
+    editor.view.dispatch(editor.state.tr.split(cursor));
+    await new Promise((r) => setTimeout(r, 50)); // the delayed accept
+
+    const json = editor.state.doc.toJSON() as {
+      content: { type: string; content?: { text?: string; marks?: { type?: string; attrs?: { path?: string } }[] }[] }[];
+    };
+    // the split was blocked: still a single paragraph
+    expect(json.content).toHaveLength(2);
+    const run = json.content[1]!.content?.find((r) => r.marks?.length);
+    expect(run?.marks?.[0]?.type).toBe("wikiLink");
+    expect(run?.marks?.[0]?.attrs?.path).toBe("notes/planning.um");
+    editor.destroy();
+  });
+});
+
 describe("acceptWikiSuggestion", () => {
   it("replaces the trigger with a marked link and puts the caret after", () => {
     const editor = makeEditor(WIKI_HOOKS);
