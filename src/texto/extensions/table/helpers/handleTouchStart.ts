@@ -614,18 +614,31 @@ function wordRangeAt(
 ): { from: number; to: number } | null {
   const parent = $pos.parent;
   if (!parent.isTextblock) return null;
-  const child = parent.childAfter($pos.parentOffset);
-  const textNode = child.node;
-  if (!textNode?.isText || typeof textNode.text !== "string") return null;
-  const text = textNode.text;
-  const rel = $pos.parentOffset - child.offset;
-  const isWord = (ch: string | undefined) => ch != null && /\p{L}\p{N}_/u.test(ch);
+  // Find the text node containing the offset (childAfter is wrong here: it
+  // looks for a child STARTING after the offset, which is null mid-text).
+  let textNode: import("prosemirror-model").Node | null = null;
+  let nodeOffset = 0;
+  parent.forEach((child, childOffset) => {
+    if (
+      textNode == null &&
+      child.isText &&
+      childOffset <= $pos.parentOffset &&
+      $pos.parentOffset <= childOffset + child.nodeSize
+    ) {
+      textNode = child;
+      nodeOffset = childOffset;
+    }
+  });
+  if (textNode == null) return null;
+  const text = (textNode as import("prosemirror-model").Node).text ?? "";
+  const rel = $pos.parentOffset - nodeOffset;
+  const isWord = (ch: string | undefined) => ch != null && /[\p{L}\p{N}_]/u.test(ch);
   let from = rel;
   let to = rel;
   while (from > 0 && isWord(text[from - 1])) from -= 1;
   while (to < text.length && isWord(text[to])) to += 1;
   if (from === to) return null;
-  const nodeStart = $pos.start() + child.offset;
+  const nodeStart = $pos.start() + nodeOffset;
   return { from: nodeStart + from, to: nodeStart + to };
 }
 

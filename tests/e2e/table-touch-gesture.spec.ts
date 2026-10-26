@@ -188,17 +188,24 @@ test.describe("table cell touch gesture", () => {
     page,
   }) => {
     const tapped = await page.evaluate(async () => {
-      const view = window.__e2e.editor.view;
+      const editor = window.__e2e.editor;
+      if (editor == null) return { error: "no editor" };
+      const view = editor.view;
       const td = [...document.querySelectorAll("td")].find((c) =>
         c.textContent?.includes("bravo"),
       );
       if (td == null) return { error: "cell not found" };
       const r = td.getBoundingClientRect();
       const textEl = td.querySelector("p") ?? td;
-      const tr = textEl.getBoundingClientRect();
-      // tap on the first word's middle
-      const x = tr.x + 14;
-      const y = tr.y + tr.height / 2;
+      // tap exactly at the center of the word "bravo"
+      const textNode = textEl.firstChild as Text;
+      const idx = (textNode.data as string).indexOf("bravo");
+      const wordRange = document.createRange();
+      wordRange.setStart(textNode, idx);
+      wordRange.setEnd(textNode, idx + 5);
+      const wr = wordRange.getBoundingClientRect();
+      const x = wr.x + wr.width / 2;
+      const y = wr.y + wr.height / 2;
       const opts = (extra: object = {}) => ({
         pointerType: "touch",
         isPrimary: true,
