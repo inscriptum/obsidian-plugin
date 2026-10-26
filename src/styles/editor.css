@@ -226,6 +226,16 @@
   pointer-events: none;
 }
 
+/* Selected table cells (prosemirror-tables decorations, both platforms):
+   the cell selection owns the gesture — its content is not natively
+   selectable (owner model, issue table-longpress-selection-reset). A plain
+   click collapses the selection and text selection works again. */
+.texto-editor .ProseMirror td.selectedCell,
+.texto-editor .ProseMirror th.selectedCell {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* Highlight — v2: radius 3px, padding 2px */
 .texto-editor .ProseMirror mark {
   background: rgba(245, 158, 11, 0.28);
