@@ -44,7 +44,10 @@ export function extractWikiQuery(textBefore: string): WikiQuery | null {
   const window = textBefore.slice(-MAX_SCAN);
   // Neither part may contain brackets/pipe: «]]» closes the link, «|»
   // switches to the display text, «[» starts a nested trigger.
-  const match = /\[\[([^[|\]]*)(\|([^[]*))?$/.exec(window);
+  // The display class excludes brackets too: a COMPLETE link followed by
+  // text must not re-trigger the suggest (owner round-5: the popup
+  // swallowed everything typed after a closed link).
+  const match = /\[\[([^[|\]]*)(\|([^\][]*))?$/.exec(window);
   if (match == null) return null;
   return {
     from: textBefore.length - window.length + match.index,
@@ -257,6 +260,27 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
         }
         const state = wikiSuggestKey.getState(view.state);
         if (state?.active !== true || state.dismissed) return false;
+        // Space in the LABEL part (after «|») closes the link: the space is
+        // inserted after the closing brackets and the caret lands after it —
+        // the owner model (text continues outside the link). Targets with
+        // spaces stay typable: in the target part the space goes through.
+        if (
+          event.key === " " &&
+          state.display != null &&
+          state.closeEnd != null
+        ) {
+          event.preventDefault();
+          // One transaction: view.state.tr creates a NEW transaction on every
+          // access — chaining two accesses orphans the first one's steps.
+          const tr = view.state.tr;
+          tr.insertText(" ", state.closeEnd, state.closeEnd);
+          tr.setSelection(TextSelection.create(tr.doc, state.closeEnd + 1));
+          tr.setMeta(wikiSuggestKey, { close: true });
+          tr.setMeta("pointer", true);
+          view.dispatch(tr);
+          view.focus();
+          return true;
+        }
         // Typing «]» when the closing «]]» already sits after the caret (the
         // auto-closed pair) skips over it instead of doubling the brackets
         // (the Obsidian behavior) and closes the suggest. The latch absorbs
@@ -335,10 +359,18 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
     },
     view(editorView) {
       viewRef = editorView;
-      // Hide the popup when the editor loses focus (click into the sidebar,
-      // another editor, the toolbar) — the transaction-driven update never
-      // fires for those. Popup items preventDefault their mousedown, so
-      // accepting never triggers this path.
+      // Hide the popup when a mousedown lands outside the editor AND the
+      // popup (sidebar, toolbar, another editor): the transaction-driven
+      // update never fires for those, and a focus change alone does not
+      // always arrive — this is what left popups stuck on screen (owner
+      // round-5, «зависшая модалка»). Popup items stopPropagation on their
+      // mousedown, so accepting never triggers this path.
+      const onDocMouseDown = (event: MouseEvent) => {
+        if (popup == null) return;
+        const target = event.target as Node | null;
+        if (editorView.dom.contains(target) || popup.contains(target)) return;
+        destroyPopup();
+      };
       const onFocusOut = () => {
         window.setTimeout(() => {
           const active = document.activeElement;
@@ -348,15 +380,19 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
         }, 0);
       };
       // Reposition on any scroll (capture: the note scroller is an ancestor
-      // of the editor, and scroll does not bubble).
-      const onScroll = () => {
+      // of the editor, and scroll does not bubble) and on window resize.
+      const reposition = () => {
         const st = wikiSuggestKey.getState(editorView.state);
         if (st?.active === true && !st.dismissed && popup != null) {
           positionPopup(editorView, popup, st.from);
         }
       };
+      const onScroll = () => reposition();
+      const onResize = () => reposition();
       editorView.dom.addEventListener("focusout", onFocusOut);
+      document.addEventListener("mousedown", onDocMouseDown, true);
       document.addEventListener("scroll", onScroll, true);
+      window.addEventListener("resize", onResize);
       return {
         update(view, _prevState) {
           const next = wikiSuggestKey.getState(view.state);
@@ -378,7 +414,9 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
         },
         destroy() {
           editorView.dom.removeEventListener("focusout", onFocusOut);
+          document.removeEventListener("mousedown", onDocMouseDown, true);
           document.removeEventListener("scroll", onScroll, true);
+          window.removeEventListener("resize", onResize);
           destroyPopup();
         },
       };
@@ -483,9 +521,15 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
       // Above the caret when it would leave the viewport (soft keyboard).
       top = Math.max(margin, coords.top - height - 4);
     }
+    // Clamp both axes: a stale/garbage coords result must never park the
+    // popup half off-screen or over the app chrome.
+    top = Math.min(
+      Math.max(margin, top),
+      Math.max(margin, window.innerHeight - height - margin),
+    );
     const left = Math.min(
       Math.max(margin, coords.left),
-      window.innerWidth - width - margin,
+      Math.max(margin, window.innerWidth - width - margin),
     );
     el.setAttribute(
       "style",
