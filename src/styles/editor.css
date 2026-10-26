@@ -290,62 +290,65 @@
 /* ── Wiki-link «[[» suggest popup ────────────────────────────────────────
    Body-level floating list under the caret (see wikiSuggest.ts). Lives on
    document.body, so it is host-independent (.note and Notebook pages).
-   Item selectors are prefixed with the container and re-state every
-   chrome property: Obsidian's base `button:not(.clickable-icon)` rule
-   (0,2,0) otherwise bleeds its raised-card look (background, inset
-   shadow, border) into the items — a plain class selector (0,1,0) loses
-   that fight (same specificity war as the note-toolbar buttons). */
+   Items are DIVs on purpose: Obsidian's base `button` styles bleed into
+   <button> items through higher-specificity selectors (the raised-card
+   artifact of the first review round) — no button, no fight. */
 .texto-wiki-suggest {
   position: fixed;
   z-index: 1000;
-  min-width: 240px;
-  max-width: min(340px, calc(100vw - 16px));
-  max-height: 320px;
-  overflow-y: auto;
-  padding: 4px;
+  min-width: 280px;
+  max-width: min(420px, calc(100vw - 16px));
+  padding: 6px;
   background: var(--background-primary, #1e1e23);
   border: 1px solid var(--background-modifier-border, #333);
-  border-radius: var(--radius-m, 8px);
+  border-radius: var(--radius-m, 10px);
   box-shadow: var(--shadow-s, 0 4px 16px rgba(0, 0, 0, 0.3));
 }
 
-.texto-wiki-suggest button.texto-wiki-suggest__item {
-  appearance: none;
-  -webkit-appearance: none;
+.texto-wiki-suggest__list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.texto-wiki-suggest__item {
   display: block;
-  width: 100%;
-  padding: 5px 10px;
-  margin: 0;
-  border: none;
-  border-radius: var(--radius-s, 5px);
-  background: transparent;
-  box-shadow: none;
-  text-align: left;
+  padding: 6px 12px;
+  border-radius: var(--radius-s, 6px);
   cursor: pointer;
-  font-family: inherit;
-  font-size: 13px;
-  line-height: 1.3;
   color: var(--text-normal, #dadada);
 }
 
-.texto-wiki-suggest button.texto-wiki-suggest__item:hover,
-.texto-wiki-suggest button.texto-wiki-suggest__item.is-selected {
+.texto-wiki-suggest__item:hover,
+.texto-wiki-suggest__item.is-selected {
   background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
-  box-shadow: none;
-  border: none;
 }
 
-.texto-wiki-suggest .texto-wiki-suggest__name {
-  font-size: 13px;
+.texto-wiki-suggest__name {
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1.35;
+  line-height: 1.4;
 }
 
-.texto-wiki-suggest .texto-wiki-suggest__path {
-  font-size: 11px;
-  line-height: 1.3;
+.texto-wiki-suggest__path {
+  font-size: 12px;
+  line-height: 1.35;
   color: var(--text-faint, #999);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Hint bar under the list, like the Obsidian autocomplete ("Type | to
+   change display text" — v1 supports only the display-text part). */
+.texto-wiki-suggest__footer {
+  margin-top: 4px;
+  padding: 7px 12px 5px;
+  border-top: 1px solid var(--background-modifier-border, #333);
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--text-muted, #aaa);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
