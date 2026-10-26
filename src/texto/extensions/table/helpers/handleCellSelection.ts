@@ -140,6 +140,20 @@ function swallowTouchCompatMouse(view: EditorView): boolean {
 
 export function handleCellSelection(isMobileView: boolean) {
   return new Plugin({
+    // Desktop only: right after a long-press hold, PM's DOM-sync flush can
+    // read the browser-committed caret and dispatch a selection transaction
+    // that collapses the fresh cell selection (racing the re-assert in
+    // startDesktopLongPress). Such transactions are blocked for the latch
+    // window — the caret inside the cell before the hold must not prevent
+    // the long-press from sticking.
+    filterTransaction(tr, state) {
+      if (isMobileView || tr.docChanged) return true;
+      // The deliberate collapse of collapseCellSelectionOnClick passes.
+      if (tr.getMeta(cellCollapseClickMeta)) return true;
+      if (Date.now() > collapseLatchUntil) return true;
+      if (!(state.selection instanceof TextoCellSelection)) return true;
+      return tr.selection instanceof TextoCellSelection;
+    },
     props: {
       decorations: (state) => drawCellSelection(state, isMobileView),
 
@@ -314,9 +328,11 @@ function collapseCellSelectionOnClick(
       const pos = view.posAtCoords({ left: startX, top: startY });
       if (!pos) return;
       view.dispatch(
-        view.state.tr.setSelection(
-          TextSelection.near(view.state.doc.resolve(pos.pos)),
-        ),
+        view.state.tr
+          .setSelection(
+            TextSelection.near(view.state.doc.resolve(pos.pos)),
+          )
+          .setMeta(cellCollapseClickMeta, true),
       );
       view.focus();
     }, 0);
@@ -324,6 +340,16 @@ function collapseCellSelectionOnClick(
   doc.addEventListener("mousemove", onMove);
   doc.addEventListener("mouseup", onUp);
 }
+
+/**
+ * How long a just-finished desktop hold is guarded against a late
+ * selectionchange flush collapsing the fresh cell selection back to the
+ * browser-committed caret.
+ */
+const COLLAPSE_LATCH_MS = 250;
+let collapseLatchUntil = 0;
+/** Meta key marking the deliberate click-collapse — never latched out. */
+const cellCollapseClickMeta = "textoTableCollapseClick";
 
 /**
  * Desktop long-press (issue table-selection-native-drag): holding the mouse
@@ -352,6 +378,11 @@ function startDesktopLongPress(view: EditorView, startEvent: MouseEvent): void {
     if (!active) {
       return;
     }
+    // The browser's mouseup commit (and the selectionchange flush it
+    // triggers) may land AFTER the re-assert below — collapse-latch the
+    // selection for a moment so no late flush can undo the hold. A user
+    // click cannot physically happen within the window.
+    collapseLatchUntil = Date.now() + COLLAPSE_LATCH_MS;
     if (!view.isDestroyed && view.state.selection instanceof TextoCellSelection) {
       view.focus();
       return;
