@@ -92,7 +92,7 @@ test.describe("wiki-link «[[» suggest", () => {
     expect(marked?.marks?.[0]?.attrs?.path).toBe("notes/plan b.md");
   });
 
-  test("Esc dismisses: «[[» stays plain text", async ({ page }) => {
+  test("Esc dismisses; typing a matching query reopens", async ({ page }) => {
     await typeTrigger(page);
     await page.keyboard.press("Escape");
     await page.waitForTimeout(120);
@@ -102,10 +102,70 @@ test.describe("wiki-link «[[» suggest", () => {
       content: { content?: { text?: string }[] }[];
     };
     expect(doc.content[1]!.content?.[0]?.text).toBe("plain p1 see [[");
-    // typing on keeps the trigger inert for this query until it changes
-    await page.keyboard.type("x");
+    // The dismissal lasts for this query: typing a MATCHING letter changes
+    // the query and reopens the popup (the same semantics as Obsidian).
+    await page.keyboard.type("plan");
     await page.waitForTimeout(120);
-    await expect(page.locator(".texto-wiki-suggest")).toHaveCount(0);
+    await expect(page.locator(".texto-wiki-suggest")).toBeVisible();
+    // Tab accepts too
+    await page.keyboard.press("Tab");
+    await page.waitForTimeout(120);
+    const after = (await docJson(page)) as {
+      content: { content?: { text?: string; marks?: { type: string }[] }[] }[];
+    };
+    expect(
+      after.content[1]!.content?.some((r) => r.marks?.[0]?.type === "wikiLink"),
+    ).toBe(true);
+  });
+
+  test("empty display after «|» falls back to the file name", async ({
+    page,
+  }) => {
+    await typeTrigger(page);
+    await page.keyboard.type("plann|");
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(120);
+
+    const doc = (await docJson(page)) as {
+      content: { content?: { text?: string; marks?: { attrs?: { path?: string } }[] }[] }[];
+    };
+    const marked = doc.content[1]!.content?.find((r) => r.marks?.length);
+    expect(marked?.text).toBe("planning");
+    expect(marked?.marks?.[0]?.attrs?.path).toBe("notes/planning.um");
+  });
+
+  test("unresolved link renders muted and the click does nothing", async ({
+    page,
+  }) => {
+    // a mark whose target is not in the fake vault
+    await page.evaluate(() => {
+      window.__e2e.mount({
+        type: "noteDoc",
+        content: [
+          { type: "noteTitle", content: [{ type: "text", text: "T" }] },
+          {
+            type: "paragraph",
+            content: [
+              {
+                type: "text",
+                text: "ghost",
+                marks: [
+                  { type: "wikiLink", attrs: { path: "nowhere/gone.md" } },
+                ],
+              },
+            ],
+          },
+        ],
+      });
+    });
+    await page.waitForTimeout(150);
+
+    const link = page.locator(".texto-wikilink");
+    await expect(link).toHaveClass(/is-unresolved/);
+    await link.click();
+    await page.waitForTimeout(100);
+    const opens = await page.evaluate(() => window.__e2eWiki.opens);
+    expect(opens).toEqual([]);
   });
 
   test("clicking an existing wikiLink opens the target", async ({ page }) => {

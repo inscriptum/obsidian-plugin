@@ -33,9 +33,12 @@ export interface WikiLinkOptions {
  * Internal link to a vault file (the «[[» links of Obsidian).
  *
  * The mark stores ONLY the target path; the display text is the mark's text
- * content — editing the text never breaks the target. The additive-mark
- * contract of the .note/.um format holds: older builds without this
- * extension preserve the unknown mark verbatim.
+ * content — editing the text never breaks the target. Additive-format note:
+ * the JSON shape ({type:"wikiLink", attrs:{path}} — a plain string attr) is
+ * the safest additive form and older builds PRESERVE it on disk verbatim,
+ * but prosemirror-model rejects unknown marks at LOAD time, so those builds
+ * show a broken-content state instead of the link (schema version bump is
+ * the owner's call — issue wikilinks).
  */
 export const WikiLink = Mark.create<WikiLinkOptions>({
   name: "wikiLink",
@@ -70,18 +73,25 @@ export const WikiLink = Mark.create<WikiLinkOptions>({
 
   renderHTML({ mark, HTMLAttributes }) {
     // Without hooks (the export schema) every link renders as a plain
-    // highlighted span: the site never follows vault links. `path` comes
-    // from the schema attrs (default "") — typed explicitly because the
-    // mark.attrs bag is untyped here.
+    // highlighted span: the site never follows vault links, and the internal
+    // vault path must not leak into the public HTML (no data attr, no title).
+    // `path` comes from the schema attrs (default "") — typed explicitly
+    // because the mark.attrs bag is untyped here.
     const path = String(mark.attrs.path ?? "");
-    const resolved = this.options.hooks?.isResolved(path) ?? true;
+    const hooks = this.options.hooks;
+    const resolved = hooks?.isResolved(path) ?? true;
     return [
       "span",
-      mergeAttributes(HTMLAttributes, {
-        class: resolved ? "texto-wikilink" : "texto-wikilink is-unresolved",
-        "data-wiki-path": path,
-        title: path,
-      }),
+      mergeAttributes(
+        HTMLAttributes,
+        hooks != null
+          ? {
+              class: resolved ? "texto-wikilink" : "texto-wikilink is-unresolved",
+              "data-wiki-path": path,
+              title: path,
+            }
+          : { class: "texto-wikilink" },
+      ),
       0,
     ];
   },
@@ -105,8 +115,14 @@ export const WikiLink = Mark.create<WikiLinkOptions>({
  * Plain click on a wikiLink opens its target in the workspace — the same
  * contract the external link mark has (plain click follows the link).
  * Unresolved targets do nothing (no file creation, no crash).
+ *
+ * Returning true stops PM's click protocol; the caret placement itself
+ * happened natively on mousedown — a plain click on a link is navigation,
+ * not caret placement (edit the display text via selection). A double-click
+ * fires two clicks: the 500ms guard keeps the second one from re-opening.
  */
 function clickToOpen(hooks: WikiHooks): Plugin {
+  let lastOpen: { path: string; at: number } | null = null;
   return new Plugin({
     key: new PluginKey("wikiLinkClick"),
     props: {
@@ -117,10 +133,12 @@ function clickToOpen(hooks: WikiHooks): Plugin {
           if (!el) return false;
           const path = el.getAttribute("data-wiki-path");
           if (path && hooks.isResolved(path)) {
-            hooks.openTarget(path);
+            const now = Date.now();
+            if (lastOpen?.path !== path || now - lastOpen.at > 500) {
+              lastOpen = { path, at: now };
+              hooks.openTarget(path);
+            }
           }
-          // Swallow the click either way: the caret does not belong inside
-          // a link on a plain click (edit the display text via selection).
           return true;
         },
       },

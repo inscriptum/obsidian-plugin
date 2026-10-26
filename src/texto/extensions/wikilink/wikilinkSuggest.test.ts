@@ -185,6 +185,33 @@ describe("acceptWikiSuggestion", () => {
     editor.destroy();
   });
 
+  it("empty display («[[plan|») falls back to the file name", () => {
+    const editor = makeEditor(WIKI_HOOKS);
+    const doc = editor.state.doc;
+    const para = doc.child(1);
+    const cursor = 4 + para.content.size;
+    editor.view.dispatch(
+      editor.state.tr.setSelection(TextSelection.create(doc, cursor)),
+    );
+    const textStart = cursor - "[[planning".length;
+    // simulate «[[planning|» — display is the empty string
+    const ok = acceptWikiSuggestion(
+      editor.state,
+      (tr) => editor.view.dispatch(tr),
+      FILES[0]!,
+      { from: textStart, display: "" },
+      cursor,
+    );
+    expect(ok).toBe(true);
+    const json = editor.state.doc.toJSON() as {
+      content: { content?: { text?: string; marks?: { attrs?: { path?: string } }[] }[] }[];
+    };
+    const run = json.content[1]!.content?.find((r) => r.marks?.length);
+    expect(run?.text).toBe("planning");
+    expect(run?.marks?.[0]?.attrs?.path).toBe("notes/planning.um");
+    editor.destroy();
+  });
+
   it("serialization round-trips the mark through JSON", () => {
     const editor = makeEditor(WIKI_HOOKS);
     const doc = editor.state.doc;

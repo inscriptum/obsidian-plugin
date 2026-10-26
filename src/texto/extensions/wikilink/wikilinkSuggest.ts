@@ -129,8 +129,17 @@ function scan(state: WikiSuggestState, tr: Transaction): WikiSuggestState {
   if (!tr.selection.empty) return initial;
   const parent = $from.parent;
   if (!parent.isTextblock) return initial;
-  // The trigger lives in plain text: never inside code blocks or code spans.
-  if (parent.type.name === "hljsCodeBlockRow") return initial;
+  // The trigger lives in plain text: never inside code — the row itself or
+  // the marks-free paragraph variant of a code block, or an inline code span.
+  let inCode = false;
+  for (let depth = $from.depth; depth > 0; depth -= 1) {
+    const name = $from.node(depth).type.name;
+    if (name === "hljsCodeBlock" || name === "hljsCodeBlockRow") {
+      inCode = true;
+      break;
+    }
+  }
+  if (inCode) return initial;
   if ($from.marks().some((m) => m.type.name === "code")) return initial;
 
   const textBefore = parent.textBetween(0, $from.parentOffset, undefined, "\ufffc");
@@ -179,7 +188,12 @@ export function acceptWikiSuggestion(
   suggest: { from: number; display: string | null },
   cursorPos: number,
 ): boolean {
-  const text = suggest.display ?? file.name;
+  // An empty display («[[plan|» + Enter) falls back to the file name —
+  // schema.text("") would throw.
+  const text =
+    suggest.display != null && suggest.display.length > 0
+      ? suggest.display
+      : file.name;
   const mark = state.schema.marks.wikiLink;
   if (mark == null) return false;
   const tr = state.tr.replaceWith(
@@ -196,6 +210,9 @@ export function acceptWikiSuggestion(
 
 export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
   let popup: HTMLElement | null = null;
+  // The view is captured by the plugin view below; filterTransaction (which
+  // has no view argument) needs it to dispatch the delayed accept.
+  let viewRef: EditorView | null = null;
 
   const destroyPopup = () => {
     popup?.remove();
@@ -244,7 +261,59 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
         return false;
       },
     },
+    // Android only: prosemirror-view skips handleKeyDown for Enter
+    // (android && chrome, keyCode 13), so the accept above never runs and
+    // the Enter lands as a newline that breaks the trigger. While the
+    // suggest is active with candidates, the only Enter-produced
+    // transaction is the keypress — block the split and accept instead.
+    // (On desktop handleKeyDown intercepts Enter before any dispatch, so
+    // this branch is unreachable there.)
+    filterTransaction(tr, state) {
+      const suggest = wikiSuggestKey.getState(state);
+      if (suggest?.active !== true || suggest.dismissed) return true;
+      const candidates = filterFiles(hooks.listFiles(), suggest.query);
+      if (candidates.length === 0) return true;
+      if (!looksLikeEnter(tr)) return true;
+      const view = viewRef;
+      if (view == null || view.isDestroyed) return true;
+      const file = candidates[Math.min(suggest.selected, candidates.length - 1)];
+      window.setTimeout(() => {
+        if (view.isDestroyed) return;
+        acceptWikiSuggestion(
+          view.state,
+          (ntr) => view.dispatch(ntr),
+          file,
+          suggest,
+          view.state.selection.from,
+        );
+        view.focus();
+      }, 0);
+      return false;
+    },
     view(editorView) {
+      viewRef = editorView;
+      // Hide the popup when the editor loses focus (click into the sidebar,
+      // another editor, the toolbar) — the transaction-driven update never
+      // fires for those. Popup items preventDefault their mousedown, so
+      // accepting never triggers this path.
+      const onFocusOut = () => {
+        window.setTimeout(() => {
+          const active = document.activeElement;
+          if (!editorView.dom.contains(active)) {
+            destroyPopup();
+          }
+        }, 0);
+      };
+      // Reposition on any scroll (capture: the note scroller is an ancestor
+      // of the editor, and scroll does not bubble).
+      const onScroll = () => {
+        const st = wikiSuggestKey.getState(editorView.state);
+        if (st?.active === true && !st.dismissed && popup != null) {
+          positionPopup(editorView, popup, st.from);
+        }
+      };
+      editorView.dom.addEventListener("focusout", onFocusOut);
+      document.addEventListener("scroll", onScroll, true);
       return {
         update(view, _prevState) {
           const next = wikiSuggestKey.getState(view.state);
@@ -265,11 +334,29 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
           positionPopup(view, popup, next.from);
         },
         destroy() {
+          editorView.dom.removeEventListener("focusout", onFocusOut);
+          document.removeEventListener("scroll", onScroll, true);
           destroyPopup();
         },
       };
     },
   });
+
+  /** Whether the transaction looks like the Enter keypress: a block split
+   *  or an inserted hardBreak. IME commits are plain text replaces — they
+   *  never match. */
+  function looksLikeEnter(tr: Transaction): boolean {
+    if (!tr.docChanged) return false;
+    for (const step of tr.steps) {
+      const json = step.toJSON() as {
+        stepType?: string;
+        slice?: { content?: { type?: string }[] };
+      };
+      if (json.stepType === "split") return true;
+      if (json.slice?.content?.some((n) => n.type === "hardBreak")) return true;
+    }
+    return false;
+  }
 
   function renderPopup(
     view: EditorView,
