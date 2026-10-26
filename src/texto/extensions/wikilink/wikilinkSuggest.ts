@@ -109,6 +109,9 @@ interface WikiSuggestState {
   from: number;
   query: string;
   display: string | null;
+  /** Doc position AFTER the closing «]]» when one sits after the caret
+   *  (re-entered or auto-closed link) — accept replaces through it. */
+  closeEnd: number | null;
   /** Esc-pressed for this query; resets when the query/display changes. */
   dismissed: boolean;
   selected: number;
@@ -119,6 +122,7 @@ const initial: WikiSuggestState = {
   from: 0,
   query: "",
   display: null,
+  closeEnd: null,
   dismissed: false,
   selected: 0,
 };
@@ -146,6 +150,17 @@ function scan(state: WikiSuggestState, tr: Transaction): WikiSuggestState {
   const query = extractWikiQuery(textBefore);
   if (query == null) return initial;
 
+  // A closing «]]» after the caret (auto-closed pair or a re-entered
+  // complete link) — accept replaces through it instead of leaving it.
+  const textAfter = parent.textBetween(
+    $from.parentOffset,
+    parent.content.size,
+    undefined,
+    "\ufffc",
+  );
+  const closeIdx = textAfter.indexOf("]]");
+  const closeEnd = closeIdx >= 0 ? $from.pos + closeIdx + 2 : null;
+
   const from = $from.start() + query.from;
   const changedTarget =
     query.query !== state.query || query.display !== state.display;
@@ -154,6 +169,7 @@ function scan(state: WikiSuggestState, tr: Transaction): WikiSuggestState {
     from,
     query: query.query,
     display: query.display,
+    closeEnd,
     dismissed: changedTarget ? false : state.dismissed,
     selected: changedTarget ? 0 : Math.min(state.selected, MAX_SUGGESTIONS - 1),
   };
@@ -185,7 +201,7 @@ export function acceptWikiSuggestion(
   state: import("prosemirror-state").EditorState,
   dispatch: (tr: Transaction) => void,
   file: WikiFile,
-  suggest: { from: number; display: string | null },
+  suggest: { from: number; display: string | null; closeEnd?: number | null },
   cursorPos: number,
 ): boolean {
   const display =
@@ -193,9 +209,16 @@ export function acceptWikiSuggestion(
       ? `|${suggest.display}`
       : "";
   const text = `[[${file.path}${display}]]`;
+  // Replace through the closing «]]» when one sits after the caret (the
+  // auto-closed pair or a re-entered complete link) — otherwise the old
+  // brackets would survive as garbage after the accepted link.
+  const to =
+    suggest.closeEnd != null && suggest.closeEnd >= cursorPos
+      ? suggest.closeEnd
+      : cursorPos;
   const tr = state.tr.replaceWith(
     suggest.from,
-    cursorPos,
+    to,
     state.schema.text(text),
   );
   const end = suggest.from + text.length;
@@ -207,6 +230,8 @@ export function acceptWikiSuggestion(
 
 export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
   let popup: HTMLElement | null = null;
+  /** Absorbs the second bracket of a typed «]]» right after a skip-over. */
+  let skipLatchUntil = 0;
   // The view is captured by the plugin view below; filterTransaction (which
   // has no view argument) needs it to dispatch the delayed accept.
   let viewRef: EditorView | null = null;
@@ -224,8 +249,29 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
     },
     props: {
       handleKeyDown(view, event) {
+        // The tail of a swallowed «]]»: right after a skip the second
+        // bracket of the typed pair is absorbed too (within the latch).
+        if (event.key === "]" && Date.now() < skipLatchUntil) {
+          event.preventDefault();
+          return true;
+        }
         const state = wikiSuggestKey.getState(view.state);
         if (state?.active !== true || state.dismissed) return false;
+        // Typing «]» when the closing «]]» already sits after the caret (the
+        // auto-closed pair) skips over it instead of doubling the brackets
+        // (the Obsidian behavior) and closes the suggest. The latch absorbs
+        // the second bracket of the typed pair.
+        if (event.key === "]" && state.closeEnd != null) {
+          event.preventDefault();
+          skipLatchUntil = Date.now() + 500;
+          view.dispatch(
+            view.state.tr
+              .setSelection(TextSelection.create(view.state.doc, state.closeEnd))
+              .setMeta(wikiSuggestKey, { close: true }),
+          );
+          view.focus();
+          return true;
+        }
         const candidates = filterFiles(hooks.listFiles(), state.query);
         if (candidates.length === 0) return false;
 

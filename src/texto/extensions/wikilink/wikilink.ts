@@ -1,5 +1,5 @@
-import { Extension } from "../../core";
-import { Plugin, PluginKey } from "prosemirror-state";
+import { Extension, InputRule } from "../../core";
+import { Plugin, PluginKey, TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import type { EditorState } from "prosemirror-state";
 import { Decoration, DecorationSet } from "prosemirror-view";
@@ -49,6 +49,27 @@ export const WikiLink = Extension.create<WikiLinkOptions>({
     // function — the same trap Image avoids by not declaring its hooks key).
     // Absent hooks = the feature is off.
     return {};
+  },
+
+  addInputRules() {
+    // Typing «[[» auto-closes the link: «[[» + «]]» with the caret between
+    // (the Obsidian behavior, owner round-4). The suggest popup opens on
+    // the same transaction — its scan sees the caret before the closing
+    // brackets. Undo (backspace through the rule's meta) removes the pair.
+    if (!this.options.hooks) return [];
+    return [
+      new InputRule({
+        find: /\[\[$/,
+        handler: ({ state, range }): void => {
+          // handled=true suppresses PM's insertion of the typed «[[» — the
+          // rule inserts the FULL pair, caret between the brackets.
+          state.tr.insertText("[[]]", range.from, range.to);
+          state.tr.setSelection(
+            TextSelection.create(state.tr.doc, range.from + 2),
+          );
+        },
+      }),
+    ];
   },
 
   addProseMirrorPlugins() {
@@ -171,11 +192,12 @@ function buildWikiDecorations(state: EditorState, hooks: WikiHooks): DecorationS
   return DecorationSet.create(state.doc, decorations);
 }
 
-/** Click on a rendered (decorated) link opens its target; raw text edits
- *  normally while the caret is inside. A double-click fires two clicks —
- *  the guard keeps the target from opening twice. */
+/**
+ * Rendered-link click semantics (Obsidian live-preview, owner round-4 item 1
+ * — «нельзя редактировать существующие ссылки»): a plain click places the
+ * caret inside the pattern — the raw syntax appears and the target/label
+ * become editable text; Cmd/Ctrl+click follows the link. */
 function wikiDecorationsPlugin(hooks: WikiHooks): Plugin {
-  let lastOpen: { path: string; at: number } | null = null;
   return new Plugin({
     key: new PluginKey("wikiLinkDecorations"),
     props: {
@@ -185,16 +207,30 @@ function wikiDecorationsPlugin(hooks: WikiHooks): Plugin {
           const target = event.target as HTMLElement | null;
           const el = target?.closest?.(".texto-wikilink");
           if (!el) return false;
-          const path = el.getAttribute("data-wiki-path");
-          if (path && hooks.isResolved(path)) {
-            const now = Date.now();
-            if (lastOpen?.path !== path || now - lastOpen.at > 500) {
-              lastOpen = { path, at: now };
+          if (event.metaKey || event.ctrlKey) {
+            const path = el.getAttribute("data-wiki-path");
+            if (path && hooks.isResolved(path)) {
               hooks.openTarget(path);
             }
+            return true;
           }
-          // The rendered label is navigation, not caret placement (the raw
-          // syntax appears as soon as the caret enters the pattern).
+          // Plain click: edit. The clicked spot maps to a document position
+          // inside the pattern — the decorations drop (selection overlaps)
+          // and the raw syntax shows right where the user pointed.
+          const pos = view.posAtCoords({
+            left: event.clientX,
+            top: event.clientY,
+          });
+          if (pos) {
+            view.dispatch(
+              view.state.tr
+                .setSelection(
+                  TextSelection.create(view.state.doc, pos.pos),
+                )
+                .setMeta("pointer", true),
+            );
+            view.focus();
+          }
           return true;
         },
       },
