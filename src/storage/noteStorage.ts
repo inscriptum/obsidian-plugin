@@ -3,6 +3,10 @@ import type { JSONContent } from "../texto/core/@types";
 import { ensureTrailingParagraphJSON } from "../texto/extensions/note-doc/trailingParagraph";
 import { ensureCellTrailingParagraphJSON } from "../texto/extensions/table/helpers/cellTrailingParagraph";
 import { normalizeCellColorAttrsJSON } from "../texto/extensions/table/helpers/cellColorAttrs";
+import {
+  convertLegacyWikiMarks,
+  hasLegacyWikiMarks,
+} from "../texto/extensions/wikilink/legacyMarks";
 
 export const EMPTY_DOC: JSONContent = {
   type: "noteDoc",
@@ -52,6 +56,11 @@ export function parseNoteDoc(raw: string): JSONContent {
     ),
   );
   normalizeCellColorAttrsJSON(doc);
+  // Legacy wikiLink marks → inline «[[path|text]]» syntax (wikilinks v2):
+  // the mark is gone from the schema, unknown marks would not open.
+  if (hasLegacyWikiMarks(doc)) {
+    return convertLegacyWikiMarks(doc);
+  }
   return doc;
 }
 

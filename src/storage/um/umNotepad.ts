@@ -27,6 +27,10 @@ import {
   type UmSchemaState,
 } from "./umSchemas";
 import {
+  convertLegacyWikiMarks,
+  hasLegacyWikiMarks,
+} from "../../texto/extensions/wikilink/legacyMarks";
+import {
   UM_SCHEMA_PLAIN,
   UM_SCHEMA_TITLE,
   UM_SCHEMA_VERSION_PLAIN,
@@ -123,6 +127,14 @@ export class UmNotepad {
     // the next open. Normalize on read, like the trailing repair above.
     if (hasCellColorAttrQuirk(prepared)) {
       normalizeCellColorAttrsJSON(prepared);
+      this.data.notes.set(id, prepared);
+      this.dirtyNotes.add(id);
+    }
+
+    // Legacy wikiLink marks → inline «[[path|text]]» syntax (wikilinks v2):
+    // the mark is gone from the schema, unknown marks would not open.
+    if (hasLegacyWikiMarks(prepared)) {
+      prepared = convertLegacyWikiMarks(prepared);
       this.data.notes.set(id, prepared);
       this.dirtyNotes.add(id);
     }

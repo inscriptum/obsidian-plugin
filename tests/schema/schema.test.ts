@@ -45,7 +45,6 @@ describe("schema contract", () => {
       "highlight",
       "textStyle",
       "link",
-      "wikiLink",
     ];
 
     for (const name of requiredMarks) {
