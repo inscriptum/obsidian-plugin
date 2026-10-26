@@ -193,44 +193,98 @@ function buildWikiDecorations(state: EditorState, hooks: WikiHooks): DecorationS
 }
 
 /**
- * Rendered-link click semantics (Obsidian live-preview, owner round-4 item 1
- * — «нельзя редактировать существующие ссылки»): a plain click places the
- * caret inside the pattern — the raw syntax appears and the target/label
- * become editable text; Cmd/Ctrl+click follows the link. */
+ * Rendered-link click semantics (owner round-5, Notion-style): a click on a
+ * rendered label does NOT change its view — a mini bubble menu appears with
+ * «Редактировать» (caret inside the pattern → the raw syntax shows) and
+ * «Перейти» (open the target). */
 function wikiDecorationsPlugin(hooks: WikiHooks): Plugin {
+  let menu: HTMLElement | null = null;
+
+  const destroyMenu = () => {
+    menu?.remove();
+    menu = null;
+  };
+
+  const showMenu = (view: EditorView, el: HTMLElement, clickX: number, clickY: number): void => {
+    destroyMenu();
+    menu = createDiv("texto-wiki-menu");
+    document.body.appendChild(menu);
+
+    const path = el.getAttribute("data-wiki-path") ?? "";
+
+    const edit = createDiv("texto-wiki-menu__item");
+    edit.textContent = "Редактировать";
+    edit.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      // Map the click to a document position inside the pattern (the label
+      // is real doc text) — the raw syntax shows right at that spot.
+      const pos = view.posAtCoords({ left: clickX, top: clickY });
+      if (pos) {
+        view.dispatch(
+          view.state.tr
+            .setSelection(TextSelection.create(view.state.doc, pos.pos))
+            .setMeta("pointer", true),
+        );
+      }
+      destroyMenu();
+      view.focus();
+    });
+    menu.appendChild(edit);
+
+    const open = createDiv("texto-wiki-menu__item");
+    open.textContent = "Перейти";
+    open.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (hooks.isResolved(path)) {
+        hooks.openTarget(path);
+      }
+      destroyMenu();
+    });
+    menu.appendChild(open);
+
+    // Anchor under the clicked link, clamped to the viewport.
+    const lr = el.getBoundingClientRect();
+    const margin = 8;
+    const left = Math.min(
+      Math.max(margin, lr.left),
+      Math.max(margin, window.innerWidth - menu.offsetWidth - margin),
+    );
+    const top = lr.bottom + 4;
+    menu.setAttribute(
+      "style",
+      `left:${left.toFixed(0)}px; top:${top.toFixed(0)}px;`,
+    );
+  };
+
   return new Plugin({
     key: new PluginKey("wikiLinkDecorations"),
     props: {
       decorations: (state) => buildWikiDecorations(state, hooks),
       handleDOMEvents: {
-        click: (view: EditorView, event: MouseEvent) => {
+        // The whole interaction lives on mousedown: preventDefault stops
+        // PM's caret placement (which would instantly reveal the raw
+        // syntax — the owner wants the view unchanged until an action is
+        // chosen), and the mini menu shows in place of the swap.
+        mousedown: (view: EditorView, event: MouseEvent) => {
+          if (menu != null && !menu.contains(event.target as Node)) {
+            destroyMenu();
+          }
           const target = event.target as HTMLElement | null;
-          const el = target?.closest?.(".texto-wikilink");
+          const el = target?.closest?.(".texto-wikilink") as HTMLElement | null;
           if (!el) return false;
           if (event.metaKey || event.ctrlKey) {
+            // Modifier-click is the direct shortcut for following the link.
             const path = el.getAttribute("data-wiki-path");
             if (path && hooks.isResolved(path)) {
               hooks.openTarget(path);
             }
+            event.preventDefault();
             return true;
           }
-          // Plain click: edit. The clicked spot maps to a document position
-          // inside the pattern — the decorations drop (selection overlaps)
-          // and the raw syntax shows right where the user pointed.
-          const pos = view.posAtCoords({
-            left: event.clientX,
-            top: event.clientY,
-          });
-          if (pos) {
-            view.dispatch(
-              view.state.tr
-                .setSelection(
-                  TextSelection.create(view.state.doc, pos.pos),
-                )
-                .setMeta("pointer", true),
-            );
-            view.focus();
-          }
+          event.preventDefault();
+          showMenu(view, el, event.clientX, event.clientY);
           return true;
         },
       },

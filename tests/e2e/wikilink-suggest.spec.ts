@@ -66,9 +66,42 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     expect(names).toEqual(["plan b", "planning"]);
 
     // close, then complete manually with the label
-    await page.keyboard.type(" Plan");
+    const trace: string[] = [];
+    const snap = async (mark: string) => {
+      const d = await page.evaluate(() => {
+        const ed = window.__e2e.editor;
+        if (ed == null) return { err: "no editor" };
+        const view = ed.view;
+        return {
+          text: view.state.doc.textBetween(0, view.state.doc.content.size).slice(-30),
+          caret: view.state.selection.from,
+          popup: !!document.querySelector(".texto-wiki-suggest"),
+        };
+      });
+      trace.push(`${mark}: ${JSON.stringify(d)}`);
+    };
+    await snap("after |My");
+    await page.keyboard.type(" ");
+    await snap("after space");
+    await page.keyboard.type("Plan");
+    await snap("after Plan");
+    await page.keyboard.type("]]");
+    await snap("after ]]");
+    console.log("TRACEDBG:", JSON.stringify(trace));
     await page.keyboard.type("]]");
     await page.waitForTimeout(150);
+    const pipeDbg = await page.evaluate(() => {
+      const ed = window.__e2e.editor;
+      if (ed == null) return { error: "no editor" };
+      const view = ed.view;
+      return {
+        text: view.state.doc.textBetween(0, view.state.doc.content.size),
+        caret: view.state.selection.from,
+        spans: [...document.querySelectorAll(".texto-wikilink")].map((l) => l.textContent),
+        popup: !!document.querySelector(".texto-wiki-suggest"),
+      };
+    });
+    console.log("PIPEDBG:", JSON.stringify(pipeDbg));
     const dbg = await page.evaluate(() => {
       const ed = window.__e2e.editor;
       if (ed == null) return { error: "no editor" };
@@ -174,54 +207,103 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     expect(doc.content[1]!.content?.[0]?.text).toContain("[[notes/planning.um]]");
   });
 
-  test("a plain click on a rendered link opens the raw syntax for editing; Cmd+click opens the target", async ({
+  test("a click on a rendered link shows a mini menu: edit or open", async ({
     page,
   }) => {
     await mount(page, noteDoc(p("go [[notes/planning.um]] now")));
     await page.waitForTimeout(150);
 
-    // Cmd+click follows the link (dispatched: the mousedown caret placement
-    // hides the span before playwright's click stability check would pass)
-    await page.evaluate(() => {
-      const el = document.querySelector(".texto-wikilink");
-      const r = el!.getBoundingClientRect();
-      el!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, metaKey: true, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2 }));
-    });
-    await page.waitForTimeout(150);
-    let opens = await page.evaluate(() => window.__e2eWiki.opens);
-    expect(opens).toEqual(["notes/planning.um"]);
-
-    // plain click → edit mode: the raw syntax shows, the decoration drops
+    // the rendered view stays unchanged on click; the menu appears instead
     await page.locator(link).click();
     await page.waitForTimeout(150);
+    const menu = page.locator(".texto-wiki-menu");
+    await expect(menu).toBeVisible();
+    await expect(menu.locator(".texto-wiki-menu__item", { hasText: "Редактировать" })).toBeVisible();
+    await expect(menu.locator(".texto-wiki-menu__item", { hasText: "Перейти" })).toBeVisible();
+    await expect(page.locator(link)).toHaveCount(1);
+
+    // «Перейти» follows the link (the menu items act on mousedown)
+    await menu.locator(".texto-wiki-menu__item", { hasText: "Перейти" }).dispatchEvent("mousedown");
+    await page.waitForTimeout(150);
+    expect(await page.evaluate(() => window.__e2eWiki.opens)).toEqual([
+      "notes/planning.um",
+    ]);
+  });
+
+  test("«Редактировать» in the menu reveals the raw syntax at the link", async ({
+    page,
+  }) => {
+    await mount(page, noteDoc(p("go [[notes/planning.um]] now")));
+    await page.waitForTimeout(150);
+
+    await page.locator(link).click();
+    await page.waitForTimeout(150);
+    const menu = page.locator(".texto-wiki-menu");
+    await menu.locator(".texto-wiki-menu__item", { hasText: "Редактировать" }).dispatchEvent("mousedown");
+    await page.waitForTimeout(150);
+
     await expect(page.locator(link)).toHaveCount(0);
     const doc = (await docJson(page)) as {
       content: { content?: { text?: string }[] }[];
     };
     expect(doc.content[1]!.content?.[0]?.text).toContain("[[notes/planning.um]]");
-    opens = await page.evaluate(() => window.__e2eWiki.opens);
-    expect(opens).toEqual(["notes/planning.um"]);
+    // the caret landed inside the pattern (at the clicked spot — raw edit)
+    const caretInPattern = await page.evaluate(() => {
+      const ed = window.__e2e.editor;
+      if (ed == null) return false;
+      const view = ed.view;
+      const s = view.state.selection;
+      let from: number | null = null;
+      let to: number | null = null;
+      view.state.doc.descendants((node, pos) => {
+        if (from == null && node.isText && node.text?.includes("[[notes/planning.um]]")) {
+          from = pos + node.text.indexOf("[[");
+          to = from + "[[notes/planning.um]]".length;
+        }
+        return from == null;
+      });
+      return from != null && to != null && s.from > from && s.from < to;
+    });
+    expect(caretInPattern).toBe(true);
   });
 
-  test("an unresolved target renders muted and never opens", async ({
+  test("an outside mousedown dismisses the menu", async ({ page }) => {
+    await mount(page, noteDoc(p("go [[notes/planning.um]] now")));
+    await page.waitForTimeout(150);
+
+    await page.locator(link).click();
+    await page.waitForTimeout(150);
+    await expect(page.locator(".texto-wiki-menu")).toBeVisible();
+
+    // a plain click on the same link replaces the menu (mousedown outside
+    // the menu tears it down, then the fresh one opens)
+    await page.locator(link).click();
+    await page.waitForTimeout(150);
+    await expect(page.locator(".texto-wiki-menu")).toBeVisible();
+  });
+
+  test("an unresolved target renders muted; the menu opens but Перейти does nothing", async ({
     page,
   }) => {
     await mount(page, noteDoc(p("ghost [[nowhere/gone.md]] end")));
     await page.waitForTimeout(150);
 
     await expect(page.locator(link)).toHaveClass(/is-unresolved/);
-    // Cmd+click on an unresolved link: nothing to open (dispatched — see the
-    // resolved test above)
-    await page.evaluate(() => {
-      const el = document.querySelector(".texto-wikilink");
-      const r = el!.getBoundingClientRect();
-      el!.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, metaKey: true, clientX: r.x + r.width / 2, clientY: r.y + r.height / 2 }));
-    });
+    // click → the menu appears (the muted label is still clickable for edit)
+    await page.locator(link).click();
+    await page.waitForTimeout(150);
+    await expect(page.locator(".texto-wiki-menu")).toBeVisible();
+
+    // «Перейти» on an unresolved link: nothing to open
+    await page.locator(".texto-wiki-menu__item", { hasText: "Перейти" }).dispatchEvent("mousedown");
     await page.waitForTimeout(100);
     expect(await page.evaluate(() => window.__e2eWiki.opens)).toEqual([]);
-    // plain click → edit mode: the raw syntax shows
+
+    // «Редактировать» → raw syntax
     await page.locator(link).click();
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(150);
+    await page.locator(".texto-wiki-menu__item", { hasText: "Редактировать" }).dispatchEvent("mousedown");
+    await page.waitForTimeout(150);
     await expect(page.locator(link)).toHaveCount(0);
     const doc = (await docJson(page)) as {
       content: { content?: { text?: string }[] }[];
