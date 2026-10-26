@@ -380,14 +380,17 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
     candidates: WikiFile[],
   ): void {
     el.replaceChildren();
+    const list = createDiv("texto-wiki-suggest__list");
     const selected = Math.min(state.selected, candidates.length - 1);
     candidates.forEach((file, index) => {
-      const item = createEl("button");
-      item.type = "button";
-      item.className =
-        index === selected
-          ? "texto-wiki-suggest__item is-selected"
-          : "texto-wiki-suggest__item";
+      // A div, deliberately not a button: Obsidian's base button styles
+      // would bleed into items through higher-specificity selectors (the
+      // raised-card artifact of the first review round).
+      const item = createDiv("texto-wiki-suggest__item");
+      item.setAttribute("role", "option");
+      if (index === selected) {
+        item.className += " is-selected";
+      }
       const name = createDiv("texto-wiki-suggest__name");
       name.textContent = file.name;
       const path = createDiv("texto-wiki-suggest__path");
@@ -408,8 +411,13 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
         );
         view.focus();
       });
-      el.appendChild(item);
+      list.appendChild(item);
     });
+    el.appendChild(list);
+    // The Obsidian-style hint bar — v1 supports only the display text.
+    const footer = createDiv("texto-wiki-suggest__footer");
+    footer.textContent = "Type | to change display text";
+    el.appendChild(footer);
   }
 
   function positionPopup(
