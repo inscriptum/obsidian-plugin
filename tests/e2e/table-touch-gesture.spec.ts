@@ -184,6 +184,54 @@ test.describe("table cell touch gesture", () => {
     expect(result.selectedCount).toBe(2);
   });
 
+  test("double-tap on cell text selects the word (mobile text affordance)", async ({
+    page,
+  }) => {
+    const tapped = await page.evaluate(async () => {
+      const view = window.__e2e.editor.view;
+      const td = [...document.querySelectorAll("td")].find((c) =>
+        c.textContent?.includes("bravo"),
+      );
+      if (td == null) return { error: "cell not found" };
+      const r = td.getBoundingClientRect();
+      const textEl = td.querySelector("p") ?? td;
+      const tr = textEl.getBoundingClientRect();
+      // tap on the first word's middle
+      const x = tr.x + 14;
+      const y = tr.y + tr.height / 2;
+      const opts = (extra: object = {}) => ({
+        pointerType: "touch",
+        isPrimary: true,
+        pointerId: 9,
+        button: 0,
+        bubbles: true,
+        cancelable: true,
+        clientX: x,
+        clientY: y,
+        ...extra,
+      });
+      const tap = async () => {
+        td.dispatchEvent(new PointerEvent("pointerdown", opts()));
+        view.dom.dispatchEvent(new PointerEvent("pointerup", opts()));
+        td.dispatchEvent(new TouchEvent("touchend", { bubbles: true }));
+        await new Promise((res) => setTimeout(res, 40));
+      };
+      await tap();
+      await tap();
+      await new Promise((res) => setTimeout(res, 150));
+      const s = view.state.selection;
+      return {
+        from: s.from,
+        to: s.to,
+        selected: view.state.doc.textBetween(s.from, s.to),
+        collapsed: s.empty,
+      };
+    });
+    expect(tapped.error).toBeUndefined();
+    expect(tapped.collapsed).toBe(false);
+    expect(tapped.selected).toBe("bravo");
+  });
+
   test("a swipe past the slop scrolls the note manually (no cell selection)", async ({
     page,
   }) => {
