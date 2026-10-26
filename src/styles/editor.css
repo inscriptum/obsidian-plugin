@@ -279,7 +279,12 @@
 
 /* ── Wiki-link «[[» suggest popup ────────────────────────────────────────
    Body-level floating list under the caret (see wikiSuggest.ts). Lives on
-   document.body, so it is host-independent (.note and Notebook pages). */
+   document.body, so it is host-independent (.note and Notebook pages).
+   Item selectors are prefixed with the container and re-state every
+   chrome property: Obsidian's base `button:not(.clickable-icon)` rule
+   (0,2,0) otherwise bleeds its raised-card look (background, inset
+   shadow, border) into the items — a plain class selector (0,1,0) loses
+   that fight (same specificity war as the note-toolbar buttons). */
 .texto-wiki-suggest {
   position: fixed;
   z-index: 1000;
@@ -294,10 +299,12 @@
   box-shadow: var(--shadow-s, 0 4px 16px rgba(0, 0, 0, 0.3));
 }
 
-.texto-wiki-suggest__item {
+.texto-wiki-suggest button.texto-wiki-suggest__item {
+  appearance: none;
+  -webkit-appearance: none;
   display: block;
   width: 100%;
-  padding: 6px 10px;
+  padding: 5px 10px;
   margin: 0;
   border: none;
   border-radius: var(--radius-s, 5px);
@@ -306,20 +313,25 @@
   text-align: left;
   cursor: pointer;
   font-family: inherit;
+  font-size: 13px;
+  line-height: 1.3;
   color: var(--text-normal, #dadada);
 }
 
-.texto-wiki-suggest__item:hover,
-.texto-wiki-suggest__item.is-selected {
+.texto-wiki-suggest button.texto-wiki-suggest__item:hover,
+.texto-wiki-suggest button.texto-wiki-suggest__item.is-selected {
   background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
+  box-shadow: none;
+  border: none;
 }
 
-.texto-wiki-suggest__name {
+.texto-wiki-suggest .texto-wiki-suggest__name {
   font-size: 13px;
-  line-height: 1.3;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
-.texto-wiki-suggest__path {
+.texto-wiki-suggest .texto-wiki-suggest__path {
   font-size: 11px;
   line-height: 1.3;
   color: var(--text-faint, #999);
