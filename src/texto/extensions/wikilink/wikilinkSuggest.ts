@@ -177,9 +177,9 @@ function apply(
 
 /**
  * Accepts the highlighted (or given) file: the «[[…» chunk at the caret is
- * replaced by the display text marked wikiLink; the caret lands right after
- * the link (inclusive: false keeps it outside the mark). Dispatch-free so
- * tests and the popup reuse it with any sink.
+ * replaced by the complete inline syntax `[[path]]` (or `[[path|display]]`
+ * when a display text was typed), the caret lands right after the closing
+ * brackets. Dispatch-free so tests and the popup reuse it with any sink.
  */
 export function acceptWikiSuggestion(
   state: import("prosemirror-state").EditorState,
@@ -188,18 +188,15 @@ export function acceptWikiSuggestion(
   suggest: { from: number; display: string | null },
   cursorPos: number,
 ): boolean {
-  // An empty display («[[plan|» + Enter) falls back to the file name —
-  // schema.text("") would throw.
-  const text =
+  const display =
     suggest.display != null && suggest.display.length > 0
-      ? suggest.display
-      : file.name;
-  const mark = state.schema.marks.wikiLink;
-  if (mark == null) return false;
+      ? `|${suggest.display}`
+      : "";
+  const text = `[[${file.path}${display}]]`;
   const tr = state.tr.replaceWith(
     suggest.from,
     cursorPos,
-    state.schema.text(text, [mark.create({ path: file.path })]),
+    state.schema.text(text),
   );
   const end = suggest.from + text.length;
   tr.setSelection(TextSelection.create(tr.doc, Math.min(end, tr.doc.content.size)));

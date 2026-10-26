@@ -8,7 +8,7 @@ const FILES = [
   { path: "daily/2026-10-24.md", name: "2026-10-24" },
 ];
 
-test.describe("wiki-link «[[» suggest", () => {
+test.describe("wiki-link «[[» suggest (inline syntax)", () => {
   test.beforeEach(async ({ page }) => {
     await openHarness(page);
     await page.evaluate((files) => {
@@ -27,16 +27,17 @@ test.describe("wiki-link «[[» suggest", () => {
     await page.waitForTimeout(120);
   }
 
-  test("typing «[[» opens the popup with name and path", async ({ page }) => {
+  test("typing «[[» opens the popup with name, path and the hint bar", async ({
+    page,
+  }) => {
     await typeTrigger(page);
 
     const popup = page.locator(".texto-wiki-suggest");
     await expect(popup).toBeVisible();
     const names = await popup.locator(".texto-wiki-suggest__name").allTextContents();
     expect(names).toEqual(["planning", "plan b", "2026-10-24"]);
-    const first = popup.locator(".texto-wiki-suggest__item").first();
-    await expect(first.locator(".texto-wiki-suggest__path")).toHaveText(
-      "notes/planning.um",
+    await expect(popup.locator(".texto-wiki-suggest__footer")).toHaveText(
+      "Type | to change display text",
     );
   });
 
@@ -52,153 +53,107 @@ test.describe("wiki-link «[[» suggest", () => {
     expect(names).toEqual(["plan b", "planning"]);
   });
 
-  test("Enter accepts: marked link inserted, popup closed", async ({ page }) => {
-    await typeTrigger(page);
-    await page.keyboard.type("plann");
-    await page.keyboard.press("Enter");
-    await page.waitForTimeout(120);
-
-    await expect(page.locator(".texto-wiki-suggest")).toHaveCount(0);
-    const doc = (await docJson(page)) as {
-      content: {
-        type: string;
-        content?: { text?: string; marks?: { type: string; attrs?: { path?: string } }[] }[];
-      }[];
-    };
-    const para = doc.content[1]!;
-    const marked = para.content?.find((r) => r.marks?.length);
-    expect(marked?.marks?.[0]?.type).toBe("wikiLink");
-    expect(marked?.marks?.[0]?.attrs?.path).toBe("notes/planning.um");
-    expect(marked?.text).toBe("planning");
-    // the unmarked prefix survived
-    expect(para.content?.[0]?.text).toBe("plain p1 see ");
-  });
-
-  test("«|» sets the display text; the target stays in attrs", async ({
+  test("Enter accepts: inline syntax lands in the document, rendered as a link", async ({
     page,
   }) => {
     await typeTrigger(page);
-    await page.keyboard.type("plan b|My Plan");
+    await page.keyboard.type("plann");
     await page.keyboard.press("Enter");
-    await page.waitForTimeout(120);
-
-    const doc = (await docJson(page)) as {
-      content: {
-        content?: { text?: string; marks?: { attrs?: { path?: string } }[] }[];
-      }[];
-    };
-    const marked = doc.content[1]!.content?.find((r) => r.marks?.length);
-    expect(marked?.text).toBe("My Plan");
-    expect(marked?.marks?.[0]?.attrs?.path).toBe("notes/plan b.md");
-  });
-
-  test("Esc dismisses; typing a matching query reopens", async ({ page }) => {
-    await typeTrigger(page);
-    await page.keyboard.press("Escape");
-    await page.waitForTimeout(120);
+    await page.waitForTimeout(150);
 
     await expect(page.locator(".texto-wiki-suggest")).toHaveCount(0);
     const doc = (await docJson(page)) as {
       content: { content?: { text?: string }[] }[];
     };
-    expect(doc.content[1]!.content?.[0]?.text).toBe("plain p1 see [[");
-    // The dismissal lasts for this query: typing a MATCHING letter changes
-    // the query and reopens the popup (the same semantics as Obsidian).
-    await page.keyboard.type("plan");
-    await page.waitForTimeout(120);
-    await expect(page.locator(".texto-wiki-suggest")).toBeVisible();
-    // Tab accepts too
-    await page.keyboard.press("Tab");
-    await page.waitForTimeout(120);
-    const after = (await docJson(page)) as {
-      content: { content?: { text?: string; marks?: { type: string }[] }[] }[];
-    };
-    expect(
-      after.content[1]!.content?.some((r) => r.marks?.[0]?.type === "wikiLink"),
-    ).toBe(true);
+    // the document stores the raw inline syntax as plain text (no mark)
+    expect(doc.content[1]!.content?.[0]?.text).toBe(
+      "plain p1 see [[notes/planning.um]]",
+    );
+    // decorations render the target as the styled link label
+    const link = page.locator(".texto-editor .ProseMirror .texto-wikilink");
+    await expect(link).toHaveText("notes/planning.um");
   });
 
-  test("empty display after «|» falls back to the file name", async ({
+  test("«|» sets the display text; the label renders, syntax hides", async ({
     page,
   }) => {
     await typeTrigger(page);
-    await page.keyboard.type("plann|");
+    await page.keyboard.type("plan b|My Plan");
     await page.keyboard.press("Enter");
-    await page.waitForTimeout(120);
+    await page.waitForTimeout(150);
 
     const doc = (await docJson(page)) as {
-      content: { content?: { text?: string; marks?: { attrs?: { path?: string } }[] }[] }[];
+      content: { content?: { text?: string }[] }[];
     };
-    const marked = doc.content[1]!.content?.find((r) => r.marks?.length);
-    expect(marked?.text).toBe("planning");
-    expect(marked?.marks?.[0]?.attrs?.path).toBe("notes/planning.um");
+    expect(doc.content[1]!.content?.[0]?.text).toBe(
+      "plain p1 see [[notes/plan b.md|My Plan]]",
+    );
+    await expect(page.locator(".texto-editor .ProseMirror .texto-wikilink")).toHaveText(
+      "My Plan",
+    );
   });
 
-  test("unresolved link renders muted and the click does nothing", async ({
-    page,
-  }) => {
-    // a mark whose target is not in the fake vault
+  test("moving the caret inside reveals the raw syntax", async ({ page }) => {
+    await typeTrigger(page);
+    await page.keyboard.type("plann");
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(150);
+    await expect(page.locator(".texto-editor .ProseMirror .texto-wikilink")).toHaveText(
+      "notes/planning.um",
+    );
+
+    // arrow left twice — the caret enters the pattern's range
+    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press("ArrowLeft");
+    await page.waitForTimeout(150);
+    await expect(page.locator(".texto-editor .ProseMirror .texto-wikilink")).toHaveCount(0);
+    // and the raw text is there
+    const doc = (await docJson(page)) as {
+      content: { content?: { text?: string }[] }[];
+    };
+    expect(doc.content[1]!.content?.[0]?.text).toContain("[[notes/planning.um]]");
+  });
+
+  test("clicking a rendered link opens the target", async ({ page }) => {
     await page.evaluate(() => {
       window.__e2e.mount({
         type: "noteDoc",
         content: [
           { type: "noteTitle", content: [{ type: "text", text: "T" }] },
-          {
-            type: "paragraph",
-            content: [
-              {
-                type: "text",
-                text: "ghost",
-                marks: [
-                  { type: "wikiLink", attrs: { path: "nowhere/gone.md" } },
-                ],
-              },
-            ],
-          },
+          { type: "paragraph", content: [{ type: "text", text: "go [[notes/planning.um]] now" }] },
         ],
       });
     });
     await page.waitForTimeout(150);
 
-    const link = page.locator(".texto-wikilink");
-    await expect(link).toHaveClass(/is-unresolved/);
-    await link.click();
-    await page.waitForTimeout(100);
-    const opens = await page.evaluate(() => window.__e2eWiki.opens);
-    expect(opens).toEqual([]);
-  });
-
-  test("clicking an existing wikiLink opens the target", async ({ page }) => {
-    // mount a doc that already carries a wikiLink mark
-    await page.evaluate(() => {
-      window.__e2e.mount({
-        type: "noteDoc",
-        content: [
-          { type: "noteTitle", content: [{ type: "text", text: "T" }] },
-          {
-            type: "paragraph",
-            content: [
-              { type: "text", text: "go " },
-              {
-                type: "text",
-                text: "planning",
-                marks: [
-                  { type: "wikiLink", attrs: { path: "notes/planning.um" } },
-                ],
-              },
-            ],
-          },
-        ],
-      });
-    });
-    await page.waitForTimeout(150);
-
-    const link = page.locator(".texto-wikilink");
-    await expect(link).toHaveText("planning");
+    const link = page.locator(".texto-editor .ProseMirror .texto-wikilink");
+    await expect(link).toHaveText("notes/planning.um");
     await link.click();
     await page.waitForTimeout(100);
 
     const opens = await page.evaluate(() => window.__e2eWiki.opens);
     expect(opens).toEqual(["notes/planning.um"]);
+  });
+
+  test("unresolved target renders muted and the click does nothing", async ({
+    page,
+  }) => {
+    await page.evaluate(() => {
+      window.__e2e.mount({
+        type: "noteDoc",
+        content: [
+          { type: "noteTitle", content: [{ type: "text", text: "T" }] },
+          { type: "paragraph", content: [{ type: "text", text: "ghost [[nowhere/gone.md]] end" }] },
+        ],
+      });
+    });
+    await page.waitForTimeout(150);
+
+    const link = page.locator(".texto-editor .ProseMirror .texto-wikilink");
+    await expect(link).toHaveClass(/is-unresolved/);
+    await link.click();
+    await page.waitForTimeout(100);
+    const opens = await page.evaluate(() => window.__e2eWiki.opens);
+    expect(opens).toEqual([]);
   });
 });
