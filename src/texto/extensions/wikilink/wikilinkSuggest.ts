@@ -183,12 +183,26 @@ function apply(
   tr: Transaction,
 ): WikiSuggestState {
   const meta = tr.getMeta(wikiSuggestKey) as
-    | { selected?: number; dismissed?: boolean; close?: boolean }
+    | {
+        selected?: number;
+        dismissed?: boolean;
+        close?: boolean;
+        open?: boolean;
+      }
     | undefined;
   if (meta?.close) return initial;
 
   const next = scan(state, tr);
-  if (!next.active) return next;
+
+  // A fresh session opens ONLY on the auto-close rule («[[» typed).
+  // Re-entering the raw syntax with arrows, the edit menu or a click does
+  // NOT reopen the suggest — the popup lingering over an edited link was
+  // the owner's round-6 complaint. While open, the session continues until
+  // the caret leaves the trigger, Escape or an accept/close.
+  if (meta?.open) return next.active ? next : initial;
+  if (!state.active) return state;
+
+  if (!next.active) return initial;
   if (meta?.dismissed) return { ...next, dismissed: true };
   if (meta?.selected != null) return { ...next, selected: meta.selected };
   return next;
@@ -260,27 +274,6 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
         }
         const state = wikiSuggestKey.getState(view.state);
         if (state?.active !== true || state.dismissed) return false;
-        // Space in the LABEL part (after «|») closes the link: the space is
-        // inserted after the closing brackets and the caret lands after it —
-        // the owner model (text continues outside the link). Targets with
-        // spaces stay typable: in the target part the space goes through.
-        if (
-          event.key === " " &&
-          state.display != null &&
-          state.closeEnd != null
-        ) {
-          event.preventDefault();
-          // One transaction: view.state.tr creates a NEW transaction on every
-          // access — chaining two accesses orphans the first one's steps.
-          const tr = view.state.tr;
-          tr.insertText(" ", state.closeEnd, state.closeEnd);
-          tr.setSelection(TextSelection.create(tr.doc, state.closeEnd + 1));
-          tr.setMeta(wikiSuggestKey, { close: true });
-          tr.setMeta("pointer", true);
-          view.dispatch(tr);
-          view.focus();
-          return true;
-        }
         // Typing «]» when the closing «]]» already sits after the caret (the
         // auto-closed pair) skips over it instead of doubling the brackets
         // (the Obsidian behavior) and closes the suggest. The latch absorbs
@@ -495,10 +488,6 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
       list.appendChild(item);
     });
     el.appendChild(list);
-    // The Obsidian-style hint bar — v1 supports only the display text.
-    const footer = createDiv("texto-wiki-suggest__footer");
-    footer.textContent = "Type | to change display text";
-    el.appendChild(footer);
   }
 
   function positionPopup(

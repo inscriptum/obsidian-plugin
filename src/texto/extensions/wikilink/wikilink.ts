@@ -67,6 +67,10 @@ export const WikiLink = Extension.create<WikiLinkOptions>({
           state.tr.setSelection(
             TextSelection.create(state.tr.doc, range.from + 2),
           );
+          // open the suggest session: only a freshly typed «[[» activates it
+          // (re-entering raw syntax with arrows or the edit menu does not —
+          // owner round-6, the popup lingering after editing)
+          state.tr.setMeta(wikiSuggestKey, { open: true });
         },
       }),
     ];
@@ -205,21 +209,38 @@ function wikiDecorationsPlugin(hooks: WikiHooks): Plugin {
     menu = null;
   };
 
-  const showMenu = (view: EditorView, el: HTMLElement, clickX: number, clickY: number): void => {
+  const WIKI_MENU_NS = "http://www.w3.org/2000/svg";
+
+  const menuIcon = (iconName: string): SVGSVGElement => {
+    const svg = document.createElementNS(WIKI_MENU_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("width", "18");
+    svg.setAttribute("height", "18");
+    const use = document.createElementNS(WIKI_MENU_NS, "use");
+    use.setAttribute("href", `#inscriptum-tlb-${iconName}`);
+    svg.appendChild(use);
+    return svg;
+  };
+
+  const showMenu = (view: EditorView, el: HTMLElement): void => {
     destroyMenu();
     menu = createDiv("texto-wiki-menu");
     document.body.appendChild(menu);
 
-    const path = el.getAttribute("data-wiki-path") ?? "";
-
+    // Icon buttons (owner round-6: no text labels, bubble-menu style).
+    // Pencil → caret inside the pattern at the clicked spot (raw edit);
+    // link → open the target. The click coords ride on the element's
+    // data attributes (the label IS doc text, so posAtCoords maps them
+    // inside the pattern).
     const edit = createDiv("texto-wiki-menu__item");
-    edit.textContent = "Редактировать";
+    edit.appendChild(menuIcon("pencil"));
+    edit.setAttribute("aria-label", "Edit wikilink");
     edit.addEventListener("mousedown", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      // Map the click to a document position inside the pattern (the label
-      // is real doc text) — the raw syntax shows right at that spot.
-      const pos = view.posAtCoords({ left: clickX, top: clickY });
+      const cx = parseFloat(el.getAttribute("data-click-x") ?? "0");
+      const cy = parseFloat(el.getAttribute("data-click-y") ?? "0");
+      const pos = view.posAtCoords({ left: cx, top: cy });
       if (pos) {
         view.dispatch(
           view.state.tr
@@ -233,10 +254,12 @@ function wikiDecorationsPlugin(hooks: WikiHooks): Plugin {
     menu.appendChild(edit);
 
     const open = createDiv("texto-wiki-menu__item");
-    open.textContent = "Перейти";
+    open.appendChild(menuIcon("link"));
+    open.setAttribute("aria-label", "Open target");
     open.addEventListener("mousedown", (event) => {
       event.preventDefault();
       event.stopPropagation();
+      const path = el.getAttribute("data-wiki-path") ?? "";
       if (hooks.isResolved(path)) {
         hooks.openTarget(path);
       }
@@ -324,7 +347,9 @@ function wikiDecorationsPlugin(hooks: WikiHooks): Plugin {
             return true;
           }
           event.preventDefault();
-          showMenu(view, el, event.clientX, event.clientY);
+          el.setAttribute("data-click-x", String(event.clientX));
+          el.setAttribute("data-click-y", String(event.clientY));
+          showMenu(view, el);
           return true;
         },
       },

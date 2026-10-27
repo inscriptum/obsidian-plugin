@@ -35,9 +35,6 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     await expect(popup).toBeVisible();
     const names = await popup.locator(".texto-wiki-suggest__name").allTextContents();
     expect(names).toEqual(["planning", "plan b", "2026-10-24"]);
-    await expect(popup.locator(".texto-wiki-suggest__footer")).toHaveText(
-      "Type | to change display text",
-    );
     // the pair auto-closed with the caret between the brackets
     const doc = (await docJson(page)) as {
       content: { content?: { text?: string }[] }[];
@@ -77,7 +74,7 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     await expect(page.locator(link)).toHaveClass(/is-unresolved/);
     await page.locator(link).click();
     await page.waitForTimeout(150);
-    await page.locator(".texto-wiki-menu__item", { hasText: "Перейти" }).dispatchEvent("mousedown");
+    await page.locator('.texto-wiki-menu__item[aria-label="Open target"]').dispatchEvent("mousedown");
     await page.waitForTimeout(150);
     expect(await page.evaluate(() => window.__e2eWiki.opens)).toEqual([]);
   });
@@ -151,12 +148,12 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     await page.waitForTimeout(150);
     const menu = page.locator(".texto-wiki-menu");
     await expect(menu).toBeVisible();
-    await expect(menu.locator(".texto-wiki-menu__item", { hasText: "Редактировать" })).toBeVisible();
-    await expect(menu.locator(".texto-wiki-menu__item", { hasText: "Перейти" })).toBeVisible();
+    await expect(menu.locator('.texto-wiki-menu__item[aria-label="Edit wikilink"]')).toBeVisible();
+    await expect(menu.locator('.texto-wiki-menu__item[aria-label="Open target"]')).toBeVisible();
     await expect(page.locator(link)).toHaveCount(1);
 
     // «Перейти» follows the link (the menu items act on mousedown)
-    await menu.locator(".texto-wiki-menu__item", { hasText: "Перейти" }).dispatchEvent("mousedown");
+    await menu.locator('.texto-wiki-menu__item[aria-label="Open target"]').dispatchEvent("mousedown");
     await page.waitForTimeout(150);
     expect(await page.evaluate(() => window.__e2eWiki.opens)).toEqual([
       "notes/planning.um",
@@ -172,7 +169,7 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     await page.locator(link).click();
     await page.waitForTimeout(150);
     const menu = page.locator(".texto-wiki-menu");
-    await menu.locator(".texto-wiki-menu__item", { hasText: "Редактировать" }).dispatchEvent("mousedown");
+    await menu.locator('.texto-wiki-menu__item[aria-label="Edit wikilink"]').dispatchEvent("mousedown");
     await page.waitForTimeout(150);
 
     await expect(page.locator(link)).toHaveCount(0);
@@ -397,14 +394,14 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     await expect(page.locator(".texto-wiki-menu")).toBeVisible();
 
     // «Перейти» on an unresolved link: nothing to open
-    await page.locator(".texto-wiki-menu__item", { hasText: "Перейти" }).dispatchEvent("mousedown");
+    await page.locator('.texto-wiki-menu__item[aria-label="Open target"]').dispatchEvent("mousedown");
     await page.waitForTimeout(100);
     expect(await page.evaluate(() => window.__e2eWiki.opens)).toEqual([]);
 
     // «Редактировать» → raw syntax
     await page.locator(link).click();
     await page.waitForTimeout(150);
-    await page.locator(".texto-wiki-menu__item", { hasText: "Редактировать" }).dispatchEvent("mousedown");
+    await page.locator('.texto-wiki-menu__item[aria-label="Edit wikilink"]').dispatchEvent("mousedown");
     await page.waitForTimeout(150);
     await expect(page.locator(link)).toHaveCount(0);
     const doc = (await docJson(page)) as {
