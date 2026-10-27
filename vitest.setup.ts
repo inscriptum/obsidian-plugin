@@ -12,9 +12,7 @@ type DomAttrs = {
 
 function applyAttrs(el: HTMLElement, attrs?: DomAttrs | string): HTMLElement {
   if (typeof attrs === "string") {
-    // Obsidian semantics: the string form is the CLASS shorthand
-    // (createDiv("cls") — same as { cls: "cls" }).
-    el.className = attrs;
+    el.textContent = attrs;
     return el;
   }
   if (!attrs) {

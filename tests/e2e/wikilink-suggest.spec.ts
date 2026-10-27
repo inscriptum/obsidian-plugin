@@ -204,33 +204,31 @@ test.describe("wiki links — the committed-mark model (round 7)", () => {
     expect(JSON.stringify(doc)).not.toContain("[[");
   });
 
-  test("a mini document icon is rendered by the mark view (outside contentDOM)", async ({
+  test("a mini document icon is drawn into every committed link (CSS ::after)", async ({
     page,
   }) => {
     await mount(page, noteDoc(pWiki("go ", "planning", "notes/planning.um")));
     await page.waitForTimeout(150);
 
-    // the icon is a REAL element rendered by the mark view — a sibling of
-    // contentDOM (never inside it): the caret cannot land between the
-    // label and the icon, and it is non-editable + click-transparent
+    // the icon is part of the link span (::after mask), trailing and
+    // raised — the line START stays plain text (caret, typing and the
+    // drag handle behave as before the icon existed)
     const iconBox = await page.evaluate(() => {
       const span = window.__e2e.editor!.view.dom.querySelector(
         "span.texto-wikilink",
       )!;
-      const icon = span.querySelector(":scope > .texto-wikilink-icon");
-      const label = span.querySelector(":scope > .texto-wikilink-label");
+      const after = getComputedStyle(span, "::after");
       return {
-        iconExists: !!icon,
-        iconEditable: icon?.getAttribute("contenteditable"),
-        iconAfterLabel: !!icon && !!label && icon.previousElementSibling === label,
-        iconWidth: icon ? parseFloat(getComputedStyle(icon).width) : 0,
+        content: after.content,
+        width: parseFloat(after.width),
+        mask: after.maskImage !== "none" || after.webkitMaskImage !== "none",
         spanText: span.textContent,
       };
     });
-    expect(iconBox.iconExists).toBe(true);
-    expect(iconBox.iconEditable).toBe("false");
-    expect(iconBox.iconAfterLabel).toBe(true);
-    expect(iconBox.iconWidth).toBeGreaterThan(0);
+    expect(iconBox.content).not.toBe("none");
+    expect(iconBox.width).toBeGreaterThan(0);
+    expect(iconBox.mask).toBe(true);
+    expect(iconBox.spanText).toBe("planning");
 
     // the icon must never reach the stored document
     const docText = await page.evaluate(() => {

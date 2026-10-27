@@ -400,13 +400,14 @@
   cursor: pointer;
 }
 
-/* The mini document glyph AFTER a wiki link — a REAL element rendered by
-   WikiLinkMarkView, trailing + superscripted (the Wikipedia external-link
-   pattern). It lives OUTSIDE the mark view's contentDOM and is
-   contenteditable=false + pointer-events none: the caret can never land
-   between the label and the icon, and a click on it is a click on the
-   link. Same Tabler "file" outline as #inscriptum-ico-file. */
-.texto-editor .ProseMirror .texto-wikilink-icon {
+/* The mini document glyph AFTER a wiki link — superscripted, the way
+   Wikipedia marks external links (mask + currentColor, the Tabler "file"
+   outline). Trailing + raised on purpose: a LEADING icon in the inline
+   flow puts the caret between the icon and the label and collides with
+   the drag handle at the line start; a tiny raised glyph at the end reads
+   as a marker, not as part of the line. */
+.texto-editor .ProseMirror .texto-wikilink::after {
+  content: "";
   display: inline-block;
   width: 0.55em;
   height: 0.55em;
@@ -414,9 +415,6 @@
   vertical-align: super;
   background-color: currentColor;
   opacity: 0.65;
-  pointer-events: none;
-  user-select: none;
-  -webkit-user-select: none;
   -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2'/%3E%3C/svg%3E");
   mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2'/%3E%3C/svg%3E");
   -webkit-mask-size: contain;
@@ -428,9 +426,9 @@
 }
 
 /* The unresolved dim is an inline decoration wrapping the label in an
-   inner span inside contentDOM — dim the icon with it (:has is safe on
-   the Obsidian webview, Chromium 105+). */
-.texto-editor .ProseMirror .texto-wikilink:has(.is-unresolved) .texto-wikilink-icon {
+   inner span — dim the icon with it (:has is safe on the Obsidian
+   webview, Chromium 105+). */
+.texto-editor .ProseMirror .texto-wikilink:has(.is-unresolved)::after {
   opacity: 0.3;
 }
 
