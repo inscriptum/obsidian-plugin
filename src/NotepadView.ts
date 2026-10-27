@@ -31,6 +31,7 @@ import {
   type FoldPersistence,
 } from "./storage/foldPersistence";
 import { readUmFile, umFingerprint, writeUmFile } from "./storage/um/umVault";
+import { generateUmId } from "./storage/um/umIds";
 import { UmNotepad } from "./storage/um/umNotepad";
 import { UmError, UM_SCHEMA_TITLE } from "./storage/um/umTypes";
 import { FileChangedModal } from "./ui/FileChangedModal";
@@ -51,6 +52,18 @@ import { elTag } from "./tags";
 import { NoteElement } from "./components/note/note.element";
 import { ToolbarElement } from "./components/toolbar/toolbar.element";
 import { BubbleMenuBarElement } from "./components/bubble-menu-bar/bubble-menu-bar.element";
+import { CommentsPanelElement } from "./components/comments/comments-panel.element";
+import {
+  buildThreadViewModels,
+  type ThreadViewModel,
+} from "./components/comments/commentsPanelState";
+import {
+  getCommentRanges,
+  jsonHasCommentMark,
+  refreshComments,
+  stripCommentMarkFromJson,
+  type CommentThread,
+} from "./texto/extensions/comment";
 import { TableBubbleMenuElement } from "./components/bubble-menu-bar/table-bubble-menu-bar.element";
 import { TableCellsBubbleMenuElement } from "./components/bubble-menu-bar/table-cells-bubble-menu-bar.element";
 import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubble-menu-bar.element";
@@ -134,6 +147,11 @@ const makeToolbarElement = () =>
   );
 const makeBubbleMenuBarElement = () =>
   createCustomElement("bubble-menu-bar", () => new BubbleMenuBarElement());
+const makeCommentsPanelElement = () =>
+  createCustomElement(
+    "inscriptum-comments",
+    () => new CommentsPanelElement(),
+  );
 const makeTableBubbleMenuElement = () =>
   createCustomElement(
     "table-bubble-menu-bar",
@@ -314,6 +332,18 @@ export class NotepadView extends FileView {
    *  navTitleSignature); the early exit for save-time refreshes. */
   private navTitles: string | null = null;
 
+  // ── Comments (.um only: thread store + side panel) ──
+  private commentsPanelEl: CommentsPanelElement | null = null;
+  /** Composer state of a brand-new thread (bubble-menu flow): the anchor
+   *  mark is already set; the thread itself is created only when the first
+   *  comment is saved. Cancel → the anchor is discarded. */
+  private commentsComposer: { threadId: string; noteId: string } | null = null;
+  /** Thread card the panel highlights (last jumped to). */
+  private commentsActiveThreadId: string | null = null;
+  /** Read cache over the notepad's thread store — the decoration hooks run
+   *  on every editor transaction and must not re-parse the JSONL. */
+  private threadsCache: CommentThread[] | null = null;
+
   // ── Drag & drop reorder ──
   private drag: {
     id: string;
@@ -400,6 +430,12 @@ export class NotepadView extends FileView {
         .setTitle("Find in notepad")
         .setIcon("search")
         .onClick(() => this.openNotepadSearch()),
+    );
+    menu.addItem((item) =>
+      item
+        .setTitle("Comments")
+        .setIcon("message-square")
+        .onClick(() => this.openCommentsPanel()),
     );
     menu.addItem((item) =>
       item
@@ -535,6 +571,12 @@ export class NotepadView extends FileView {
       this.scrollShadowCleanup = setupScrollShadows(this.contentEl);
     }
 
+    // The bubble-bar «Comment» button announces through a DOM event (the
+    // bar cannot reach the view directly — it only knows its editor).
+    this.contentEl.addEventListener("inscriptum-request-comment", () =>
+      this.requestComment(),
+    );
+
     if (Platform.isPhone) {
       // Drawer entry is the page sheet's "All pages" item (design principle
       // 01: no floating ☰) — the scrim doubles as the tap-away dismissor.
@@ -616,6 +658,8 @@ export class NotepadView extends FileView {
     this.scrollShadowCleanup = null;
     this.closeSheet();
     this.exitMoveMode();
+    this.closeCommentsPanel();
+    this.threadsCache = null;
     this.destroyAllSections();
     this.contentEl.empty();
     this.notepad?.destroy();
@@ -1614,6 +1658,21 @@ export class NotepadView extends FileView {
           void app.workspace.openLinkText(path, this.file?.path ?? "", false);
         },
       },
+      comments: {
+        findThread: (id) => {
+          const thread = this.allThreads().find((t) => t.id === id);
+          return thread
+            ? {
+                id,
+                commentCount: thread.comments.length,
+                resolved: thread.resolved,
+              }
+            : null;
+        },
+        openThread: (id) => {
+          this.jumpToThread(id);
+        },
+      },
     };
   }
 
@@ -2463,6 +2522,282 @@ export class NotepadView extends FileView {
     }
   }
 
+  // ── Comments (thread store + side panel) ──
+
+  /** The display name of the (v1 single) author. */
+  private static readonly COMMENT_AUTHOR = "You";
+
+  private allThreads(): CommentThread[] {
+    if (this.threadsCache == null) {
+      this.threadsCache = this.notepad?.readThreads() ?? [];
+    }
+    return this.threadsCache;
+  }
+
+  /** Replace the store, persist the container and re-render panel + anchors. */
+  private mutateThreads(threads: CommentThread[]): void {
+    this.notepad?.writeThreads(threads);
+    this.threadsCache = threads;
+    this.scheduleSave();
+    this.refreshCommentsUI();
+  }
+
+  private updateThread(
+    threadId: string,
+    update: (thread: CommentThread) => void,
+  ): void {
+    const threads = this.allThreads();
+    const thread = threads.find((t) => t.id === threadId);
+    if (!thread) return;
+    update(thread);
+    this.mutateThreads([...threads]);
+  }
+
+  /** Panel + anchor decorations re-render: view models recompute (anchor
+   *  presence needs the freshest page JSON — flush the expanded editors
+   *  first) and every expanded editor gets a refresh meta. */
+  private refreshCommentsUI(): void {
+    const notepad = this.notepad;
+    if (this.commentsPanelEl && notepad) {
+      for (const handle of this.sections.values()) {
+        this.flushSectionToNotepad(handle);
+      }
+      const noteTitles = new Map<string, string>();
+      for (const descriptor of notepad.notes()) {
+        noteTitles.set(descriptor.id, descriptor.title ?? "");
+      }
+      const models: ThreadViewModel[] = buildThreadViewModels(
+        this.allThreads(),
+        noteTitles,
+        (thread) => {
+          const doc = notepad.noteContent(thread.noteId);
+          return doc ? jsonHasCommentMark(doc, thread.id) : false;
+        },
+      );
+      this.commentsPanelEl.props.threads = models;
+      this.commentsPanelEl.props.composer = this.commentsComposer;
+      this.commentsPanelEl.props.activeThreadId = this.commentsActiveThreadId;
+      void this.commentsPanelEl.next();
+    }
+    for (const handle of this.sections.values()) {
+      const editor = handle.editor;
+      if (!editor || editor.isDestroyed) continue;
+      editor.view.dispatch(refreshComments(editor.state));
+    }
+  }
+
+  private buildCommentsPanel(): void {
+    if (this.commentsPanelEl) return;
+    const panel = makeCommentsPanelElement();
+    panel.addClass("notepad-comments");
+    panel.props.onSubmitComposer = (threadId, text) =>
+      this.submitComposer(threadId, text);
+    panel.props.onCancelComposer = () => this.cancelComposer();
+    panel.props.onReply = (threadId, text) => this.replyToThread(threadId, text);
+    panel.props.onEditComment = (threadId, commentId, text) =>
+      this.editComment(threadId, commentId, text);
+    panel.props.onDeleteComment = (threadId, commentId) =>
+      this.deleteComment(threadId, commentId);
+    panel.props.onResolveThread = (threadId, resolved) =>
+      this.resolveThread(threadId, resolved);
+    panel.props.onDeleteThread = (threadId) => this.deleteThread(threadId);
+    panel.props.onOpenThread = (threadId) => this.jumpToThread(threadId);
+    panel.props.onClose = () => this.closeCommentsPanel();
+    this.commentsPanelEl = panel;
+    this.contentEl.appendChild(panel);
+    this.contentEl.addClass("comments-open");
+  }
+
+  private openCommentsPanel(): void {
+    this.buildCommentsPanel();
+    this.refreshCommentsUI();
+  }
+
+  private closeCommentsPanel(): void {
+    // A pending composer owns an anchor mark with no thread — discarding the
+    // composer discards the mark (no invisible junk in the stored JSON).
+    if (this.commentsComposer) this.cancelComposer();
+    this.commentsPanelEl?.remove();
+    this.commentsPanelEl = null;
+    this.commentsActiveThreadId = null;
+    this.contentEl.removeClass("comments-open");
+  }
+
+  /** Bubble-menu «Comment»: mark the selection with a fresh id and open the
+   *  panel composer. The thread itself is created on the first save. Public
+   *  for the plugin command (main.ts «Add comment to selection»). */
+  requestComment(): void {
+    const editor = this.focusedEditor;
+    if (!editor || editor.isDestroyed) return;
+    const { state } = editor;
+    const { selection } = state;
+    if (selection.empty || !isTextSelection(selection)) return;
+    if (state.schema.marks.comment == null) return;
+    const handle = [...this.sections.values()].find(
+      (h) => h.editor === editor,
+    );
+    if (!handle || !this.notepad?.isNoteOpenable(handle.id)) return;
+    const threadId = generateUmId();
+    editor.commands.setComment({ id: threadId });
+    this.commentsComposer = { threadId, noteId: handle.id };
+    this.openCommentsPanel();
+  }
+
+  private submitComposer(threadId: string, text: string): void {
+    const composer = this.commentsComposer;
+    if (!composer || composer.threadId !== threadId) return;
+    this.commentsComposer = null;
+    const thread: CommentThread = {
+      id: threadId,
+      noteId: composer.noteId,
+      resolved: false,
+      comments: [
+        {
+          id: generateUmId(),
+          author: NotepadView.COMMENT_AUTHOR,
+          content: text,
+          createdAt: Date.now(),
+        },
+      ],
+    };
+    this.commentsActiveThreadId = threadId;
+    this.mutateThreads([...this.allThreads(), thread]);
+  }
+
+  /** Composer canceled (empty submit, Esc, panel close): the anchor was
+   *  never backed by a thread — remove the mark. */
+  private cancelComposer(): void {
+    const composer = this.commentsComposer;
+    this.commentsComposer = null;
+    if (!composer) return;
+    const editor = this.sections.get(composer.noteId)?.editor;
+    if (editor && !editor.isDestroyed) {
+      editor.commands.unsetComment(composer.threadId);
+    }
+    this.refreshCommentsUI();
+  }
+
+  private replyToThread(threadId: string, text: string): void {
+    this.updateThread(threadId, (thread) => {
+      thread.comments.push({
+        id: generateUmId(),
+        author: NotepadView.COMMENT_AUTHOR,
+        content: text,
+        createdAt: Date.now(),
+      });
+    });
+  }
+
+  private editComment(threadId: string, commentId: string, text: string): void {
+    this.updateThread(threadId, (thread) => {
+      const comment = thread.comments.find((c) => c.id === commentId);
+      if (!comment) return;
+      comment.content = text;
+      comment.updatedAt = Date.now();
+    });
+  }
+
+  private deleteComment(threadId: string, commentId: string): void {
+    const threads = this.allThreads();
+    const thread = threads.find((t) => t.id === threadId);
+    if (!thread) return;
+    if (thread.comments.length <= 1) {
+      // The last comment went away — the thread is empty, delete it like
+      // any other thread (which also lifts the anchor).
+      this.deleteThread(threadId);
+      return;
+    }
+    this.updateThread(threadId, (t) => {
+      t.comments = t.comments.filter((c) => c.id !== commentId);
+    });
+  }
+
+  private resolveThread(threadId: string, resolved: boolean): void {
+    this.updateThread(threadId, (thread) => {
+      thread.resolved = resolved;
+      if (resolved) {
+        thread.resolvedAt = Date.now();
+      } else {
+        delete thread.resolvedAt;
+      }
+    });
+  }
+
+  private deleteThread(threadId: string): void {
+    const thread = this.allThreads().find((t) => t.id === threadId);
+    if (!thread) return;
+    this.removeThreadAnchor(thread.noteId, threadId);
+    this.mutateThreads(this.allThreads().filter((t) => t.id !== threadId));
+    if (this.commentsActiveThreadId === threadId) {
+      this.commentsActiveThreadId = null;
+    }
+  }
+
+  /** Lift the anchor mark of a deleted thread: through the page editor when
+   *  expanded (undoable, save scheduled by the transaction), otherwise by
+   *  rewriting the stored JSON. Pages this editor cannot interpret keep
+   *  their content verbatim — the mark there becomes an orphan. */
+  private removeThreadAnchor(noteId: string, threadId: string): void {
+    const notepad = this.notepad;
+    if (!notepad) return;
+    const editor = this.sections.get(noteId)?.editor;
+    if (editor && !editor.isDestroyed) {
+      editor.commands.unsetComment(threadId);
+      return;
+    }
+    if (!notepad.isNoteOpenable(noteId)) return;
+    const doc = notepad.noteContent(noteId);
+    if (!doc) return;
+    if (stripCommentMarkFromJson(doc, threadId)) {
+      notepad.setNoteContent(noteId, doc);
+    }
+  }
+
+  /** Panel card / anchor click: open the panel, expand the page if needed,
+   *  scroll the anchor into view and highlight the card. */
+  private jumpToThread(threadId: string): void {
+    const thread = this.allThreads().find((t) => t.id === threadId);
+    if (!thread) return;
+    this.commentsActiveThreadId = threadId;
+    this.openCommentsPanel();
+    const handle = this.sections.get(thread.noteId);
+    if (!handle) {
+      this.refreshCommentsUI();
+      return;
+    }
+    if (handle.editor == null) {
+      void this.expandSection(thread.noteId, {
+        focus: false,
+        autofocus: false,
+        morph: false,
+      }).then(() => this.revealThreadAnchor(threadId));
+      return;
+    }
+    this.revealThreadAnchor(threadId);
+  }
+
+  private revealThreadAnchor(threadId: string): void {
+    const thread = this.allThreads().find((t) => t.id === threadId);
+    const editor = thread
+      ? this.sections.get(thread.noteId)?.editor
+      : undefined;
+    if (editor && !editor.isDestroyed) {
+      const range = getCommentRanges(editor.state.doc, threadId)[0];
+      if (range) {
+        try {
+          const coords = editor.view.coordsAtPos(range.to);
+          const editorScroller = editor.view.dom.closest(".texto-editor");
+          if (editorScroller) this.scrollContainerTo(editorScroller, coords.top);
+          if (this.scrollerEl) this.scrollContainerTo(this.scrollerEl, coords.top);
+        } catch (err) {
+          // Position drift after edits — keep the panel as-is.
+          console.error("Failed to scroll to comment anchor:", err);
+        }
+      }
+    }
+    this.refreshCommentsUI();
+  }
+
   /** Scroll a scrollable ancestor so the viewport coordinate `docTop` sits
    *  about a third from the container's top. */
   // ── Bubble menus (desktop, per expanded section) ──
@@ -2660,6 +2995,7 @@ export class NotepadView extends FileView {
       this.setNavOpen(true, { animate: true }),
     );
     addRow("search", "Find in document", () => this.openNotepadSearch());
+    addRow("message-square", "Comments", () => this.openCommentsPanel());
     addDivider();
     addRow("plus", "Add page below", () => this.addNoteAfter(id));
     if (notepad.isNoteOpenable(id)) {
@@ -3204,6 +3540,7 @@ export class NotepadView extends FileView {
       this.destroyAllSections();
       this.notepad?.destroy();
       this.notepad = fresh;
+      this.threadsCache = null;
       this.dirty = false;
       // Keep the user's expansion state across the reload.
       this.render();

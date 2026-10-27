@@ -1505,3 +1505,308 @@ button.notepad-sheet-row.is-danger svg {
 
 /* No scroll hint: the right edge fade alone signals the continuation
    (owner's call — the hint chip was rejected). */
+
+/* ── Comments side panel (ОВ-2): desktop right column, phone bottom sheet.
+   The element mounts once (.notepad-comments); `comments-open` on the view
+   container drives the slide-in, like the nav drawer. Overlay — the column
+   does not reflow the page. ── */
+
+.notepad-comments {
+  position: absolute;
+  top: 40px;
+  bottom: 0;
+  right: 0;
+  width: 320px;
+  z-index: 15;
+  background: var(--background-secondary);
+  border-left: 1px solid var(--ins-border);
+  box-shadow: var(--shadow-s);
+  transform: translateX(calc(100% + 8px));
+  visibility: hidden;
+  transition:
+    transform 0.3s var(--ins-ease),
+    visibility 0.3s;
+}
+
+.notepad-view-container.comments-open .notepad-comments {
+  transform: translateX(0);
+  visibility: visible;
+}
+
+.notepad-view-container.is-phone .notepad-comments {
+  top: auto;
+  left: 0;
+  width: auto;
+  max-height: 65vh;
+  border-left: none;
+  border-top: 1px solid var(--ins-border);
+  border-radius: var(--ins-radius) var(--ins-radius) 0 0;
+  transform: translateY(105%);
+}
+
+.notepad-view-container.is-phone.comments-open .notepad-comments {
+  transform: translateY(0);
+}
+
+.ins-comments-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 8px;
+}
+
+.ins-comments-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--ins-border);
+}
+
+.ins-comments-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.ins-comments-filter {
+  display: flex;
+  gap: 2px;
+  margin-inline-start: auto;
+  padding: 2px;
+  border: 1px solid var(--ins-border);
+  border-radius: 8px;
+  background: var(--background-primary);
+}
+
+.ins-comments-filter button {
+  border: none;
+  background: transparent;
+  padding: 2px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ins-comments-filter button.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.ins-comments-composer {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ins-border);
+}
+
+.ins-comments-composer input,
+.ins-comments-inline-editor input {
+  flex: 1;
+  min-width: 0;
+  padding: 5px 8px;
+  border: 1px solid var(--ins-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: 13px;
+}
+
+.ins-comments-composer input:focus,
+.ins-comments-inline-editor input:focus {
+  outline: none;
+  border-color: var(--ins-accent);
+}
+
+.ins-comments-primary {
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ins-comments-reply {
+  border: none;
+  background: transparent;
+  padding: 6px 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: start;
+  cursor: pointer;
+}
+
+.ins-comments-reply:hover {
+  color: var(--text-normal);
+}
+
+.ins-comments-card {
+  margin: 8px 10px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--ins-border);
+  border-radius: var(--ins-radius);
+  background: var(--background-primary);
+}
+
+.ins-comments-card.is-active {
+  border-color: var(--ins-accent);
+  box-shadow: 0 0 0 1px var(--ins-accent-soft);
+}
+
+.ins-comments-card.is-resolved {
+  opacity: 0.75;
+}
+
+.ins-comments-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.ins-comments-card-title {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ins-comments-card-title:hover {
+  color: var(--text-normal);
+}
+
+.ins-comments-card-tools {
+  display: flex;
+  gap: 2px;
+  margin-inline-start: auto;
+}
+
+.ins-comments-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ins-comments-tool svg {
+  width: 14px;
+  height: 14px;
+}
+
+.ins-comments-tool:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.ins-comments-tool.is-danger:hover {
+  color: var(--text-error);
+}
+
+.ins-comments-resolved-banner {
+  margin: 4px 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--ins-accent-soft);
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.ins-comments-entry {
+  padding: 6px 0;
+}
+
+.ins-comments-entry + .ins-comments-entry {
+  border-top: 1px solid var(--ins-border);
+}
+
+.ins-comments-entry-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.ins-comments-entry-author {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ins-comments-entry-time {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.ins-comments-entry-text {
+  margin-top: 2px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ins-comments-entry-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 2px;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.ins-comments-entry:hover .ins-comments-entry-actions,
+.ins-comments-entry:focus-within .ins-comments-entry-actions {
+  opacity: 1;
+}
+
+.ins-comments-entry-actions button {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ins-comments-entry-actions button:hover {
+  color: var(--text-normal);
+}
+
+.ins-comments-inline-editor {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.ins-comments-orphan {
+  margin-top: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.ins-comments-empty {
+  padding: 24px 12px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: 12px;
+}

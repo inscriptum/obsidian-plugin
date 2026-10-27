@@ -1,0 +1,46 @@
+/* Comment anchors (comments extension) — the visual highlight is a plugin
+   decoration over the neutral span[data-comment-id] the mark renders, so
+   stored JSON and the website export (no plugin) stay plain. Colors derive
+   from the host theme tokens; the .um hosts define --ins-* on their view
+   containers, the fallbacks keep the rules self-sufficient in isolation. */
+
+.inscriptum-comment-anchor {
+  background-color: color-mix(
+    in srgb,
+    #fde68a 55%,
+    transparent
+  );
+  border-radius: 2px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.inscriptum-comment-anchor.is-resolved {
+  background-color: color-mix(in srgb, var(--ins-accent, #7c6af7) 12%, transparent);
+}
+
+/* The counter bubble riding the anchor end (click → panel). */
+.inscriptum-comment-bubble {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 17px;
+  height: 17px;
+  margin-left: 3px;
+  padding: 0 4px;
+  border-radius: 9px;
+  background: var(--ins-accent, #7c6af7);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  user-select: none;
+  cursor: pointer;
+  vertical-align: baseline;
+}
+
+.inscriptum-comment-bubble.is-resolved {
+  background: color-mix(in srgb, var(--text-muted, #888) 55%, transparent);
+}

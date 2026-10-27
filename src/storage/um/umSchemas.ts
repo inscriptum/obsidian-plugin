@@ -99,6 +99,13 @@ registerMigration(UM_SCHEMA_PLAIN, 1, (doc) => doc);
 // inline content verbatim; everything else stays untouched.
 registerMigration(UM_SCHEMA_TITLE, 2, (doc) => titleDocSummaryToProperty(doc));
 
+// v3 → v4 (title) and v2 → v3 (plain): the comment anchor mark. Purely
+// additive — every older document is already a valid newer one; the bump
+// only marks the new shape so older editors degrade the page to
+// "unsupported" (8.6.2) instead of failing to parse the unknown mark.
+registerMigration(UM_SCHEMA_TITLE, 3, (doc) => doc);
+registerMigration(UM_SCHEMA_PLAIN, 2, (doc) => doc);
+
 /** The name of the property the legacy summary line migrates into (9.1).
  *  The website export reads the meta description from it. */
 export const DESCRIPTION_PROPERTY_NAME = "description";

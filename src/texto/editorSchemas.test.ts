@@ -49,6 +49,12 @@ const TITLE_PROPERTY_NODES = [
 
 const MARKS = "bold,code,highlight,hljsMark,italic,link,strike,textStyle,underline";
 
+/** The .um page families (title/plain) additionally carry the comment
+ *  anchor mark (issue comments) — the .note profile never learns it, so
+ *  HTML clipboard drops the anchor silently on paste into a .note. */
+const PAGE_MARKS =
+  "bold,code,comment,highlight,hljsMark,italic,link,strike,textStyle,underline";
+
 function canonicalShape(profile: EditorProfileId): string {
   const schema = getProfileSchema(profile);
   const nodes = Object.entries(schema.nodes)
@@ -78,7 +84,7 @@ describe("editor profiles", () => {
     );
   });
 
-  it("title profile (title-v3) — title, property rows, then content", () => {
+  it("title profile (title-v4) — title, property rows, then content", () => {
     expect(canonicalShape("title")).toBe(
       `top=noteDoc\nnodes=${[
         ...NOTE_NODES.filter((n) => !n.startsWith("noteDoc:")),
@@ -86,18 +92,18 @@ describe("editor profiles", () => {
         ...TITLE_PROPERTY_NODES,
       ]
         .sort()
-        .join(",")}\nmarks=${MARKS}`,
+        .join(",")}\nmarks=${PAGE_MARKS}`,
     );
   });
 
-  it("plain profile (plain-v2) — title optional (legacy pages parse)", () => {
+  it("plain profile (plain-v3) — title optional (legacy pages parse)", () => {
     expect(canonicalShape("plain")).toBe(
       `top=noteDoc\nnodes=${[
         ...NOTE_NODES.filter((n) => !n.startsWith("noteDoc:")),
         "noteDoc:noteTitle? (block | attachment | image)+",
       ]
         .sort()
-        .join(",")}\nmarks=${MARKS}`,
+        .join(",")}\nmarks=${PAGE_MARKS}`,
     );
   });
 

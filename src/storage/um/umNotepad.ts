@@ -17,6 +17,12 @@ import {
   serializeUmContainer,
   sortNoteDescriptors,
 } from "./umContainer";
+import {
+  UM_COMMENTS_ENTRY,
+  parseThreads,
+  serializeThreads,
+} from "./umComments";
+import type { CommentThread } from "../../texto/extensions/comment/model";
 import { generateUmId } from "./umIds";
 import {
   currentSchemaVersion,
@@ -454,6 +460,30 @@ export class UmNotepad {
   }
 
   // ── Persistence support ──
+
+  /** All comment threads of the notepad (the `comments.jsonl` archive
+   *  entry; tolerant of junk — see parseThreads). */
+  readThreads(): CommentThread[] {
+    const bytes = this.data.unknownEntries.get(UM_COMMENTS_ENTRY);
+    if (bytes == null) return [];
+    return parseThreads(bytes);
+  }
+
+  /** Replace the whole thread store and mark the container dirty. An empty
+   *  list removes the entry (a container without comments carries no
+   *  comments.jsonl). The entry rides serialize()'s unknown-entry write. */
+  writeThreads(threads: CommentThread[]): void {
+    if (threads.length === 0) {
+      if (!this.data.unknownEntries.has(UM_COMMENTS_ENTRY)) return;
+      this.data.unknownEntries.delete(UM_COMMENTS_ENTRY);
+    } else {
+      this.data.unknownEntries.set(
+        UM_COMMENTS_ENTRY,
+        serializeThreads(threads),
+      );
+    }
+    this.structureChanged = true;
+  }
 
   setNoteContent(id: string, content: JSONContent): void {
     this.data.notes.set(id, content);

@@ -163,6 +163,17 @@ export default class NotesPlugin extends Plugin {
       },
     });
 
+    this.addCommand({
+      id: "notepad-add-comment",
+      name: "Add comment to selection",
+      checkCallback: (checking) => {
+        const view = this.app.workspace.getActiveViewOfType(NotepadView);
+        if (!view) return false;
+        if (!checking) view.requestComment();
+        return true;
+      },
+    });
+
     this.registerEvent(
       this.app.workspace.on("file-menu", (menu, file) => {
         if (!(file instanceof TFolder)) return;

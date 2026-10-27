@@ -17,14 +17,18 @@ export const UM_SCHEMA_PLAIN = "plain";
  *  v2: table cells accept an image node (additive, mirrors the plain
  *  family's bump). v3: the fixed title+summary header became title +
  *  properties — a breaking change; v2 documents migrate lazily
- *  (noteSummary → the `description` property, 8.6.3). */
-export const UM_SCHEMA_VERSION_TITLE = 3;
+ *  (noteSummary → the `description` property, 8.6.3). v4: the comment
+ *  anchor mark (additive, mirrors the plain family's bump). */
+export const UM_SCHEMA_VERSION_TITLE = 4;
 /** Current version of the `plain` family (8.6.1). v2: table cells accept
  *  an image node — the content-expression shape changed
  *  (editorSchemas.test pins it). v1 documents stay valid; older editors
  *  degrade a v2 page to "unsupported" instead of failing to parse it
- *  (image-in-cell is unparseable for them). */
-export const UM_SCHEMA_VERSION_PLAIN = 2;
+ *  (image-in-cell is unparseable for them). v3: the comment anchor mark —
+ *  additive (every v2 document is a valid v3 document), but a page with an
+ *  anchor is unparseable for older editors (Mark.fromJSON throws), so the
+ *  bump degrades such pages to "unsupported" instead. */
+export const UM_SCHEMA_VERSION_PLAIN = 3;
 /** Manifest entry point inside the archive (section 5). */
 export const MANIFEST_PATH = "manifest.json";
 /** Recommended location of note documents (section 8.2). */
