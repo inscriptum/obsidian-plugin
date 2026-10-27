@@ -20,3 +20,7 @@ dist-harness/
 /test-results/
 /playwright-report/
 .trash/
+
+# The dev vault IS this repo: scratch .note files written to the root
+# during live verification must never be tracked.
+/*.note
