@@ -211,11 +211,14 @@ function finalizeOnExitPlugin(): Plugin {
 }
 
 /**
- * Committed-link view decorations: the unresolved dim. The mini document
- * icon is NOT a decoration — it is drawn by CSS ::before on the mark's own
- * span (see editor.css), so it lives inside the link's inline box: the
- * caret and text typed before the link stay left of the icon, and nothing
- * extra overlays the line start (the drag handle zone).
+ * Committed-link view decorations:
+ * - the unresolved dim (an attribute decoration wrapping the label);
+ * - a zero-width marker widget before a link whose START holds the caret —
+ *   the browser draws that caret between the ::before icon and the label,
+ *   and the marker (via an adjacent-sibling CSS rule) hides the icon for
+ *   as long as the caret sits there. A decoration, not a DOM class write:
+ *   class mutations on PM-owned spans re-trigger PM's DOM observer and
+ *   loop the dispatcher.
  */
 function wikiUnresolvedPlugin(hooks: WikiHooks): Plugin {
   return new Plugin({
@@ -223,6 +226,7 @@ function wikiUnresolvedPlugin(hooks: WikiHooks): Plugin {
     props: {
       decorations: (state) => {
         const decorations: Decoration[] = [];
+        const caretAtLinkStart = state.selection.empty ? state.selection.from : null;
         state.doc.descendants((node, pos) => {
           if (!node.isText) return true;
           const wiki = node.marks.find((m) => m.type.name === "wikiLink");
@@ -232,6 +236,15 @@ function wikiUnresolvedPlugin(hooks: WikiHooks): Plugin {
               Decoration.inline(pos, pos + node.nodeSize, {
                 class: "is-unresolved",
               }),
+            );
+          }
+          if (caretAtLinkStart === pos) {
+            decorations.push(
+              Decoration.widget(
+                pos,
+                () => createSpan("texto-wiki-noicon"),
+                { side: -1, marks: [], ignoreSelection: true },
+              ),
             );
           }
           return true;
@@ -533,6 +546,44 @@ function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
           }
         }, 0);
       };
+      // The floating drag handle rides ~13px into the hovered line — when
+      // it would cover a line-start link's icon, the icon steps aside for
+      // as long as the handle is up. The toggle lands on the .texto-editor
+      // CONTAINER (an ancestor PM never observes — a class write inside
+      // view.dom re-triggers PM's DOM observer and loops the dispatcher).
+      // The caret-at-start case is handled by the noicon widget decoration
+      // in wikiUnresolvedPlugin.
+      const container = editorView.dom.closest(".texto-editor");
+      const syncHandleSuppression = () => {
+        if (container == null) return;
+        const handle = container.querySelector(".texto-drag-handle.is-visible");
+        let suppress = false;
+        if (handle != null) {
+          const hr = handle.getBoundingClientRect();
+          if (hr.width > 0) {
+            for (const el of editorView.dom.querySelectorAll<HTMLElement>(
+              ".texto-wikilink",
+            )) {
+              const r = el.getBoundingClientRect();
+              if (r.left < hr.right && r.right > hr.left) {
+                suppress = true;
+                break;
+              }
+            }
+          }
+        }
+        container.classList.toggle("wiki-suppress-icons", suppress);
+      };
+      // The handle shows/hides outside any PM transaction — watch it.
+      const handleEl = container?.querySelector(".texto-drag-handle") ?? null;
+      let handleObserver: MutationObserver | null = null;
+      if (handleEl != null) {
+        handleObserver = new MutationObserver(syncHandleSuppression);
+        handleObserver.observe(handleEl, {
+          attributes: true,
+          attributeFilter: ["class", "style"],
+        });
+      }
       // Hover lives on plain DOM listeners: ProseMirror forwards only a
       // fixed event set through handleDOMEvents — mouseover/mouseout are
       // not among them.
@@ -556,12 +607,27 @@ function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
       editorView.dom.addEventListener("mouseover", onMouseOver);
       editorView.dom.addEventListener("mouseout", onMouseOut);
       document.addEventListener("scroll", onScroll, true);
+      // The handle shows/hides outside any PM transaction — watch it.
+      if (handleEl != null) {
+        handleObserver = new MutationObserver(syncHandleSuppression);
+        handleObserver.observe(handleEl, {
+          attributes: true,
+          attributeFilter: ["class", "style"],
+        });
+      }
+      syncHandleSuppression();
       return {
+        update(view) {
+          syncHandleSuppression();
+          void view;
+        },
         destroy() {
           editorView.dom.removeEventListener("focusout", onBlurOut);
           editorView.dom.removeEventListener("mouseover", onMouseOver);
           editorView.dom.removeEventListener("mouseout", onMouseOut);
           document.removeEventListener("scroll", onScroll, true);
+          handleObserver?.disconnect();
+          container?.classList.remove("wiki-suppress-icons");
           destroyMenu();
         },
       };

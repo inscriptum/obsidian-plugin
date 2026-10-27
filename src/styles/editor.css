@@ -431,6 +431,25 @@
   opacity: 0.45;
 }
 
+/* The caret resting at a link's start renders between the icon and the
+   label — a zero-width marker widget (wikiUnresolvedPlugin) placed right
+   before the span hides the icon while the caret sits there. The marker
+   itself takes no space. */
+.texto-editor .ProseMirror .texto-wiki-noicon {
+  display: none;
+}
+
+.texto-editor .ProseMirror .texto-wiki-noicon + .texto-wikilink::before {
+  display: none;
+}
+
+/* The floating drag handle rides into the hovered line — while it would
+   cover a line-start icon, the wikiLinkView plugin flags the container
+   (an ancestor PM does not observe) and every icon steps aside. */
+.texto-editor.wiki-suppress-icons .ProseMirror .texto-wikilink::before {
+  display: none;
+}
+
 .texto-editor .ProseMirror .texto-wikilink:hover {
   color: var(--text-accent-hover, #8f7ffc);
 }
