@@ -13,7 +13,7 @@ import {
   findWikiMatches,
   selectionInWikiContext,
   startWikiEdit,
-  wikiMarkAt,
+  wikiLinkRangeByPath,
 } from "./wikilink";
 import type { WikiFile } from "./wikilink";
 
@@ -124,7 +124,12 @@ const WIKI_HOOKS: ExtensionHooks = {
 };
 
 /** Doc JSON of the second top-level block (the test paragraph): its runs. */
-type Run = { text?: string; marks?: unknown[] };
+type Run = {
+  type?: string;
+  text?: string;
+  marks?: unknown[];
+  attrs?: { path?: string; text?: string };
+};
 function paraJson(editor: Editor): Run[] {
   const json = editor.state.doc.toJSON() as {
     content: { content?: Run[] }[];
@@ -156,16 +161,17 @@ describe("acceptWikiSuggestion — commit consumes the syntax", () => {
     expect(ok).toBe(true);
 
     const runs = paraJson(editor);
-    // the raw syntax is GONE — the label carries the mark, the target rides
-    // the attrs (the bold pattern: markers are consumed on commit)
+    // the raw syntax is GONE — an inline atom node remains (the owner's
+    // «Способ 1»): label + target in attrs, the caret can never enter it
     expect(runs).toHaveLength(2);
     expect(runs[0]!.text).toBe("hello ");
-    expect(runs[1]!.text).toBe("planning");
-    expect(runs[1]!.marks).toEqual([
-      { type: "wikiLink", attrs: { path: "notes/planning.um" } },
-    ]);
-    // caret sits after the label
-    expect(editor.state.selection.from).toBe(before + "planning".length);
+    expect(runs[1]!.type).toBe("wikiLink");
+    expect(runs[1]!.attrs).toEqual({
+      path: "notes/planning.um",
+      text: "planning",
+    });
+    // an atom node occupies one position — the caret sits right after it
+    expect(editor.state.selection.from).toBe(before + 1);
     // the suggest state closed
     expect(wikiSuggestKey.getState(editor.state)?.active).toBe(false);
     editor.destroy();
@@ -188,10 +194,11 @@ describe("acceptWikiSuggestion — commit consumes the syntax", () => {
       cursor,
     );
     const runs = paraJson(editor);
-    expect(runs[1]!.text).toBe("My Plan");
-    expect(runs[1]!.marks).toEqual([
-      { type: "wikiLink", attrs: { path: "notes/planning.um" } },
-    ]);
+    expect(runs[1]!.type).toBe("wikiLink");
+    expect(runs[1]!.attrs).toEqual({
+      path: "notes/planning.um",
+      text: "My Plan",
+    });
     editor.destroy();
   });
 
@@ -213,7 +220,10 @@ describe("acceptWikiSuggestion — commit consumes the syntax", () => {
     );
     expect(ok).toBe(true);
     const runs = paraJson(editor);
-    expect(runs[1]!.text).toBe("planning");
+    expect(runs[1]!.attrs).toEqual({
+      path: "notes/planning.um",
+      text: "planning",
+    });
     editor.destroy();
   });
 });
@@ -278,16 +288,9 @@ describe("the creation session over plain text", () => {
       ),
     );
     typeText(editor, "x.md]]");
-    const runs = paraJson(editor) as {
-      text?: string;
-      marks?: { type: string }[];
-    }[];
-    const marked = runs.find((r) => r.marks?.some((m) => m.type === "wikiLink"));
-    expect(marked?.text).toBe("x.md");
-    expect(marked?.marks).toContainEqual({
-      type: "wikiLink",
-      attrs: { path: "x.md" },
-    });
+    const runs = paraJson(editor);
+    const atom = runs.find((r) => r.type === "wikiLink");
+    expect(atom?.attrs).toEqual({ path: "x.md", text: "x.md" });
     // no raw syntax left behind
     expect(editor.state.doc.textContent).not.toContain("[[");
     editor.destroy();
@@ -312,13 +315,9 @@ describe("the creation session over plain text", () => {
     editor.view.dispatch(
       editor.state.tr.setSelection(TextSelection.create(editor.state.doc, end)),
     );
-    const runs = paraJson(editor) as {
-      text?: string;
-      marks?: { type: string; attrs: { path: string } }[];
-    }[];
-    const marked = runs.find((r) => r.marks?.some((m) => m.type === "wikiLink"));
-    expect(marked?.text).toBe("x.md");
-    expect(marked?.marks?.[0]?.attrs.path).toBe("x.md");
+    const runs = paraJson(editor);
+    const atom = runs.find((r) => r.type === "wikiLink");
+    expect(atom?.attrs).toEqual({ path: "x.md", text: "x.md" });
     editor.destroy();
   });
 
@@ -347,30 +346,27 @@ describe("committed links", () => {
 
   function makeCommittedEditor(): Editor {
     const editor = makeEditor(WIKI_HOOKS, "hello  done");
-    const doc = editor.state.doc;
     const insertAt = 4 + "hello ".length;
     const tr = editor.state.tr.replaceWith(
       insertAt,
       insertAt,
-      editor.state.schema.text("planning", [
-        editor.state.schema.marks.wikiLink.create({ path: "notes/planning.um" }),
-      ]),
+      editor.state.schema.nodes.wikiLink.create({
+        path: "notes/planning.um",
+        text: "planning",
+      }),
     );
     editor.view.dispatch(tr);
-    void doc;
-    void COMMITTED;
     return editor;
   }
 
-  it("renders from stored JSON and resolves through wikiMarkAt", () => {
+  it("renders from stored JSON and resolves through wikiLinkRangeByPath", () => {
     const editor = makeCommittedEditor();
     const dom = editor.view.dom as HTMLElement;
     const span = dom.querySelector<HTMLElement>("span.texto-wikilink");
     expect(span?.getAttribute("data-wiki-path")).toBe("notes/planning.um");
     expect(span?.textContent).toBe("planning");
 
-    const caretInside = 4 + "hello ".length + 3;
-    const range = wikiMarkAt(editor.state, caretInside);
+    const range = wikiLinkRangeByPath(editor.state, "notes/planning.um");
     expect(range).toMatchObject({
       path: "notes/planning.um",
       label: "planning",
@@ -378,15 +374,15 @@ describe("committed links", () => {
     editor.destroy();
   });
 
-  it("raw scan skips marked labels (no double conversion)", () => {
+  it("raw scan skips atom nodes (no double conversion)", () => {
     const editor = makeCommittedEditor();
     expect(findWikiMatches(editor.state)).toHaveLength(0);
     editor.destroy();
   });
 
-  it("Edit dissolves the mark back into raw syntax and reopens the suggest", () => {
+  it("Edit dissolves the link back into raw syntax and reopens the suggest", () => {
     const editor = makeCommittedEditor();
-    const range = wikiMarkAt(editor.state, 4 + "hello ".length + 3)!;
+    const range = wikiLinkRangeByPath(editor.state, "notes/planning.um")!;
     startWikiEdit(editor.view, range);
     // the raw pattern is back, caret at the end of the path
     expect(editor.state.doc.textContent).toContain(
@@ -405,21 +401,21 @@ describe("committed links", () => {
       { from: suggest!.from, display: suggest!.display, closeEnd: suggest!.closeEnd },
       editor.state.selection.from,
     );
-    const runs = paraJson(editor) as {
-      text?: string;
-      marks?: { type: string; attrs: { path: string } }[];
-    }[];
-    const marked = runs.find((r) => r.marks?.some((m) => m.type === "wikiLink"));
-    expect(marked?.text).toBe("planning");
-    expect(marked?.marks?.[0]?.attrs.path).toBe("notes/planning.um");
+    const runs = paraJson(editor);
+    const atom = runs.find((r) => r.type === "wikiLink");
+    expect(atom?.attrs).toEqual({
+      path: "notes/planning.um",
+      text: "planning",
+    });
     editor.destroy();
   });
 
-  it("selection in the label suppresses the formatting bubble", () => {
+  it("selection over the atom suppresses the formatting bubble", () => {
     const editor = makeCommittedEditor();
     const from = 4 + "hello ".length;
+    // a text selection covering the atom node (one position wide)
     const tr = editor.state.tr.setSelection(
-      TextSelection.create(editor.state.doc, from + 2, from + "planning".length),
+      TextSelection.create(editor.state.doc, from, from + 1),
     );
     editor.view.dispatch(tr);
     expect(selectionInWikiContext(editor.state)).toBe(true);

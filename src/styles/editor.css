@@ -425,10 +425,13 @@
   mask-position: center bottom;
 }
 
-/* The unresolved dim is an inline decoration wrapping the label in an
-   inner span — dim the icon with it (:has is safe on the Obsidian
-   webview, Chromium 105+). */
-.texto-editor .ProseMirror .texto-wikilink:has(.is-unresolved)::after {
+/* The unresolved dim is an inline decoration whose class lands directly
+   on the atom node's own span. */
+.texto-editor .ProseMirror .texto-wikilink.is-unresolved {
+  color: var(--text-faint, #777);
+}
+
+.texto-editor .ProseMirror .texto-wikilink.is-unresolved::after {
   opacity: 0.3;
 }
 
@@ -436,8 +439,4 @@
   color: var(--text-accent-hover, #8f7ffc);
 }
 
-/* The unresolved dim arrives as a PM inline decoration, which wraps the
-   label in an inner span inside the mark's own span. */
-.texto-editor .ProseMirror .texto-wikilink .is-unresolved {
-  color: var(--text-faint, #777);
-}
+

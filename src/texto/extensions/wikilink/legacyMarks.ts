@@ -1,15 +1,15 @@
 import type { JSONContent } from "../../core/@types";
 
 /**
- * Read-time migration for stored documents. Two generations wrote wikilinks
- * differently from the current model (raw «[[path|text]]» PLAIN TEXT from
- * the rounds-3…6 inline-syntax builds; the current model stores the label
- * carrying a wikiLink mark):
+ * Read-time migration for stored documents. Three generations wrote
+ * wikilinks differently from the current model (an INLINE ATOM node
+ * { type: "wikiLink", attrs: { path, text } }):
  *
- * - wikiLink MARKS (rounds 1–2 and the current model) — already valid,
- *   untouched;
- * - raw «[[target|label]]» / «[[target]]» patterns in plain text — converted
- *   to the marked form, so they open as links instead of dead brackets.
+ * - the atom node (current) — untouched;
+ * - wikiLink MARKS (rounds 1–2 and the rounds-7 mark builds) — converted
+ *   to the atom node (label from the marked text);
+ * - raw «[[target|label]]» / «[[target]]» patterns in plain text
+ *   (rounds 3–6) — converted to the atom node.
  *
  * Incomplete patterns stay literal (there is nothing to link); text inside
  * code blocks and inline code stays literal too — code is quoted, not live.
@@ -20,22 +20,31 @@ const WIKI_RE = /\[\[([^[|]+)(?:\|([^[]*))?\]\]/g;
  *  lastIndex across calls). */
 const WIKI_HAS_RE = /\[\[([^[|]+)(?:\|([^[]*))?\]\]/;
 
+const isCodeContext = (node: JSONContent, inCode: boolean): boolean =>
+  inCode ||
+  node.type === "hljsCodeBlock" ||
+  node.type === "hljsCodeBlockRow" ||
+  node.marks?.some((m) => m.type === "code") === true;
+
+/** A wikiLink atom node built from a target + optional label. */
+const wikiNode = (path: string, label: string): JSONContent => ({
+  type: "wikiLink",
+  attrs: { path, text: label },
+});
+
 export function hasLegacyWikiSyntax(doc: JSONContent): boolean {
   return walkHas(doc, false);
 }
 
 function walkHas(node: JSONContent, inCode: boolean): boolean {
-  const isCode =
-    inCode ||
-    node.type === "hljsCodeBlock" ||
-    node.type === "hljsCodeBlockRow" ||
-    node.marks?.some((m) => m.type === "code") === true;
+  const isCode = isCodeContext(node, inCode);
   if (
     !isCode &&
     node.type === "text" &&
     typeof node.text === "string" &&
-    !node.marks?.some((m) => m.type === "wikiLink") &&
-    WIKI_HAS_RE.test(node.text)
+    // legacy generations: plain raw patterns AND wikiLink-marked runs
+    (WIKI_HAS_RE.test(node.text) ||
+      node.marks?.some((m) => m.type === "wikiLink") === true)
   ) {
     return true;
   }
@@ -47,11 +56,25 @@ export function convertLegacyWikiSyntax<T extends JSONContent>(doc: T): T {
 }
 
 function walkConvert(node: JSONContent, inCode: boolean): JSONContent {
-  const isCode =
-    inCode ||
-    node.type === "hljsCodeBlock" ||
-    node.type === "hljsCodeBlockRow" ||
-    node.marks?.some((m) => m.type === "code") === true;
+  const isCode = isCodeContext(node, inCode);
+
+  // wikiLink MARKS (rounds 1–2 / rounds-7 mark builds) → the atom node.
+  // The node replaces the whole text run; other marks on the run (bold
+  // inside a label) are dropped — an atom has no marks of its own.
+  if (
+    !isCode &&
+    node.type === "text" &&
+    typeof node.text === "string" &&
+    node.marks?.some((m) => m.type === "wikiLink")
+  ) {
+    const wiki = node.marks.find((m) => m.type === "wikiLink");
+    const path = String(
+      (wiki?.attrs as { path?: unknown } | undefined)?.path ?? "",
+    );
+    if (path !== "") {
+      return wikiNode(path, node.text);
+    }
+  }
 
   const converted: JSONContent = { ...node };
   if (converted.content) {
@@ -60,6 +83,8 @@ function walkConvert(node: JSONContent, inCode: boolean): JSONContent {
     );
   }
 
+  // Raw «[[target|label]]» plain-text patterns (rounds 3–6) → the atom
+  // node, splitting the text node around them.
   if (
     !isCode &&
     converted.type === "text" &&
@@ -68,8 +93,6 @@ function walkConvert(node: JSONContent, inCode: boolean): JSONContent {
     WIKI_RE.test(converted.text)
   ) {
     WIKI_RE.lastIndex = 0;
-    // Split the text node around each pattern: plain text runs keep their
-    // other marks, each pattern becomes a marked text node.
     const parts: JSONContent[] = [];
     const text = converted.text;
     const baseMarks = converted.marks?.filter((m) => m.type !== "wikiLink");
@@ -86,16 +109,8 @@ function walkConvert(node: JSONContent, inCode: boolean): JSONContent {
       const target = match[1] ?? "";
       // An empty display («[[path|]]») shows the target — same as the
       // editor's commit paths do.
-      const label =
-        match[2] != null && match[2] !== "" ? match[2] : target;
-      parts.push({
-        type: "text",
-        text: label,
-        marks: [
-          ...(baseMarks ?? []),
-          { type: "wikiLink", attrs: { path: target } },
-        ],
-      });
+      const label = match[2] != null && match[2] !== "" ? match[2] : target;
+      parts.push(wikiNode(target, label));
       cursor = match.index + match[0].length;
     }
     if (cursor < text.length) {
@@ -114,7 +129,7 @@ function walkConvert(node: JSONContent, inCode: boolean): JSONContent {
   }
 
   // Unpack fragment markers produced by children (an inline node whose
-  // content was split into several text nodes).
+  // content was split into several nodes).
   if (
     converted.content &&
     converted.content.some((child) => child.type === "__wiki_fragment__")

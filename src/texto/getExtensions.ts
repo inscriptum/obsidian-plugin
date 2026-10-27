@@ -3,7 +3,7 @@ import type { ImageOptionsHooks } from "./extensions/image";
 import type { AttachmentOptionsHooks } from "./extensions/attachment";
 import type { StateOptionsHooks } from "./extensions/state";
 import type { WikiHooks } from "./extensions/wikilink";
-import { WikiLink, WikiLinkMark } from "./extensions/wikilink";
+import { WikiLink, WikiLinkNode } from "./extensions/wikilink";
 import { NoteDoc, PlainDoc, TitleDoc } from "./extensions/note-doc";
 import { Link } from "./extensions/link";
 import { Cleanup } from "./extensions/cleanup";
@@ -81,9 +81,10 @@ export function getExtensions(
     }),
     topNode,
     Link,
-    // The mark registers even without hooks: documents written by the mark
-    // generations must load (rendered, inert) where the feature is off.
-    WikiLinkMark,
+    // The node registers even without hooks: documents written by any
+    // wikilink generation must load (rendered, inert) where the feature
+    // is off.
+    WikiLinkNode,
     WikiLink.configure({ hooks: hooks.wiki ?? null }),
     Cleanup,
     ListKeymap,

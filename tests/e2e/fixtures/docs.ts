@@ -54,13 +54,9 @@ export function table(rows: string[][]): JsonNode {
   };
 }
 
-/** A committed wikilink run: label text carrying the wikiLink mark. */
+/** A committed wikilink: the inline atom node (label + target in attrs). */
 export function wikiRun(label: string, path: string): JsonNode {
-  return {
-    type: "text",
-    text: label,
-    marks: [{ type: "wikiLink", attrs: { path } }],
-  };
+  return { type: "wikiLink", attrs: { path, text: label } };
 }
 
 /** Paragraph: plain prefix + committed link + plain suffix. */

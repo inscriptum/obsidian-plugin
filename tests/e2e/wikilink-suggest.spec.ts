@@ -61,15 +61,21 @@ test.describe("wiki links — the committed-mark model (round 7)", () => {
     // attrs — NO raw syntax anywhere (the bold pattern)
     const doc = (await docJson(page)) as {
       content: {
-        content?: { text?: string; marks?: { type: string; attrs?: { path: string } }[] }[];
+        content?: {
+          type?: string;
+          text?: string;
+          attrs?: { path?: string; text?: string };
+        }[];
       }[];
     };
     const runs = doc.content[1]!.content ?? [];
     expect(runs).toHaveLength(2);
     expect(runs[0]!.text).toBe("plain p1 see ");
-    expect(runs[1]!.text).toBe("planning");
-    expect(runs[1]!.marks?.[0]?.type).toBe("wikiLink");
-    expect(runs[1]!.marks?.[0]?.attrs?.path).toBe("notes/planning.um");
+    expect(runs[1]!.type).toBe("wikiLink");
+    expect(runs[1]!.attrs).toEqual({
+      path: "notes/planning.um",
+      text: "planning",
+    });
     await expect(page.locator(link)).toHaveText("planning");
     await expect(page.locator(link)).toHaveAttribute(
       "data-wiki-path",
@@ -95,12 +101,19 @@ test.describe("wiki links — the committed-mark model (round 7)", () => {
     await page.waitForTimeout(150);
     const doc = (await docJson(page)) as {
       content: {
-        content?: { text?: string; marks?: { type: string; attrs?: { path: string } }[] }[];
+        content?: {
+          type?: string;
+          text?: string;
+          attrs?: { path?: string; text?: string };
+        }[];
       }[];
     };
     const runs = doc.content[1]!.content ?? [];
-    expect(runs[1]!.text).toBe("My Plan");
-    expect(runs[1]!.marks?.[0]?.attrs?.path).toBe("notes/planning.um");
+    expect(runs[1]!.type).toBe("wikiLink");
+    expect(runs[1]!.attrs).toEqual({
+      path: "notes/planning.um",
+      text: "My Plan",
+    });
     await expect(page.locator(link)).toHaveText("My Plan");
   });
 
@@ -158,17 +171,21 @@ test.describe("wiki links — the committed-mark model (round 7)", () => {
 
     const doc = (await docJson(page)) as {
       content: {
-        content?: { text?: string; marks?: { type: string; attrs?: { path: string } }[] }[];
+        content?: {
+          type?: string;
+          text?: string;
+          attrs?: { path?: string; text?: string };
+        }[];
       }[];
     };
     const runs = doc.content[1]!.content ?? [];
-    const marked = runs.find((r) => r.marks?.some((m) => m.type === "wikiLink"));
-    expect(marked?.text).toBe("planning");
-    expect(marked?.marks?.[0]?.attrs?.path).toBe("planning");
+    const atom = runs.find((r) => r.type === "wikiLink");
+    expect(atom?.attrs?.text).toBe("planning");
+    expect(atom?.attrs?.path).toBe("planning");
     // committed links resolve against the vault: "planning" is not a real
     // vault path (the real one is notes/planning.um) — muted render (the
     // dim is a PM inline decoration on an inner span)
-    await expect(page.locator(`${link} .is-unresolved`)).toHaveCount(1);
+    await expect(page.locator(`${link}.is-unresolved`)).toHaveCount(1);
   });
 
   test("a committed link renders as the label only; a click opens the target", async ({
@@ -181,9 +198,15 @@ test.describe("wiki links — the committed-mark model (round 7)", () => {
     await expect(page.locator(link)).toHaveText("planning");
     const docText = await page.evaluate(() => {
       const ed = window.__e2e.editor;
-      return ed?.view.state.doc.textBetween(0, ed.view.state.doc.content.size);
+      // leafText "\uFFFC" renders each atom as one placeholder char
+      return ed?.view.state.doc.textBetween(
+        0,
+        ed.view.state.doc.content.size,
+        undefined,
+        "\uFFFC",
+      );
     });
-    expect(docText).toBe("Titlego planning now");
+    expect(docText).toBe("Titlego \uFFFC now");
 
     // a plain click OPENS the target (owner review: the file opens right
     // away); the document is not touched
@@ -193,14 +216,10 @@ test.describe("wiki links — the committed-mark model (round 7)", () => {
       "notes/planning.um",
     ]);
     const doc = (await docJson(page)) as {
-      content: {
-        content?: { text?: string; marks?: { type?: string }[] }[];
-      }[];
+      content: { content?: { type?: string }[] }[];
     };
     const para = doc.content[1]!.content!;
-    expect(para.some((r) => r.marks?.some((m) => m.type === "wikiLink"))).toBe(
-      true,
-    );
+    expect(para.some((r) => r.type === "wikiLink")).toBe(true);
     expect(JSON.stringify(doc)).not.toContain("[[");
   });
 
@@ -230,12 +249,18 @@ test.describe("wiki links — the committed-mark model (round 7)", () => {
     expect(iconBox.mask).toBe(true);
     expect(iconBox.spanText).toBe("planning");
 
-    // the icon must never reach the stored document
+    // the icon must never reach the stored document (the atom renders as
+    // one placeholder char in textBetween)
     const docText = await page.evaluate(() => {
       const ed = window.__e2e.editor;
-      return ed?.view.state.doc.textBetween(0, ed.view.state.doc.content.size);
+      return ed?.view.state.doc.textBetween(
+        0,
+        ed.view.state.doc.content.size,
+        undefined,
+        "\uFFFC",
+      );
     });
-    expect(docText).toBe("Titlego planning");
+    expect(docText).toBe("Titlego \uFFFC");
 
     // hovering the link (icon included — same span) shows the bubble menu
     await page.locator(link).hover();
@@ -310,12 +335,19 @@ test.describe("wiki links — the committed-mark model (round 7)", () => {
     await page.waitForTimeout(150);
     const after = (await docJson(page)) as {
       content: {
-        content?: { text?: string; marks?: { type: string; attrs?: { path: string } }[] }[];
+        content?: {
+          type?: string;
+          text?: string;
+          attrs?: { path?: string; text?: string };
+        }[];
       }[];
     };
     const runs = after.content[1]!.content ?? [];
-    expect(runs[1]!.text).toBe("My Plan");
-    expect(runs[1]!.marks?.[0]?.attrs?.path).toBe("notes/planning.um");
+    expect(runs[1]!.type).toBe("wikiLink");
+    expect(runs[1]!.attrs).toEqual({
+      path: "notes/planning.um",
+      text: "My Plan",
+    });
   });
 
   test("Mod-click follows the link directly", async ({ page }) => {
@@ -335,7 +367,7 @@ test.describe("wiki links — the committed-mark model (round 7)", () => {
     await mount(page, noteDoc(pWiki("ghost ", "gone", "nowhere/gone.md")));
     await page.waitForTimeout(150);
 
-    await expect(page.locator(`${link} .is-unresolved`)).toHaveCount(1);
+    await expect(page.locator(`${link}.is-unresolved`)).toHaveCount(1);
 
     await page.locator(link).hover();
     await page.waitForTimeout(200);
@@ -417,13 +449,14 @@ test.describe("wiki links — the committed-mark model (round 7)", () => {
     const runs = (doc as {
       content: {
         content?: {
+          type?: string;
           text?: string;
-          marks?: { type?: string; attrs?: { path: string } }[];
+          attrs?: { path?: string; text?: string };
         }[];
       }[];
     }).content[1]!.content!;
-    const marked = runs.find((r) => r.marks?.some((m) => m.type === "wikiLink"));
-    expect(marked?.text).toBe("planning b");
-    expect(marked?.marks?.[0]?.attrs?.path).toBe("planning b");
+    const atom = runs.find((r) => r.type === "wikiLink");
+    expect(atom?.attrs?.text).toBe("planning b");
+    expect(atom?.attrs?.path).toBe("planning b");
   });
 });

@@ -38,6 +38,7 @@ const NOTE_NODES = [
   "taskItem:paragraph block*",
   "taskList:taskItem+",
   "text:null",
+  "wikiLink:null",
 ];
 
 const TITLE_PROPERTY_NODES = [
@@ -46,7 +47,7 @@ const TITLE_PROPERTY_NODES = [
   "notePropertyValue:inline*",
 ];
 
-const MARKS = "bold,code,highlight,hljsMark,italic,link,strike,textStyle,underline,wikiLink";
+const MARKS = "bold,code,highlight,hljsMark,italic,link,strike,textStyle,underline";
 
 function canonicalShape(profile: EditorProfileId): string {
   const schema = getProfileSchema(profile);

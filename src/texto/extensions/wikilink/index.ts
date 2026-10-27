@@ -1,6 +1,6 @@
 export { WikiLink } from "./wikilink";
 export type { WikiFile, WikiHooks, WikiLinkOptions } from "./wikilink";
-export { WikiLinkMark } from "./wikiMark";
+export { WikiLinkNode } from "./wikiMark";
 export {
   wikiSuggestPlugin,
   wikiSuggestKey,
