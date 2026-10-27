@@ -1,4 +1,6 @@
 import { Mark, mergeAttributes } from "../../core";
+import type { EditorView } from "prosemirror-view";
+import type { Mark as PMMark } from "prosemirror-model";
 
 /**
  * A committed internal link (owner direction, wikilinks round 7): the same
@@ -45,6 +47,49 @@ export const WikiLinkMark = Mark.create<WikiLinkMarkOptions>({
   },
 
   renderHTML({ HTMLAttributes }) {
+    // Serialization-only shape (export, clipboard): the trailing icon is
+    // added at edit time by WikiLinkMarkView and must not leak into
+    // stored/published HTML.
     return ["span", mergeAttributes(this.options.HTMLAttributes, HTMLAttributes, { class: "texto-wikilink" }), 0];
   },
 });
+
+/**
+ * The edit-time mark view (owner direction, ProseMirror level): the label
+ * lives in `contentDOM` (PM-managed, editable), the document icon is a
+ * SIBLING after it — outside contentDOM, non-editable, pointer-transparent.
+ * The caret can therefore never land between the label and the icon: PM
+ * maps positions into contentDOM only, and the caret at the mark's edge
+ * renders outside the whole wrapper. No hiding, no layout toggles — the
+ * structure is static, so focus changes cannot reflow the line.
+ */
+export class WikiLinkMarkView {
+  dom: HTMLElement;
+  contentDOM: HTMLElement;
+
+  constructor(mark: PMMark, _view: EditorView, _inline: boolean) {
+    this.dom = createSpan("texto-wikilink");
+    this.dom.setAttribute("data-wiki-path", String(mark.attrs.path ?? ""));
+
+    this.contentDOM = createSpan("texto-wikilink-label");
+    this.dom.appendChild(this.contentDOM);
+
+    const icon = createSpan("texto-wikilink-icon");
+    icon.setAttribute("aria-hidden", "true");
+    // Outside contentDOM AND non-editable: the browser cannot place the
+    // caret or a text-insertion point inside the icon.
+    icon.setAttribute("contenteditable", "false");
+    this.dom.appendChild(icon);
+  }
+
+  /** The wrapper's only dynamic part is the path attr — follow it. */
+  update(mark: PMMark): boolean {
+    if (mark.type.name !== "wikiLink") return false;
+    this.dom.setAttribute("data-wiki-path", String(mark.attrs.path ?? ""));
+    return true;
+  }
+
+  destroy(): void {
+    this.dom.remove();
+  }
+}

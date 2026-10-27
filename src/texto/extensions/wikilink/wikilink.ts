@@ -4,6 +4,7 @@ import type { EditorState } from "prosemirror-state";
 import type { Transaction } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import { Decoration, DecorationSet } from "prosemirror-view";
+import { WikiLinkMarkView } from "./wikiMark";
 import { wikiSuggestKey, wikiSuggestPlugin } from "./wikilinkSuggest";
 
 /**
@@ -93,8 +94,21 @@ export const WikiLink = Extension.create<WikiLinkOptions>({
   },
 
   addProseMirrorPlugins() {
-    const plugins = [];
+    const plugins: Plugin[] = [];
     const hooks = this.options.hooks;
+
+    // The edit-time mark view is registered UNCONDITIONALLY: committed
+    // links can exist in documents opened where the vault hooks are absent
+    // (migration runs in storage regardless), and they must render there.
+    plugins.push(
+      new Plugin({
+        props: {
+          markViews: {
+            wikiLink: (mark, view, inline) => new WikiLinkMarkView(mark, view, inline),
+          },
+        },
+      }),
+    );
 
     if (hooks) {
       plugins.push(wikiUnresolvedPlugin(hooks));

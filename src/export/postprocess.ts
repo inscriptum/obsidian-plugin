@@ -348,6 +348,13 @@ function stripWikiPaths(parsed: Document): void {
   )) {
     el.removeAttribute("data-wiki-path");
   }
+  // The edit-time icon is a mark-view element and never passes through
+  // renderHTML — removed here defensively should serialization change.
+  for (const el of Array.from(
+    parsed.body.querySelectorAll<HTMLElement>(".texto-wikilink-icon"),
+  )) {
+    el.remove();
+  }
 }
 
 function replaceWikiLinks(parsed: Document): void {
