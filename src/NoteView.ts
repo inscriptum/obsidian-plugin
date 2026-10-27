@@ -54,6 +54,7 @@ import {
   type ShouldShowProps,
 } from "./texto/extensions/bubble-menu";
 import { BubbleMenuBarElement } from "./components/bubble-menu-bar/bubble-menu-bar.element";
+import { selectionInWikiContext } from "./texto/extensions/wikilink";
 import { TableBubbleMenuElement } from "./components/bubble-menu-bar/table-bubble-menu-bar.element";
 import { TableCellsBubbleMenuElement } from "./components/bubble-menu-bar/table-cells-bubble-menu-bar.element";
 import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubble-menu-bar.element";
@@ -633,6 +634,13 @@ export class NoteView extends FileView {
 
                     // Media nodes have their own menu — hide the text menu for them.
                     if (isMediaNodeSelection(state)) {
+                      return false;
+                    }
+
+                    // Wiki-link territory (active «[[» suggest session or a
+                    // committed link's label) carries no formatting controls
+                    // — owner claim, wikilinks round 7.
+                    if (selectionInWikiContext(state)) {
                       return false;
                     }
 

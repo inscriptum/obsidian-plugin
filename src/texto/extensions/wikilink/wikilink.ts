@@ -1,7 +1,8 @@
 import { Extension, InputRule } from "../../core";
 import { Plugin, PluginKey, TextSelection } from "prosemirror-state";
-import type { EditorView } from "prosemirror-view";
 import type { EditorState } from "prosemirror-state";
+import type { Transaction } from "prosemirror-state";
+import type { EditorView } from "prosemirror-view";
 import { Decoration, DecorationSet } from "prosemirror-view";
 import { wikiSuggestKey, wikiSuggestPlugin } from "./wikilinkSuggest";
 
@@ -31,13 +32,15 @@ export interface WikiLinkOptions {
 }
 
 /**
- * Internal links, the Obsidian inline-syntax model (owner decision,
- * issue wikilinks round 3): the document stores `[[target|label]]` (or
- * `[[target]]`) as PLAIN TEXT. While the caret is outside a complete
- * pattern, decorations render it as a styled link label (brackets, target
- * and pipe hidden); with the caret inside, the raw syntax shows for
- * editing. No mark in the JSON — the format stays plain text, older builds
- * see normal text and the export post-processes the same pattern.
+ * Internal links, the ProseMirror way (owner direction, wikilinks round 7 —
+ * the bold pattern instead of a 1:1 Obsidian copy): the raw «[[target|label]]»
+ * syntax lives only while the link is being created. Typing «[[» opens the
+ * suggest session over plain text; committing — Enter in the popup, a typed
+ * closing «]]» or the caret leaving the pattern — consumes the syntax and
+ * leaves the label text carrying the wikiLink mark (target in the mark
+ * attrs). A committed link renders as its label only; re-entering it offers
+ * the label for editing, the inside is fixed. No hidden decorations — the
+ * whole class of display:none boundary bugs (rounds 3–6) is gone by design.
  */
 export const WikiLink = Extension.create<WikiLinkOptions>({
   name: "wikiLink",
@@ -52,12 +55,12 @@ export const WikiLink = Extension.create<WikiLinkOptions>({
   },
 
   addInputRules() {
-    // Typing «[[» auto-closes the link: «[[» + «]]» with the caret between
-    // (the Obsidian behavior, owner round-4). The suggest popup opens on
-    // the same transaction — its scan sees the caret before the closing
-    // brackets. Undo (backspace through the rule's meta) removes the pair.
     if (!this.options.hooks) return [];
     return [
+      // Typing «[[» auto-closes the link: «[[» + «]]» with the caret between
+      // (the Obsidian behavior, owner round-4). The suggest popup opens on
+      // the same transaction — its scan sees the caret before the closing
+      // brackets. Undo (backspace through the rule's meta) removes the pair.
       new InputRule({
         find: /\[\[$/,
         handler: ({ state, range }): void => {
@@ -67,10 +70,20 @@ export const WikiLink = Extension.create<WikiLinkOptions>({
           state.tr.setSelection(
             TextSelection.create(state.tr.doc, range.from + 2),
           );
-          // open the suggest session: only a freshly typed «[[» activates it
-          // (re-entering raw syntax with arrows or the edit menu does not —
-          // owner round-6, the popup lingering after editing)
+          // open the suggest session: only a freshly typed «[[» (or the
+          // hover-menu Edit action) activates it
           state.tr.setMeta(wikiSuggestKey, { open: true });
+        },
+      }),
+      // The tail of manually typed syntax (popup dismissed, no candidates,
+      // no auto-closed pair around): the final «]» completing
+      // «[[target|label]]» converts the pattern into a committed link —
+      // the same consumption the bold input rule does to «**».
+      new InputRule({
+        find: /\[\[([^[|\]]+)(?:\|([^\][]*))?\]\]$/,
+        handler: ({ state, range, match }): void => {
+          commitPattern(state.tr, range.from, range.to, match[1] ?? "", match[2]);
+          state.tr.setMeta(wikiSuggestKey, { close: true });
         },
       }),
     ];
@@ -81,7 +94,9 @@ export const WikiLink = Extension.create<WikiLinkOptions>({
     const hooks = this.options.hooks;
 
     if (hooks) {
-      plugins.push(wikiDecorationsPlugin(hooks));
+      plugins.push(wikiUnresolvedPlugin(hooks));
+      plugins.push(finalizeOnExitPlugin());
+      plugins.push(wikiLinkViewPlugin(hooks));
       // The «[[» suggest popup rides on the same hooks (it must never exist
       // without a vault to suggest from).
       plugins.push(wikiSuggestPlugin(hooks));
@@ -91,17 +106,32 @@ export const WikiLink = Extension.create<WikiLinkOptions>({
   },
 });
 
+/** Replace the raw pattern at [from, to) with the committed link: the label
+ *  (display text when present and non-empty, otherwise the target) carrying
+ *  the wikiLink mark. The caret is left where `tr`'s caller put it — this
+ *  helper only maps it through the replacement. */
+function commitPattern(
+  tr: Transaction,
+  from: number,
+  to: number,
+  target: string,
+  display: string | null | undefined,
+): void {
+  const label =
+    display != null && display.length > 0 ? display : target;
+  tr.replaceWith(from, to, tr.doc.type.schema.text(label, [
+    tr.doc.type.schema.marks.wikiLink.create({ path: target }),
+  ]));
+}
+
 /**
  * One complete `[[target]]` / `[[target|label]]` occurrence inside a single
- * text node.
+ * text node — a raw pattern that is not a committed link yet (or a leftover
+ * the caret abandoned).
  */
 export interface WikiMatch {
   from: number;
   to: number;
-  /** Document position of the rendered link text (label, or target when no
-   *  label is present). */
-  textFrom: number;
-  textTo: number;
   target: string;
   label: string | null;
 }
@@ -124,21 +154,17 @@ export function scanWikiMatches(
   return out;
 }
 
-/** All matches of the current document (doc positions). Pure — tested. */
+/** All raw patterns of the current document (doc positions). Pure — tested. */
 export function findWikiMatches(state: EditorState): WikiMatch[] {
   const out: WikiMatch[] = [];
   state.doc.descendants((node, pos) => {
     if (!node.isText || typeof node.text !== "string") return true;
+    // A committed link is mark content — its label text is never rescanned.
+    if (node.marks.some((m) => m.type.name === "wikiLink")) return true;
     for (const m of scanWikiMatches(node.text)) {
-      // The visible link text: the label when present, otherwise the target
-      // (both sit right before the closing brackets).
-      const visible = m.label ?? m.target;
-      const textTo = pos + m.end - 2;
       out.push({
         from: pos + m.start,
         to: pos + m.end,
-        textFrom: textTo - visible.length,
-        textTo,
         target: m.target,
         label: m.label,
       });
@@ -148,66 +174,154 @@ export function findWikiMatches(state: EditorState): WikiMatch[] {
   return out;
 }
 
-/** Whether the selection reaches INTO the pattern (then it renders raw).
- *  A collapsed caret sitting exactly on a boundary (right before «[[» or
- *  right after «]]») does NOT count — the link stays rendered. */
-function selectionOverlaps(state: EditorState, match: WikiMatch): boolean {
-  const { from, to } = state.selection;
-  return from < match.to && to > match.from;
-}
-
-function buildWikiDecorations(state: EditorState, hooks: WikiHooks): DecorationSet {
-  const decorations: Decoration[] = [];
-  for (const match of findWikiMatches(state)) {
-    if (selectionOverlaps(state, match)) continue;
-    // Hide the opening part («[[target» + the pipe when a label follows).
-    const openEnd = match.textFrom;
-    decorations.push(
-      Decoration.inline(
-        match.from,
-        openEnd,
-        { class: "texto-wiki-hide" },
-        { wikiHide: true },
-      ),
-    );
-    // Hide the closing brackets.
-    decorations.push(
-      Decoration.inline(
-        match.textTo,
-        match.to,
-        { class: "texto-wiki-hide" },
-        { wikiHide: true },
-      ),
-    );
-    // Style the visible link text.
-    const resolved = hooks.isResolved(match.target);
-    decorations.push(
-      Decoration.inline(
-        match.textFrom,
-        match.textTo,
-        {
-          class: resolved ? "texto-wikilink" : "texto-wikilink is-unresolved",
-          "data-wiki-path": match.target,
-        },
-        { wikiLink: true },
-      ),
-    );
-  }
-  return DecorationSet.create(state.doc, decorations);
+/**
+ * Commits a raw pattern the caret just LEFT (appendTransaction): while the
+ * caret is inside the pattern the suggest session owns it (raw editing, as
+ * in Obsidian); the transaction that moves the caret out is followed by one
+ * that consumes the syntax into a committed link. Undo of an accept is not
+ * an exit — the restored selection sits after the restored pattern, not
+ * inside, so undo keeps working.
+ */
+function finalizeOnExitPlugin(): Plugin {
+  return new Plugin({
+    key: new PluginKey("wikiLinkFinalize"),
+    appendTransaction(transactions, oldState, newState) {
+      // Exits are mostly selection-only transactions (click, arrows), so no
+      // docChanged guard here — every dispatched transaction is checked.
+      const oldSel = oldState.selection;
+      const newSel = newState.selection;
+      const matches = findWikiMatches(newState).filter((m) => {
+        const wasInside = oldSel.from < m.to && oldSel.to > m.from;
+        const isInside = newSel.from < m.to && newSel.to > m.from;
+        return wasInside && !isInside;
+      });
+      if (matches.length === 0) return null;
+      const tr = newState.tr;
+      tr.setMeta("addToHistory", false);
+      // Later positions first: each replacement shifts nothing before it.
+      for (const match of matches.slice().sort((a, b) => b.from - a.from)) {
+        commitPattern(tr, match.from, match.to, match.target, match.label);
+      }
+      return tr;
+    },
+  });
 }
 
 /**
- * Rendered-link click semantics (owner round-5, Notion-style): a click on a
- * rendered label does NOT change its view — a mini bubble menu appears with
- * «Редактировать» (caret inside the pattern → the raw syntax shows) and
- * «Перейти» (open the target). */
-function wikiDecorationsPlugin(hooks: WikiHooks): Plugin {
-  let menu: HTMLElement | null = null;
+ * The unresolved dim: committed links whose path does not resolve in the
+ * vault get `is-unresolved` on their span. Attribute-only decorations —
+ * nothing is hidden, the caret behavior stays native.
+ */
+function wikiUnresolvedPlugin(hooks: WikiHooks): Plugin {
+  return new Plugin({
+    key: new PluginKey("wikiLinkUnresolved"),
+    props: {
+      decorations: (state) => {
+        const decorations: Decoration[] = [];
+        state.doc.descendants((node, pos) => {
+          if (!node.isText) return true;
+          const wiki = node.marks.find((m) => m.type.name === "wikiLink");
+          if (!wiki) return true;
+          if (!hooks.isResolved(String(wiki.attrs.path ?? ""))) {
+            decorations.push(
+              Decoration.inline(pos, pos + node.nodeSize, {
+                class: "is-unresolved",
+              }),
+            );
+          }
+          return true;
+        });
+        return DecorationSet.create(state.doc, decorations);
+      },
+    },
+  });
+}
 
-  const destroyMenu = () => {
-    menu?.remove();
-    menu = null;
-  };
+/** True when the selection lives in wiki-link territory — an active suggest
+ *  session (raw syntax on screen) or a selection touching a committed link's
+ *  label. The text bubble menu stays away from both (owner claim: no
+ *  formatting controls inside «[[…]]» or the rendered label). */
+export function selectionInWikiContext(state: EditorState): boolean {
+  if (wikiSuggestKey.getState(state)?.active === true) return true;
+  const { from, to } = state.selection;
+  let found = false;
+  state.doc.nodesBetween(from, to, (node, pos) => {
+    if (found) return false;
+    if (!node.isText) return true;
+    const wiki = node.marks.find((m) => m.type.name === "wikiLink");
+    if (!wiki) return true;
+    if (pos < to && pos + node.nodeSize > from) found = true;
+    return !found;
+  });
+  return found;
+}
+
+/** The range (DOC positions) and attrs of the wikiLink mark under `pos`,
+ *  or null when no committed link is there. */
+export interface WikiMarkRange {
+  from: number;
+  to: number;
+  path: string;
+  label: string;
+}
+
+/** The wikiLink mark range under `pos`, or null. */
+export function wikiMarkAt(state: EditorState, pos: number): WikiMarkRange | null {
+  const $pos = state.doc.resolve(pos);
+  const mark = $pos.marks().find((m) => m.type.name === "wikiLink");
+  if (!mark) return null;
+  // Doc position where the text node (and the marked run) starts.
+  const from = $pos.pos - $pos.textOffset;
+  // Walk forward to the end of the marked run.
+  const parent = $pos.parent;
+  let to = from;
+  for (
+    let off = $pos.parentOffset - $pos.textOffset;
+    off < parent.content.size;
+  ) {
+    const child = parent.childAfter(off);
+    if (
+      child.node == null ||
+      !child.node.isText ||
+      !child.node.marks.some((m) => m.eq(mark))
+    ) {
+      break;
+    }
+    to += child.node.nodeSize;
+    off += child.node.nodeSize;
+  }
+  const label = state.doc.textBetween(from, to, undefined, "\ufffc");
+  return { from, to, path: String(mark.attrs.path ?? ""), label };
+}
+
+/**
+ * The hover-menu «Редактировать» action: a committed link dissolves back
+ * into the raw «[[path|label]]» syntax with the caret at the end of the
+ * path — the suggest popup reopens filtered by the current target (owner
+ * round 7: editing shows the same menu as a fresh «[[»).
+ */
+export function startWikiEdit(view: EditorView, range: WikiMarkRange): void {
+  const raw = `[[${range.path}|${range.label}]]`;
+  const tr = view.state.tr;
+  tr.replaceWith(range.from, range.to, tr.doc.type.schema.text(raw));
+  tr.setSelection(
+    TextSelection.create(tr.doc, range.from + 2 + range.path.length),
+  );
+  tr.setMeta(wikiSuggestKey, { open: true });
+  view.dispatch(tr);
+  view.focus();
+}
+
+/**
+ * Committed-link interactions (owner round 7): HOVER shows a bubble menu
+ * with «Перейти» / «Редактировать» (no click needed); a plain click just
+ * places the caret in the label (native text editing — the view does not
+ * change, there is no raw syntax behind a committed link); Mod-click opens
+ * the target. On touch (no hover) a tap IS the menu affordance.
+ */
+function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
+  let menu: HTMLElement | null = null;
+  let hideTimer = 0;
 
   const WIKI_MENU_NS = "http://www.w3.org/2000/svg";
 
@@ -222,114 +336,111 @@ function wikiDecorationsPlugin(hooks: WikiHooks): Plugin {
     return svg;
   };
 
-  const showMenu = (view: EditorView, el: HTMLElement): void => {
-    destroyMenu();
-    menu = createDiv("texto-wiki-menu");
-    document.body.appendChild(menu);
+  const destroyMenu = () => {
+    hideTimer = 0;
+    menu?.remove();
+    menu = null;
+  };
 
-    // Icon buttons (owner round-6: no text labels, bubble-menu style).
-    // Pencil → caret inside the pattern at the clicked spot (raw edit);
-    // link → open the target. The click coords ride on the element's
-    // data attributes (the label IS doc text, so posAtCoords maps them
-    // inside the pattern).
-    const edit = createDiv("texto-wiki-menu__item");
+  const scheduleHide = () => {
+    if (menu == null || hideTimer !== 0) return;
+    hideTimer = window.setTimeout(destroyMenu, 240);
+  };
+
+  const cancelHide = () => {
+    if (hideTimer !== 0) {
+      window.clearTimeout(hideTimer);
+      hideTimer = 0;
+    }
+  };
+
+  /** Open the suggest session on a committed link: the mark dissolves back
+   *  into the raw «[[path|label]]» syntax with the caret at the end of the
+   *  path (popup filtered by the current target, «|» reaches the label). */
+  const startEdit = (view: EditorView, range: WikiMarkRange): void =>
+    startWikiEdit(view, range);
+
+  const showMenu = (view: EditorView, el: HTMLElement): void => {
+    cancelHide();
+    // Re-locate the mark from the live doc: positions may have shifted
+    // since the hover began. With inclusive:false the mark is invisible at
+    // the run's right edge, so probe left edge → middle → right-inside.
+    const rect = el.getBoundingClientRect();
+    let range: ReturnType<typeof wikiMarkAt> = null;
+    for (const x of [rect.left + 1, rect.left + rect.width / 2, rect.right - 1]) {
+      const pos = view.posAtCoords({ left: x, top: rect.top + 1 });
+      range = pos ? wikiMarkAt(view.state, pos.pos) : null;
+      if (range != null) break;
+    }
+    if (range == null) {
+      destroyMenu();
+      return;
+    }
+    const path = range.path;
+    const resolved = hooks.isResolved(path);
+
+    const previous = menu;
+    if (previous != null) {
+      cancelHide();
+    } else {
+      menu = createDiv("texto-wiki-hover");
+      // Crossing the 4px gap onto the menu must not look like "left the
+      // link": entering the menu cancels the hide, leaving it resumes.
+      menu.addEventListener("mouseenter", cancelHide);
+      menu.addEventListener("mouseleave", scheduleHide);
+      document.body.appendChild(menu);
+    }
+    const box = menu!;
+
+    const target = createSpan("texto-wiki-hover__path");
+    if (!resolved) target.className += " is-unresolved";
+    target.textContent = path;
+    box.replaceChildren(target);
+
+    const open = createDiv("texto-wiki-hover__item");
+    open.appendChild(menuIcon("link"));
+    open.setAttribute("aria-label", "Open wikilink target");
+    open.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      destroyMenu();
+      if (hooks.isResolved(path)) {
+        hooks.openTarget(path);
+      }
+    });
+    box.appendChild(open);
+
+    const edit = createDiv("texto-wiki-hover__item");
     edit.appendChild(menuIcon("pencil"));
     edit.setAttribute("aria-label", "Edit wikilink");
     edit.addEventListener("mousedown", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      const cx = parseFloat(el.getAttribute("data-click-x") ?? "0");
-      const cy = parseFloat(el.getAttribute("data-click-y") ?? "0");
-      const pos = view.posAtCoords({ left: cx, top: cy });
-      if (pos) {
-        view.dispatch(
-          view.state.tr
-            .setSelection(TextSelection.create(view.state.doc, pos.pos))
-            .setMeta("pointer", true),
-        );
-      }
       destroyMenu();
-      view.focus();
+      startEdit(view, range);
     });
-    menu.appendChild(edit);
+    box.appendChild(edit);
 
-    const open = createDiv("texto-wiki-menu__item");
-    open.appendChild(menuIcon("link"));
-    open.setAttribute("aria-label", "Open target");
-    open.addEventListener("mousedown", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const path = el.getAttribute("data-wiki-path") ?? "";
-      if (hooks.isResolved(path)) {
-        hooks.openTarget(path);
-      }
-      destroyMenu();
-    });
-    menu.appendChild(open);
-
-    // Anchor under the clicked link, clamped to the viewport.
-    const lr = el.getBoundingClientRect();
+    // Anchor under the link, clamped to the viewport.
     const margin = 8;
     const left = Math.min(
-      Math.max(margin, lr.left),
-      Math.max(margin, window.innerWidth - menu.offsetWidth - margin),
+      Math.max(margin, rect.left),
+      Math.max(margin, window.innerWidth - box.offsetWidth - margin),
     );
-    const top = lr.bottom + 4;
-    menu.setAttribute(
+    let top = rect.bottom + 4;
+    if (top + box.offsetHeight > window.innerHeight - margin) {
+      top = Math.max(margin, rect.top - box.offsetHeight - 4);
+    }
+    box.setAttribute(
       "style",
       `left:${left.toFixed(0)}px; top:${top.toFixed(0)}px;`,
     );
   };
 
   return new Plugin({
-    key: new PluginKey("wikiLinkDecorations"),
+    key: new PluginKey("wikiLinkView"),
     props: {
-      decorations: (state) => buildWikiDecorations(state, hooks),
-      // A space typed on a pattern BOUNDARY (the caret right before the
-      // hidden «[[» or right after the hidden «]]») is inserted explicitly:
-      // the browser's default insertion point skips display:none spans, so
-      // the space would land INSIDE the pattern (owner round-5). A space
-      // typed strictly inside the pattern closes the link (space after the
-      // brackets — the owner model).
-      handleTextInput: (view: EditorView, from: number, to: number, text: string) => {
-        if (text !== " ") return false;
-        const match = findWikiMatches(view.state).find(
-          (m) => from > m.from && from < m.to,
-        );
-        if (match == null) return false;
-        const tr = view.state.tr;
-        tr.insertText(" ", match.to, match.to);
-        tr.setSelection(TextSelection.create(tr.doc, match.to + 1));
-        tr.setMeta(wikiSuggestKey, { close: true });
-        tr.setMeta("pointer", true);
-        view.dispatch(tr);
-        view.focus();
-        return true;
-      },
-      handleKeyDown: (view: EditorView, event: KeyboardEvent) => {
-        if (event.key !== " " || !view.state.selection.empty) return false;
-        const caret = view.state.selection.from;
-        const match = findWikiMatches(view.state).find(
-          (m) => caret === m.from || caret === m.to,
-        );
-        if (match == null) return false;
-        // The caret hugs a hidden bracket — insert the space on the OUTSIDE
-        // of the pattern (before «[[» from the left edge, after «]]» from
-        // the right edge) so it stays visible.
-        const insertAt = caret === match.from ? match.from : match.to;
-        event.preventDefault();
-        const tr = view.state.tr;
-        tr.insertText(" ", insertAt, insertAt);
-        tr.setSelection(TextSelection.create(tr.doc, insertAt + 1));
-        view.dispatch(tr);
-        view.focus();
-        return true;
-      },
       handleDOMEvents: {
-        // The whole interaction lives on mousedown: preventDefault stops
-        // PM's caret placement (which would instantly reveal the raw
-        // syntax — the owner wants the view unchanged until an action is
-        // chosen), and the mini menu shows in place of the swap.
         mousedown: (view: EditorView, event: MouseEvent) => {
           if (menu != null && !menu.contains(event.target as Node)) {
             destroyMenu();
@@ -339,20 +450,73 @@ function wikiDecorationsPlugin(hooks: WikiHooks): Plugin {
           if (!el) return false;
           if (event.metaKey || event.ctrlKey) {
             // Modifier-click is the direct shortcut for following the link.
-            const path = el.getAttribute("data-wiki-path");
+            const path = el.getAttribute("data-wiki-path") ?? "";
             if (path && hooks.isResolved(path)) {
               hooks.openTarget(path);
             }
             event.preventDefault();
             return true;
           }
-          event.preventDefault();
-          el.setAttribute("data-click-x", String(event.clientX));
-          el.setAttribute("data-click-y", String(event.clientY));
-          showMenu(view, el);
-          return true;
+          if (!window.matchMedia("(hover: hover)").matches) {
+            // Touch: no hover exists, the tap opens the menu (the only way
+            // to reach «Перейти»/«Редактировать» on a phone).
+            event.preventDefault();
+            showMenu(view, el);
+            return true;
+          }
+          // Desktop: the caret lands in the label (native); the hover menu
+          // is already around or follows the pointer.
+          return false;
         },
       },
+      handleKeyDown: (view: EditorView, event: KeyboardEvent) => {
+        if (event.key === "Escape" && menu != null) {
+          destroyMenu();
+        }
+        return false;
+      },
+    },
+    view(editorView) {
+      const onBlurOut = () => {
+        window.setTimeout(() => {
+          const active = document.activeElement;
+          if (!editorView.dom.contains(active) && menu != null) {
+            destroyMenu();
+          }
+        }, 0);
+      };
+      // Hover lives on plain DOM listeners: ProseMirror forwards only a
+      // fixed event set through handleDOMEvents — mouseover/mouseout are
+      // not among them.
+      const onMouseOver = (event: MouseEvent) => {
+        if (!window.matchMedia("(hover: hover)").matches) return;
+        const target = event.target as HTMLElement | null;
+        const el = target?.closest?.(".texto-wikilink") as HTMLElement | null;
+        if (el) showMenu(editorView, el);
+      };
+      const onMouseOut = (event: MouseEvent) => {
+        if (menu == null) return;
+        const target = event.target as HTMLElement | null;
+        if (target?.closest?.(".texto-wikilink") != null) {
+          scheduleHide();
+        }
+      };
+      // Scrolling under a floating menu leaves it pointing at the wrong
+      // place — drop it (capture: the note scroller is an ancestor).
+      const onScroll = () => destroyMenu();
+      editorView.dom.addEventListener("focusout", onBlurOut);
+      editorView.dom.addEventListener("mouseover", onMouseOver);
+      editorView.dom.addEventListener("mouseout", onMouseOut);
+      document.addEventListener("scroll", onScroll, true);
+      return {
+        destroy() {
+          editorView.dom.removeEventListener("focusout", onBlurOut);
+          editorView.dom.removeEventListener("mouseover", onMouseOver);
+          editorView.dom.removeEventListener("mouseout", onMouseOut);
+          document.removeEventListener("scroll", onScroll, true);
+          destroyMenu();
+        },
+      };
     },
   });
 }

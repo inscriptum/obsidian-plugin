@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { noteDoc, p } from "./fixtures/docs";
+import { noteDoc, p, pWiki } from "./fixtures/docs";
 import { docJson, mount, openHarness } from "./helpers";
 
 const FILES = [
@@ -9,8 +9,10 @@ const FILES = [
 ];
 
 const link = ".texto-editor .ProseMirror .texto-wikilink";
+const popup = ".texto-wiki-suggest";
+const hover = ".texto-wiki-hover";
 
-test.describe("wiki-link «[[» suggest (inline syntax)", () => {
+test.describe("wiki links — the committed-mark model (round 7)", () => {
   test.beforeEach(async ({ page }) => {
     await openHarness(page);
     await page.evaluate((files) => {
@@ -31,9 +33,8 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     await page.keyboard.type(" see [[");
     await page.waitForTimeout(150);
 
-    const popup = page.locator(".texto-wiki-suggest");
-    await expect(popup).toBeVisible();
-    const names = await popup.locator(".texto-wiki-suggest__name").allTextContents();
+    await expect(page.locator(popup)).toBeVisible();
+    const names = await page.locator(`${popup} .texto-wiki-suggest__name`).allTextContents();
     expect(names).toEqual(["planning", "plan b", "2026-10-24"]);
     // the pair auto-closed with the caret between the brackets
     const doc = (await docJson(page)) as {
@@ -42,7 +43,7 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     expect(doc.content[1]!.content?.[0]?.text).toBe("plain p1 see [[]]");
   });
 
-  test("the query filters the candidates; «|» switches to the label; space closes", async ({
+  test("Enter accepts: the syntax is consumed, a committed link remains", async ({
     page,
   }) => {
     const para = page.locator(".texto-editor .ProseMirror > p", {
@@ -50,200 +51,62 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     });
     await para.click();
     await page.keyboard.press("End");
-    await page.keyboard.type(" see [[planning|My");
-    await page.waitForTimeout(150);
-    // caret after the pipe: typing affects the LABEL, the popup keeps
-    // showing the matching file
-    const names = await page.locator(".texto-wiki-suggest__name").allTextContents();
-    expect(names).toEqual(["planning"]);
-
-    // space in the label closes the link (owner model): the label "My"
-    // stays, the space lands after the closing brackets
-    await page.keyboard.type(" ");
-    await page.waitForTimeout(150);
-    await expect(page.locator(".texto-wiki-suggest")).toHaveCount(0);
-    await expect(page.locator(link)).toHaveText("My");
-    const doc = (await docJson(page)) as {
-      content: { content?: { text?: string }[] }[];
-    };
-    expect(doc.content[1]!.content?.[0]?.text).toBe(
-      "plain p1 see [[planning|My]] ",
-    );
-    // the target "planning" matches no file — the link renders muted and
-    // Перейти does nothing
-    await expect(page.locator(link)).toHaveClass(/is-unresolved/);
-    await page.locator(link).click();
-    await page.waitForTimeout(150);
-    await page.locator('.texto-wiki-menu__item[aria-label="Open target"]').dispatchEvent("mousedown");
-    await page.waitForTimeout(150);
-    expect(await page.evaluate(() => window.__e2eWiki.opens)).toEqual([]);
-  });
-
-  test("Enter accepts: replaces through the closing brackets, renders as a link", async ({
-    page,
-  }) => {
-    const para = page.locator(".texto-editor .ProseMirror > p", {
-      hasText: "plain p1",
-    });
-    await para.click();
-    await page.keyboard.press("End");
-    // query without spaces — Enter accepts the selected candidate
     await page.keyboard.type(" see [[planning");
     await page.waitForTimeout(150);
     await page.keyboard.press("Enter");
     await page.waitForTimeout(150);
 
-    await expect(page.locator(".texto-wiki-suggest")).toHaveCount(0);
+    await expect(page.locator(popup)).toHaveCount(0);
+    // the committed link: the label carries the mark, the target rides the
+    // attrs — NO raw syntax anywhere (the bold pattern)
     const doc = (await docJson(page)) as {
-      content: { content?: { text?: string }[] }[];
+      content: {
+        content?: { text?: string; marks?: { type: string; attrs?: { path: string } }[] }[];
+      }[];
     };
-    // replaced through the auto-closed «]]» — no stray brackets
-    expect(doc.content[1]!.content?.[0]?.text).toBe(
-      "plain p1 see [[notes/planning.um]]",
-    );
-    await expect(page.locator(link)).toHaveText("notes/planning.um");
-  });
-
-  test("moving the caret inside reveals the raw syntax", async ({ page }) => {
-    await mount(page, noteDoc(p("go [[notes/planning.um]] now")));
-    await page.waitForTimeout(150);
-    await expect(page.locator(link)).toHaveText("notes/planning.um");
-
-    // place the caret strictly inside the pattern → raw syntax shows
-    await page.evaluate(() => {
-      const ed = window.__e2e.editor;
-      if (ed == null) throw new Error("no editor");
-      const view = ed.view;
-      let range: { from: number; to: number } | null = null;
-      view.state.doc.descendants((node, pos) => {
-        if (!range && node.isText && node.text?.includes("[[")) {
-          const start = pos + node.text.indexOf("[[");
-          range = {
-            from: start,
-            to: start + node.text.indexOf("]]") + 2,
-          };
-        }
-        return !range;
-      });
-      if (range == null) throw new Error("pattern not found");
-      const target = range as { from: number };
-      ed.commands.setTextSelection(target.from + 6);
-    });
-    await page.waitForTimeout(150);
-    await expect(page.locator(link)).toHaveCount(0);
-    const doc = (await docJson(page)) as {
-      content: { content?: { text?: string }[] }[];
-    };
-    expect(doc.content[1]!.content?.[0]?.text).toContain("[[notes/planning.um]]");
-  });
-
-  test("a click on a rendered link shows a mini menu: edit or open", async ({
-    page,
-  }) => {
-    await mount(page, noteDoc(p("go [[notes/planning.um]] now")));
-    await page.waitForTimeout(150);
-
-    // the rendered view stays unchanged on click; the menu appears instead
-    await page.locator(link).click();
-    await page.waitForTimeout(150);
-    const menu = page.locator(".texto-wiki-menu");
-    await expect(menu).toBeVisible();
-    await expect(menu.locator('.texto-wiki-menu__item[aria-label="Edit wikilink"]')).toBeVisible();
-    await expect(menu.locator('.texto-wiki-menu__item[aria-label="Open target"]')).toBeVisible();
-    await expect(page.locator(link)).toHaveCount(1);
-
-    // «Перейти» follows the link (the menu items act on mousedown)
-    await menu.locator('.texto-wiki-menu__item[aria-label="Open target"]').dispatchEvent("mousedown");
-    await page.waitForTimeout(150);
-    expect(await page.evaluate(() => window.__e2eWiki.opens)).toEqual([
+    const runs = doc.content[1]!.content ?? [];
+    expect(runs).toHaveLength(2);
+    expect(runs[0]!.text).toBe("plain p1 see ");
+    expect(runs[1]!.text).toBe("planning");
+    expect(runs[1]!.marks?.[0]?.type).toBe("wikiLink");
+    expect(runs[1]!.marks?.[0]?.attrs?.path).toBe("notes/planning.um");
+    await expect(page.locator(link)).toHaveText("planning");
+    await expect(page.locator(link)).toHaveAttribute(
+      "data-wiki-path",
       "notes/planning.um",
-    ]);
+    );
+    expect(JSON.stringify(doc)).not.toContain("[[");
   });
 
-  test("«Редактировать» in the menu reveals the raw syntax at the link", async ({
+  test("«|» types the label; Enter commits it; the target stays fixed", async ({
     page,
   }) => {
-    await mount(page, noteDoc(p("go [[notes/planning.um]] now")));
-    await page.waitForTimeout(150);
-
-    await page.locator(link).click();
-    await page.waitForTimeout(150);
-    const menu = page.locator(".texto-wiki-menu");
-    await menu.locator('.texto-wiki-menu__item[aria-label="Edit wikilink"]').dispatchEvent("mousedown");
-    await page.waitForTimeout(150);
-
-    await expect(page.locator(link)).toHaveCount(0);
-    const doc = (await docJson(page)) as {
-      content: { content?: { text?: string }[] }[];
-    };
-    expect(doc.content[1]!.content?.[0]?.text).toContain("[[notes/planning.um]]");
-    // the caret landed inside the pattern (at the clicked spot — raw edit)
-    const caretInPattern = await page.evaluate(() => {
-      const ed = window.__e2e.editor;
-      if (ed == null) return false;
-      const view = ed.view;
-      const s = view.state.selection;
-      let from: number | null = null;
-      let to: number | null = null;
-      view.state.doc.descendants((node, pos) => {
-        if (from == null && node.isText && node.text?.includes("[[notes/planning.um]]")) {
-          from = pos + node.text.indexOf("[[");
-          to = from + "[[notes/planning.um]]".length;
-        }
-        return from == null;
-      });
-      return from != null && to != null && s.from > from && s.from < to;
-    });
-    expect(caretInPattern).toBe(true);
-  });
-
-  test("space in the label part exits the link (space lands after the closing brackets)", async ({
-    page,
-  }) => {
-    await mount(page, noteDoc(p("plain p1")));
-    await page.waitForTimeout(150);
-
     const para = page.locator(".texto-editor .ProseMirror > p", {
       hasText: "plain p1",
     });
     await para.click();
     await page.keyboard.press("End");
-    await page.keyboard.type(" see [[planning.um|ddd");
+    await page.keyboard.type(" see [[planning|My Plan");
     await page.waitForTimeout(150);
-    await expect(page.locator(".texto-wiki-suggest")).toBeVisible();
+    const names = await page.locator(`${popup} .texto-wiki-suggest__name`).allTextContents();
+    expect(names).toEqual(["planning"]);
 
-    await page.keyboard.press("Space");
+    await page.keyboard.press("Enter");
     await page.waitForTimeout(150);
-
-    // the space landed AFTER the closing brackets — the link is complete,
-    // the label "ddd" renders, the caret sits after the space
-    await expect(page.locator(".texto-wiki-suggest")).toHaveCount(0);
-    await expect(page.locator(link)).toHaveText("ddd");
-    const state = await page.evaluate(() => {
-      const ed = window.__e2e.editor;
-      if (ed == null) return { error: "no editor" };
-      const view = ed.view;
-      const s = view.state.selection;
-      return {
-        text: view.state.doc.textBetween(0, view.state.doc.content.size),
-        caret: s.from,
-        spaceBeforeCaret: view.state.doc.textBetween(s.from - 1, s.from),
-      };
-    });
-    console.log("SPACEDBG:", JSON.stringify(state));
-    // the target is the hand-typed text (no popup accept) — the full path
-    // assertion belongs to the popup-accept test above
-    expect((state as { text?: string }).text?.endsWith("[[planning.um|ddd]] ")).toBe(true);
-    expect((state as { spaceBeforeCaret?: string }).spaceBeforeCaret).toBe(" ");
-    expect(state.spaceBeforeCaret).toBe(" ");
+    const doc = (await docJson(page)) as {
+      content: {
+        content?: { text?: string; marks?: { type: string; attrs?: { path: string } }[] }[];
+      }[];
+    };
+    const runs = doc.content[1]!.content ?? [];
+    expect(runs[1]!.text).toBe("My Plan");
+    expect(runs[1]!.marks?.[0]?.attrs?.path).toBe("notes/planning.um");
+    await expect(page.locator(link)).toHaveText("My Plan");
   });
 
-  test("space in the TARGET part finalizes the link too (query becomes the target)", async ({
+  test("space inside the target stays put (no exit, no jump)", async ({
     page,
   }) => {
-    await mount(page, noteDoc(p("plain p1")));
-    await page.waitForTimeout(150);
-
     const para = page.locator(".texto-editor .ProseMirror > p", {
       hasText: "plain p1",
     });
@@ -251,163 +114,276 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     await page.keyboard.press("End");
     await page.keyboard.type(" see [[plan");
     await page.waitForTimeout(150);
-    await expect(page.locator(".texto-wiki-suggest")).toBeVisible();
+    await expect(page.locator(popup)).toBeVisible();
 
     await page.keyboard.press("Space");
     await page.waitForTimeout(150);
 
-    await expect(page.locator(".texto-wiki-suggest")).toHaveCount(0);
+    // the space is a normal character INSIDE the pattern: nothing closes,
+    // nothing jumps — the caret follows the space
     const state = await page.evaluate(() => {
       const ed = window.__e2e.editor;
-      if (ed == null) return { error: "no editor" };
+      if (ed == null) return null;
       const view = ed.view;
       const s = view.state.selection;
       return {
         text: view.state.doc.textBetween(0, view.state.doc.content.size),
-        caret: s.from,
         spaceBeforeCaret: view.state.doc.textBetween(s.from - 1, s.from),
       };
     });
-    expect((state as { text?: string }).text?.endsWith("plain p1 see [[plan]] ")).toBe(true);
-    expect((state as { spaceBeforeCaret?: string }).spaceBeforeCaret).toBe(" ");
+    expect(state).not.toBeNull();
+    expect(state!.text?.endsWith("[[plan ]]")).toBe(true);
+    expect(state!.spaceBeforeCaret).toBe(" ");
+    // the session stays open (query "plan " still matches by prefix? the
+    // popup may hide on no candidates — either way nothing was finalized)
+    const doc = JSON.stringify(await docJson(page));
+    expect(doc).not.toContain("wikiLink");
   });
 
-  test("space on the pattern boundaries lands outside the link", async ({
+  test("leaving the pattern with the caret commits the link (owner step 2)", async ({
     page,
   }) => {
-    await mount(page, noteDoc(p("go [[notes/planning.um]] now")));
-    await page.waitForTimeout(150);
-
-    // caret at the LEFT boundary (right before the hidden «[[»)
-    await page.evaluate(() => {
-      const ed = window.__e2e.editor;
-      if (ed == null) throw new Error("no editor");
-      const view = ed.view;
-      let from: number | null = null;
-      view.state.doc.descendants((node, pos) => {
-        if (from == null && node.isText && node.text?.includes("[[")) {
-          from = pos + node.text.indexOf("[[");
-        }
-        return from == null;
-      });
-      if (from == null) throw new Error("pattern not found");
-      ed.commands.setTextSelection(from);
-      ed.view.focus();
+    const para = page.locator(".texto-editor .ProseMirror > p", {
+      hasText: "plain p1",
     });
+    await para.click();
+    await page.keyboard.press("End");
+    // the query matches a real file but the user never presses Enter —
+    // arrows out through the auto-closed pair
+    await page.keyboard.type(" see [[planning");
     await page.waitForTimeout(150);
-    await page.keyboard.press("Space");
-    await page.waitForTimeout(150);
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("ArrowRight");
+    await page.waitForTimeout(200);
 
-    let state = await page.evaluate(() => {
-      const ed = window.__e2e.editor;
-      if (ed == null) return null;
-      const view = ed.view;
-      const pEl = view.dom.querySelector("p");
-      let visible = "";
-      const walk = (n: Node) => {
-        if (n.nodeType === 3) visible += n.textContent ?? "";
-        else if (n.nodeType === 1 && getComputedStyle(n as HTMLElement).display !== "none") {
-          Array.from(n.childNodes).forEach(walk);
-        }
-      };
-      pEl?.childNodes.forEach(walk);
-      return {
-        text: view.state.doc.textBetween(0, view.state.doc.content.size),
-        visible,
-      };
-    });
-    if (state == null) throw new Error("no state");
-    // the space landed BEFORE the «[[» and is visible
-    expect(state.text).toContain("  [[notes/planning.um]] now");
-    expect(state.visible.startsWith("go  ")).toBe(true);
-    expect(state.visible).toContain("notes/planning.um");
-
-    // caret at the RIGHT boundary (right after the hidden «]]»)
-    await page.evaluate(() => {
-      const ed = window.__e2e.editor;
-      if (ed == null) throw new Error("no editor");
-      const view = ed.view;
-      let to: number | null = null;
-      view.state.doc.descendants((node, pos) => {
-        if (to == null && node.isText && node.text?.includes("]]")) {
-          to = pos + node.text.indexOf("]]") + 2;
-        }
-        return to == null;
-      });
-      if (to == null) throw new Error("pattern not found");
-      ed.commands.setTextSelection(to);
-      ed.view.focus();
-    });
-    await page.waitForTimeout(150);
-    await page.keyboard.press("Space");
-    await page.waitForTimeout(150);
-
-    state = await page.evaluate(() => {
-      const ed = window.__e2e.editor;
-      if (ed == null) return null;
-      const view = ed.view;
-      const pEl = view.dom.querySelector("p");
-      let visible = "";
-      const walk = (n: Node) => {
-        if (n.nodeType === 3) visible += n.textContent ?? "";
-        else if (n.nodeType === 1 && getComputedStyle(n as HTMLElement).display !== "none") {
-          Array.from(n.childNodes).forEach(walk);
-        }
-      };
-      pEl?.childNodes.forEach(walk);
-      return {
-        text: view.state.doc.textBetween(0, view.state.doc.content.size),
-        visible,
-      };
-    });
-    if (state == null) throw new Error("no state");
-    // the space landed AFTER the closing brackets and is visible
-    expect(state.text).toContain("]]  now");
-    expect(state.visible).toContain("now");
+    const doc = (await docJson(page)) as {
+      content: {
+        content?: { text?: string; marks?: { type: string; attrs?: { path: string } }[] }[];
+      }[];
+    };
+    const runs = doc.content[1]!.content ?? [];
+    const marked = runs.find((r) => r.marks?.some((m) => m.type === "wikiLink"));
+    expect(marked?.text).toBe("planning");
+    expect(marked?.marks?.[0]?.attrs?.path).toBe("planning");
+    // committed links resolve against the vault: "planning" is not a real
+    // vault path (the real one is notes/planning.um) — muted render (the
+    // dim is a PM inline decoration on an inner span)
+    await expect(page.locator(`${link} .is-unresolved`)).toHaveCount(1);
   });
 
-  test("an outside mousedown dismisses the menu", async ({ page }) => {
-    await mount(page, noteDoc(p("go [[notes/planning.um]] now")));
-    await page.waitForTimeout(150);
-
-    await page.locator(link).click();
-    await page.waitForTimeout(150);
-    await expect(page.locator(".texto-wiki-menu")).toBeVisible();
-
-    // a plain click on the same link replaces the menu (mousedown outside
-    // the menu tears it down, then the fresh one opens)
-    await page.locator(link).click();
-    await page.waitForTimeout(150);
-    await expect(page.locator(".texto-wiki-menu")).toBeVisible();
-  });
-
-  test("an unresolved target renders muted; the menu opens but Перейти does nothing", async ({
+  test("a committed link renders as the label only; re-entering edits the label", async ({
     page,
   }) => {
-    await mount(page, noteDoc(p("ghost [[nowhere/gone.md]] end")));
+    await mount(page, noteDoc(pWiki("go ", "planning", "notes/planning.um", " now")));
     await page.waitForTimeout(150);
 
-    await expect(page.locator(link)).toHaveClass(/is-unresolved/);
-    // click → the menu appears (the muted label is still clickable for edit)
+    // the label is the whole visible text — no brackets anywhere
+    await expect(page.locator(link)).toHaveText("planning");
+    const docText = await page.evaluate(() => {
+      const ed = window.__e2e.editor;
+      return ed?.view.state.doc.textBetween(0, ed.view.state.doc.content.size);
+    });
+    expect(docText).toBe("Titlego planning now");
+
+    // a plain click places the caret in the label — the view does not change
     await page.locator(link).click();
     await page.waitForTimeout(150);
-    await expect(page.locator(".texto-wiki-menu")).toBeVisible();
+    const caret = await page.evaluate(() => {
+      const ed = window.__e2e.editor;
+      if (ed == null) return null;
+      const s = ed.view.state.selection;
+      return { from: s.from, to: s.to, doc: ed.view.state.doc.toJSON() };
+    });
+    expect(caret).not.toBeNull();
+    expect(caret!.from).toBe(caret!.to);
+    // the label text node still carries the mark; no raw syntax appeared
+    const para = (caret!.doc as {
+      content: { content?: { text?: string; marks?: { type?: string }[] }[] }[];
+    }).content[1]!.content!;
+    expect(para.some((r) => r.marks?.some((m) => m.type === "wikiLink"))).toBe(
+      true,
+    );
+    expect(JSON.stringify(caret!.doc)).not.toContain("[[");
+  });
 
-    // «Перейти» on an unresolved link: nothing to open
-    await page.locator('.texto-wiki-menu__item[aria-label="Open target"]').dispatchEvent("mousedown");
-    await page.waitForTimeout(100);
-    expect(await page.evaluate(() => window.__e2eWiki.opens)).toEqual([]);
+  test("hovering a committed link shows the bubble menu; «Перейти» opens", async ({
+    page,
+  }) => {
+    await mount(page, noteDoc(pWiki("go ", "planning", "notes/planning.um")));
+    await page.waitForTimeout(150);
 
-    // «Редактировать» → raw syntax
-    await page.locator(link).click();
+    await page.locator(link).hover();
+    await page.waitForTimeout(200);
+    const menu = page.locator(hover);
+    await expect(menu).toBeVisible();
+    expect(await menu.locator(".texto-wiki-hover__path").textContent()).toBe(
+      "notes/planning.um",
+    );
+    await expect(
+      menu.locator('[aria-label="Open wikilink target"]'),
+    ).toBeVisible();
+    await expect(menu.locator('[aria-label="Edit wikilink"]')).toBeVisible();
+
+    await menu.locator('[aria-label="Open wikilink target"]').dispatchEvent("mousedown");
     await page.waitForTimeout(150);
-    await page.locator('.texto-wiki-menu__item[aria-label="Edit wikilink"]').dispatchEvent("mousedown");
+    expect(await page.evaluate(() => window.__e2eWiki.opens)).toEqual([
+      "notes/planning.um",
+    ]);
+    await expect(page.locator(hover)).toHaveCount(0);
+  });
+
+  test("«Редактировать» in the bubble reopens the suggest session on the raw syntax", async ({
+    page,
+  }) => {
+    await mount(page, noteDoc(pWiki("go ", "My Plan", "notes/planning.um")));
     await page.waitForTimeout(150);
-    await expect(page.locator(link)).toHaveCount(0);
+
+    await page.locator(link).hover();
+    await page.waitForTimeout(200);
+    await page
+      .locator(hover)
+      .locator('[aria-label="Edit wikilink"]')
+      .dispatchEvent("mousedown");
+    await page.waitForTimeout(200);
+
+    // the raw pattern is back WITH the label, the popup is open
+    await expect(page.locator(popup)).toBeVisible();
+    const names = await page.locator(`${popup} .texto-wiki-suggest__name`).allTextContents();
+    expect(names).toContain("planning");
     const doc = (await docJson(page)) as {
       content: { content?: { text?: string }[] }[];
     };
-    expect(doc.content[1]!.content?.[0]?.text).toContain("[[nowhere/gone.md]]");
+    expect(doc.content[1]!.content?.[0]?.text).toBe(
+      "go [[notes/planning.um|My Plan]]",
+    );
+    // the caret sits at the end of the path (before the pipe)
+    const caretOffset = await page.evaluate(() => {
+      const ed = window.__e2e.editor;
+      if (ed == null) return null;
+      const $from = ed.view.state.selection.$from;
+      return $from.parent.textBetween(0, $from.parentOffset);
+    });
+    expect(caretOffset?.endsWith("[[notes/planning.um")).toBe(true);
+
+    // Enter re-commits, keeping the label
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(150);
+    const after = (await docJson(page)) as {
+      content: {
+        content?: { text?: string; marks?: { type: string; attrs?: { path: string } }[] }[];
+      }[];
+    };
+    const runs = after.content[1]!.content ?? [];
+    expect(runs[1]!.text).toBe("My Plan");
+    expect(runs[1]!.marks?.[0]?.attrs?.path).toBe("notes/planning.um");
+  });
+
+  test("Mod-click follows the link directly", async ({ page }) => {
+    await mount(page, noteDoc(pWiki("go ", "planning", "notes/planning.um")));
+    await page.waitForTimeout(150);
+
+    await page.locator(link).click({ modifiers: ["ControlOrMeta"] });
+    await page.waitForTimeout(150);
+    expect(await page.evaluate(() => window.__e2eWiki.opens)).toEqual([
+      "notes/planning.um",
+    ]);
+  });
+
+  test("an unresolved link renders muted; Перейти does nothing; Edit still works", async ({
+    page,
+  }) => {
+    await mount(page, noteDoc(pWiki("ghost ", "gone", "nowhere/gone.md")));
+    await page.waitForTimeout(150);
+
+    await expect(page.locator(`${link} .is-unresolved`)).toHaveCount(1);
+
+    await page.locator(link).hover();
+    await page.waitForTimeout(200);
+    await page
+      .locator(hover)
+      .locator('[aria-label="Open wikilink target"]')
+      .dispatchEvent("mousedown");
+    await page.waitForTimeout(100);
     expect(await page.evaluate(() => window.__e2eWiki.opens)).toEqual([]);
+
+    // move the pointer away and back — a re-hover must show the menu again
+    await page.locator(".ProseMirror > p").first().hover();
+    await page.waitForTimeout(100);
+    await page.locator(link).hover();
+    await page.waitForTimeout(200);
+    await page
+      .locator(hover)
+      .locator('[aria-label="Edit wikilink"]')
+      .dispatchEvent("mousedown");
+    await page.waitForTimeout(150);
+    const doc = (await docJson(page)) as {
+      content: { content?: { text?: string }[] }[];
+    };
+    expect(doc.content[1]!.content?.[0]?.text).toBe("ghost [[nowhere/gone.md|gone]]");
+    expect(await page.evaluate(() => window.__e2eWiki.opens)).toEqual([]);
+  });
+
+  test("a committed link survives a remount (stored JSON round-trip)", async ({
+    page,
+  }) => {
+    const para = page.locator(".texto-editor .ProseMirror > p", {
+      hasText: "plain p1",
+    });
+    await para.click();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" see [[planning");
+    await page.waitForTimeout(150);
+    await page.keyboard.press("Enter");
+    await page.waitForTimeout(150);
+
+    // re-mount the exact stored JSON — the link renders committed again
+    const stored = await docJson(page);
+    await mount(page, stored);
+    await page.waitForTimeout(150);
+    await expect(page.locator(link)).toHaveText("planning");
+    await expect(page.locator(link)).toHaveAttribute(
+      "data-wiki-path",
+      "notes/planning.um",
+    );
+  });
+
+  test("Escape dismisses the popup; the raw syntax keeps editing; exit commits", async ({
+    page,
+  }) => {
+    const para = page.locator(".texto-editor .ProseMirror > p", {
+      hasText: "plain p1",
+    });
+    await para.click();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" see [[planning");
+    await page.waitForTimeout(150);
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(100);
+    await expect(page.locator(popup)).toHaveCount(0);
+
+    // typing continues in the raw syntax
+    await page.keyboard.type(" b");
+    await page.waitForTimeout(150);
+    let doc = (await docJson(page)) as {
+      content: { content?: { text?: string }[] }[];
+    };
+    expect(doc.content[1]!.content?.[0]?.text).toBe("plain p1 see [[planning b]]");
+
+    // leaving commits whatever the raw pattern now holds
+    await page.keyboard.press("End");
+    await page.keyboard.press("ArrowRight");
+    await page.waitForTimeout(200);
+    doc = (await docJson(page)) as never;
+    const runs = (doc as {
+      content: {
+        content?: {
+          text?: string;
+          marks?: { type?: string; attrs?: { path: string } }[];
+        }[];
+      }[];
+    }).content[1]!.content!;
+    const marked = runs.find((r) => r.marks?.some((m) => m.type === "wikiLink"));
+    expect(marked?.text).toBe("planning b");
+    expect(marked?.marks?.[0]?.attrs?.path).toBe("planning b");
   });
 });

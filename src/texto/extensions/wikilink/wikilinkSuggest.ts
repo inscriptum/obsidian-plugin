@@ -210,9 +210,11 @@ function apply(
 
 /**
  * Accepts the highlighted (or given) file: the «[[…» chunk at the caret is
- * replaced by the complete inline syntax `[[path]]` (or `[[path|display]]`
- * when a display text was typed), the caret lands right after the closing
- * brackets. Dispatch-free so tests and the popup reuse it with any sink.
+ * REPLACED by the committed link — the label (typed display text, or the
+ * file's basename) carrying the wikiLink mark with the target in its attrs.
+ * The raw syntax is consumed, exactly like a bold input rule consumes «**»
+ * (owner round 7: the committed link stores no syntax at all). Dispatch-free
+ * so tests and the popup reuse it with any sink.
  */
 export function acceptWikiSuggestion(
   state: import("prosemirror-state").EditorState,
@@ -221,11 +223,11 @@ export function acceptWikiSuggestion(
   suggest: { from: number; display: string | null; closeEnd?: number | null },
   cursorPos: number,
 ): boolean {
-  const display =
+  const label =
     suggest.display != null && suggest.display.length > 0
-      ? `|${suggest.display}`
-      : "";
-  const text = `[[${file.path}${display}]]`;
+      ? suggest.display
+      : file.name;
+  const markType = state.schema.marks.wikiLink;
   // Replace through the closing «]]» when one sits after the caret (the
   // auto-closed pair or a re-entered complete link) — otherwise the old
   // brackets would survive as garbage after the accepted link.
@@ -233,12 +235,24 @@ export function acceptWikiSuggestion(
     suggest.closeEnd != null && suggest.closeEnd >= cursorPos
       ? suggest.closeEnd
       : cursorPos;
+  // The caret may sit in the TARGET part (the Edit entry lands it at the end
+  // of the path) while a display text already follows the pipe — that label
+  // must survive the accept (the scan only parses text BEFORE the caret).
+  let finalLabel = label;
+  if (suggest.display == null && to > suggest.from) {
+    const raw = state.doc.textBetween(suggest.from, to, undefined, "\ufffc");
+    const parsed = /\[\[([^[\]|]*)(?:\|([^\][]*))?/.exec(raw);
+    const afterPipe = parsed?.[2];
+    if (afterPipe != null && afterPipe.length > 0) {
+      finalLabel = afterPipe;
+    }
+  }
   const tr = state.tr.replaceWith(
     suggest.from,
     to,
-    state.schema.text(text),
+    state.schema.text(finalLabel, [markType.create({ path: file.path })]),
   );
-  const end = suggest.from + text.length;
+  const end = suggest.from + finalLabel.length;
   tr.setSelection(TextSelection.create(tr.doc, Math.min(end, tr.doc.content.size)));
   tr.setMeta(wikiSuggestKey, { close: true });
   dispatch(tr);

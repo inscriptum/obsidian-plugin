@@ -338,14 +338,17 @@
   white-space: nowrap;
 }
 
-/* ── Wiki-link mini menu (Notion-style icon buttons) ─────────────────────
-   Click on a rendered link label → a floating «Редактировать / Перейти»
-   menu anchored under the link (see wikilink.ts decorations plugin). */
-.texto-wiki-menu {
+/* ── Wiki-link hover bubble (see texto/extensions/wikilink) ──────────────
+   Hovering a committed link shows a bubble menu — path + «Перейти» /
+   «Редактировать» (owner round 7: hover, not click; bubble-menu look, not a
+   custom dropdown). A body-level fixed element, host-independent. */
+.texto-wiki-hover {
   position: fixed;
   z-index: 1000;
   display: flex;
+  align-items: center;
   gap: 2px;
+  max-width: min(440px, calc(100vw - 16px));
   padding: 4px;
   background: var(--background-primary, #1e1e23);
   border: 1px solid var(--background-modifier-border, #333);
@@ -353,10 +356,28 @@
   box-shadow: var(--shadow-s, 0 4px 16px rgba(0, 0, 0, 0.3));
 }
 
-.texto-wiki-menu__item {
+.texto-wiki-hover__path {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 8px;
+  font-size: 13px;
+  line-height: 28px;
+  color: var(--text-muted, #b9b9b9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.texto-wiki-hover__path.is-unresolved {
+  color: var(--text-faint, #777);
+}
+
+.texto-wiki-hover__item {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
   width: 30px;
   height: 30px;
   border-radius: var(--radius-s, 6px);
@@ -364,21 +385,14 @@
   color: var(--text-normal, #dadada);
 }
 
-.texto-wiki-menu__item:hover {
+.texto-wiki-hover__item:hover {
   background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
 }
 
-.texto-wiki-menu__item svg {
+.texto-wiki-hover__item svg {
   display: block;
   width: 18px;
   height: 18px;
-}
-
-
-/* ── Wiki-link inline syntax (see texto/extensions/wikilink) ─────────────
-   Decorations hide the brackets/target/pipe and style the visible label. */
-.texto-editor .ProseMirror .texto-wiki-hide {
-  display: none;
 }
 
 .texto-editor .ProseMirror .texto-wikilink {
@@ -390,33 +404,8 @@
   color: var(--text-accent-hover, #8f7ffc);
 }
 
-.texto-editor .ProseMirror .texto-wikilink.is-unresolved {
+/* The unresolved dim arrives as a PM inline decoration, which wraps the
+   label in an inner span inside the mark's own span. */
+.texto-editor .ProseMirror .texto-wikilink .is-unresolved {
   color: var(--text-faint, #777);
-}
-
-/* ── Wiki-link mini menu (Notion-style) ──────────────────────────────────
-   Click on a rendered link label → a floating «Редактировать / Перейти»
-   menu anchored under the link (see wikilink.ts decorations plugin). */
-.texto-wiki-menu {
-  position: fixed;
-  z-index: 1000;
-  min-width: 180px;
-  padding: 4px;
-  background: var(--background-primary, #1e1e23);
-  border: 1px solid var(--background-modifier-border, #333);
-  border-radius: var(--radius-m, 10px);
-  box-shadow: var(--shadow-s, 0 4px 16px rgba(0, 0, 0, 0.3));
-}
-
-.texto-wiki-menu__item {
-  padding: 6px 12px;
-  border-radius: var(--radius-s, 6px);
-  cursor: pointer;
-  font-size: 13px;
-  line-height: 1.4;
-  color: var(--text-normal, #dadada);
-}
-
-.texto-wiki-menu__item:hover {
-  background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
 }

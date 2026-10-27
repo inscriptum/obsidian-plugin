@@ -4,8 +4,8 @@ import { ensureTrailingParagraphJSON } from "../texto/extensions/note-doc/traili
 import { ensureCellTrailingParagraphJSON } from "../texto/extensions/table/helpers/cellTrailingParagraph";
 import { normalizeCellColorAttrsJSON } from "../texto/extensions/table/helpers/cellColorAttrs";
 import {
-  convertLegacyWikiMarks,
-  hasLegacyWikiMarks,
+  convertLegacyWikiSyntax,
+  hasLegacyWikiSyntax,
 } from "../texto/extensions/wikilink/legacyMarks";
 
 export const EMPTY_DOC: JSONContent = {
@@ -56,10 +56,11 @@ export function parseNoteDoc(raw: string): JSONContent {
     ),
   );
   normalizeCellColorAttrsJSON(doc);
-  // Legacy wikiLink marks → inline «[[path|text]]» syntax (wikilinks v2):
-  // the mark is gone from the schema, unknown marks would not open.
-  if (hasLegacyWikiMarks(doc)) {
-    return convertLegacyWikiMarks(doc);
+  // Legacy wikilink generations → the current model (label + wikiLink
+  // mark): raw «[[path|text]]» text from the rounds-3…6 builds converts on
+  // read; v1 mark documents are already the current shape.
+  if (hasLegacyWikiSyntax(doc)) {
+    return convertLegacyWikiSyntax(doc);
   }
   return doc;
 }
