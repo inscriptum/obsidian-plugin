@@ -260,15 +260,10 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
         }
         const state = wikiSuggestKey.getState(view.state);
         if (state?.active !== true || state.dismissed) return false;
-        // Space in the LABEL part (after «|») closes the link: the space is
-        // inserted after the closing brackets and the caret lands after it —
-        // the owner model (text continues outside the link). Targets with
-        // spaces stay typable: in the target part the space goes through.
-        if (
-          event.key === " " &&
-          state.display != null &&
-          state.closeEnd != null
-        ) {
+        // Space closes the link (the owner model): the typed query becomes
+        // the target inside the already-closed brackets, the space lands
+        // AFTER them and the caret follows — text continues outside.
+        if (event.key === " " && state.closeEnd != null) {
           event.preventDefault();
           // One transaction: view.state.tr creates a NEW transaction on every
           // access — chaining two accesses orphans the first one's steps.

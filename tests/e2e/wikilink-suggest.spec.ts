@@ -267,6 +267,77 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     expect(caretInPattern).toBe(true);
   });
 
+  test("space in the label part exits the link (space lands after the closing brackets)", async ({
+    page,
+  }) => {
+    await mount(page, noteDoc(p("plain p1")));
+    await page.waitForTimeout(150);
+
+    const para = page.locator(".texto-editor .ProseMirror > p", {
+      hasText: "plain p1",
+    });
+    await para.click();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" see [[plan b|ddd");
+    await page.waitForTimeout(150);
+    await expect(page.locator(".texto-wiki-suggest")).toBeVisible();
+
+    await page.keyboard.press("Space");
+    await page.waitForTimeout(150);
+
+    // the space landed AFTER the closing brackets — the link is complete,
+    // the label "ddd" renders, the caret sits after the space
+    await expect(page.locator(".texto-wiki-suggest")).toHaveCount(0);
+    await expect(page.locator(link)).toHaveText("ddd");
+    const state = await page.evaluate(() => {
+      const ed = window.__e2e.editor;
+      if (ed == null) return { error: "no editor" };
+      const view = ed.view;
+      const s = view.state.selection;
+      return {
+        text: view.state.doc.textBetween(0, view.state.doc.content.size),
+        caret: s.from,
+        spaceBeforeCaret: view.state.doc.textBetween(s.from - 1, s.from),
+      };
+    });
+    expect(state.text).toContain("[[plan b.md|ddd]] ");
+    expect(state.spaceBeforeCaret).toBe(" ");
+  });
+
+  test("space in the TARGET part finalizes the link too (query becomes the target)", async ({
+    page,
+  }) => {
+    await mount(page, noteDoc(p("plain p1")));
+    await page.waitForTimeout(150);
+
+    const para = page.locator(".texto-editor .ProseMirror > p", {
+      hasText: "plain p1",
+    });
+    await para.click();
+    await page.keyboard.press("End");
+    await page.keyboard.type(" see [[plan");
+    await page.waitForTimeout(150);
+    await expect(page.locator(".texto-wiki-suggest")).toBeVisible();
+
+    await page.keyboard.press("Space");
+    await page.waitForTimeout(150);
+
+    await expect(page.locator(".texto-wiki-suggest")).toHaveCount(0);
+    const state = await page.evaluate(() => {
+      const ed = window.__e2e.editor;
+      if (ed == null) return { error: "no editor" };
+      const view = ed.view;
+      const s = view.state.selection;
+      return {
+        text: view.state.doc.textBetween(0, view.state.doc.content.size),
+        caret: s.from,
+        spaceBeforeCaret: view.state.doc.textBetween(s.from - 1, s.from),
+      };
+    });
+    expect(state.text).toBe("plain p1 see [[plan]] ");
+    expect((state as { spaceBeforeCaret?: string }).spaceBeforeCaret).toBe(" ");
+  });
+
   test("an outside mousedown dismisses the menu", async ({ page }) => {
     await mount(page, noteDoc(p("go [[notes/planning.um]] now")));
     await page.waitForTimeout(150);
