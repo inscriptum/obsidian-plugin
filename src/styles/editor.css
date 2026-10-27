@@ -440,3 +440,14 @@
 }
 
 
+
+/* Destructive «Удалить» in the wiki hover menu — same red as the
+   bubble-menu bars' trash (.bubble-menu-bar button.danger). */
+.texto-wiki-hover__item.is-danger {
+  color: #e07a7a;
+}
+
+.texto-wiki-hover__item.is-danger:hover {
+  color: #f8a0a0;
+  background-color: rgba(248, 113, 113, 0.12);
+}

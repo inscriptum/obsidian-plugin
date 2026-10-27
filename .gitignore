@@ -25,3 +25,4 @@ dist-harness/
 # during live verification must never be tracked.
 /*.note
 /*.tmp
+/b66d20c8-2958-4740-aca9-515c8a1ea0be.jpeg

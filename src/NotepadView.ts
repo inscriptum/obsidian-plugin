@@ -2534,7 +2534,8 @@ export class NotepadView extends FileView {
           if (selection.empty) return false;
           return state.doc.textBetween(from, to).length > 0;
         },
-        tippyOptions: { placement: "top", offset: [0, 8] },
+        // the bar exceeds tippy's 350px default max-width (button compression)
+        tippyOptions: { maxWidth: "none", placement: "top", offset: [0, 8] },
       }),
     );
 
@@ -2586,7 +2587,8 @@ export class NotepadView extends FileView {
             return false;
           return isMediaNodeSelection(state);
         },
-        tippyOptions: { placement: "top", offset: [0, 8] },
+        // the bar exceeds tippy's 350px default max-width (button compression)
+        tippyOptions: { maxWidth: "none", placement: "top", offset: [0, 8] },
       }),
     );
   }

@@ -716,6 +716,9 @@ export class NoteView extends FileView {
                     );
                   },
                   tippyOptions: {
+                    // the bar exceeds tippy's 350px default max-width — without
+                    // this the flex buttons compress to ~16px (owner report)
+                    maxWidth: "none",
                     placement: "top",
                     offset: [0, 8],
                     animation: "bubble-pop",
@@ -763,6 +766,9 @@ export class NoteView extends FileView {
                     return isMediaNodeSelection(state);
                   },
                   tippyOptions: {
+                    // the bar exceeds tippy's 350px default max-width — without
+                    // this the flex buttons compress to ~16px (owner report)
+                    maxWidth: "none",
                     placement: "top",
                     offset: [0, 8],
                     animation: "bubble-pop",

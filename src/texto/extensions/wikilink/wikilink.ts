@@ -328,7 +328,7 @@ function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
     });
     box.appendChild(edit);
 
-    const del = createDiv("texto-wiki-hover__item");
+    const del = createDiv("texto-wiki-hover__item is-danger");
     del.appendChild(menuIcon("trash"));
     del.setAttribute("aria-label", "Delete wikilink");
     del.addEventListener("mousedown", (event) => {
