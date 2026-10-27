@@ -3,7 +3,7 @@ import { Plugin, PluginKey, TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import type { EditorState } from "prosemirror-state";
 import { Decoration, DecorationSet } from "prosemirror-view";
-import { wikiSuggestPlugin } from "./wikilinkSuggest";
+import { wikiSuggestKey, wikiSuggestPlugin } from "./wikilinkSuggest";
 
 /**
  * Hooks to the Obsidian vault, injected per host (NoteView / NotepadView)
@@ -262,6 +262,26 @@ function wikiDecorationsPlugin(hooks: WikiHooks): Plugin {
     key: new PluginKey("wikiLinkDecorations"),
     props: {
       decorations: (state) => buildWikiDecorations(state, hooks),
+      // A space typed INSIDE a complete wikilink closes it: the space goes
+      // AFTER the closing brackets and the caret follows (the owner model —
+      // text continues outside the link; the visual caret at the label's
+      // edge actually sits before the hidden «]]»). Everything else (target
+      // edits, label edits without a space) types normally.
+      handleTextInput: (view: EditorView, from: number, to: number, text: string) => {
+        if (text !== " ") return false;
+        const match = findWikiMatches(view.state).find(
+          (m) => from >= m.from && from <= m.to,
+        );
+        if (match == null) return false;
+        const tr = view.state.tr;
+        tr.insertText(" ", match.to, match.to);
+        tr.setSelection(TextSelection.create(tr.doc, match.to + 1));
+        tr.setMeta(wikiSuggestKey, { close: true });
+        tr.setMeta("pointer", true);
+        view.dispatch(tr);
+        view.focus();
+        return true;
+      },
       handleDOMEvents: {
         // The whole interaction lives on mousedown: preventDefault stops
         // PM's caret placement (which would instantly reveal the raw

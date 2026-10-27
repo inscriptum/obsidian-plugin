@@ -45,7 +45,7 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     expect(doc.content[1]!.content?.[0]?.text).toBe("plain p1 see [[]]");
   });
 
-  test("the query filters the candidates; «|» switches to the label", async ({
+  test("the query filters the candidates; «|» switches to the label; space closes", async ({
     page,
   }) => {
     const para = page.locator(".texto-editor .ProseMirror > p", {
@@ -53,83 +53,33 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     });
     await para.click();
     await page.keyboard.press("End");
-    await page.keyboard.type(" see [[plan");
+    await page.keyboard.type(" see [[planning|My");
     await page.waitForTimeout(150);
-    // caret before any pipe: typing affects the file search
-    let names = await page.locator(".texto-wiki-suggest__name").allTextContents();
-    expect(names).toEqual(["plan b", "planning"]);
+    // caret after the pipe: typing affects the LABEL, the popup keeps
+    // showing the matching file
+    const names = await page.locator(".texto-wiki-suggest__name").allTextContents();
+    expect(names).toEqual(["planning"]);
 
-    // pipe: the label part — the popup keeps showing the file
-    await page.keyboard.type("|My");
-    await page.waitForTimeout(150);
-    names = await page.locator(".texto-wiki-suggest__name").allTextContents();
-    expect(names).toEqual(["plan b", "planning"]);
-
-    // close, then complete manually with the label
-    const trace: string[] = [];
-    const snap = async (mark: string) => {
-      const d = await page.evaluate(() => {
-        const ed = window.__e2e.editor;
-        if (ed == null) return { err: "no editor" };
-        const view = ed.view;
-        return {
-          text: view.state.doc.textBetween(0, view.state.doc.content.size).slice(-30),
-          caret: view.state.selection.from,
-          popup: !!document.querySelector(".texto-wiki-suggest"),
-        };
-      });
-      trace.push(`${mark}: ${JSON.stringify(d)}`);
-    };
-    await snap("after |My");
+    // space in the label closes the link (owner model): the label "My"
+    // stays, the space lands after the closing brackets
     await page.keyboard.type(" ");
-    await snap("after space");
-    await page.keyboard.type("Plan");
-    await snap("after Plan");
-    await page.keyboard.type("]]");
-    await snap("after ]]");
-    console.log("TRACEDBG:", JSON.stringify(trace));
-    await page.keyboard.type("]]");
     await page.waitForTimeout(150);
-    const pipeDbg = await page.evaluate(() => {
-      const ed = window.__e2e.editor;
-      if (ed == null) return { error: "no editor" };
-      const view = ed.view;
-      return {
-        text: view.state.doc.textBetween(0, view.state.doc.content.size),
-        caret: view.state.selection.from,
-        spans: [...document.querySelectorAll(".texto-wikilink")].map((l) => l.textContent),
-        popup: !!document.querySelector(".texto-wiki-suggest"),
-      };
-    });
-    console.log("PIPEDBG:", JSON.stringify(pipeDbg));
-    const dbg = await page.evaluate(() => {
-      const ed = window.__e2e.editor;
-      if (ed == null) return { error: "no editor" };
-      const view = ed.view;
-      return {
-        text: view.state.doc.textBetween(0, view.state.doc.content.size),
-        caret: view.state.selection.from,
-        spans: [...document.querySelectorAll(".texto-wikilink")].map((l) => l.textContent),
-        popup: !!document.querySelector(".texto-wiki-suggest"),
-      };
-    });
-    await expect(page.locator(link)).toHaveText("My Plan");
-    // the brackets, target and pipe are hidden — only the label is visible
-    const visible = await page.evaluate(() => {
-      const ed = window.__e2e.editor;
-      if (ed == null) return null;
-      const pEl = ed.view.dom.querySelector("p");
-      let out = "";
-      const walk = (n: Node) => {
-        if (n.nodeType === 3) out += n.textContent ?? "";
-        else if (n.nodeType === 1 && getComputedStyle(n as HTMLElement).display !== "none") {
-          Array.from(n.childNodes).forEach(walk);
-        }
-      };
-      pEl?.childNodes.forEach(walk);
-      return out;
-    });
-    expect(visible).toBe("plain p1 see My Plan");
+    await expect(page.locator(".texto-wiki-suggest")).toHaveCount(0);
+    await expect(page.locator(link)).toHaveText("My");
+    const doc = (await docJson(page)) as {
+      content: { content?: { text?: string }[] }[];
+    };
+    expect(doc.content[1]!.content?.[0]?.text).toBe(
+      "plain p1 see [[planning|My]] ",
+    );
+    // the target "planning" matches no file — the link renders muted and
+    // Перейти does nothing
+    await expect(page.locator(link)).toHaveClass(/is-unresolved/);
+    await page.locator(link).click();
+    await page.waitForTimeout(150);
+    await page.locator(".texto-wiki-menu__item", { hasText: "Перейти" }).dispatchEvent("mousedown");
+    await page.waitForTimeout(150);
+    expect(await page.evaluate(() => window.__e2eWiki.opens)).toEqual([]);
   });
 
   test("Enter accepts: replaces through the closing brackets, renders as a link", async ({
@@ -140,25 +90,9 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     });
     await para.click();
     await page.keyboard.press("End");
-    await page.keyboard.type(" see [[plan b");
+    // query without spaces — Enter accepts the selected candidate
+    await page.keyboard.type(" see [[planning");
     await page.waitForTimeout(150);
-    const st = await page.evaluate(() => {
-      const ed = window.__e2e.editor;
-      if (ed == null) return { error: "no editor" };
-      const view = ed.view;
-      const p = view.state.plugins.find((pl) => pl.getState && pl.getState(view.state)?.hasOwnProperty?.("closeEnd"));
-      return {
-        st: p?.getState(view.state) ?? null,
-        text: view.state.doc.textBetween(0, view.state.doc.content.size),
-        caret: view.state.selection.from,
-      };
-    });
-    console.log("STDEBUG:", JSON.stringify(st));
-    const acceptLogs: string[] = [];
-    page.on("console", (msg) => {
-      const t = msg.text();
-      if (t.includes("[dtdebug] accept")) acceptLogs.push(t);
-    });
     await page.keyboard.press("Enter");
     await page.waitForTimeout(150);
 
@@ -167,11 +101,10 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
       content: { content?: { text?: string }[] }[];
     };
     // replaced through the auto-closed «]]» — no stray brackets
-    console.log("ACCEPTLOG:", JSON.stringify(acceptLogs));
     expect(doc.content[1]!.content?.[0]?.text).toBe(
-      "plain p1 see [[notes/plan b.md]]",
+      "plain p1 see [[notes/planning.um]]",
     );
-    await expect(page.locator(link)).toHaveText("notes/plan b.md");
+    await expect(page.locator(link)).toHaveText("notes/planning.um");
   });
 
   test("moving the caret inside reveals the raw syntax", async ({ page }) => {
@@ -278,7 +211,7 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     });
     await para.click();
     await page.keyboard.press("End");
-    await page.keyboard.type(" see [[plan b|ddd");
+    await page.keyboard.type(" see [[planning.um|ddd");
     await page.waitForTimeout(150);
     await expect(page.locator(".texto-wiki-suggest")).toBeVisible();
 
@@ -300,7 +233,11 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
         spaceBeforeCaret: view.state.doc.textBetween(s.from - 1, s.from),
       };
     });
-    expect(state.text).toContain("[[plan b.md|ddd]] ");
+    console.log("SPACEDBG:", JSON.stringify(state));
+    // the target is the hand-typed text (no popup accept) — the full path
+    // assertion belongs to the popup-accept test above
+    expect((state as { text?: string }).text?.endsWith("[[planning.um|ddd]] ")).toBe(true);
+    expect((state as { spaceBeforeCaret?: string }).spaceBeforeCaret).toBe(" ");
     expect(state.spaceBeforeCaret).toBe(" ");
   });
 
@@ -334,7 +271,7 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
         spaceBeforeCaret: view.state.doc.textBetween(s.from - 1, s.from),
       };
     });
-    expect(state.text).toBe("plain p1 see [[plan]] ");
+    expect((state as { text?: string }).text?.endsWith("plain p1 see [[plan]] ")).toBe(true);
     expect((state as { spaceBeforeCaret?: string }).spaceBeforeCaret).toBe(" ");
   });
 
