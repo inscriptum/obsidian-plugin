@@ -11,7 +11,12 @@ const marked = (text: string, path: string): JSONContent => ({
   marks: [{ type: "wikiLink", attrs: { path } }],
 });
 
-describe("legacy raw wiki syntax → committed marks", () => {
+const node = (label: string, path: string): JSONContent => ({
+  type: "wikiLink",
+  attrs: { path, text: label },
+});
+
+describe("legacy wikilink generations → atom node", () => {
   it("detects raw patterns anywhere in the doc", () => {
     const doc: JSONContent = {
       type: "noteDoc",
@@ -27,20 +32,22 @@ describe("legacy raw wiki syntax → committed marks", () => {
     expect(hasLegacyWikiSyntax({ type: "noteDoc", content: [] })).toBe(false);
   });
 
-  it("does not flag committed marks or plain text", () => {
-    const doc: JSONContent = {
+  it("does not flag atom nodes, committed marks or plain text", () => {
+    expect(hasLegacyWikiSyntax({
       type: "paragraph",
-      content: [{ type: "text", text: "plain [x] and [[unclosed" }],
-    };
-    expect(hasLegacyWikiSyntax(doc)).toBe(false);
-    const committed: JSONContent = {
+      content: [node("plan", "notes/plan.um")],
+    })).toBe(false);
+    expect(hasLegacyWikiSyntax({
       type: "paragraph",
       content: [marked("plan", "notes/plan.um")],
-    };
-    expect(hasLegacyWikiSyntax(committed)).toBe(false);
+    })).toBe(true);
+    expect(hasLegacyWikiSyntax({
+      type: "paragraph",
+      content: [{ type: "text", text: "plain [x] and [[unclosed" }],
+    })).toBe(false);
   });
 
-  it("converts a raw pattern into the marked label, splitting the node", () => {
+  it("converts a raw pattern into the atom node, splitting the text node", () => {
     const doc: JSONContent = {
       type: "noteDoc",
       content: [
@@ -56,10 +63,10 @@ describe("legacy raw wiki syntax → committed marks", () => {
     const para = (out.content?.[0] as JSONContent).content as JSONContent[];
     expect(para).toHaveLength(3);
     expect(para[0]).toEqual({ type: "text", text: "see " });
-    expect(para[1]!.text).toBe("planning");
-    expect(para[1]!.marks).toEqual([
-      { type: "wikiLink", attrs: { path: "notes/planning.um" } },
-    ]);
+    expect(para[1]).toEqual({
+      type: "wikiLink",
+      attrs: { path: "notes/planning.um", text: "planning" },
+    });
     expect(para[2]).toEqual({ type: "text", text: " now" });
   });
 
@@ -69,10 +76,7 @@ describe("legacy raw wiki syntax → committed marks", () => {
       content: [{ type: "text", text: "[[p.md]]" }],
     };
     const out = convertLegacyWikiSyntax(doc);
-    // the whole node becomes one marked run
-    const run = out.content?.[0] as JSONContent;
-    expect(run.text).toBe("p.md");
-    expect(run.marks).toEqual([{ type: "wikiLink", attrs: { path: "p.md" } }]);
+    expect(out.content?.[0]).toEqual(node("p.md", "p.md"));
   });
 
   it("an empty display («[[path|]]») falls back to the target", () => {
@@ -81,8 +85,7 @@ describe("legacy raw wiki syntax → committed marks", () => {
       content: [{ type: "text", text: "[[p.md|]]" }],
     };
     const out = convertLegacyWikiSyntax(doc);
-    const run = out.content?.[0] as JSONContent;
-    expect(run.text).toBe("p.md");
+    expect(out.content?.[0]).toEqual(node("p.md", "p.md"));
   });
 
   it("keeps non-wiki marks on the surrounding runs", () => {
@@ -103,20 +106,18 @@ describe("legacy raw wiki syntax → committed marks", () => {
       text: "a ",
       marks: [{ type: "bold" }],
     });
-    expect(para[1]!.marks).toEqual([
-      { type: "bold" },
-      { type: "wikiLink", attrs: { path: "p.md" } },
-    ]);
+    expect(para[1]).toEqual(node("x", "p.md"));
     expect(para[2]!.marks).toEqual([{ type: "bold" }]);
   });
 
-  it("keeps wikiLink-marked runs untouched (rounds 1–2 documents)", () => {
+  it("converts wikiLink-marked runs (rounds 1–2 / mark builds) to the atom", () => {
     const doc: JSONContent = {
       type: "paragraph",
       content: [marked("planning", "notes/planning.um")],
     };
+    expect(hasLegacyWikiSyntax(doc)).toBe(true);
     const out = convertLegacyWikiSyntax(doc);
-    expect(out).toEqual(doc);
+    expect(out.content?.[0]).toEqual(node("planning", "notes/planning.um"));
   });
 
   it("leaves incomplete patterns literal", () => {
@@ -158,19 +159,13 @@ describe("legacy raw wiki syntax → committed marks", () => {
     expect(hasLegacyWikiSyntax(doc)).toBe(true);
     const out = convertLegacyWikiSyntax(doc);
     const para = (out.content?.[0] as JSONContent).content as JSONContent[];
-    // the live pattern converts (splitting its node), the quoted ones stay
-    // literal
-    expect(para[0]!.marks).toEqual([
-      { type: "wikiLink", attrs: { path: "live.md" } },
-    ]);
+    expect(para[0]).toEqual(node("live.md", "live.md"));
     expect(para[1]!.text).toBe(" ");
     expect(para[2]!.text).toBe("[[quoted.md]]");
     expect(para[2]!.marks).toEqual([{ type: "code" }]);
     const row = ((out.content?.[1] as JSONContent)
       .content as JSONContent[])[0]!;
-    expect(row.content).toEqual([
-      { type: "text", text: "[[incode.md]]" },
-    ]);
+    expect(row.content).toEqual([{ type: "text", text: "[[incode.md]]" }]);
   });
 
   it("is idempotent", () => {

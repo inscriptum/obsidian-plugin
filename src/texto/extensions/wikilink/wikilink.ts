@@ -1,5 +1,10 @@
 import { Extension, InputRule } from "../../core";
-import { Plugin, PluginKey, TextSelection } from "prosemirror-state";
+import {
+  Plugin,
+  PluginKey,
+  TextSelection,
+  NodeSelection,
+} from "prosemirror-state";
 import type { EditorState } from "prosemirror-state";
 import type { Transaction } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
@@ -109,9 +114,9 @@ export const WikiLink = Extension.create<WikiLinkOptions>({
   },
 });
 
-/** Replace the raw pattern at [from, to) with the committed link: the label
- *  (display text when present and non-empty, otherwise the target) carrying
- *  the wikiLink mark. The caret is left where `tr`'s caller put it — this
+/** Replace the raw pattern at [from, to) with the committed link: an
+ *  INLINE ATOM node (owner «Способ 1») carrying the target and the label
+ *  in its attrs. The caret is left where `tr`'s caller put it — this
  *  helper only maps it through the replacement. */
 function commitPattern(
   tr: Transaction,
@@ -120,11 +125,12 @@ function commitPattern(
   target: string,
   display: string | null | undefined,
 ): void {
-  const label =
-    display != null && display.length > 0 ? display : target;
-  tr.replaceWith(from, to, tr.doc.type.schema.text(label, [
-    tr.doc.type.schema.marks.wikiLink.create({ path: target }),
-  ]));
+  const label = display != null && display.length > 0 ? display : target;
+  tr.replaceWith(
+    from,
+    to,
+    tr.doc.type.schema.nodes.wikiLink.create({ path: target, text: label }),
+  );
 }
 
 /**
@@ -162,8 +168,6 @@ export function findWikiMatches(state: EditorState): WikiMatch[] {
   const out: WikiMatch[] = [];
   state.doc.descendants((node, pos) => {
     if (!node.isText || typeof node.text !== "string") return true;
-    // A committed link is mark content — its label text is never rescanned.
-    if (node.marks.some((m) => m.type.name === "wikiLink")) return true;
     for (const m of scanWikiMatches(node.text)) {
       out.push({
         from: pos + m.start,
@@ -178,134 +182,12 @@ export function findWikiMatches(state: EditorState): WikiMatch[] {
 }
 
 /**
- * Commits a raw pattern the caret just LEFT (appendTransaction): while the
- * caret is inside the pattern the suggest session owns it (raw editing, as
- * in Obsidian); the transaction that moves the caret out is followed by one
- * that consumes the syntax into a committed link. Undo of an accept is not
- * an exit — the restored selection sits after the restored pattern, not
- * inside, so undo keeps working.
- */
-function finalizeOnExitPlugin(): Plugin {
-  return new Plugin({
-    key: new PluginKey("wikiLinkFinalize"),
-    appendTransaction(transactions, oldState, newState) {
-      // Exits are mostly selection-only transactions (click, arrows), so no
-      // docChanged guard here — every dispatched transaction is checked.
-      const oldSel = oldState.selection;
-      const newSel = newState.selection;
-      const matches = findWikiMatches(newState).filter((m) => {
-        const wasInside = oldSel.from < m.to && oldSel.to > m.from;
-        const isInside = newSel.from < m.to && newSel.to > m.from;
-        return wasInside && !isInside;
-      });
-      if (matches.length === 0) return null;
-      const tr = newState.tr;
-      tr.setMeta("addToHistory", false);
-      // Later positions first: each replacement shifts nothing before it.
-      for (const match of matches.slice().sort((a, b) => b.from - a.from)) {
-        commitPattern(tr, match.from, match.to, match.target, match.label);
-      }
-      return tr;
-    },
-  });
-}
-
-/**
- * Committed-link view decorations: the unresolved dim. The mini document
- * icon is NOT a decoration — it is drawn by CSS ::before on the mark's own
- * span (see editor.css), so it lives inside the link's inline box: the
- * caret and text typed before the link stay left of the icon, and nothing
- * extra overlays the line start (the drag handle zone).
- */
-function wikiUnresolvedPlugin(hooks: WikiHooks): Plugin {
-  return new Plugin({
-    key: new PluginKey("wikiLinkUnresolved"),
-    props: {
-      decorations: (state) => {
-        const decorations: Decoration[] = [];
-        state.doc.descendants((node, pos) => {
-          if (!node.isText) return true;
-          const wiki = node.marks.find((m) => m.type.name === "wikiLink");
-          if (!wiki) return true;
-          if (!hooks.isResolved(String(wiki.attrs.path ?? ""))) {
-            decorations.push(
-              Decoration.inline(pos, pos + node.nodeSize, {
-                class: "is-unresolved",
-              }),
-            );
-          }
-          return true;
-        });
-        return DecorationSet.create(state.doc, decorations);
-      },
-    },
-  });
-}
-
-/** True when the selection lives in wiki-link territory — an active suggest
- *  session (raw syntax on screen) or a selection touching a committed link's
- *  label. The text bubble menu stays away from both (owner claim: no
- *  formatting controls inside «[[…]]» or the rendered label). */
-export function selectionInWikiContext(state: EditorState): boolean {
-  if (wikiSuggestKey.getState(state)?.active === true) return true;
-  const { from, to } = state.selection;
-  let found = false;
-  state.doc.nodesBetween(from, to, (node, pos) => {
-    if (found) return false;
-    if (!node.isText) return true;
-    const wiki = node.marks.find((m) => m.type.name === "wikiLink");
-    if (!wiki) return true;
-    if (pos < to && pos + node.nodeSize > from) found = true;
-    return !found;
-  });
-  return found;
-}
-
-/** The range (DOC positions) and attrs of the wikiLink mark under `pos`,
- *  or null when no committed link is there. */
-export interface WikiMarkRange {
-  from: number;
-  to: number;
-  path: string;
-  label: string;
-}
-
-/** The wikiLink mark range under `pos`, or null. */
-export function wikiMarkAt(state: EditorState, pos: number): WikiMarkRange | null {
-  const $pos = state.doc.resolve(pos);
-  const mark = $pos.marks().find((m) => m.type.name === "wikiLink");
-  if (!mark) return null;
-  // Doc position where the text node (and the marked run) starts.
-  const from = $pos.pos - $pos.textOffset;
-  // Walk forward to the end of the marked run.
-  const parent = $pos.parent;
-  let to = from;
-  for (
-    let off = $pos.parentOffset - $pos.textOffset;
-    off < parent.content.size;
-  ) {
-    const child = parent.childAfter(off);
-    if (
-      child.node == null ||
-      !child.node.isText ||
-      !child.node.marks.some((m) => m.eq(mark))
-    ) {
-      break;
-    }
-    to += child.node.nodeSize;
-    off += child.node.nodeSize;
-  }
-  const label = state.doc.textBetween(from, to, undefined, "\ufffc");
-  return { from, to, path: String(mark.attrs.path ?? ""), label };
-}
-
-/**
  * The hover-menu «Редактировать» action: a committed link dissolves back
  * into the raw «[[path|label]]» syntax with the caret at the end of the
  * path — the suggest popup reopens filtered by the current target (owner
  * round 7: editing shows the same menu as a fresh «[[»).
  */
-export function startWikiEdit(view: EditorView, range: WikiMarkRange): void {
+export function startWikiEdit(view: EditorView, range: WikiLinkRange): void {
   const raw = `[[${range.path}|${range.label}]]`;
   const tr = view.state.tr;
   tr.replaceWith(range.from, range.to, tr.doc.type.schema.text(raw));
@@ -315,50 +197,6 @@ export function startWikiEdit(view: EditorView, range: WikiMarkRange): void {
   tr.setMeta(wikiSuggestKey, { open: true });
   view.dispatch(tr);
   view.focus();
-}
-
-/** The marked run carrying a wikiLink mark with exactly `path` (doc
- *  positions), or null. Position-independent: the hover icon widget's own
- *  rect resolves to the mark's boundary where inclusive:false hides the
- *  mark, so the element's data-wiki-path is the reliable key. */
-function wikiRangeByPath(state: EditorState, path: string): WikiMarkRange | null {
-  let out: WikiMarkRange | null = null;
-  state.doc.descendants((node, pos) => {
-    if (out) return false;
-    if (!node.isText) return true;
-    const wiki = node.marks.find(
-      (m) => m.type.name === "wikiLink" && String(m.attrs.path ?? "") === path,
-    );
-    if (!wiki) return true;
-    // Extend across the whole marked run (the label may span several text
-    // nodes — bold inside a label splits them).
-    const $from = state.doc.resolve(pos);
-    const parent = $from.parent;
-    let to = pos + node.nodeSize;
-    for (
-      let off = $from.parentOffset + node.nodeSize;
-      off < parent.content.size;
-    ) {
-      const child = parent.childAfter(off);
-      if (
-        child.node == null ||
-        !child.node.isText ||
-        !child.node.marks.some((m) => m.eq(wiki))
-      ) {
-        break;
-      }
-      to += child.node.nodeSize;
-      off += child.node.nodeSize;
-    }
-    out = {
-      from: pos,
-      to,
-      path,
-      label: state.doc.textBetween(pos, to, undefined, "\ufffc"),
-    };
-    return false;
-  });
-  return out;
 }
 
 /**
@@ -406,7 +244,7 @@ function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
   /** Open the suggest session on a committed link: the mark dissolves back
    *  into the raw «[[path|label]]» syntax with the caret at the end of the
    *  path (popup filtered by the current target, «|» reaches the label). */
-  const startEdit = (view: EditorView, range: WikiMarkRange): void =>
+  const startEdit = (view: EditorView, range: WikiLinkRange): void =>
     startWikiEdit(view, range);
 
   const showMenu = (view: EditorView, el: HTMLElement): void => {
@@ -419,7 +257,7 @@ function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
       el.getAttribute("data-wiki-path") ??
       el.parentElement?.getAttribute("data-wiki-path") ??
       "";
-    const range = path !== "" ? wikiRangeByPath(view.state, path) : null;
+    const range = path !== "" ? wikiLinkRangeByPath(view.state, path) : null;
     if (range == null) {
       destroyMenu();
       return;
@@ -567,4 +405,126 @@ function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
       };
     },
   });
+}
+
+/**
+ * Commits a raw pattern the caret just LEFT (appendTransaction): while the
+ * caret is inside the pattern the suggest session owns it (raw editing, as
+ * in Obsidian); the transaction that moves the caret out is followed by one
+ * that consumes the syntax into a committed link. Undo of an accept is not
+ * an exit — the restored selection sits after the restored pattern, not
+ * inside, so undo keeps working.
+ */
+function finalizeOnExitPlugin(): Plugin {
+  return new Plugin({
+    key: new PluginKey("wikiLinkFinalize"),
+    appendTransaction(transactions, oldState, newState) {
+      // Exits are mostly selection-only transactions (click, arrows), so no
+      // docChanged guard here — every dispatched transaction is checked.
+      const oldSel = oldState.selection;
+      const newSel = newState.selection;
+      const matches = findWikiMatches(newState).filter((m) => {
+        const wasInside = oldSel.from < m.to && oldSel.to > m.from;
+        const isInside = newSel.from < m.to && newSel.to > m.from;
+        return wasInside && !isInside;
+      });
+      if (matches.length === 0) return null;
+      const tr = newState.tr;
+      tr.setMeta("addToHistory", false);
+      // Later positions first: each replacement shifts nothing before it.
+      for (const match of matches.slice().sort((a, b) => b.from - a.from)) {
+        commitPattern(tr, match.from, match.to, match.target, match.label);
+      }
+      return tr;
+    },
+  });
+}
+
+/**
+ * Committed-link view decorations: the unresolved dim. The mini document
+ * icon is NOT a decoration — it is drawn by CSS ::before on the mark's own
+ * span (see editor.css), so it lives inside the link's inline box: the
+ * caret and text typed before the link stay left of the icon, and nothing
+ * extra overlays the line start (the drag handle zone).
+ */
+function wikiUnresolvedPlugin(hooks: WikiHooks): Plugin {
+  return new Plugin({
+    key: new PluginKey("wikiLinkUnresolved"),
+    props: {
+      decorations: (state) => {
+        const decorations: Decoration[] = [];
+        state.doc.descendants((node, pos) => {
+          if (node.type.name !== "wikiLink") return true;
+          if (!hooks.isResolved(String(node.attrs.path ?? ""))) {
+            // An inline decoration over an atom node's range merges its
+            // attributes into the node's own DOM span.
+            decorations.push(
+              Decoration.inline(pos, pos + node.nodeSize, {
+                class: "is-unresolved",
+              }),
+            );
+          }
+          return true;
+        });
+        return DecorationSet.create(state.doc, decorations);
+      },
+    },
+  });
+}
+
+/** True when the selection lives in wiki-link territory — an active suggest
+ *  session (raw syntax on screen) or a selection touching a committed link
+ *  (a NodeSelection over the atom, or a text selection covering it). The
+ *  text bubble menu stays away from both (owner claim: no formatting
+ *  controls inside «[[…]]» or over the rendered link). */
+export function selectionInWikiContext(state: EditorState): boolean {
+  if (wikiSuggestKey.getState(state)?.active === true) return true;
+  const selection = state.selection;
+  if (selection instanceof NodeSelection && selection.node.type.name === "wikiLink") {
+    return true;
+  }
+  const { from, to } = selection;
+  let found = false;
+  state.doc.nodesBetween(from, to, (node, pos) => {
+    if (found) return false;
+    if (node.type.name === "wikiLink" && pos < to && pos + node.nodeSize > from) {
+      found = true;
+    }
+    return !found;
+  });
+  return found;
+}
+
+/** The committed link (inline atom node) carrying exactly `path` (doc
+ *  positions), or null. Position-independent: the element's
+ *  data-wiki-path is the reliable key. */
+export interface WikiLinkRange {
+  from: number;
+  to: number;
+  path: string;
+  label: string;
+}
+
+export function wikiLinkRangeByPath(
+  state: EditorState,
+  path: string,
+): WikiLinkRange | null {
+  let out: WikiLinkRange | null = null;
+  state.doc.descendants((node, pos) => {
+    if (out) return false;
+    if (
+      node.type.name === "wikiLink" &&
+      String(node.attrs.path ?? "") === path
+    ) {
+      out = {
+        from: pos,
+        to: pos + node.nodeSize,
+        path,
+        label: String(node.attrs.text ?? ""),
+      };
+      return false;
+    }
+    return true;
+  });
+  return out;
 }

@@ -227,7 +227,6 @@ export function acceptWikiSuggestion(
     suggest.display != null && suggest.display.length > 0
       ? suggest.display
       : file.name;
-  const markType = state.schema.marks.wikiLink;
   // Replace through the closing «]]» when one sits after the caret (the
   // auto-closed pair or a re-entered complete link) — otherwise the old
   // brackets would survive as garbage after the accepted link.
@@ -247,12 +246,19 @@ export function acceptWikiSuggestion(
       finalLabel = afterPipe;
     }
   }
+  // Commit = the inline ATOM node (owner «Способ 1»): label + target in
+  // attrs, nothing editable inside.
   const tr = state.tr.replaceWith(
     suggest.from,
     to,
-    state.schema.text(finalLabel, [markType.create({ path: file.path })]),
+    state.schema.nodes.wikiLink.create({
+      path: file.path,
+      text: finalLabel,
+    }),
   );
-  const end = suggest.from + finalLabel.length;
+  // An atom node occupies exactly ONE position — the caret lands right
+  // after the whole link.
+  const end = suggest.from + 1;
   tr.setSelection(TextSelection.create(tr.doc, Math.min(end, tr.doc.content.size)));
   tr.setMeta(wikiSuggestKey, { close: true });
   dispatch(tr);

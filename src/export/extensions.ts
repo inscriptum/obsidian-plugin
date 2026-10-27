@@ -7,7 +7,7 @@ import {
   NotePropertyValue,
 } from "../texto/extensions/note-property";
 import { Link } from "../texto/extensions/link";
-import { WikiLinkMark } from "../texto/extensions/wikilink";
+import { WikiLinkNode } from "../texto/extensions/wikilink";
 import { Image } from "../texto/extensions/image";
 import { Attachment } from "../texto/extensions/attachment";
 import {
@@ -97,7 +97,7 @@ export function getExportExtensions(): Extensions {
     // Committed wikilinks render as styled label spans; the vault path in
     // data-wiki-path is stripped by the export post-processor (the path
     // must not leak into the public HTML).
-    WikiLinkMark,
+    WikiLinkNode,
     Image,
     Attachment,
     HljsCodeBlock.configure({ printContentAsHTML: true }),
