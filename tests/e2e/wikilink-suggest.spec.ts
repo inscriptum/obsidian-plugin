@@ -171,7 +171,7 @@ test.describe("wiki links — the committed-mark model (round 7)", () => {
     await expect(page.locator(`${link} .is-unresolved`)).toHaveCount(1);
   });
 
-  test("a committed link renders as the label only; re-entering edits the label", async ({
+  test("a committed link renders as the label only; a click opens the target", async ({
     page,
   }) => {
     await mount(page, noteDoc(pWiki("go ", "planning", "notes/planning.um", " now")));
@@ -185,25 +185,47 @@ test.describe("wiki links — the committed-mark model (round 7)", () => {
     });
     expect(docText).toBe("Titlego planning now");
 
-    // a plain click places the caret in the label — the view does not change
+    // a plain click OPENS the target (owner review: the file opens right
+    // away); the document is not touched
     await page.locator(link).click();
-    await page.waitForTimeout(150);
-    const caret = await page.evaluate(() => {
-      const ed = window.__e2e.editor;
-      if (ed == null) return null;
-      const s = ed.view.state.selection;
-      return { from: s.from, to: s.to, doc: ed.view.state.doc.toJSON() };
-    });
-    expect(caret).not.toBeNull();
-    expect(caret!.from).toBe(caret!.to);
-    // the label text node still carries the mark; no raw syntax appeared
-    const para = (caret!.doc as {
-      content: { content?: { text?: string; marks?: { type?: string }[] }[] }[];
-    }).content[1]!.content!;
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => window.__e2eWiki.opens)).toEqual([
+      "notes/planning.um",
+    ]);
+    const doc = (await docJson(page)) as {
+      content: {
+        content?: { text?: string; marks?: { type?: string }[] }[];
+      }[];
+    };
+    const para = doc.content[1]!.content!;
     expect(para.some((r) => r.marks?.some((m) => m.type === "wikiLink"))).toBe(
       true,
     );
-    expect(JSON.stringify(caret!.doc)).not.toContain("[[");
+    expect(JSON.stringify(doc)).not.toContain("[[");
+  });
+
+  test("a mini document icon sits inline before every committed link", async ({
+    page,
+  }) => {
+    await mount(page, noteDoc(pWiki("go ", "planning", "notes/planning.um")));
+    await page.waitForTimeout(150);
+
+    const icon = page.locator(".texto-editor .ProseMirror .texto-wikilink-icon");
+    await expect(icon).toHaveCount(1);
+    await expect(icon).toHaveAttribute("data-wiki-path", "notes/planning.um");
+    // the icon is a decoration: it must never reach the stored document
+    const docText = await page.evaluate(() => {
+      const ed = window.__e2e.editor;
+      return ed?.view.state.doc.textBetween(0, ed.view.state.doc.content.size);
+    });
+    expect(docText).toBe("Titlego planning");
+    // hovering the icon shows the same bubble menu
+    await icon.hover();
+    await page.waitForTimeout(200);
+    await expect(page.locator(hover)).toBeVisible();
+    await expect(
+      page.locator(hover).locator('[aria-label="Edit wikilink"]'),
+    ).toBeVisible();
   });
 
   test("hovering a committed link shows the bubble menu; «Перейти» opens", async ({

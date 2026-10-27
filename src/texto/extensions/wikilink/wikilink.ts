@@ -208,11 +208,28 @@ function finalizeOnExitPlugin(): Plugin {
 }
 
 /**
- * The unresolved dim: committed links whose path does not resolve in the
- * vault get `is-unresolved` on their span. Attribute-only decorations —
- * nothing is hidden, the caret behavior stays native.
+ * Committed-link view decorations: the unresolved dim (an attribute
+ * decoration wrapping the label) and the inline mini document icon before
+ * each link — the wiki link must be distinguishable from external links at
+ * a glance (owner review of round 7). Attribute/widget only — nothing is
+ * hidden, the caret behavior stays native.
  */
 function wikiUnresolvedPlugin(hooks: WikiHooks): Plugin {
+  const WIKI_MENU_NS = "http://www.w3.org/2000/svg";
+
+  const iconWidget = (path: string, resolved: boolean): HTMLElement => {
+    const el = createSpan("texto-wikilink-icon" + (resolved ? "" : " is-unresolved"));
+    el.setAttribute("data-wiki-path", path);
+    el.setAttribute("aria-hidden", "true");
+    const svg = document.createElementNS(WIKI_MENU_NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    const use = document.createElementNS(WIKI_MENU_NS, "use");
+    use.setAttribute("href", "#inscriptum-ico-file");
+    svg.appendChild(use);
+    el.appendChild(svg);
+    return el;
+  };
+
   return new Plugin({
     key: new PluginKey("wikiLinkUnresolved"),
     props: {
@@ -222,13 +239,24 @@ function wikiUnresolvedPlugin(hooks: WikiHooks): Plugin {
           if (!node.isText) return true;
           const wiki = node.marks.find((m) => m.type.name === "wikiLink");
           if (!wiki) return true;
-          if (!hooks.isResolved(String(wiki.attrs.path ?? ""))) {
+          const path = String(wiki.attrs.path ?? "");
+          const resolved = hooks.isResolved(path);
+          if (!resolved) {
             decorations.push(
               Decoration.inline(pos, pos + node.nodeSize, {
                 class: "is-unresolved",
               }),
             );
           }
+          // The tiny document glyph right before the label (a widget — no
+          // document content, it never reaches storage or export).
+          decorations.push(
+            Decoration.widget(pos, () => iconWidget(path, resolved), {
+              side: -1,
+              marks: [],
+              ignoreSelection: true,
+            }),
+          );
           return true;
         });
         return DecorationSet.create(state.doc, decorations);
@@ -312,12 +340,56 @@ export function startWikiEdit(view: EditorView, range: WikiMarkRange): void {
   view.focus();
 }
 
+/** The marked run carrying a wikiLink mark with exactly `path` (doc
+ *  positions), or null. Position-independent: the hover icon widget's own
+ *  rect resolves to the mark's boundary where inclusive:false hides the
+ *  mark, so the element's data-wiki-path is the reliable key. */
+function wikiRangeByPath(state: EditorState, path: string): WikiMarkRange | null {
+  let out: WikiMarkRange | null = null;
+  state.doc.descendants((node, pos) => {
+    if (out) return false;
+    if (!node.isText) return true;
+    const wiki = node.marks.find(
+      (m) => m.type.name === "wikiLink" && String(m.attrs.path ?? "") === path,
+    );
+    if (!wiki) return true;
+    // Extend across the whole marked run (the label may span several text
+    // nodes — bold inside a label splits them).
+    const $from = state.doc.resolve(pos);
+    const parent = $from.parent;
+    let to = pos + node.nodeSize;
+    for (
+      let off = $from.parentOffset + node.nodeSize;
+      off < parent.content.size;
+    ) {
+      const child = parent.childAfter(off);
+      if (
+        child.node == null ||
+        !child.node.isText ||
+        !child.node.marks.some((m) => m.eq(wiki))
+      ) {
+        break;
+      }
+      to += child.node.nodeSize;
+      off += child.node.nodeSize;
+    }
+    out = {
+      from: pos,
+      to,
+      path,
+      label: state.doc.textBetween(pos, to, undefined, "\ufffc"),
+    };
+    return false;
+  });
+  return out;
+}
+
 /**
- * Committed-link interactions (owner round 7): HOVER shows a bubble menu
- * with «Перейти» / «Редактировать» (no click needed); a plain click just
- * places the caret in the label (native text editing — the view does not
- * change, there is no raw syntax behind a committed link); Mod-click opens
- * the target. On touch (no hover) a tap IS the menu affordance.
+ * Committed-link interactions (owner round 7 + review): a CLICK opens the
+ * target right away (desktop and touch alike); HOVER shows a bubble menu
+ * with «Перейти» / «Редактировать» (desktop); Mod-click is the same open.
+ * On touch, where no hover exists, a tap opens the menu — the only way to
+ * reach «Редактировать». Label editing lives in the menu's Edit action.
  */
 function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
   let menu: HTMLElement | null = null;
@@ -362,22 +434,22 @@ function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
 
   const showMenu = (view: EditorView, el: HTMLElement): void => {
     cancelHide();
-    // Re-locate the mark from the live doc: positions may have shifted
-    // since the hover began. With inclusive:false the mark is invisible at
-    // the run's right edge, so probe left edge → middle → right-inside.
-    const rect = el.getBoundingClientRect();
-    let range: ReturnType<typeof wikiMarkAt> = null;
-    for (const x of [rect.left + 1, rect.left + rect.width / 2, rect.right - 1]) {
-      const pos = view.posAtCoords({ left: x, top: rect.top + 1 });
-      range = pos ? wikiMarkAt(view.state, pos.pos) : null;
-      if (range != null) break;
-    }
+    // Re-locate the mark from the live doc by the element's path: positions
+    // may have shifted since the hover began, and the icon widget's own
+    // rect resolves to the mark's boundary (where inclusive:false hides
+    // it) — the data-wiki-path key is the only reliable one.
+    const path =
+      el.getAttribute("data-wiki-path") ??
+      el.parentElement?.getAttribute("data-wiki-path") ??
+      "";
+    const range = path !== "" ? wikiRangeByPath(view.state, path) : null;
     if (range == null) {
       destroyMenu();
       return;
     }
-    const path = range.path;
-    const resolved = hooks.isResolved(path);
+    const livePath = range.path;
+    const resolved = hooks.isResolved(livePath);
+    const rect = el.getBoundingClientRect();
 
     const previous = menu;
     if (previous != null) {
@@ -394,7 +466,7 @@ function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
 
     const target = createSpan("texto-wiki-hover__path");
     if (!resolved) target.className += " is-unresolved";
-    target.textContent = path;
+    target.textContent = livePath;
     box.replaceChildren(target);
 
     const open = createDiv("texto-wiki-hover__item");
@@ -404,8 +476,8 @@ function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
       event.preventDefault();
       event.stopPropagation();
       destroyMenu();
-      if (hooks.isResolved(path)) {
-        hooks.openTarget(path);
+      if (hooks.isResolved(livePath)) {
+        hooks.openTarget(livePath);
       }
     });
     box.appendChild(open);
@@ -446,27 +518,28 @@ function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
             destroyMenu();
           }
           const target = event.target as HTMLElement | null;
-          const el = target?.closest?.(".texto-wikilink") as HTMLElement | null;
+          const el = target?.closest?.(
+            ".texto-wikilink, .texto-wikilink-icon",
+          ) as HTMLElement | null;
           if (!el) return false;
-          if (event.metaKey || event.ctrlKey) {
-            // Modifier-click is the direct shortcut for following the link.
-            const path = el.getAttribute("data-wiki-path") ?? "";
-            if (path && hooks.isResolved(path)) {
-              hooks.openTarget(path);
-            }
-            event.preventDefault();
-            return true;
-          }
+          const path =
+            el.getAttribute("data-wiki-path") ??
+            el.parentElement?.getAttribute("data-wiki-path") ??
+            "";
           if (!window.matchMedia("(hover: hover)").matches) {
-            // Touch: no hover exists, the tap opens the menu (the only way
-            // to reach «Перейти»/«Редактировать» on a phone).
+            // Touch: no hover exists, a tap opens the menu (the only way to
+            // reach «Редактировать» on a phone). Click-to-open is desktop.
             event.preventDefault();
             showMenu(view, el);
             return true;
           }
-          // Desktop: the caret lands in the label (native); the hover menu
-          // is already around or follows the pointer.
-          return false;
+          // Desktop: a click follows the link right away — owner review of
+          // round 7 (Mod-click stays as the explicit habit).
+          if (path && hooks.isResolved(path)) {
+            hooks.openTarget(path);
+          }
+          event.preventDefault();
+          return true;
         },
       },
       handleKeyDown: (view: EditorView, event: KeyboardEvent) => {
@@ -491,7 +564,9 @@ function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
       const onMouseOver = (event: MouseEvent) => {
         if (!window.matchMedia("(hover: hover)").matches) return;
         const target = event.target as HTMLElement | null;
-        const el = target?.closest?.(".texto-wikilink") as HTMLElement | null;
+        const el = target?.closest?.(
+          ".texto-wikilink, .texto-wikilink-icon",
+        ) as HTMLElement | null;
         if (el) showMenu(editorView, el);
       };
       const onMouseOut = (event: MouseEvent) => {
