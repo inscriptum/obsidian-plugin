@@ -101,6 +101,8 @@ const BUBBLE_ICON_PATHS: Record<string, string> = {
   dupCol: `<rect x="4" y="4" width="6" height="16" rx="1" opacity="0.4"/><rect x="13" y="4" width="6" height="16" rx="1"/>`,
   header: `<path d="M3 5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z"/><path d="M3 10h18"/>`,
   delTable: `<path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M5 7l1 12a2 2 0 0 0 2 2h8a2 2 0 0 0 2 -2l1 -12"/><path d="M9 7v-3h6v3"/>`,
+  /* Close (toolbar's x) — the Comments panel header close button. */
+  x: TOOLBAR_ICON_PATHS.x,
   /* Clipboard actions of the table bar (copy from the toolbar set). */
   copy: TOOLBAR_ICON_PATHS.copy,
   cut: `<circle cx="6" cy="6" r="3"/><path d="M8.12 8.12 12 12"/><path d="M20 4 8.12 15.88"/><circle cx="6" cy="18" r="3"/><path d="M14.8 14.8 20 20"/>`,

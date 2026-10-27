@@ -1,6 +1,10 @@
 import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
 import { elTag } from "../../tags";
+// Sprite-backed svg nodes (the svgnode compile): a raw <use href=…> inside
+// this html-preset file compiles to a property part and throws on
+// SVGUseElement.href (getter-only) — the svgnode whitelist binds attributes.
+import { bubbleIconNodes } from "../bubble-menu-bar/icons.svgnode";
 import {
   filterThreads,
   type CommentsFilter,
@@ -18,12 +22,6 @@ const dateFormat = new Intl.DateTimeFormat(undefined, {
 });
 
 const formatTime = (ms: number) => dateFormat.format(new Date(ms));
-
-const icon = (name: "check" | "trash" | "x") => (
-  <svg viewBox="0 0 24 24">
-    <use href={`#inscriptum-bb-${name}`} xlinkHref={`#inscriptum-bb-${name}`} />
-  </svg>
-);
 
 /**
  * The "Comments" side panel (ОВ-2): segment filter Open/Resolved, thread
@@ -137,7 +135,7 @@ export const CommentsPanelElement = litView.element({
               aria-label={thread.resolved ? "Unresolve" : "Resolve"}
               onclick={() => props.onResolveThread(thread.id, !thread.resolved)}
             >
-              {icon("check")}
+              {bubbleIconNodes.check()}
             </button>
             <button
               type="button"
@@ -146,7 +144,7 @@ export const CommentsPanelElement = litView.element({
               aria-label="Delete thread"
               onclick={() => props.onDeleteThread(thread.id)}
             >
-              {icon("trash")}
+              {bubbleIconNodes.trash()}
             </button>
           </span>
         </header>
@@ -192,7 +190,7 @@ export const CommentsPanelElement = litView.element({
                   title="Save"
                   onclick={() => submitEdit(thread.id, comment.id)}
                 >
-                  {icon("check")}
+                  {bubbleIconNodes.check()}
                 </button>
               </div>
             ) : (
@@ -252,7 +250,7 @@ export const CommentsPanelElement = litView.element({
               title="Send reply"
               onclick={() => submitReply(thread.id)}
             >
-              {icon("check")}
+              {bubbleIconNodes.check()}
             </button>
           </div>
         ) : (
@@ -327,7 +325,7 @@ export const CommentsPanelElement = litView.element({
             aria-label="Close comments"
             onclick={() => props.onClose()}
           >
-            {icon("x")}
+            {bubbleIconNodes.x()}
           </button>
         </header>
 

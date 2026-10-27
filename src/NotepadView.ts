@@ -2598,6 +2598,12 @@ export class NotepadView extends FileView {
     if (this.commentsPanelEl) return;
     const panel = makeCommentsPanelElement();
     panel.addClass("notepad-comments");
+    // Props BEFORE connect: the gfc generator starts in connectedCallback
+    // and only when every required prop is present — late assignments never
+    // boot it (next() is a no-op while generation is null).
+    panel.props.threads = [];
+    panel.props.composer = null;
+    panel.props.activeThreadId = null;
     panel.props.onSubmitComposer = (threadId, text) =>
       this.submitComposer(threadId, text);
     panel.props.onCancelComposer = () => this.cancelComposer();

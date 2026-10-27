@@ -1535,12 +1535,19 @@ button.notepad-sheet-row.is-danger svg {
 
 .notepad-view-container.is-phone .notepad-comments {
   top: auto;
-  left: 0;
+  left: 10px;
+  right: 10px;
   width: auto;
-  max-height: 65vh;
-  border-left: none;
-  border-top: 1px solid var(--ins-border);
-  border-radius: var(--ins-radius) var(--ins-radius) 0 0;
+  bottom: 10px;
+  max-height: calc(100% - 20px);
+  z-index: 60; /* over the toolbar host (50) if the keyboard lingers */
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 20px;
+  box-shadow: var(--shadow-s);
+  /* Clearance keeps the last card's Reply above Obsidian's floating
+     bottom nav pill (.mobile-navbar ≈ 52px + margins) — the .notepad-sheet
+     pattern. */
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px) + 80px);
   transform: translateY(105%);
 }
 
