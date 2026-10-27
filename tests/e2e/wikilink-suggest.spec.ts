@@ -204,23 +204,24 @@ test.describe("wiki links — the committed-mark model (round 7)", () => {
     expect(JSON.stringify(doc)).not.toContain("[[");
   });
 
-  test("a mini document icon is drawn into every committed link (CSS ::before)", async ({
+  test("a mini document icon is drawn into every committed link (CSS ::after)", async ({
     page,
   }) => {
     await mount(page, noteDoc(pWiki("go ", "planning", "notes/planning.um")));
     await page.waitForTimeout(150);
 
-    // the icon is part of the link span (::before mask) — no extra element
-    // in the flow, the caret before the link stays left of the icon
+    // the icon is part of the link span (::after mask), trailing and
+    // raised — the line START stays plain text (caret, typing and the
+    // drag handle behave as before the icon existed)
     const iconBox = await page.evaluate(() => {
       const span = window.__e2e.editor!.view.dom.querySelector(
         "span.texto-wikilink",
       )!;
-      const before = getComputedStyle(span, "::before");
+      const after = getComputedStyle(span, "::after");
       return {
-        content: before.content,
-        width: parseFloat(before.width),
-        mask: before.maskImage !== "none" || before.webkitMaskImage !== "none",
+        content: after.content,
+        width: parseFloat(after.width),
+        mask: after.maskImage !== "none" || after.webkitMaskImage !== "none",
         spanText: span.textContent,
       };
     });
