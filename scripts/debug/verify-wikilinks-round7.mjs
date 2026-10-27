@@ -7,15 +7,20 @@ import { mkdirSync, readdirSync, readFileSync } from 'node:fs';
 const SHOTS = 'local/wikilinks-round7';
 mkdirSync(SHOTS, { recursive: true });
 
+// rule-verify-vault: only the vault whose ROOT is the plugin repo may be
+// touched; verify by basePath, never by the vault NAME (several vaults may
+// share a name, and unfiltered probes have landed in ~/insum).
+const DEV_VAULT_ROOT = '/Users/d.sumbaev/DEVELOPMENT/inscriptum/obsidian-plugin';
+
 const browser = await chromium.connectOverCDP('http://127.0.0.1:9223', { timeout: 8000 });
 const R = {};
 let page = null;
 try {
   for (const p of browser.contexts().flatMap((c) => c.pages()).filter((x) => x.url().startsWith('app://obsidian.md'))) {
-    const vault = await p.evaluate(() => window.app?.vault?.getName?.() ?? null);
-    if (vault === 'obsidian-plugin') { page = p; break; }
+    const base = await p.evaluate(() => window.app?.vault?.adapter?.basePath ?? null);
+    if (base === DEV_VAULT_ROOT) { page = p; break; }
   }
-  if (page == null) throw new Error('obsidian-plugin vault window not found');
+  if (page == null) throw new Error(`dev vault window not found (${DEV_VAULT_ROOT})`);
   await page.evaluate(() => {
     const win = window.electron?.remote?.getCurrentWindow?.();
     win?.show?.(); win?.focus?.();
