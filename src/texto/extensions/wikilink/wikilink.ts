@@ -208,28 +208,13 @@ function finalizeOnExitPlugin(): Plugin {
 }
 
 /**
- * Committed-link view decorations: the unresolved dim (an attribute
- * decoration wrapping the label) and the inline mini document icon before
- * each link — the wiki link must be distinguishable from external links at
- * a glance (owner review of round 7). Attribute/widget only — nothing is
- * hidden, the caret behavior stays native.
+ * Committed-link view decorations: the unresolved dim. The mini document
+ * icon is NOT a decoration — it is drawn by CSS ::before on the mark's own
+ * span (see editor.css), so it lives inside the link's inline box: the
+ * caret and text typed before the link stay left of the icon, and nothing
+ * extra overlays the line start (the drag handle zone).
  */
 function wikiUnresolvedPlugin(hooks: WikiHooks): Plugin {
-  const WIKI_MENU_NS = "http://www.w3.org/2000/svg";
-
-  const iconWidget = (path: string, resolved: boolean): HTMLElement => {
-    const el = createSpan("texto-wikilink-icon" + (resolved ? "" : " is-unresolved"));
-    el.setAttribute("data-wiki-path", path);
-    el.setAttribute("aria-hidden", "true");
-    const svg = document.createElementNS(WIKI_MENU_NS, "svg");
-    svg.setAttribute("viewBox", "0 0 24 24");
-    const use = document.createElementNS(WIKI_MENU_NS, "use");
-    use.setAttribute("href", "#inscriptum-ico-file");
-    svg.appendChild(use);
-    el.appendChild(svg);
-    return el;
-  };
-
   return new Plugin({
     key: new PluginKey("wikiLinkUnresolved"),
     props: {
@@ -239,24 +224,13 @@ function wikiUnresolvedPlugin(hooks: WikiHooks): Plugin {
           if (!node.isText) return true;
           const wiki = node.marks.find((m) => m.type.name === "wikiLink");
           if (!wiki) return true;
-          const path = String(wiki.attrs.path ?? "");
-          const resolved = hooks.isResolved(path);
-          if (!resolved) {
+          if (!hooks.isResolved(String(wiki.attrs.path ?? ""))) {
             decorations.push(
               Decoration.inline(pos, pos + node.nodeSize, {
                 class: "is-unresolved",
               }),
             );
           }
-          // The tiny document glyph right before the label (a widget — no
-          // document content, it never reaches storage or export).
-          decorations.push(
-            Decoration.widget(pos, () => iconWidget(path, resolved), {
-              side: -1,
-              marks: [],
-              ignoreSelection: true,
-            }),
-          );
           return true;
         });
         return DecorationSet.create(state.doc, decorations);
@@ -518,9 +492,7 @@ function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
             destroyMenu();
           }
           const target = event.target as HTMLElement | null;
-          const el = target?.closest?.(
-            ".texto-wikilink, .texto-wikilink-icon",
-          ) as HTMLElement | null;
+          const el = target?.closest?.(".texto-wikilink") as HTMLElement | null;
           if (!el) return false;
           const path =
             el.getAttribute("data-wiki-path") ??
@@ -564,9 +536,7 @@ function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
       const onMouseOver = (event: MouseEvent) => {
         if (!window.matchMedia("(hover: hover)").matches) return;
         const target = event.target as HTMLElement | null;
-        const el = target?.closest?.(
-          ".texto-wikilink, .texto-wikilink-icon",
-        ) as HTMLElement | null;
+        const el = target?.closest?.(".texto-wikilink") as HTMLElement | null;
         if (el) showMenu(editorView, el);
       };
       const onMouseOut = (event: MouseEvent) => {

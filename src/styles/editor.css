@@ -400,27 +400,35 @@
   cursor: pointer;
 }
 
-/* The inline mini document glyph before a wiki link (a widget decoration,
-   see wikiUnresolvedPlugin) — distinguishes internal links from external
-   ones at a glance. Sized off the local font so it scales with the text. */
-.texto-editor .ProseMirror .texto-wikilink-icon {
+/* The mini document glyph before a wiki link — drawn by ::before on the
+   mark's OWN span (mask + currentColor), so it lives inside the link's
+   inline box: the caret and text typed before the link stay left of the
+   icon, and no extra element overlays the line start (drag-handle zone).
+   Same Tabler "file" outline as #inscriptum-ico-file. */
+.texto-editor .ProseMirror .texto-wikilink::before {
+  content: "";
   display: inline-block;
-  width: 0.78em;
-  height: 0.78em;
-  margin-right: 2px;
-  vertical-align: -0.02em;
-  color: var(--text-accent, #7c6af7);
-  opacity: 0.85;
+  width: 0.72em;
+  height: 0.72em;
+  margin-right: 3px;
+  vertical-align: 0;
+  background-color: currentColor;
+  opacity: 0.8;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center bottom;
+  mask-position: center bottom;
 }
 
-.texto-editor .ProseMirror .texto-wikilink-icon svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.texto-editor .ProseMirror .texto-wikilink-icon.is-unresolved {
-  color: var(--text-faint, #777);
+/* The unresolved dim is an inline decoration wrapping the label in an
+   inner span — dim the icon with it (:has is safe on the Obsidian
+   webview, Chromium 105+). */
+.texto-editor .ProseMirror .texto-wikilink:has(.is-unresolved)::before {
+  opacity: 0.45;
 }
 
 .texto-editor .ProseMirror .texto-wikilink:hover {

@@ -204,23 +204,40 @@ test.describe("wiki links — the committed-mark model (round 7)", () => {
     expect(JSON.stringify(doc)).not.toContain("[[");
   });
 
-  test("a mini document icon sits inline before every committed link", async ({
+  test("a mini document icon is drawn into every committed link (CSS ::before)", async ({
     page,
   }) => {
     await mount(page, noteDoc(pWiki("go ", "planning", "notes/planning.um")));
     await page.waitForTimeout(150);
 
-    const icon = page.locator(".texto-editor .ProseMirror .texto-wikilink-icon");
-    await expect(icon).toHaveCount(1);
-    await expect(icon).toHaveAttribute("data-wiki-path", "notes/planning.um");
-    // the icon is a decoration: it must never reach the stored document
+    // the icon is part of the link span (::before mask) — no extra element
+    // in the flow, the caret before the link stays left of the icon
+    const iconBox = await page.evaluate(() => {
+      const span = window.__e2e.editor!.view.dom.querySelector(
+        "span.texto-wikilink",
+      )!;
+      const before = getComputedStyle(span, "::before");
+      return {
+        content: before.content,
+        width: parseFloat(before.width),
+        mask: before.maskImage !== "none" || before.webkitMaskImage !== "none",
+        spanText: span.textContent,
+      };
+    });
+    expect(iconBox.content).not.toBe("none");
+    expect(iconBox.width).toBeGreaterThan(0);
+    expect(iconBox.mask).toBe(true);
+    expect(iconBox.spanText).toBe("planning");
+
+    // the icon must never reach the stored document
     const docText = await page.evaluate(() => {
       const ed = window.__e2e.editor;
       return ed?.view.state.doc.textBetween(0, ed.view.state.doc.content.size);
     });
     expect(docText).toBe("Titlego planning");
-    // hovering the icon shows the same bubble menu
-    await icon.hover();
+
+    // hovering the link (icon included — same span) shows the bubble menu
+    await page.locator(link).hover();
     await page.waitForTimeout(200);
     await expect(page.locator(hover)).toBeVisible();
     await expect(
