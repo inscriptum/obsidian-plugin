@@ -200,11 +200,31 @@ export function startWikiEdit(view: EditorView, range: WikiLinkRange): void {
 }
 
 /**
+ * The hover-menu «Удалить» action: the link is replaced by its plain label
+ * text — the same semantics as the trash button in the text bubble menu
+ * (remove the LINK, keep the words). Undoable: a plain dispatched tr.
+ */
+export function removeWikiLink(view: EditorView, range: WikiLinkRange): void {
+  const tr = view.state.tr;
+  tr.replaceWith(
+    range.from,
+    range.to,
+    tr.doc.type.schema.text(range.label),
+  );
+  tr.setSelection(
+    TextSelection.create(tr.doc, range.from + range.label.length),
+  );
+  view.dispatch(tr);
+  view.focus();
+}
+
+/**
  * Committed-link interactions (owner round 7 + review): a CLICK opens the
  * target right away (desktop and touch alike); HOVER shows a bubble menu
- * with «Перейти» / «Редактировать» (desktop); Mod-click is the same open.
- * On touch, where no hover exists, a tap opens the menu — the only way to
- * reach «Редактировать». Label editing lives in the menu's Edit action.
+ * with «Перейти» / «Редактировать» / «Удалить» (desktop); Mod-click is the
+ * same open. On touch, where no hover exists, a tap opens the menu — the
+ * only way to reach its actions on a phone. Label editing and deletion
+ * live in the menu's Edit / Delete actions.
  */
 function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
   let menu: HTMLElement | null = null;
@@ -307,6 +327,17 @@ function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
       startEdit(view, range);
     });
     box.appendChild(edit);
+
+    const del = createDiv("texto-wiki-hover__item");
+    del.appendChild(menuIcon("trash"));
+    del.setAttribute("aria-label", "Delete wikilink");
+    del.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      destroyMenu();
+      removeWikiLink(view, range);
+    });
+    box.appendChild(del);
 
     // Anchor under the link, clamped to the viewport.
     const margin = 8;
