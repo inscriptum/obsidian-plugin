@@ -3,7 +3,7 @@ import { Plugin, PluginKey, TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import type { EditorState } from "prosemirror-state";
 import { Decoration, DecorationSet } from "prosemirror-view";
-import { wikiSuggestPlugin } from "./wikilinkSuggest";
+import { wikiSuggestKey, wikiSuggestPlugin } from "./wikilinkSuggest";
 
 /**
  * Hooks to the Obsidian vault, injected per host (NoteView / NotepadView)
@@ -262,6 +262,46 @@ function wikiDecorationsPlugin(hooks: WikiHooks): Plugin {
     key: new PluginKey("wikiLinkDecorations"),
     props: {
       decorations: (state) => buildWikiDecorations(state, hooks),
+      // A space typed on a pattern BOUNDARY (the caret right before the
+      // hidden «[[» or right after the hidden «]]») is inserted explicitly:
+      // the browser's default insertion point skips display:none spans, so
+      // the space would land INSIDE the pattern (owner round-5). A space
+      // typed strictly inside the pattern closes the link (space after the
+      // brackets — the owner model).
+      handleTextInput: (view: EditorView, from: number, to: number, text: string) => {
+        if (text !== " ") return false;
+        const match = findWikiMatches(view.state).find(
+          (m) => from > m.from && from < m.to,
+        );
+        if (match == null) return false;
+        const tr = view.state.tr;
+        tr.insertText(" ", match.to, match.to);
+        tr.setSelection(TextSelection.create(tr.doc, match.to + 1));
+        tr.setMeta(wikiSuggestKey, { close: true });
+        tr.setMeta("pointer", true);
+        view.dispatch(tr);
+        view.focus();
+        return true;
+      },
+      handleKeyDown: (view: EditorView, event: KeyboardEvent) => {
+        if (event.key !== " " || !view.state.selection.empty) return false;
+        const caret = view.state.selection.from;
+        const match = findWikiMatches(view.state).find(
+          (m) => caret === m.from || caret === m.to,
+        );
+        if (match == null) return false;
+        // The caret hugs a hidden bracket — insert the space on the OUTSIDE
+        // of the pattern (before «[[» from the left edge, after «]]» from
+        // the right edge) so it stays visible.
+        const insertAt = caret === match.from ? match.from : match.to;
+        event.preventDefault();
+        const tr = view.state.tr;
+        tr.insertText(" ", insertAt, insertAt);
+        tr.setSelection(TextSelection.create(tr.doc, insertAt + 1));
+        view.dispatch(tr);
+        view.focus();
+        return true;
+      },
       handleDOMEvents: {
         // The whole interaction lives on mousedown: preventDefault stops
         // PM's caret placement (which would instantly reveal the raw
