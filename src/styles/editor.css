@@ -400,6 +400,29 @@
   cursor: pointer;
 }
 
+/* The inline mini document glyph before a wiki link (a widget decoration,
+   see wikiUnresolvedPlugin) — distinguishes internal links from external
+   ones at a glance. Sized off the local font so it scales with the text. */
+.texto-editor .ProseMirror .texto-wikilink-icon {
+  display: inline-block;
+  width: 0.78em;
+  height: 0.78em;
+  margin-right: 2px;
+  vertical-align: -0.02em;
+  color: var(--text-accent, #7c6af7);
+  opacity: 0.85;
+}
+
+.texto-editor .ProseMirror .texto-wikilink-icon svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.texto-editor .ProseMirror .texto-wikilink-icon.is-unresolved {
+  color: var(--text-faint, #777);
+}
+
 .texto-editor .ProseMirror .texto-wikilink:hover {
   color: var(--text-accent-hover, #8f7ffc);
 }

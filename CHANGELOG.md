@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Internal links like in Obsidian: type «[[» and pick a file from the suggestion popup to link notes and notebooks together. Once picked, the link settles into the note as plain words — no brackets left behind, and editing the words never breaks the link. A «|» sets the visible text; hovering a link shows a mini menu with Go and Edit; links to deleted files gray out.
+- Internal links like in Obsidian: type «[[» and pick a file from the suggestion popup to link notes and notebooks together. Once picked, the link settles into the note as plain words — no brackets left behind, and editing the words never breaks the link. Clicking a link opens the target right away; a small document icon marks internal links so they stand out from regular ones. A «|» sets the visible text; hovering a link shows a mini menu with Go and Edit; links to deleted files gray out.
 - Undo and Redo buttons in the mobile toolbar — on a phone you can finally take an edit back (or return it) with a tap; buttons dim when there is nothing to undo or redo. On desktop the keyboard shortcuts work as before.
 - Table cells get Copy, Cut and Paste buttons in the table toolbar — the cell clipboard finally works on mobile too, where there is no Cmd+C. The buttons also accept a bare caret in a cell (that cell counts as the selection).
 - Duplicate Row and Duplicate Column actions: an exact copy appears right next to the original, header row included.
