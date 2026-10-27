@@ -338,18 +338,40 @@
   white-space: nowrap;
 }
 
-/* Hint bar under the list, like the Obsidian autocomplete ("Type | to
-   change display text" — v1 supports only the display-text part). */
-.texto-wiki-suggest__footer {
-  margin-top: 4px;
-  padding: 7px 12px 5px;
-  border-top: 1px solid var(--background-modifier-border, #333);
-  font-size: 12px;
-  line-height: 1.3;
-  color: var(--text-muted, #aaa);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+/* ── Wiki-link mini menu (Notion-style icon buttons) ─────────────────────
+   Click on a rendered link label → a floating «Редактировать / Перейти»
+   menu anchored under the link (see wikilink.ts decorations plugin). */
+.texto-wiki-menu {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  background: var(--background-primary, #1e1e23);
+  border: 1px solid var(--background-modifier-border, #333);
+  border-radius: var(--radius-m, 10px);
+  box-shadow: var(--shadow-s, 0 4px 16px rgba(0, 0, 0, 0.3));
+}
+
+.texto-wiki-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-s, 6px);
+  cursor: pointer;
+  color: var(--text-normal, #dadada);
+}
+
+.texto-wiki-menu__item:hover {
+  background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
+}
+
+.texto-wiki-menu__item svg {
+  display: block;
+  width: 18px;
+  height: 18px;
 }
 
 
