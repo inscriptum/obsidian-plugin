@@ -53,3 +53,29 @@ export function table(rows: string[][]): JsonNode {
     })),
   };
 }
+
+/** A committed wikilink run: label text carrying the wikiLink mark. */
+export function wikiRun(label: string, path: string): JsonNode {
+  return {
+    type: "text",
+    text: label,
+    marks: [{ type: "wikiLink", attrs: { path } }],
+  };
+}
+
+/** Paragraph: plain prefix + committed link + plain suffix. */
+export function pWiki(
+  before: string,
+  label: string,
+  path: string,
+  after = "",
+): JsonNode {
+  return {
+    type: "paragraph",
+    content: [
+      ...(before.length > 0 ? [{ type: "text", text: before }] : []),
+      wikiRun(label, path),
+      ...(after.length > 0 ? [{ type: "text", text: after }] : []),
+    ],
+  };
+}

@@ -27,8 +27,8 @@ import {
   type UmSchemaState,
 } from "./umSchemas";
 import {
-  convertLegacyWikiMarks,
-  hasLegacyWikiMarks,
+  convertLegacyWikiSyntax,
+  hasLegacyWikiSyntax,
 } from "../../texto/extensions/wikilink/legacyMarks";
 import {
   UM_SCHEMA_PLAIN,
@@ -131,10 +131,11 @@ export class UmNotepad {
       this.dirtyNotes.add(id);
     }
 
-    // Legacy wikiLink marks → inline «[[path|text]]» syntax (wikilinks v2):
-    // the mark is gone from the schema, unknown marks would not open.
-    if (hasLegacyWikiMarks(prepared)) {
-      prepared = convertLegacyWikiMarks(prepared);
+    // Legacy wikilink generations → the current model (label + wikiLink
+    // mark): raw «[[path|text]]» text from the rounds-3…6 builds converts
+    // on read; v1 mark documents are already the current shape.
+    if (hasLegacyWikiSyntax(prepared)) {
+      prepared = convertLegacyWikiSyntax(prepared);
       this.data.notes.set(id, prepared);
       this.dirtyNotes.add(id);
     }

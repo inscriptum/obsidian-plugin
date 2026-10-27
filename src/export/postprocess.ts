@@ -312,6 +312,7 @@ export async function postProcessForExport(
   }
 
   replaceWikiLinks(parsed);
+  stripWikiPaths(parsed);
 
   // A published page is read-only: nobody can tick a checkbox.
   for (const input of Array.from(
@@ -336,6 +337,18 @@ export async function postProcessForExport(
  *  the highlighted label and is NOT clickable (owner decision, issue
  *  wikilinks ОВ-2); code blocks keep the raw syntax. */
 const WIKI_TEXT_RE = /\[\[([^\][|]+?)(?:\|([^\][|]*))?\]\]/g;
+
+/** Committed wikilinks (the wikiLink mark) render as
+ *  `<span class="texto-wikilink" data-wiki-path="…">` — the vault path must
+ *  not leak into the public HTML, so the attribute is dropped; the label
+ *  keeps the highlighted, non-clickable rendering (ОВ-2). */
+function stripWikiPaths(parsed: Document): void {
+  for (const el of Array.from(
+    parsed.body.querySelectorAll<HTMLElement>(".texto-wikilink"),
+  )) {
+    el.removeAttribute("data-wiki-path");
+  }
+}
 
 function replaceWikiLinks(parsed: Document): void {
   const walker = parsed.createTreeWalker(parsed.body, NodeFilter.SHOW_TEXT);

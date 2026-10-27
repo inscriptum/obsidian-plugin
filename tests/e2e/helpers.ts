@@ -5,6 +5,7 @@ export const HARNESS_URL = "/tests/e2e/harness/index.html";
 /** Minimal structural view of the ProseMirror doc JSON the harness returns. */
 export interface JsonMark {
   type?: string;
+  attrs?: Record<string, unknown>;
 }
 
 export interface JsonNode {
