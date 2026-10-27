@@ -11,6 +11,7 @@ import {
 } from "./wikilinkSuggest";
 import {
   findWikiMatches,
+  removeWikiLink,
   selectionInWikiContext,
   startWikiEdit,
   wikiLinkRangeByPath,
@@ -355,6 +356,9 @@ describe("committed links", () => {
         text: "planning",
       }),
     );
+    // outside history: the undo test below must exercise the DELETE step,
+    // not the fixture insert
+    tr.setMeta("addToHistory", false);
     editor.view.dispatch(tr);
     return editor;
   }
@@ -401,6 +405,35 @@ describe("committed links", () => {
       { from: suggest!.from, display: suggest!.display, closeEnd: suggest!.closeEnd },
       editor.state.selection.from,
     );
+    const runs = paraJson(editor);
+    const atom = runs.find((r) => r.type === "wikiLink");
+    expect(atom?.attrs).toEqual({
+      path: "notes/planning.um",
+      text: "planning",
+    });
+    editor.destroy();
+  });
+
+  it("Delete replaces the atom with its plain label text (caret after it)", () => {
+    const editor = makeCommittedEditor();
+    const range = wikiLinkRangeByPath(editor.state, "notes/planning.um")!;
+    removeWikiLink(editor.view, range);
+    const runs = paraJson(editor);
+    // the link is gone, the words remain as plain text (the fixture's
+    // " done" tail stays)
+    expect(runs.some((r) => r.type === "wikiLink")).toBe(false);
+    expect(runs.map((r) => r.text).join("")).toBe("hello planning done");
+    expect(editor.state.selection.from).toBe(
+      4 + "hello ".length + "planning".length,
+    );
+    editor.destroy();
+  });
+
+  it("Delete is undoable (plain dispatched transaction)", () => {
+    const editor = makeCommittedEditor();
+    const range = wikiLinkRangeByPath(editor.state, "notes/planning.um")!;
+    removeWikiLink(editor.view, range);
+    editor.commands.undo();
     const runs = paraJson(editor);
     const atom = runs.find((r) => r.type === "wikiLink");
     expect(atom?.attrs).toEqual({

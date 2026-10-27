@@ -350,6 +350,41 @@ test.describe("wiki links — the committed-mark model (round 7)", () => {
     });
   });
 
+  test("the hover menu's Delete unlinks: label stays as plain text", async ({
+    page,
+  }) => {
+    await mount(page, noteDoc(pWiki("go ", "My Plan", "notes/planning.um", " tail")));
+    await page.waitForTimeout(150);
+
+    await page.locator(link).hover();
+    await page.waitForTimeout(200);
+    await expect(
+      page.locator(hover).locator('[aria-label="Delete wikilink"]'),
+    ).toBeVisible();
+    await page
+      .locator(hover)
+      .locator('[aria-label="Delete wikilink"]')
+      .dispatchEvent("mousedown");
+    await page.waitForTimeout(200);
+
+    // the atom is gone, the label remains as plain words
+    await expect(page.locator(link)).toHaveCount(0);
+    const doc = (await docJson(page)) as {
+      content: {
+        content?: { type?: string; text?: string }[];
+      }[];
+    };
+    const runs = doc.content[1]!.content ?? [];
+    expect(runs.some((r) => r.type === "wikiLink")).toBe(false);
+    expect(runs.map((r) => r.text).join("")).toBe("go My Plan tail");
+    // caret sits where the label used to end
+    const caret = await page.evaluate(() => {
+      const ed = window.__e2e.editor;
+      return ed ? ed.view.state.selection.from : 0;
+    });
+    expect(caret).toBeGreaterThan(0);
+  });
+
   test("Mod-click follows the link directly", async ({ page }) => {
     await mount(page, noteDoc(pWiki("go ", "planning", "notes/planning.um")));
     await page.waitForTimeout(150);
