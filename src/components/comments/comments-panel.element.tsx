@@ -59,6 +59,8 @@ export const CommentsPanelElement = litView.element({
   /** `${threadId}:${commentId}` while a comment is being edited. */
   let editingKey: string | null = null;
   let editDraft = "";
+  /** Composer identity the draft belongs to (see the reset in the loop). */
+  let lastComposerId: string | null = null;
 
   // eslint-disable-next-line @typescript-eslint/no-this-alias -- generator component: needs external this reference for the composer focus lookup
   const root: HTMLElement = this;
@@ -279,6 +281,14 @@ export const CommentsPanelElement = litView.element({
 
   while (true) {
     const composer = props.composer;
+    // A new composer (a second Comment request while one was pending)
+    // starts with a clean draft — the abandoned draft text must never land
+    // in the new thread's first comment.
+    if ((composer?.threadId ?? null) !== lastComposerId) {
+      lastComposerId = composer?.threadId ?? null;
+      composerDraft = "";
+      if (composer) openComposer();
+    }
     const items = props.threads;
     const openCount = items.filter((i) => !i.thread.resolved).length;
     const resolvedCount = items.length - openCount;
@@ -370,10 +380,6 @@ export const CommentsPanelElement = litView.element({
         {visible.map(card)}
       </div>
     );
-
-    // The composer input must survive the re-render that opening the panel
-    // itself produced (the view assigns props.composer, then calls next()).
-    if (composer && !getComposerInput()) openComposer();
   }
 })(elTag("inscriptum-comments"));
 

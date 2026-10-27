@@ -631,6 +631,12 @@ export class NotepadView extends FileView {
 
   async onLoadFile(file: TFile): Promise<void> {
     this.destroyAllSections();
+    // The leaf is switching files: the panel, the thread cache and any
+    // pending composer belong to the previous file — a stale cache would
+    // leak its threads into the new file's comments.jsonl on the first
+    // mutation, and the composer's anchor is unreachable from here.
+    this.closeCommentsPanel();
+    this.threadsCache = null;
     const notepad = await this.readNotepadWithRetries(file);
     if (notepad == null) {
       this.renderUnreadableFileState(file);
@@ -649,6 +655,9 @@ export class NotepadView extends FileView {
   }
 
   async onClose(): Promise<void> {
+    // Before the final flush: a pending composer's anchor removal must ride
+    // the last save, not a scheduled autosave that can no longer fire.
+    this.closeCommentsPanel();
     await this.flushSave("close");
     this.navResize?.disconnect();
     this.navResize = null;
@@ -658,7 +667,6 @@ export class NotepadView extends FileView {
     this.scrollShadowCleanup = null;
     this.closeSheet();
     this.exitMoveMode();
-    this.closeCommentsPanel();
     this.threadsCache = null;
     this.destroyAllSections();
     this.contentEl.empty();
@@ -2633,6 +2641,10 @@ export class NotepadView extends FileView {
     const { selection } = state;
     if (selection.empty || !isTextSelection(selection)) return;
     if (state.schema.marks.comment == null) return;
+    // One composer at a time: a second Comment request while the first
+    // composer is pending would orphan the first anchor mark (its id is
+    // dropped and no cancel path could ever remove it).
+    if (this.commentsComposer) this.cancelComposer();
     const handle = [...this.sections.values()].find(
       (h) => h.editor === editor,
     );
@@ -2665,15 +2677,14 @@ export class NotepadView extends FileView {
   }
 
   /** Composer canceled (empty submit, Esc, panel close): the anchor was
-   *  never backed by a thread — remove the mark. */
+   *  never backed by a thread — remove the mark. Same fallback chain as a
+   *  thread deletion: the page may already be collapsed (flushed with the
+   *  pending mark, editor destroyed), so the stored JSON gets the strip. */
   private cancelComposer(): void {
     const composer = this.commentsComposer;
     this.commentsComposer = null;
     if (!composer) return;
-    const editor = this.sections.get(composer.noteId)?.editor;
-    if (editor && !editor.isDestroyed) {
-      editor.commands.unsetComment(composer.threadId);
-    }
+    this.removeThreadAnchor(composer.noteId, composer.threadId);
     this.refreshCommentsUI();
   }
 
@@ -3544,6 +3555,9 @@ export class NotepadView extends FileView {
       this.dirty = false;
       // Keep the user's expansion state across the reload.
       this.render();
+      // The panel (if open) must drop the pre-reload cards — the fresh
+      // notepad's threads replace them.
+      this.refreshCommentsUI();
     } catch (err) {
       console.error("Failed to reload notepad from disk:", err);
     }

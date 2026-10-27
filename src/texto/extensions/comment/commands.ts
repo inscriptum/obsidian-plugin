@@ -5,6 +5,11 @@ import { findCommentRanges } from "./comments-plugin";
 type AddCommandsThis = ThisParameterType<Required<AnyConfig>["addCommands"]>;
 
 export function addCommands(this: AddCommandsThis) {
+  // Both commands are ordinary history transactions. Undo therefore behaves
+  // like the orphan policy dictates: undoing a setComment removes the mark
+  // (a still-open composer then submits into an "Anchor removed" thread),
+  // undoing a thread deletion resurrects an anchor whose thread is gone —
+  // a highlight without a counter bubble, removable by clearing formatting.
   return {
     /** Mark the current text selection as a comment anchor (fresh id). */
     setComment:

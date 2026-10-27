@@ -40,6 +40,12 @@ describe("threads JSONL codec", () => {
     const text = [
       "{not json",
       JSON.stringify({ id: "x" }), // missing fields
+      JSON.stringify({
+        id: "T0",
+        noteId: "n",
+        resolved: false,
+        comments: [{}], // malformed comment entry
+      }),
       JSON.stringify(thread("T1")),
       "", // empty line
       JSON.stringify(thread("T1")), // duplicate id keeps the first
@@ -121,15 +127,18 @@ describe("UmNotepad thread store", () => {
   it("old-version compatibility: the entry rides the container verbatim", () => {
     // A foreign entry (unknown to this build) and the comments entry both
     // survive load → save untouched when never touched by the store API.
-    const foreign = new TextEncoder().encode("whatever");
     const bytes = containerWith({
-      "unknown-blob.bin": foreign,
+      "unknown-blob.bin": new TextEncoder().encode("whatever"),
       [UM_COMMENTS_ENTRY]: serializeThreads([thread("T1")]),
     });
     const round = parseUmContainer(
       UmNotepad.fromBytes(bytes).serialize(),
     );
-    expect(round.unknownEntries.get("unknown-blob.bin")).toEqual(foreign);
+    // Decoded comparison (house pattern, umContainer.test.ts) — a raw
+    // toEqual on Uint8Array is cross-realm flaky under vitest workers.
+    expect(
+      new TextDecoder().decode(round.unknownEntries.get("unknown-blob.bin")),
+    ).toBe("whatever");
     expect(parseThreads(round.unknownEntries.get(UM_COMMENTS_ENTRY)!)).toEqual([
       thread("T1"),
     ]);

@@ -24,10 +24,10 @@ describe("website export with comment anchors", () => {
       ],
     };
     const html = generateHTML(doc, getExportExtensions());
-    expect(html).toContain('data-comment-id="T1"');
-    // Threads are not exported (ОВ-3) and the highlight is decoration-only —
-    // the exported span carries no editor styling hooks.
-    expect(html).not.toContain("inscriptum-comment");
+    // A bare span: no attribute to resurrect the anchor when site text is
+    // copied back into the editor, and no editor styling hooks.
+    expect(html).toContain("<span>anchored</span>");
+    expect(html).not.toContain("data-comment-id");
     expect(html).toContain("anchored");
   });
 });
