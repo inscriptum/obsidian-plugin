@@ -43,7 +43,10 @@ export interface WikiLinkOptions {
  * whole class of display:none boundary bugs (rounds 3–6) is gone by design.
  */
 export const WikiLink = Extension.create<WikiLinkOptions>({
-  name: "wikiLink",
+  // NOT "wikiLink": that name belongs to the WikiLinkMark (the schema mark
+  // whose name is stored in document JSON) — two extensions sharing a name
+  // trips ExtensionManager's duplicate warning.
+  name: "wikiLinkEditing",
 
   addOptions() {
     // NOTE: deliberately no `hooks` key here. mergeDeep() clones plain
