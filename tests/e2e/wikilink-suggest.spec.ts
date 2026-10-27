@@ -275,6 +275,100 @@ test.describe("wiki-link «[[» suggest (inline syntax)", () => {
     expect((state as { spaceBeforeCaret?: string }).spaceBeforeCaret).toBe(" ");
   });
 
+  test("space on the pattern boundaries lands outside the link", async ({
+    page,
+  }) => {
+    await mount(page, noteDoc(p("go [[notes/planning.um]] now")));
+    await page.waitForTimeout(150);
+
+    // caret at the LEFT boundary (right before the hidden «[[»)
+    await page.evaluate(() => {
+      const ed = window.__e2e.editor;
+      if (ed == null) throw new Error("no editor");
+      const view = ed.view;
+      let from: number | null = null;
+      view.state.doc.descendants((node, pos) => {
+        if (from == null && node.isText && node.text?.includes("[[")) {
+          from = pos + node.text.indexOf("[[");
+        }
+        return from == null;
+      });
+      if (from == null) throw new Error("pattern not found");
+      ed.commands.setTextSelection(from);
+      ed.view.focus();
+    });
+    await page.waitForTimeout(150);
+    await page.keyboard.press("Space");
+    await page.waitForTimeout(150);
+
+    let state = await page.evaluate(() => {
+      const ed = window.__e2e.editor;
+      if (ed == null) return null;
+      const view = ed.view;
+      const pEl = view.dom.querySelector("p");
+      let visible = "";
+      const walk = (n: Node) => {
+        if (n.nodeType === 3) visible += n.textContent ?? "";
+        else if (n.nodeType === 1 && getComputedStyle(n as HTMLElement).display !== "none") {
+          Array.from(n.childNodes).forEach(walk);
+        }
+      };
+      pEl?.childNodes.forEach(walk);
+      return {
+        text: view.state.doc.textBetween(0, view.state.doc.content.size),
+        visible,
+      };
+    });
+    if (state == null) throw new Error("no state");
+    // the space landed BEFORE the «[[» and is visible
+    expect(state.text).toContain("  [[notes/planning.um]] now");
+    expect(state.visible.startsWith("go  ")).toBe(true);
+    expect(state.visible).toContain("notes/planning.um");
+
+    // caret at the RIGHT boundary (right after the hidden «]]»)
+    await page.evaluate(() => {
+      const ed = window.__e2e.editor;
+      if (ed == null) throw new Error("no editor");
+      const view = ed.view;
+      let to: number | null = null;
+      view.state.doc.descendants((node, pos) => {
+        if (to == null && node.isText && node.text?.includes("]]")) {
+          to = pos + node.text.indexOf("]]") + 2;
+        }
+        return to == null;
+      });
+      if (to == null) throw new Error("pattern not found");
+      ed.commands.setTextSelection(to);
+      ed.view.focus();
+    });
+    await page.waitForTimeout(150);
+    await page.keyboard.press("Space");
+    await page.waitForTimeout(150);
+
+    state = await page.evaluate(() => {
+      const ed = window.__e2e.editor;
+      if (ed == null) return null;
+      const view = ed.view;
+      const pEl = view.dom.querySelector("p");
+      let visible = "";
+      const walk = (n: Node) => {
+        if (n.nodeType === 3) visible += n.textContent ?? "";
+        else if (n.nodeType === 1 && getComputedStyle(n as HTMLElement).display !== "none") {
+          Array.from(n.childNodes).forEach(walk);
+        }
+      };
+      pEl?.childNodes.forEach(walk);
+      return {
+        text: view.state.doc.textBetween(0, view.state.doc.content.size),
+        visible,
+      };
+    });
+    if (state == null) throw new Error("no state");
+    // the space landed AFTER the closing brackets and is visible
+    expect(state.text).toContain("]]  now");
+    expect(state.visible).toContain("now");
+  });
+
   test("an outside mousedown dismisses the menu", async ({ page }) => {
     await mount(page, noteDoc(p("go [[notes/planning.um]] now")));
     await page.waitForTimeout(150);
