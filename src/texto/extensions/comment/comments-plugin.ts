@@ -74,36 +74,36 @@ function buildDecorations(
           : "inscriptum-comment-anchor",
       }),
     );
-    if (!thread || thread.commentCount === 0) continue;
-    // The counter bubble rides the range end. Key carries the rendered
-    // state so a refresh meta swaps the DOM; plain key equality keeps the
-    // widget stable across typing.
-    decorations.push(
-      Decoration.widget(
-        range.to,
-        () => {
-          // Host-injected DOM helper (Obsidian / harness / vitest setup) —
-          // the same global texto extensions use everywhere.
-          const bubble = createSpan();
-          bubble.className = thread.resolved
-            ? "inscriptum-comment-bubble is-resolved"
-            : "inscriptum-comment-bubble";
-          bubble.textContent = String(thread.commentCount);
-          bubble.addEventListener("pointerdown", (event) => {
-            // The bubble is not a caret target: a click must not move the
-            // selection into the text (and must not reach handleClick).
-            event.preventDefault();
-            event.stopPropagation();
-            hooks.openThread(range.id);
-          });
-          return bubble;
-        },
-        {
-          side: 1,
-          key: `comment-${range.id}-${thread.commentCount}-${thread.resolved ? 1 : 0}`,
-        },
-      ),
-    );
+        if (!thread || thread.commentCount === 0) continue;
+        // The footnote-style count marker rides the range end. Key carries
+        // the rendered state so a refresh meta swaps the DOM; plain key
+        // equality keeps the widget stable across typing.
+        decorations.push(
+          Decoration.widget(
+            range.to,
+            () => {
+              // Host-injected DOM helper (Obsidian / harness / vitest setup) —
+              // the same global texto extensions use everywhere.
+              const ref = createSpan();
+              ref.className = thread.resolved
+                ? "inscriptum-comment-ref is-resolved"
+                : "inscriptum-comment-ref";
+              ref.textContent = String(thread.commentCount);
+              ref.addEventListener("pointerdown", (event) => {
+                // The marker is not a caret target: a click must not move
+                // the selection into the text (and must not reach handleClick).
+                event.preventDefault();
+                event.stopPropagation();
+                hooks.openThread(range.id);
+              });
+              return ref;
+            },
+            {
+              side: 1,
+              key: `comment-${range.id}-${thread.commentCount}-${thread.resolved ? 1 : 0}`,
+            },
+          ),
+        );
   }
   return DecorationSet.create(doc, decorations);
 }

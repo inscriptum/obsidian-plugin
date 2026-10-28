@@ -21,26 +21,21 @@
   background-color: color-mix(in srgb, var(--ins-accent, #7c6af7) 12%, transparent);
 }
 
-/* The counter bubble riding the anchor end (click → panel). */
-.inscriptum-comment-bubble {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 17px;
-  height: 17px;
-  margin-left: 3px;
-  padding: 0 4px;
-  border-radius: 9px;
-  background: var(--ins-accent, #7c6af7);
-  color: #fff;
+/* The footnote-style comment count at the anchor end (click → panel):
+   a small superscript reference, not a pill. */
+.inscriptum-comment-ref {
+  display: inline-block;
+  margin-left: 1px;
+  padding: 0 1px;
+  color: var(--ins-accent, #7c6af7);
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
+  vertical-align: super;
   user-select: none;
   cursor: pointer;
-  vertical-align: baseline;
 }
 
-.inscriptum-comment-bubble.is-resolved {
-  background: color-mix(in srgb, var(--text-muted, #888) 55%, transparent);
+.inscriptum-comment-ref.is-resolved {
+  color: var(--text-muted, #888);
 }
