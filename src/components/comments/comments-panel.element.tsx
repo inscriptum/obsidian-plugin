@@ -199,6 +199,7 @@ export const CommentsPanelElement = litView.element({
                 <div class="ins-comments-entry-actions">
                   <button
                     type="button"
+                    class="ins-comments-entry-action"
                     onclick={() => {
                       editingKey = `${thread.id}:${comment.id}`;
                       editDraft = comment.content;
@@ -209,6 +210,7 @@ export const CommentsPanelElement = litView.element({
                   </button>
                   <button
                     type="button"
+                    class="ins-comments-entry-action"
                     onclick={() => props.onDeleteComment(thread.id, comment.id)}
                   >
                     Delete
@@ -299,7 +301,7 @@ export const CommentsPanelElement = litView.element({
           <div class="ins-comments-filter" role="tablist">
             <button
               type="button"
-              class={cls(filter === "open" && "is-active")}
+              class={cls("ins-comments-filter-seg", filter === "open" && "is-active")}
               onclick={() => {
                 filter = "open";
                 refresh();
@@ -309,7 +311,7 @@ export const CommentsPanelElement = litView.element({
             </button>
             <button
               type="button"
-              class={cls(filter === "resolved" && "is-active")}
+              class={cls("ins-comments-filter-seg", filter === "resolved" && "is-active")}
               onclick={() => {
                 filter = "resolved";
                 refresh();
