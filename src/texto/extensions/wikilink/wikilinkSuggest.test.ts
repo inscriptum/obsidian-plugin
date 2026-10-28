@@ -518,6 +518,47 @@ describe("findWikiMatches (raw patterns)", () => {
     editor.destroy();
   });
 
+  it("the review scenario: caret inside a saved code pattern, then exit — the code stays code", () => {
+    const editor = new Editor({
+      element: document.createElement("div"),
+      content: {
+        type: "noteDoc",
+        content: [
+          { type: "noteTitle", content: [{ type: "text", text: "T" }] },
+          { type: "hljsCodeBlock", content: [
+            { type: "hljsCodeBlockRow", content: [
+              { type: "text", text: "example [[target]] here" },
+            ] },
+          ] },
+        ],
+      },
+      extensions: getExtensions(WIKI_HOOKS),
+      editable: true,
+    });
+    // caret INTO the pattern inside the code row (the review's action)
+    let patStart: number | null = null;
+    let patEnd: number | null = null;
+    editor.state.doc.descendants((node, at) => {
+      if (!patStart && node.isText && node.text?.includes("[[target]]")) {
+        const off = node.text.indexOf("[[target]]");
+        patStart = at + off;
+        patEnd = patStart + "[[target]]".length;
+      }
+      return !patStart;
+    });
+    editor.commands.setTextSelection(patStart! + 5);
+    editor.view.focus();
+    // …then click elsewhere (a selection transaction out of the pattern)
+    editor.commands.setTextSelection(editor.state.doc.content.size - 1);
+    editor.view.focus();
+    // finalizeOnExit runs synchronously in appendTransaction — the state is
+    // already final here
+    const codeJson = JSON.stringify(editor.state.doc.toJSON().content?.[1]);
+    expect(codeJson).not.toContain('"type":"wikiLink"');
+    expect(codeJson).toContain("[[target]]");
+    editor.destroy();
+  });
+
   it("skips raw patterns inside code contexts", () => {
     const editor = new Editor({
       element: createDiv(),
