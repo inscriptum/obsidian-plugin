@@ -7,6 +7,7 @@ declare global {
   interface Window {
     __e2e: {
       mount(doc: unknown): string;
+      mountToolbar(doc: unknown, opts?: { mobile?: boolean }): string;
       readonly editor: Editor | null;
       docJson(): unknown;
       positions(): number[];
@@ -14,6 +15,10 @@ declare global {
       taskFolds(): number[];
       lastError(): unknown;
       openGallery(items: unknown[], index: number): void;
+    };
+    __e2eWiki: {
+      files: { path: string; name: string }[];
+      opens: string[];
     };
     __e2eNotepad: {
       mount(

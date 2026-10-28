@@ -297,6 +297,13 @@ button.notepad-nav-toggle:hover svg {
   flex: 0 0 auto;
 }
 
+/* The toolbar element is the positioned ancestor of its link layer (see
+   toolbar.css — the desktop .tb-link-layer rules hang it under the bar;
+   the mobile dock in mobile.css overrides to position: static). */
+.notepad-view-container .notepad-toolbar {
+  position: relative;
+}
+
 .notepad-scroller {
   flex: 1 1 auto;
   overflow-y: auto;

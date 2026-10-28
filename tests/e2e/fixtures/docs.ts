@@ -53,3 +53,25 @@ export function table(rows: string[][]): JsonNode {
     })),
   };
 }
+
+/** A committed wikilink: the inline atom node (label + target in attrs). */
+export function wikiRun(label: string, path: string): JsonNode {
+  return { type: "wikiLink", attrs: { path, text: label } };
+}
+
+/** Paragraph: plain prefix + committed link + plain suffix. */
+export function pWiki(
+  before: string,
+  label: string,
+  path: string,
+  after = "",
+): JsonNode {
+  return {
+    type: "paragraph",
+    content: [
+      ...(before.length > 0 ? [{ type: "text", text: before }] : []),
+      wikiRun(label, path),
+      ...(after.length > 0 ? [{ type: "text", text: after }] : []),
+    ],
+  };
+}

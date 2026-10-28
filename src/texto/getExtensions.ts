@@ -2,6 +2,8 @@ import type { Extensions } from "./core/@types";
 import type { ImageOptionsHooks } from "./extensions/image";
 import type { AttachmentOptionsHooks } from "./extensions/attachment";
 import type { StateOptionsHooks } from "./extensions/state";
+import type { WikiHooks } from "./extensions/wikilink";
+import { WikiLink, WikiLinkNode } from "./extensions/wikilink";
 import { NoteDoc, PlainDoc, TitleDoc } from "./extensions/note-doc";
 import { Link } from "./extensions/link";
 import { Cleanup } from "./extensions/cleanup";
@@ -48,6 +50,9 @@ export interface ExtensionHooks {
   state?: StateOptionsHooks;
   image?: ImageOptionsHooks;
   attachment?: AttachmentOptionsHooks;
+  /** Vault file provider for the «[[» links (WikiLink mark + suggest
+   *  popup). Absent — the feature is off: «[[» stays plain text. */
+  wiki?: WikiHooks;
 }
 
 export interface GetExtensionsOptions {
@@ -76,6 +81,11 @@ export function getExtensions(
     }),
     topNode,
     Link,
+    // The node registers even without hooks: documents written by any
+    // wikilink generation must load (rendered, inert) where the feature
+    // is off.
+    WikiLinkNode,
+    WikiLink.configure({ hooks: hooks.wiki ?? null }),
     Cleanup,
     ListKeymap,
     Image.configure({

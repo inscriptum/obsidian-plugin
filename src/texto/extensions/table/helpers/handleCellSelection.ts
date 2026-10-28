@@ -1,5 +1,5 @@
 import type { ResolvedPos } from "prosemirror-model";
-import { EditorState, Plugin } from "prosemirror-state";
+import { EditorState, Plugin, TextSelection } from "prosemirror-state";
 import {
   cellAround,
   CellSelection,
@@ -140,6 +140,20 @@ function swallowTouchCompatMouse(view: EditorView): boolean {
 
 export function handleCellSelection(isMobileView: boolean) {
   return new Plugin({
+    // Desktop only: right after a long-press hold, PM's DOM-sync flush can
+    // read the browser-committed caret and dispatch a selection transaction
+    // that collapses the fresh cell selection (racing the re-assert in
+    // startDesktopLongPress). Such transactions are blocked for the latch
+    // window — the caret inside the cell before the hold must not prevent
+    // the long-press from sticking.
+    filterTransaction(tr, state) {
+      if (isMobileView || tr.docChanged) return true;
+      // The deliberate collapse of collapseCellSelectionOnClick passes.
+      if (tr.getMeta(cellCollapseClickMeta)) return true;
+      if (Date.now() > collapseLatchUntil) return true;
+      if (!(state.selection instanceof TextoCellSelection)) return true;
+      return tr.selection instanceof TextoCellSelection;
+    },
     props: {
       decorations: (state) => drawCellSelection(state, isMobileView),
 
@@ -163,6 +177,21 @@ export function handleCellSelection(isMobileView: boolean) {
           // under it (the mouse long-press, the desktop twin of the mobile
           // long-press).
           if (!isMobileView) {
+            // A mousedown inside the CURRENT cell selection: the cell
+            // selection owns the gesture — dragging inside it must not
+            // select text (owner model, issue
+            // table-longpress-selection-reset). preventDefault blocks the
+            // native caret and the text-selection anchor; a plain click
+            // collapses to a caret on mouseup, a drag keeps the selection.
+            const target = event.target as HTMLElement | null;
+            if (
+              target?.closest?.("td.selectedCell, th.selectedCell") &&
+              view.state.selection instanceof TextoCellSelection
+            ) {
+              event.preventDefault();
+              collapseCellSelectionOnClick(view, event);
+              return true;
+            }
             startDesktopLongPress(view, event);
             return false;
           }
@@ -269,6 +298,60 @@ export function handleCellSelection(isMobileView: boolean) {
 }
 
 /**
+ * A mousedown landed inside the current cell selection (desktop): the drag
+ * must not turn into a native text selection, so the mousedown was
+ * preventDefault-ed. On mouseup a plain click collapses the selection to a
+ * caret at the click point; a drag keeps the cell selection as-is.
+ */
+function collapseCellSelectionOnClick(
+  view: EditorView,
+  startEvent: MouseEvent,
+): void {
+  const doc = view.dom.ownerDocument;
+  const startX = startEvent.clientX;
+  const startY = startEvent.clientY;
+  let dragged = false;
+  const onMove = (event: MouseEvent): void => {
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    if (dx * dx + dy * dy > 16) {
+      dragged = true;
+    }
+  };
+  const onUp = (): void => {
+    doc.removeEventListener("mousemove", onMove);
+    doc.removeEventListener("mouseup", onUp);
+    if (dragged) return;
+    window.setTimeout(() => {
+      if (view.isDestroyed) return;
+      if (!(view.state.selection instanceof TextoCellSelection)) return;
+      const pos = view.posAtCoords({ left: startX, top: startY });
+      if (!pos) return;
+      view.dispatch(
+        view.state.tr
+          .setSelection(
+            TextSelection.near(view.state.doc.resolve(pos.pos)),
+          )
+          .setMeta(cellCollapseClickMeta, true),
+      );
+      view.focus();
+    }, 0);
+  };
+  doc.addEventListener("mousemove", onMove);
+  doc.addEventListener("mouseup", onUp);
+}
+
+/**
+ * How long a just-finished desktop hold is guarded against a late
+ * selectionchange flush collapsing the fresh cell selection back to the
+ * browser-committed caret.
+ */
+const COLLAPSE_LATCH_MS = 250;
+let collapseLatchUntil = 0;
+/** Meta key marking the deliberate click-collapse — never latched out. */
+const cellCollapseClickMeta = "textoTableCollapseClick";
+
+/**
  * Desktop long-press (issue table-selection-native-drag): holding the mouse
  * button still on a cell for a moment selects that cell — the mouse twin of
  * the mobile long-press, and the only single-cell affordance once the
@@ -292,9 +375,31 @@ function startDesktopLongPress(view: EditorView, startEvent: MouseEvent): void {
     doc.removeEventListener("mousemove", onMove);
     doc.removeEventListener("mouseup", onUp);
     window.clearTimeout(timer);
-    if (active && !view.isDestroyed && view.state.selection instanceof TextoCellSelection) {
-      view.focus();
+    if (!active) {
+      return;
     }
+    // The browser's mouseup commit (and the selectionchange flush it
+    // triggers) may land AFTER the re-assert below — collapse-latch the
+    // selection for a moment so no late flush can undo the hold. A user
+    // click cannot physically happen within the window.
+    collapseLatchUntil = Date.now() + COLLAPSE_LATCH_MS;
+    if (!view.isDestroyed && view.state.selection instanceof TextoCellSelection) {
+      view.focus();
+      return;
+    }
+    // The hold had micro-movements within the slop: the browser's own text
+    // selection drag (anchored at mousedown — mouse selection has no slop)
+    // commits on mouseup and collapses the fresh cell selection to a caret.
+    // Re-assert the cell selection once the default mouseup handling has
+    // settled — after the hold, the cell stays selected (owner model).
+    const anchorCell = anchor;
+    window.setTimeout(() => {
+      if (view.isDestroyed || !anchorCell) return;
+      if (view.state.selection instanceof TextoCellSelection) return;
+      view.dom.ownerDocument.getSelection()?.removeAllRanges();
+      view.dispatch(view.state.tr.setSelection(new TextoCellSelection(anchorCell)));
+      view.focus();
+    }, 0);
   };
 
   const dispatchSelection = ($head: ResolvedPos): void => {
@@ -341,6 +446,16 @@ function startDesktopLongPress(view: EditorView, startEvent: MouseEvent): void {
       return;
     }
     anchor = $cell;
+    // Micro-movements within the slop start a native text selection while
+    // the button is held (mouse selection has no slop — any move selects).
+    // Without this the text highlight sits on top of the fresh cell
+    // selection and visually replaces it — the desktop twin of the mobile
+    // reset (issue table-longpress-selection-reset). From here on the
+    // selected cells are user-select: none (see the .selectedCell rule in
+    // editor.css): text cannot be re-selected until the cell selection
+    // collapses, exactly the owner's model — a plain click collapses it and
+    // text selection works again.
+    view.dom.ownerDocument.getSelection()?.removeAllRanges();
     view.dispatch(view.state.tr.setSelection(new TextoCellSelection($cell)));
   }, LONG_PRESS_MS);
 

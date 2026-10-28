@@ -9,6 +9,7 @@ import { headingFoldingKey } from "../texto/extensions/heading/folding";
 import { taskFoldingKey } from "../texto/extensions/task-item-folding/taskFoldingPlugin";
 import { NotepadView } from "../NotepadView";
 import { installIconSprite } from "../components/icons/iconSprite";
+import { ToolbarElement } from "../components/toolbar/toolbar.element";
 import { UmNotepad } from "../storage/um/umNotepad";
 import { exportNotepadAsWebsite } from "../export/exportNotepadWebsite";
 import type { UmContainerData, UmNoteDescriptor } from "../storage/um/umTypes";
@@ -237,6 +238,11 @@ export { Editor, headingFoldingKey, taskFoldingKey };
 interface E2EApi {
   /** Mount a fresh editor with the given doc JSON (replaces the previous one). */
   mount: (doc: unknown) => string;
+  /** Mount an editor plus its note-toolbar. Mobile mode by default (a fake
+   *  selectionBar is passed, so the toolbar renders the mobile row with the
+   *  undo/redo buttons); opts.mobile=false mounts the desktop branch —
+   *  for toolbar interaction tests. */
+  mountToolbar: (doc: unknown, opts?: { mobile?: boolean }) => string;
   /** The editor mounted last (null before the first mount). */
   readonly editor: Editor | null;
   /** Doc JSON of the current editor. */
@@ -256,6 +262,15 @@ interface E2EApi {
 
 let currentEditor: Editor | null = null;
 let lastError: unknown = null;
+
+/** Fake vault backing the wiki hooks: tests populate `files` before typing
+ *  and read `opens` to assert click-to-open. */
+declare global {
+  interface Window {
+    __e2eWiki: { files: { path: string; name: string }[]; opens: string[] };
+  }
+}
+window.__e2eWiki ??= { files: [], opens: [] };
 
 function appContainer(): HTMLElement {
   const existing = document.getElementById("app");
@@ -282,10 +297,25 @@ function mountEditor(doc: unknown): string {
   note.appendChild(article);
   app.appendChild(note);
 
+  // Fake vault for the «[[» suggest (tests set window.__e2eWiki.files).
+  const wikiFiles = (): { path: string; name: string }[] =>
+    (window.__e2eWiki?.files ?? []);
+
   currentEditor = new Editor({
     element: article,
     content: doc as JSONContent,
-    extensions: getExtensions({}, {}),
+    extensions: getExtensions(
+      {
+        wiki: {
+          listFiles: wikiFiles,
+          isResolved: (path) => wikiFiles().some((f) => f.path === path),
+          openTarget: (path) => {
+            window.__e2eWiki.opens.push(path);
+          },
+        },
+      },
+      {},
+    ),
     editable: true,
     onError: (err) => {
       lastError = err;
@@ -297,6 +327,21 @@ function mountEditor(doc: unknown): string {
 
 const e2eApi: E2EApi = {
   mount: mountEditor,
+  mountToolbar: (doc: unknown, opts?: { mobile?: boolean }): string => {
+    const mobile = opts?.mobile ?? true;
+    mountEditor(doc);
+    installIconSprite();
+    const editor = currentEditor;
+    if (editor == null) return "editor";
+    const toolbar = new ToolbarElement();
+    toolbar.addClass("note-toolbar-host");
+    toolbar.props.editor = editor;
+    // A fake selection bar switches the toolbar into its mobile branch —
+    // the only place the undo/redo buttons render (mobile-only feature).
+    if (mobile) toolbar.props.selectionBar = createDiv("fake-selection-bar");
+    appContainer().appendChild(toolbar);
+    return mobile ? "editor+toolbar(mobile)" : "editor+toolbar(desktop)";
+  },
   get editor() {
     return currentEditor;
   },

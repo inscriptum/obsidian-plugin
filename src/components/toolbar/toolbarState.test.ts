@@ -1,8 +1,16 @@
 import { describe, it, expect } from "vitest";
+import type { CanCommands } from "../../texto/core/@types";
 import type { Editor } from "../../texto/core";
 import { getToolbarState } from "./toolbarState";
 
-function makeEditor(active: Record<string, boolean>): Pick<Editor, "isActive"> {
+function makeEditor(
+  active: Record<string, boolean>,
+  history: { undo?: boolean; redo?: boolean } = {},
+): Pick<Editor, "isActive" | "can"> {
+  const canCommands = {
+    undo: () => history.undo ?? false,
+    redo: () => history.redo ?? false,
+  } as unknown as CanCommands;
   return {
     // Editor.isActive has two overloads: (name, attributes?) and (attributes).
     // The mock accepts both; only the (name, attributes) form is exercised.
@@ -23,6 +31,7 @@ function makeEditor(active: Record<string, boolean>): Pick<Editor, "isActive"> {
         );
       return active[name] ?? false;
     },
+    can: () => canCommands,
   };
 }
 
@@ -39,6 +48,8 @@ describe("getToolbarState", () => {
       orderedList: false,
       codeBlock: false,
       link: false,
+      canUndo: false,
+      canRedo: false,
     });
   });
 
@@ -83,5 +94,19 @@ describe("getToolbarState", () => {
     expect(s.bulletList).toBe(false);
     expect(s.orderedList).toBe(true);
     expect(s.codeBlock).toBe(true);
+  });
+
+  it("mirrors the undo/redo stacks independently", () => {
+    const both = getToolbarState(makeEditor({}, { undo: true, redo: true }));
+    expect(both.canUndo).toBe(true);
+    expect(both.canRedo).toBe(true);
+
+    const undoOnly = getToolbarState(makeEditor({}, { undo: true }));
+    expect(undoOnly.canUndo).toBe(true);
+    expect(undoOnly.canRedo).toBe(false);
+
+    const redoOnly = getToolbarState(makeEditor({}, { redo: true }));
+    expect(redoOnly.canUndo).toBe(false);
+    expect(redoOnly.canRedo).toBe(true);
   });
 });

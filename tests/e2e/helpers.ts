@@ -5,6 +5,7 @@ export const HARNESS_URL = "/tests/e2e/harness/index.html";
 /** Minimal structural view of the ProseMirror doc JSON the harness returns. */
 export interface JsonMark {
   type?: string;
+  attrs?: Record<string, unknown>;
 }
 
 export interface JsonNode {
@@ -26,6 +27,24 @@ export async function mount(page: Page, doc: JsonNode): Promise<void> {
   await page.evaluate((d) => {
     window.__e2e.mount(d);
   }, doc);
+  // Let the first paint/layout settle — a click fired immediately after a
+  // mount can be mapped by ProseMirror to the wrong block (the title).
+  await page.waitForTimeout(100);
+}
+
+/** Mount an editor + the note-toolbar (mobile mode by default, see harness
+ *  mountToolbar) — for tests that drive the toolbar's own buttons. */
+export async function mountToolbar(
+  page: Page,
+  doc: JsonNode,
+  opts?: { mobile?: boolean },
+): Promise<void> {
+  await page.evaluate(
+    ({ d, opts }) => {
+      window.__e2e.mountToolbar(d, opts);
+    },
+    { d: doc, opts },
+  );
   // Let the first paint/layout settle — a click fired immediately after a
   // mount can be mapped by ProseMirror to the wrong block (the title).
   await page.waitForTimeout(100);

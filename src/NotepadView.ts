@@ -56,6 +56,7 @@ import { TableCellsBubbleMenuElement } from "./components/bubble-menu-bar/table-
 import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubble-menu-bar.element";
 import { isMediaNodeSelection } from "./components/bubble-menu-bar/mediaMenuState";
 import { selectionInProperty, sanitizePropertyValues } from "./texto/extensions/note-property";
+import { selectionInWikiContext } from "./texto/extensions/wikilink";
 import { getTableMenuState } from "./components/bubble-menu-bar/tableMenuState";
 import { moveTargetIndex } from "./notepad/moveTargetIndex";
 import {
@@ -1605,6 +1606,14 @@ export class NotepadView extends FileView {
           openAttachmentFile(app, attrs.data);
         },
       },
+      wiki: {
+        listFiles: () =>
+          app.vault.getFiles().map((f) => ({ path: f.path, name: f.basename })),
+        isResolved: (path) => app.vault.getAbstractFileByPath(path) != null,
+        openTarget: (path) => {
+          void app.workspace.openLinkText(path, this.file?.path ?? "", false);
+        },
+      },
     };
   }
 
@@ -2512,6 +2521,10 @@ export class NotepadView extends FileView {
           if (isMediaNodeSelection(state)) return false;
           // Property fields carry no formatting — the text menu stays away.
           if (selectionInProperty(state.doc, state.selection)) return false;
+          // Wiki-link territory (active «[[» suggest session or a committed
+          // link's label) carries no formatting controls — owner claim,
+          // wikilinks round 7.
+          if (selectionInWikiContext(state)) return false;
           const inTable = isInTable(state);
           // Selected text — the text menu serves it even inside a table.
           if (inTable && !selection.empty && isTextSelection(selection))
@@ -2521,7 +2534,8 @@ export class NotepadView extends FileView {
           if (selection.empty) return false;
           return state.doc.textBetween(from, to).length > 0;
         },
-        tippyOptions: { placement: "top", offset: [0, 8] },
+        // the bar exceeds tippy's 350px default max-width (button compression)
+        tippyOptions: { maxWidth: "none", placement: "top", offset: [0, 8] },
       }),
     );
 
@@ -2573,7 +2587,8 @@ export class NotepadView extends FileView {
             return false;
           return isMediaNodeSelection(state);
         },
-        tippyOptions: { placement: "top", offset: [0, 8] },
+        // the bar exceeds tippy's 350px default max-width (button compression)
+        tippyOptions: { maxWidth: "none", placement: "top", offset: [0, 8] },
       }),
     );
   }

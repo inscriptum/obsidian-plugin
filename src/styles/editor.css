@@ -226,6 +226,16 @@
   pointer-events: none;
 }
 
+/* Selected table cells (prosemirror-tables decorations, both platforms):
+   the cell selection owns the gesture — its content is not natively
+   selectable (owner model, issue table-longpress-selection-reset). A plain
+   click collapses the selection and text selection works again. */
+.texto-editor .ProseMirror td.selectedCell,
+.texto-editor .ProseMirror th.selectedCell {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* Highlight — v2: radius 3px, padding 2px */
 .texto-editor .ProseMirror mark {
   background: rgba(245, 158, 11, 0.28);
@@ -275,4 +285,169 @@
 /* ── Light theme: only the highlight tint differs ── */
 .theme-light .texto-editor .ProseMirror mark {
   background: rgba(245, 158, 11, 0.22);
+}
+
+/* ── Wiki-link «[[» suggest popup ────────────────────────────────────────
+   Body-level floating list under the caret (see wikiSuggest.ts). Lives on
+   document.body, so it is host-independent (.note and Notebook pages).
+   Items are DIVs on purpose: Obsidian's base `button` styles bleed into
+   <button> items through higher-specificity selectors (the raised-card
+   artifact of the first review round) — no button, no fight. */
+.texto-wiki-suggest {
+  position: fixed;
+  z-index: 1000;
+  min-width: 280px;
+  max-width: min(420px, calc(100vw - 16px));
+  padding: 6px;
+  background: var(--background-primary, #1e1e23);
+  border: 1px solid var(--background-modifier-border, #333);
+  border-radius: var(--radius-m, 10px);
+  box-shadow: var(--shadow-s, 0 4px 16px rgba(0, 0, 0, 0.3));
+}
+
+.texto-wiki-suggest__list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.texto-wiki-suggest__item {
+  display: block;
+  padding: 6px 12px;
+  border-radius: var(--radius-s, 6px);
+  cursor: pointer;
+  color: var(--text-normal, #dadada);
+}
+
+.texto-wiki-suggest__item:hover,
+.texto-wiki-suggest__item.is-selected {
+  background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
+}
+
+.texto-wiki-suggest__name {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.texto-wiki-suggest__path {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--text-faint, #999);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Wiki-link hover bubble (see texto/extensions/wikilink) ──────────────
+   Hovering a committed link shows a bubble menu — path + «Перейти» /
+   «Редактировать» (owner round 7: hover, not click; bubble-menu look, not a
+   custom dropdown). A body-level fixed element, host-independent. */
+.texto-wiki-hover {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: min(440px, calc(100vw - 16px));
+  padding: 4px;
+  background: var(--background-primary, #1e1e23);
+  border: 1px solid var(--background-modifier-border, #333);
+  border-radius: var(--radius-m, 10px);
+  box-shadow: var(--shadow-s, 0 4px 16px rgba(0, 0, 0, 0.3));
+}
+
+.texto-wiki-hover__path {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0 8px;
+  font-size: 13px;
+  line-height: 28px;
+  color: var(--text-muted, #b9b9b9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.texto-wiki-hover__path.is-unresolved {
+  color: var(--text-faint, #777);
+}
+
+.texto-wiki-hover__item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-s, 6px);
+  cursor: pointer;
+  color: var(--text-normal, #dadada);
+}
+
+.texto-wiki-hover__item:hover {
+  background: var(--background-modifier-hover, rgba(255, 255, 255, 0.08));
+}
+
+.texto-wiki-hover__item svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+}
+
+.texto-editor .ProseMirror .texto-wikilink {
+  color: var(--text-accent, #7c6af7);
+  cursor: pointer;
+}
+
+/* The mini document glyph AFTER a wiki link — superscripted, the way
+   Wikipedia marks external links (mask + currentColor, the Tabler "file"
+   outline). Trailing + raised on purpose: a LEADING icon in the inline
+   flow puts the caret between the icon and the label and collides with
+   the drag handle at the line start; a tiny raised glyph at the end reads
+   as a marker, not as part of the line. */
+.texto-editor .ProseMirror .texto-wikilink::after {
+  content: "";
+  display: inline-block;
+  width: 0.55em;
+  height: 0.55em;
+  margin-left: 2px;
+  vertical-align: super;
+  background-color: currentColor;
+  opacity: 0.65;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 3v4a1 1 0 0 0 1 1h4'/%3E%3Cpath d='M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2'/%3E%3C/svg%3E");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center bottom;
+  mask-position: center bottom;
+}
+
+/* The unresolved dim is an inline decoration whose class lands directly
+   on the atom node's own span. */
+.texto-editor .ProseMirror .texto-wikilink.is-unresolved {
+  color: var(--text-faint, #777);
+}
+
+.texto-editor .ProseMirror .texto-wikilink.is-unresolved::after {
+  opacity: 0.3;
+}
+
+.texto-editor .ProseMirror .texto-wikilink:hover {
+  color: var(--text-accent-hover, #8f7ffc);
+}
+
+
+
+/* Destructive «Удалить» in the wiki hover menu — same red as the
+   bubble-menu bars' trash (.bubble-menu-bar button.danger). */
+.texto-wiki-hover__item.is-danger {
+  color: #e07a7a;
+}
+
+.texto-wiki-hover__item.is-danger:hover {
+  color: #f8a0a0;
+  background-color: rgba(248, 113, 113, 0.12);
 }

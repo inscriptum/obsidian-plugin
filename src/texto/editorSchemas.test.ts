@@ -38,6 +38,7 @@ const NOTE_NODES = [
   "taskItem:paragraph block*",
   "taskList:taskItem+",
   "text:null",
+  "wikiLink:null",
 ];
 
 const TITLE_PROPERTY_NODES = [

@@ -54,6 +54,7 @@ import {
   type ShouldShowProps,
 } from "./texto/extensions/bubble-menu";
 import { BubbleMenuBarElement } from "./components/bubble-menu-bar/bubble-menu-bar.element";
+import { selectionInWikiContext } from "./texto/extensions/wikilink";
 import { TableBubbleMenuElement } from "./components/bubble-menu-bar/table-bubble-menu-bar.element";
 import { TableCellsBubbleMenuElement } from "./components/bubble-menu-bar/table-cells-bubble-menu-bar.element";
 import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubble-menu-bar.element";
@@ -636,6 +637,13 @@ export class NoteView extends FileView {
                       return false;
                     }
 
+                    // Wiki-link territory (active «[[» suggest session or a
+                    // committed link's label) carries no formatting controls
+                    // — owner claim, wikilinks round 7.
+                    if (selectionInWikiContext(state)) {
+                      return false;
+                    }
+
                     // Text menu is shown for selected text,
                     // even inside a table (for formatting text in cells)
                     if (inTable && !empty && isTextSelection(selection)) {
@@ -708,6 +716,9 @@ export class NoteView extends FileView {
                     );
                   },
                   tippyOptions: {
+                    // the bar exceeds tippy's 350px default max-width — without
+                    // this the flex buttons compress to ~16px (owner report)
+                    maxWidth: "none",
                     placement: "top",
                     offset: [0, 8],
                     animation: "bubble-pop",
@@ -755,6 +766,9 @@ export class NoteView extends FileView {
                     return isMediaNodeSelection(state);
                   },
                   tippyOptions: {
+                    // the bar exceeds tippy's 350px default max-width — without
+                    // this the flex buttons compress to ~16px (owner report)
+                    maxWidth: "none",
                     placement: "top",
                     offset: [0, 8],
                     animation: "bubble-pop",
@@ -1339,6 +1353,14 @@ export class NoteView extends FileView {
         },
         onClick: (attrs) => {
           openAttachmentFile(app, attrs.data);
+        },
+      },
+      wiki: {
+        listFiles: () =>
+          app.vault.getFiles().map((f) => ({ path: f.path, name: f.basename })),
+        isResolved: (path) => app.vault.getAbstractFileByPath(path) != null,
+        openTarget: (path) => {
+          void app.workspace.openLinkText(path, noteFile.path, false);
         },
       },
     };

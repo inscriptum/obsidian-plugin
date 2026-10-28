@@ -19,3 +19,10 @@ dist-harness/
 # Playwright E2E output (see playwright.config.ts)
 /test-results/
 /playwright-report/
+.trash/
+
+# The dev vault IS this repo: scratch .note files written to the root
+# during live verification must never be tracked.
+/*.note
+/*.tmp
+/b66d20c8-2958-4740-aca9-515c8a1ea0be.jpeg

@@ -27,6 +27,10 @@ import {
   type UmSchemaState,
 } from "./umSchemas";
 import {
+  convertLegacyWikiSyntax,
+  hasLegacyWikiSyntax,
+} from "../../texto/extensions/wikilink/legacyMarks";
+import {
   UM_SCHEMA_PLAIN,
   UM_SCHEMA_TITLE,
   UM_SCHEMA_VERSION_PLAIN,
@@ -123,6 +127,15 @@ export class UmNotepad {
     // the next open. Normalize on read, like the trailing repair above.
     if (hasCellColorAttrQuirk(prepared)) {
       normalizeCellColorAttrsJSON(prepared);
+      this.data.notes.set(id, prepared);
+      this.dirtyNotes.add(id);
+    }
+
+    // Legacy wikilink generations → the current model (label + wikiLink
+    // mark): raw «[[path|text]]» text from the rounds-3…6 builds converts
+    // on read; v1 mark documents are already the current shape.
+    if (hasLegacyWikiSyntax(prepared)) {
+      prepared = convertLegacyWikiSyntax(prepared);
       this.data.notes.set(id, prepared);
       this.dirtyNotes.add(id);
     }

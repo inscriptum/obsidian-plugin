@@ -310,24 +310,57 @@ export const ToolbarElement = litView.element({
             {desktopTableDock && props.tableBar ? (
               <div class="note-toolbar__table-bar">{props.tableBar}</div>
             ) : (
-              GROUPS.map((group, gi) => [
-                gi > 0 ? <div class="note-toolbar__sep"></div> : null,
-                group.map((btn) => (
-                  <button
-                    class={`note-toolbar__btn${(btn.activeKey && state[btn.activeKey]) || (btn.activeKey === "link" && linkLayerOpen) ? " is-active" : ""}`}
-                    aria-label={btn.label}
-                    onclick={() =>
-                      btn.activeKey === "link"
-                        ? toggleLinkLayer()
-                        : btn.action(props.editor)
-                    }
-                  >
-                    <span class="note-toolbar__icon">
-                      {toolbarIconNodes[btn.icon]({})}
-                    </span>
-                  </button>
-                )),
-              ])
+              [
+                // Undo/redo live in the mobile row only: on desktop the
+                // keyboard owns ⌘Z/⇧⌘Z and the Notion-style desktop header
+                // stays untouched (owner decision 2026-10-24).
+                isMobileSwap
+                  ? [
+                      <button
+                        class="note-toolbar__btn"
+                        aria-label="Undo"
+                        disabled={!state.canUndo}
+                        onclick={() =>
+                          props.editor.chain().focus().undo().run()
+                        }
+                      >
+                        <span class="note-toolbar__icon">
+                          {toolbarIconNodes.undo({})}
+                        </span>
+                      </button>,
+                      <button
+                        class="note-toolbar__btn"
+                        aria-label="Redo"
+                        disabled={!state.canRedo}
+                        onclick={() =>
+                          props.editor.chain().focus().redo().run()
+                        }
+                      >
+                        <span class="note-toolbar__icon">
+                          {toolbarIconNodes.redo({})}
+                        </span>
+                      </button>,
+                    ]
+                  : null,
+                GROUPS.map((group, gi) => [
+                  gi > 0 ? <div class="note-toolbar__sep"></div> : null,
+                  group.map((btn) => (
+                    <button
+                      class={`note-toolbar__btn${(btn.activeKey && state[btn.activeKey]) || (btn.activeKey === "link" && linkLayerOpen) ? " is-active" : ""}`}
+                      aria-label={btn.label}
+                      onclick={() =>
+                        btn.activeKey === "link"
+                          ? toggleLinkLayer()
+                          : btn.action(props.editor)
+                      }
+                    >
+                      <span class="note-toolbar__icon">
+                        {toolbarIconNodes[btn.icon]({})}
+                      </span>
+                    </button>
+                  )),
+                ]),
+              ]
             )}
             <div class="note-toolbar__spacer"></div>
             <div class="note-toolbar__meta">

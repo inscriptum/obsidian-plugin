@@ -145,6 +145,33 @@
   border-radius: 2px;
 }
 
+/* Internal vault links («[[» wikiLink mark): accent like an external link
+   but visually distinct — no underline, a faint dotted one on hover.
+   Unresolved targets (no such file in the vault) render muted. */
+.note .texto-wikilink {
+  color: var(--note-accent-text);
+  cursor: pointer;
+}
+
+.note .texto-wikilink:hover {
+  color: var(--note-accent-hover);
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
+  text-decoration: underline dotted;
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
+  text-decoration-color: color-mix(
+    in srgb,
+    var(--note-accent-hover) 55%,
+    transparent
+  );
+  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
+  text-underline-offset: 3px;
+}
+
+.note .texto-wikilink.is-unresolved {
+  color: var(--note-faint, var(--text-faint));
+  cursor: default;
+}
+
 .note mark {
   background: rgba(245, 158, 11, 0.28);
   color: inherit;

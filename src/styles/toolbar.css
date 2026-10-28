@@ -84,6 +84,12 @@
   background: color-mix(in srgb, var(--interactive-accent) 20%, transparent);
 }
 
+/* Exhausted undo/redo stacks (mobile): visibly off, untouchable. */
+.note-toolbar .note-toolbar__btn[disabled] {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
 /* iOS Safari: SVG as the only flex child of a <button> can collapse to 0×0.
    Force block display + no shrink, and wrap the icon in a span so the
    button's flex layout never eats the SVG's size. */
@@ -246,8 +252,12 @@
    Desktop: a small popover under the bar (the host is position:sticky, so it
    is the positioned ancestor). On mobile mobile.css re-docks this row above
    the toolbar buttons. Selectors are prefixed with .note-toolbar-host to beat
-   Obsidian's base button/input styles (see the header note). */
-.note-toolbar-host .tb-link-layer {
+   Obsidian's base button/input styles (see the header note); the notepad
+   toolbar element carries .notepad-toolbar instead of .note-toolbar-host
+   (its own wrapper is .notepad-toolbar-host), so the selectors cover both —
+   without it the layer rendered unpositioned in notebooks. */
+.note-toolbar-host .tb-link-layer,
+.notepad-toolbar .tb-link-layer {
   position: absolute;
   top: calc(100% + 4px);
   left: 10px;
@@ -263,7 +273,8 @@
   z-index: 10;
 }
 
-.note-toolbar-host .tb-link-input {
+.note-toolbar-host .tb-link-input,
+.notepad-toolbar .tb-link-input {
   flex: 1;
   min-width: 0;
   background: transparent;
@@ -282,17 +293,20 @@
     box-shadow 0.1s;
 }
 
-.note-toolbar-host .tb-link-input:focus {
+.note-toolbar-host .tb-link-input:focus,
+.notepad-toolbar .tb-link-input:focus {
   border-color: var(--interactive-accent);
   box-shadow: 0 0 0 2px
     color-mix(in srgb, var(--interactive-accent) 15%, transparent);
 }
 
-.note-toolbar-host .tb-link-input::placeholder {
+.note-toolbar-host .tb-link-input::placeholder,
+.notepad-toolbar .tb-link-input::placeholder {
   color: var(--text-faint);
 }
 
-.note-toolbar-host .tb-link-go {
+.note-toolbar-host .tb-link-go,
+.notepad-toolbar .tb-link-go {
   appearance: none;
   -webkit-appearance: none;
   display: flex;
@@ -314,13 +328,16 @@
     background-color 0.1s;
 }
 
-.note-toolbar-host .tb-link-go:hover {
+.note-toolbar-host .tb-link-go:hover,
+.notepad-toolbar .tb-link-go:hover {
   background: color-mix(in srgb, var(--text-normal) 6%, transparent);
   color: var(--text-normal);
 }
 
 .note-toolbar-host .tb-link-go .tb-link-icon,
-.note-toolbar-host .tb-link-go svg {
+.note-toolbar-host .tb-link-go svg,
+.notepad-toolbar .tb-link-go .tb-link-icon,
+.notepad-toolbar .tb-link-go svg {
   display: block;
   width: 15px;
   height: 15px;
@@ -328,10 +345,12 @@
 }
 
 /* destructive "remove link" */
-.note-toolbar-host .tb-link-go.tb-link-del {
+.note-toolbar-host .tb-link-go.tb-link-del,
+.notepad-toolbar .tb-link-go.tb-link-del {
   color: var(--text-error, #e07a7a);
 }
 
-.note-toolbar-host .tb-link-go.tb-link-del:hover {
+.note-toolbar-host .tb-link-go.tb-link-del:hover,
+.notepad-toolbar .tb-link-go.tb-link-del:hover {
   background: color-mix(in srgb, var(--text-error, #e07a7a) 10%, transparent);
 }

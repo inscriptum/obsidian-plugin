@@ -248,6 +248,38 @@ describe("extractPreview", () => {
   });
 });
 
+describe("postProcessForExport: wikilinks", () => {
+  const resolveTarget = () => null;
+
+  it("a committed wikilink keeps the label but drops the vault path", async () => {
+    const result = await postProcessForExport(
+      '<p>see <span class="texto-wikilink" data-wiki-path="notes/plan.um">plan</span></p>',
+      resolveTarget,
+    );
+    expect(result.html).toContain("plan</span>");
+    expect(result.html).toContain('class="texto-wikilink"');
+    expect(result.html).not.toContain("data-wiki-path");
+    expect(result.html).not.toContain("notes/plan.um");
+  });
+
+  it("a legacy raw pattern renders as the highlighted label, not raw syntax", async () => {
+    const result = await postProcessForExport(
+      "<p>see [[notes/plan.um|the plan]] now</p>",
+      resolveTarget,
+    );
+    expect(result.html).toContain("<span class=\"texto-wikilink\">the plan</span>");
+    expect(result.html).not.toContain("[[");
+  });
+
+  it("raw syntax inside code stays literal", async () => {
+    const result = await postProcessForExport(
+      "<pre><code>[[kept.md]]</code></pre>",
+      resolveTarget,
+    );
+    expect(result.html).toContain("[[kept.md]]");
+  });
+});
+
 describe("postProcessForExport", () => {
   const html = [
     "<p>before</p>",

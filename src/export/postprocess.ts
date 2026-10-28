@@ -311,6 +311,9 @@ export async function postProcessForExport(
     wrapCodeBlock(parsed, pre);
   }
 
+  replaceWikiLinks(parsed);
+  stripWikiPaths(parsed);
+
   // A published page is read-only: nobody can tick a checkbox.
   for (const input of Array.from(
     parsed.body.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'),
@@ -326,4 +329,66 @@ export async function postProcessForExport(
     droppedDiagrams,
     diagrams,
   };
+}
+
+
+/** `[[target|label]]` / `[[target]]` in plain text — the inline wikilink
+ *  syntax (see texto/extensions/wikilink). On the site the link renders as
+ *  the highlighted label and is NOT clickable (owner decision, issue
+ *  wikilinks ОВ-2); code blocks keep the raw syntax. */
+const WIKI_TEXT_RE = /\[\[([^\][|]+?)(?:\|([^\][|]*))?\]\]/g;
+
+/** Committed wikilinks (the wikiLink mark) render as
+ *  `<span class="texto-wikilink" data-wiki-path="…">` — the vault path must
+ *  not leak into the public HTML, so the attribute is dropped; the label
+ *  keeps the highlighted, non-clickable rendering (ОВ-2). */
+function stripWikiPaths(parsed: Document): void {
+  for (const el of Array.from(
+    parsed.body.querySelectorAll<HTMLElement>(".texto-wikilink"),
+  )) {
+    el.removeAttribute("data-wiki-path");
+  }
+}
+
+function replaceWikiLinks(parsed: Document): void {
+  const walker = parsed.createTreeWalker(parsed.body, NodeFilter.SHOW_TEXT);
+  const textNodes: Text[] = [];
+  let current = walker.nextNode();
+  while (current != null) {
+    const parent = (current as Text).parentElement;
+    const inCode = parent?.closest("pre, code") != null;
+    if (!inCode && (current as Text).data.includes("[[")) {
+      textNodes.push(current as Text);
+    }
+    current = walker.nextNode();
+  }
+  for (const node of textNodes) {
+    const text = node.data;
+    // Insert the replacement parts directly (no DocumentFragment: the
+    // detached parser document has no Obsidian create helper for one).
+    const parent = node.parentElement;
+    if (parent == null) return;
+    const insertBefore = (n: Node): Node => parent.insertBefore(n, node);
+    let cursor = 0;
+    WIKI_TEXT_RE.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = WIKI_TEXT_RE.exec(text)) !== null) {
+      if (match.index > cursor) {
+        insertBefore(parsed.createTextNode(text.slice(cursor, match.index)));
+      }
+      const span = createElIn(parsed, "span");
+      span.className = "texto-wikilink";
+      // A label exists («[[target|label]]») — render it; otherwise the
+      // target itself is the visible text.
+      // match[1] always participates in the match.
+      const label = match[2] != null && match[2] !== "" ? match[2] : match[1];
+      span.textContent = label;
+      insertBefore(span);
+      cursor = match.index + match[0].length;
+    }
+    if (cursor < text.length) {
+      insertBefore(parsed.createTextNode(text.slice(cursor)));
+    }
+    node.remove();
+  }
 }
