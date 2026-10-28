@@ -1565,6 +1565,13 @@ button.notepad-sheet-row.is-danger svg {
   transform: translateY(var(--comments-drag-y, 0px));
 }
 
+/* Keyboard up: the nav pill hides behind it, so the 80px clearance becomes
+   a dead gray band inside the sheet — collapse it (the toolbar host does
+   the same with its safe-area padding). */
+.notepad-view-container.is-mobile.is-keyboard-open .notepad-comments {
+  padding-bottom: 10px;
+}
+
 .ins-comments-panel {
   display: flex;
   flex-direction: column;
