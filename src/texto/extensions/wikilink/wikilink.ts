@@ -163,11 +163,18 @@ export function scanWikiMatches(
   return out;
 }
 
-/** All raw patterns of the current document (doc positions). Pure — tested. */
+/** All raw patterns of the current document (doc positions). Pure — tested.
+ *  Code contexts are skipped: patterns inside code blocks or inline code
+ *  are quoted, not live (review P1 — finalizeOnExit used to convert them). */
 export function findWikiMatches(state: EditorState): WikiMatch[] {
   const out: WikiMatch[] = [];
   state.doc.descendants((node, pos) => {
     if (!node.isText || typeof node.text !== "string") return true;
+    // inline code: the pattern is quoted, never live
+    if (node.marks.some((m) => m.type.name === "code")) return true;
+    // code-block rows: the whole row is quoted
+    const $pos = state.doc.resolve(pos);
+    if ($pos.parent.type.name === "hljsCodeBlockRow") return true;
     for (const m of scanWikiMatches(node.text)) {
       out.push({
         from: pos + m.start,
@@ -269,15 +276,26 @@ function wikiLinkViewPlugin(hooks: WikiHooks): Plugin {
 
   const showMenu = (view: EditorView, el: HTMLElement): void => {
     cancelHide();
-    // Re-locate the mark from the live doc by the element's path: positions
-    // may have shifted since the hover began, and the icon widget's own
-    // rect resolves to the mark's boundary (where inclusive:false hides
-    // it) — the data-wiki-path key is the only reliable one.
-    const path =
-      el.getAttribute("data-wiki-path") ??
-      el.parentElement?.getAttribute("data-wiki-path") ??
-      "";
-    const range = path !== "" ? wikiLinkRangeByPath(view.state, path) : null;
+    // Resolve the hovered atom by its DOCUMENT POSITION (the element's own
+    // DOM position), not by its path: two links can point at the same file,
+    // and a path lookup would always hit the first one (review P1). The
+    // span is the atom node's own toDOM output, so posAtDOM(0) is its
+    // exact start.
+    let range: WikiLinkRange | null = null;
+    try {
+      const pos = view.posAtDOM(el, 0);
+      const node = view.state.doc.nodeAt(pos);
+      if (node?.type.name === "wikiLink") {
+        range = {
+          from: pos,
+          to: pos + node.nodeSize,
+          path: String(node.attrs.path ?? ""),
+          label: String(node.attrs.text ?? ""),
+        };
+      }
+    } catch {
+      range = null;
+    }
     if (range == null) {
       destroyMenu();
       return;

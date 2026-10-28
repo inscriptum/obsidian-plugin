@@ -59,6 +59,13 @@ export const WikiLinkNode = Node.create<WikiLinkNodeOptions>({
     };
   },
 
+  // Plain-text serialization (clipboard "text/plain", copy as text):
+  // without this the label would be dropped — "see  now" instead of
+  // "see planning now" (review P1).
+  renderText({ node }) {
+    return String(node.attrs.text ?? "");
+  },
+
   renderHTML({ node, HTMLAttributes }) {
     // contenteditable=false: the browser must never place a caret inside
     // the atom (PM keeps atom positions outside it anyway).

@@ -103,7 +103,7 @@ describe("filterFiles / scoreFile", () => {
 
 function makeEditor(hooks?: ExtensionHooks, paragraphText = "hello [[planning"): Editor {
   return new Editor({
-    element: document.createElement("div"),
+    element: createDiv(),
     content: {
       type: "noteDoc",
       content: [
@@ -135,7 +135,7 @@ function paraJson(editor: Editor): Run[] {
   const json = editor.state.doc.toJSON() as {
     content: { content?: Run[] }[];
   };
-  return json.content[1]!.content ?? [];
+  return json.content[1].content ?? [];
 }
 
 describe("acceptWikiSuggestion — commit consumes the syntax", () => {
@@ -150,7 +150,7 @@ describe("acceptWikiSuggestion — commit consumes the syntax", () => {
       editor.state.tr.setSelection(TextSelection.create(doc, cursor)),
     );
 
-    const file = FILES[0]!;
+    const file = FILES[0];
     const before = cursor - "[[planning".length;
     const ok = acceptWikiSuggestion(
       editor.state,
@@ -165,9 +165,9 @@ describe("acceptWikiSuggestion — commit consumes the syntax", () => {
     // the raw syntax is GONE — an inline atom node remains (the owner's
     // «Способ 1»): label + target in attrs, the caret can never enter it
     expect(runs).toHaveLength(2);
-    expect(runs[0]!.text).toBe("hello ");
-    expect(runs[1]!.type).toBe("wikiLink");
-    expect(runs[1]!.attrs).toEqual({
+    expect(runs[0].text).toBe("hello ");
+    expect(runs[1].type).toBe("wikiLink");
+    expect(runs[1].attrs).toEqual({
       path: "notes/planning.um",
       text: "planning",
     });
@@ -190,13 +190,40 @@ describe("acceptWikiSuggestion — commit consumes the syntax", () => {
     acceptWikiSuggestion(
       editor.state,
       (tr) => editor.view.dispatch(tr),
-      FILES[0]!,
+      FILES[0],
       { from: textStart, display: "My Plan" },
       cursor,
     );
     const runs = paraJson(editor);
-    expect(runs[1]!.type).toBe("wikiLink");
-    expect(runs[1]!.attrs).toEqual({
+    expect(runs[1].type).toBe("wikiLink");
+    expect(runs[1].attrs).toEqual({
+      path: "notes/planning.um",
+      text: "My Plan",
+    });
+    editor.destroy();
+  });
+
+  it("accepting with the caret mid-label keeps the whole label", () => {
+    const editor = makeEditor(WIKI_HOOKS, "hello [[planning.um|My Plan]]");
+    const paraText = "hello [[planning.um|My Plan]]";
+    const patStart = 4 + paraText.indexOf("[[");
+    const patLen = "[[planning.um|My Plan]]".length;
+    const caretMidLabel = patStart + "[[planning.um|".length + "My".length;
+    const ok = acceptWikiSuggestion(
+      editor.state,
+      (tr) => editor.view.dispatch(tr),
+      FILES[0],
+      {
+        from: patStart,
+        display: "My",
+        closeEnd: patStart + patLen,
+      },
+      caretMidLabel,
+    );
+    expect(ok).toBe(true);
+    const runs = paraJson(editor);
+    const atom = runs.find((r) => r.type === "wikiLink");
+    expect(atom?.attrs).toEqual({
       path: "notes/planning.um",
       text: "My Plan",
     });
@@ -215,13 +242,13 @@ describe("acceptWikiSuggestion — commit consumes the syntax", () => {
     const ok = acceptWikiSuggestion(
       editor.state,
       (tr) => editor.view.dispatch(tr),
-      FILES[0]!,
+      FILES[0],
       { from: textStart, display: "" },
       cursor,
     );
     expect(ok).toBe(true);
     const runs = paraJson(editor);
-    expect(runs[1]!.attrs).toEqual({
+    expect(runs[1].attrs).toEqual({
       path: "notes/planning.um",
       text: "planning",
     });
@@ -239,12 +266,13 @@ function typeText(editor: Editor, text: string): void {
     to: number,
     text: string,
   ) => boolean;
+  const callInput: TextInputProp =
+    view.someProp("handleTextInput", (f) => f as TextInputProp) ??
+    (() => false);
   for (const ch of text) {
     const pos = view.state.selection.from;
-    const before = view.state.doc.toJSON();
-    view.someProp("handleTextInput", (f) =>
-      (f as unknown as TextInputProp)(view, pos, pos, ch),
-    );
+    const before: unknown = view.state.doc.toJSON();
+    callInput(view, pos, pos, ch);
     // if no rule consumed the char, insert it the plain way
     if (
       view.state.selection.from === pos &&
@@ -343,8 +371,6 @@ describe("the creation session over plain text", () => {
 });
 
 describe("committed links", () => {
-  const COMMITTED = "hello [[planning]] done";
-
   function makeCommittedEditor(): Editor {
     const editor = makeEditor(WIKI_HOOKS, "hello  done");
     const insertAt = 4 + "hello ".length;
@@ -365,7 +391,7 @@ describe("committed links", () => {
 
   it("renders from stored JSON and resolves through wikiLinkRangeByPath", () => {
     const editor = makeCommittedEditor();
-    const dom = editor.view.dom as HTMLElement;
+    const dom = editor.view.dom;
     const span = dom.querySelector<HTMLElement>("span.texto-wikilink");
     expect(span?.getAttribute("data-wiki-path")).toBe("notes/planning.um");
     expect(span?.textContent).toBe("planning");
@@ -375,6 +401,15 @@ describe("committed links", () => {
       path: "notes/planning.um",
       label: "planning",
     });
+    editor.destroy();
+  });
+
+  it("plain-text copy keeps the label (renderText)", () => {
+    const editor = makeCommittedEditor();
+    // the node's plain-text serialization reads attrs.text (renderText)
+    const node = editor.state.doc.nodeAt(4 + "hello ".length);
+    expect(node?.type.name).toBe("wikiLink");
+    expect(String(node?.attrs.text ?? "")).toBe("planning");
     editor.destroy();
   });
 
@@ -401,7 +436,7 @@ describe("committed links", () => {
     acceptWikiSuggestion(
       editor.state,
       (tr) => editor.view.dispatch(tr),
-      FILES[0]!,
+      FILES[0],
       { from: suggest!.from, display: suggest!.display, closeEnd: suggest!.closeEnd },
       editor.state.selection.from,
     );
@@ -480,6 +515,35 @@ describe("findWikiMatches (raw patterns)", () => {
       target: "y.um",
       label: "the y",
     });
+    editor.destroy();
+  });
+
+  it("skips raw patterns inside code contexts", () => {
+    const editor = new Editor({
+      element: createDiv(),
+      content: {
+        type: "noteDoc",
+        content: [
+          { type: "noteTitle", content: [{ type: "text", text: "T" }] },
+          { type: "paragraph", content: [
+            { type: "text", text: "inline [[quoted.md]] and " },
+            { type: "text", text: "[[also.md]]", marks: [{ type: "code" }] },
+          ] },
+          { type: "hljsCodeBlock", content: [
+            { type: "hljsCodeBlockRow", content: [
+              { type: "text", text: "[[incode.md]]" },
+            ] },
+          ] },
+        ],
+      },
+      extensions: getExtensions(WIKI_HOOKS),
+      editable: true,
+    });
+    const matches = findWikiMatches(editor.state);
+    // only the live inline one is visible to the scanner; the code-marked
+    // and code-block patterns are skipped
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ target: "quoted.md" });
     editor.destroy();
   });
 

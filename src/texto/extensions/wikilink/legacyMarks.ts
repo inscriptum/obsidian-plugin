@@ -68,9 +68,8 @@ function walkConvert(node: JSONContent, inCode: boolean): JSONContent {
     node.marks?.some((m) => m.type === "wikiLink")
   ) {
     const wiki = node.marks.find((m) => m.type === "wikiLink");
-    const path = String(
-      (wiki?.attrs as { path?: unknown } | undefined)?.path ?? "",
-    );
+    const rawPath: unknown = wiki?.attrs?.path;
+    const path = typeof rawPath === "string" ? rawPath : "";
     if (path !== "") {
       return wikiNode(path, node.text);
     }

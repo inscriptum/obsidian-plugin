@@ -234,11 +234,14 @@ export function acceptWikiSuggestion(
     suggest.closeEnd != null && suggest.closeEnd >= cursorPos
       ? suggest.closeEnd
       : cursorPos;
-  // The caret may sit in the TARGET part (the Edit entry lands it at the end
-  // of the path) while a display text already follows the pipe — that label
-  // must survive the accept (the scan only parses text BEFORE the caret).
+  // The pattern text inside [from, to) is the source of truth for the
+  // label: the caret can sit in the TARGET part (the Edit entry lands it
+  // at the end of the path) or in the MIDDLE of the display text — the
+  // scan only parses text BEFORE the caret, so reading the doc through
+  // the closing brackets keeps the whole label either way (review P1:
+  // accepting from the middle of «|My Plan» used to drop « Plan»).
   let finalLabel = label;
-  if (suggest.display == null && to > suggest.from) {
+  if (to > suggest.from) {
     const raw = state.doc.textBetween(suggest.from, to, undefined, "\ufffc");
     const parsed = /\[\[([^[\]|]*)(?:\|([^\][]*))?/.exec(raw);
     const afterPipe = parsed?.[2];

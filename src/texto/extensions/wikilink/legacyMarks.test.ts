@@ -107,7 +107,7 @@ describe("legacy wikilink generations → atom node", () => {
       marks: [{ type: "bold" }],
     });
     expect(para[1]).toEqual(node("x", "p.md"));
-    expect(para[2]!.marks).toEqual([{ type: "bold" }]);
+    expect(para[2].marks).toEqual([{ type: "bold" }]);
   });
 
   it("converts wikiLink-marked runs (rounds 1–2 / mark builds) to the atom", () => {
@@ -160,11 +160,11 @@ describe("legacy wikilink generations → atom node", () => {
     const out = convertLegacyWikiSyntax(doc);
     const para = (out.content?.[0] as JSONContent).content as JSONContent[];
     expect(para[0]).toEqual(node("live.md", "live.md"));
-    expect(para[1]!.text).toBe(" ");
-    expect(para[2]!.text).toBe("[[quoted.md]]");
-    expect(para[2]!.marks).toEqual([{ type: "code" }]);
+    expect(para[1].text).toBe(" ");
+    expect(para[2].text).toBe("[[quoted.md]]");
+    expect(para[2].marks).toEqual([{ type: "code" }]);
     const row = ((out.content?.[1] as JSONContent)
-      .content as JSONContent[])[0]!;
+      .content as JSONContent[])[0];
     expect(row.content).toEqual([{ type: "text", text: "[[incode.md]]" }]);
   });
 

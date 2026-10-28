@@ -299,7 +299,7 @@ function mountEditor(doc: unknown): string {
 
   // Fake vault for the «[[» suggest (tests set window.__e2eWiki.files).
   const wikiFiles = (): { path: string; name: string }[] =>
-    (window.__e2eWiki?.files ?? []) as { path: string; name: string }[];
+    (window.__e2eWiki?.files ?? []);
 
   currentEditor = new Editor({
     element: article,
