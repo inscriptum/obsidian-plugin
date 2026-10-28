@@ -15,6 +15,10 @@ import { NoteView, NOTE_VIEW_TYPE } from "./NoteView";
 import { NotepadView, NOTEPAD_VIEW_TYPE } from "./NotepadView";
 import { installIconSprite, NOTE_ICON_NAME } from "./components/icons/iconSprite";
 import { createEmptyNote, setWriteLogEnabled } from "./storage/noteStorage";
+import {
+  clearCommentAuthorProvider,
+  setCommentAuthorProvider,
+} from "./notepad/commentAuthor";
 import { createUmFile } from "./storage/um/umVault";
 import { UmNotepad } from "./storage/um/umNotepad";
 import { NewNoteModal } from "./ui/NewNoteModal";
@@ -33,11 +37,14 @@ interface InscriptumSettings {
   writeLog: boolean;
   /** Vault folder for "Export as website" output, one subfolder per note. */
   exportFolder: string;
+  /** Display name signed into new comments (v1 single-user). Empty → "You". */
+  commentAuthor: string;
 }
 
 const DEFAULT_SETTINGS: InscriptumSettings = {
   writeLog: false,
   exportFolder: "export",
+  commentAuthor: "You",
 };
 
 /** Runtime shape of the command registry. Obsidian's public typings omit
@@ -57,6 +64,10 @@ export default class NotesPlugin extends Plugin {
 
   async onload(): Promise<void> {
     await this.loadSettings();
+    // New comments are signed with the configured display name (read live —
+    // a settings change applies to the next comment without a reload).
+    setCommentAuthorProvider(() => this.settings.commentAuthor);
+    this.register(clearCommentAuthorProvider);
 
     installIconSprite();
 
@@ -549,6 +560,15 @@ class InscriptumSettingTab extends PluginSettingTab {
       },
       {
         control: {
+          type: "text",
+          key: "commentAuthor",
+          defaultValue: DEFAULT_SETTINGS.commentAuthor,
+        },
+        name: "Comment author",
+        desc: "The name signed into new comments in notepads (.um). It is stored with each comment and shown in the comments panel. Keep the default or set your own display name.",
+      },
+      {
+        control: {
           type: "toggle",
           key: "writeLog",
           defaultValue: DEFAULT_SETTINGS.writeLog,
@@ -578,6 +598,8 @@ class InscriptumSettingTab extends PluginSettingTab {
           value.trim() || DEFAULT_SETTINGS.exportFolder,
         );
       }
+    } else if (key === "commentAuthor" && typeof value === "string") {
+      this.plugin.settings.commentAuthor = value.trim();
     } else if (key === "writeLog" && typeof value === "boolean") {
       this.plugin.settings.writeLog = value;
     }
@@ -600,6 +622,20 @@ class InscriptumSettingTab extends PluginSettingTab {
             this.plugin.settings.exportFolder = normalizePath(
               value.trim() || DEFAULT_SETTINGS.exportFolder,
             );
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Comment author")
+      .setDesc(
+        "The name signed into new comments in notepads (.um). It is stored with each comment and shown in the comments panel. Keep the default or set your own display name.",
+      )
+      .addText((text) =>
+        text
+          .setValue(this.plugin.settings.commentAuthor)
+          .onChange(async (value) => {
+            this.plugin.settings.commentAuthor = value.trim();
             await this.plugin.saveSettings();
           }),
       );

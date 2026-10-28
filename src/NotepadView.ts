@@ -47,6 +47,9 @@ import {
 import type { ImageToolContext } from "./tools/image";
 import { collectGalleryItems } from "./ui/imageLightbox";
 import { createKeyboardTracking } from "./tools/keyboardTracking";
+import {
+  commentAuthor,
+} from "./notepad/commentAuthor";
 import { setupScrollShadows, syncScrollShadow } from "./components/toolbar/scrollShadow";
 import { elTag } from "./tags";
 import { NoteElement } from "./components/note/note.element";
@@ -2534,9 +2537,6 @@ export class NotepadView extends FileView {
 
   // ── Comments (thread store + side panel) ──
 
-  /** The display name of the (v1 single) author. */
-  private static readonly COMMENT_AUTHOR = "You";
-
   private allThreads(): CommentThread[] {
     if (this.threadsCache == null) {
       this.threadsCache = this.notepad?.readThreads() ?? [];
@@ -2688,7 +2688,7 @@ export class NotepadView extends FileView {
       comments: [
         {
           id: generateUmId(),
-          author: NotepadView.COMMENT_AUTHOR,
+          author: commentAuthor(),
           content: text,
           createdAt: Date.now(),
         },
@@ -2714,7 +2714,7 @@ export class NotepadView extends FileView {
     this.updateThread(threadId, (thread) => {
       thread.comments.push({
         id: generateUmId(),
-        author: NotepadView.COMMENT_AUTHOR,
+        author: commentAuthor(),
         content: text,
         createdAt: Date.now(),
       });
