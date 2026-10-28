@@ -296,6 +296,9 @@ export const CommentsPanelElement = litView.element({
 
     props = yield (
       <div class="ins-comments-panel" role="complementary" aria-label="Comments">
+        {/* Phone-only drag affordance; the drag-dismiss handler also
+            engages from the header. Hidden on desktop via CSS. */}
+        <div class="ins-comments-grab"></div>
         <header class="ins-comments-head">
           <span class="ins-comments-title">Comments</span>
           <div class="ins-comments-filter" role="tablist">

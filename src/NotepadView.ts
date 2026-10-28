@@ -334,6 +334,8 @@ export class NotepadView extends FileView {
 
   // ── Comments (.um only: thread store + side panel) ──
   private commentsPanelEl: CommentsPanelElement | null = null;
+  /** Phone tap-away scrim behind the sheet (created with the panel). */
+  private commentsScrimEl: HTMLElement | null = null;
   /** Composer state of a brand-new thread (bubble-menu flow): the anchor
    *  mark is already set; the thread itself is created only when the first
    *  comment is saved. Cancel → the anchor is discarded. */
@@ -2618,6 +2620,14 @@ export class NotepadView extends FileView {
     panel.props.onOpenThread = (threadId) => this.jumpToThread(threadId);
     panel.props.onClose = () => this.closeCommentsPanel();
     this.commentsPanelEl = panel;
+    // Phone: a tap-away scrim behind the sheet (desktop keeps the desktop
+    // panel behavior — no scrim, close is the × / pane menu).
+    if (Platform.isPhone) {
+      const scrim = this.contentEl.createDiv("notepad-comments-scrim");
+      scrim.addEventListener("click", () => this.closeCommentsPanel());
+      this.commentsScrimEl = scrim;
+      panel.addEventListener("pointerdown", this.onCommentsDragStart);
+    }
     this.contentEl.appendChild(panel);
     this.contentEl.addClass("comments-open");
   }
@@ -2631,6 +2641,12 @@ export class NotepadView extends FileView {
     // A pending composer owns an anchor mark with no thread — discarding the
     // composer discards the mark (no invisible junk in the stored JSON).
     if (this.commentsComposer) this.cancelComposer();
+    this.clearCommentsDragListeners();
+    this.commentsDrag = null;
+    this.commentsPanelEl?.setCssProps({ "--comments-drag-y": "" });
+    this.commentsPanelEl?.removeClass("is-dragging");
+    this.commentsScrimEl?.remove();
+    this.commentsScrimEl = null;
     this.commentsPanelEl?.remove();
     this.commentsPanelEl = null;
     this.commentsActiveThreadId = null;
@@ -3188,6 +3204,118 @@ export class NotepadView extends FileView {
     window.removeEventListener("pointerup", this.onSheetDragEnd);
     window.removeEventListener("pointercancel", this.onSheetDragEnd);
     window.removeEventListener("touchmove", this.onSheetDragTouchMove);
+  }
+
+  /** Past this downward travel a release dismisses; below it springs back. */
+  private static readonly COMMENTS_DISMISS_PX = 96;
+
+  private commentsDrag: {
+    pointerId: number;
+    startX: number;
+    startY: number;
+    dy: number;
+    active: boolean;
+    panel: CommentsPanelElement;
+  } | null = null;
+
+  /** Phone drag-dismiss of the comments sheet (the .notepad-sheet gesture):
+   *  a downward push slides the sheet with the finger; past the threshold a
+   *  release dismisses, otherwise it springs back. Engages from the grab
+   *  strip / header, or when the list cannot scroll up any further — the
+   *  scroll position owns the gesture otherwise. */
+  private onCommentsDragStart = (event: PointerEvent): void => {
+    const panel = this.commentsPanelEl;
+    if (!panel || this.commentsDrag) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const target = event.target as HTMLElement | null;
+    const fromChrome = target?.closest(".ins-comments-head, .ins-comments-grab") != null;
+    // Inputs own their gestures (caret drag, selection) — never dismiss.
+    if (!fromChrome && target?.closest("input, textarea")) return;
+    if (!fromChrome) {
+      const list = panel.querySelector(".ins-comments-panel");
+      if (list && list.scrollTop > 0) return;
+    }
+    this.commentsDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      dy: 0,
+      active: false,
+      panel,
+    };
+    window.addEventListener("pointermove", this.onCommentsDragMove);
+    window.addEventListener("pointerup", this.onCommentsDragEnd);
+    window.addEventListener("pointercancel", this.onCommentsDragEnd);
+    window.addEventListener("touchmove", this.onCommentsDragTouchMove, {
+      passive: false,
+    });
+  };
+
+  private onCommentsDragTouchMove = (event: TouchEvent): void => {
+    if (this.commentsDrag?.active) event.preventDefault();
+  };
+
+  private onCommentsDragMove = (event: PointerEvent): void => {
+    const drag = this.commentsDrag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const dy = event.clientY - drag.startY;
+    const dx = event.clientX - drag.startX;
+    if (!drag.active) {
+      if (dy > 10 && Math.abs(dy) > Math.abs(dx)) {
+        drag.active = true;
+        drag.panel.addClass("is-dragging");
+      } else if (Math.abs(dx) > 10 || dy < -10) {
+        // Horizontal or upward: a scroll/caret gesture, not a dismissal.
+        this.clearCommentsDragListeners();
+        this.commentsDrag = null;
+        return;
+      } else {
+        return;
+      }
+    }
+    drag.dy = Math.max(dy, 0);
+    drag.panel.setCssProps({ "--comments-drag-y": `${drag.dy}px` });
+  };
+
+  private onCommentsDragEnd = (event: PointerEvent): void => {
+    const drag = this.commentsDrag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    this.clearCommentsDragListeners();
+    this.commentsDrag = null;
+    if (!drag.active) return;
+    const dismiss =
+      event.type === "pointerup" &&
+      drag.dy > NotepadView.COMMENTS_DISMISS_PX;
+    drag.panel.removeClass("is-dragging");
+    if (dismiss) {
+      const anim = drag.panel.animate(
+        [
+          { transform: `translateY(${drag.dy}px)`, opacity: "1" },
+          { transform: "translateY(100%)", opacity: "0.4" },
+        ],
+        { duration: 150, easing: "ease-in", fill: "forwards" },
+      );
+      anim.finished
+        .then(() => this.closeCommentsPanel())
+        .catch(() => this.closeCommentsPanel());
+      window.setTimeout(() => this.closeCommentsPanel(), 400);
+    } else {
+      drag.panel.setCssProps({ "--comments-drag-y": "" });
+      drag.panel.animate(
+        [
+          { transform: `translateY(${drag.dy}px)` },
+          { transform: "translateY(0px)" },
+        ],
+        { duration: 180, easing: "ease-out" },
+      );
+    }
+  };
+
+  private clearCommentsDragListeners(): void {
+    window.removeEventListener("pointermove", this.onCommentsDragMove);
+    window.removeEventListener("pointerup", this.onCommentsDragEnd);
+    window.removeEventListener("pointercancel", this.onCommentsDragEnd);
+    window.removeEventListener("touchmove", this.onCommentsDragTouchMove);
   }
 
   /** The "Move…" fallback (design S6): the row lifts and a chip names the

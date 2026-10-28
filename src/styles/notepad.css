@@ -1520,6 +1520,8 @@ button.notepad-sheet-row.is-danger svg {
   right: 0;
   width: 320px;
   z-index: 15;
+  display: flex;
+  flex-direction: column;
   background: var(--background-secondary);
   border-left: 1px solid var(--ins-border);
   box-shadow: var(--shadow-s);
@@ -1528,6 +1530,12 @@ button.notepad-sheet-row.is-danger svg {
   transition:
     transform 0.3s var(--ins-ease),
     visibility 0.3s;
+}
+
+/* Phone drag-dismiss: the per-move offset while the finger pushes the
+   sheet down; the drag handler clears it on release. */
+.notepad-comments.is-dragging {
+  transition: none;
 }
 
 .notepad-view-container.comments-open .notepad-comments {
@@ -1554,16 +1562,46 @@ button.notepad-sheet-row.is-danger svg {
 }
 
 .notepad-view-container.is-phone.comments-open .notepad-comments {
-  transform: translateY(0);
+  transform: translateY(var(--comments-drag-y, 0px));
 }
 
 .ins-comments-panel {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  /* flex-fill (not height:100%): on the phone the host is only
+     max-height-clamped — a percentage height would resolve against an
+     auto-height parent and the list would never scroll, painting past
+     the sheet's rounded frame. min-height: 0 lets the flex item shrink
+     to the clamp, so overflow-y actually engages. */
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-bottom: 8px;
+}
+
+/* Phone-only drag affordance (first child of the scrolling list). */
+.ins-comments-grab {
+  display: none;
+}
+
+.notepad-view-container.is-phone .ins-comments-grab {
+  display: block;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 4px;
+  margin: 8px auto 2px;
+  border-radius: 2px;
+  background: var(--text-faint);
+  opacity: 0.5;
+}
+
+/* Phone scrim: tap outside the sheet closes it (created only on phones). */
+.notepad-comments-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 55; /* under the sheet (60), over everything else */
+  background: transparent;
 }
 
 .ins-comments-head {
