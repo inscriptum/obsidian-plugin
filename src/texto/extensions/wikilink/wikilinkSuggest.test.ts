@@ -520,7 +520,7 @@ describe("findWikiMatches (raw patterns)", () => {
 
   it("the review scenario: caret inside a saved code pattern, then exit — the code stays code", () => {
     const editor = new Editor({
-      element: document.createElement("div"),
+      element: createDiv(),
       content: {
         type: "noteDoc",
         content: [
@@ -537,12 +537,9 @@ describe("findWikiMatches (raw patterns)", () => {
     });
     // caret INTO the pattern inside the code row (the review's action)
     let patStart: number | null = null;
-    let patEnd: number | null = null;
     editor.state.doc.descendants((node, at) => {
       if (!patStart && node.isText && node.text?.includes("[[target]]")) {
-        const off = node.text.indexOf("[[target]]");
-        patStart = at + off;
-        patEnd = patStart + "[[target]]".length;
+        patStart = at + node.text.indexOf("[[target]]");
       }
       return !patStart;
     });
@@ -553,7 +550,7 @@ describe("findWikiMatches (raw patterns)", () => {
     editor.view.focus();
     // finalizeOnExit runs synchronously in appendTransaction — the state is
     // already final here
-    const codeJson = JSON.stringify(editor.state.doc.toJSON().content?.[1]);
+    const codeJson = JSON.stringify(editor.state.doc.child(1).toJSON());
     expect(codeJson).not.toContain('"type":"wikiLink"');
     expect(codeJson).toContain("[[target]]");
     editor.destroy();
