@@ -92,6 +92,26 @@ describe("comment mark", () => {
     ]);
     editor.destroy();
   });
+
+  it("anchor ranges overlap-test material (review round 2, P1)", () => {
+    // requestComment must surface an existing thread instead of letting
+    // setMark replace the anchor: a selection touching a range in any
+    // amount overlaps.
+    const editor = buildEditor(plainDoc([paragraphWithAnchor("T4")]));
+    const ranges = findCommentRanges(editor.state.doc);
+    const [range] = ranges;
+    const overlaps = (from: number, to: number) =>
+      ranges.some((r) => r.from < to && r.to > from);
+    // exact range, partial left, partial right, strict superset
+    expect(overlaps(range.from, range.to)).toBe(true);
+    expect(overlaps(range.from, range.from + 1)).toBe(true);
+    expect(overlaps(range.to - 1, range.to)).toBe(true);
+    expect(overlaps(range.from - 3, range.to + 3)).toBe(true);
+    // touching but not overlapping → a new comment is allowed
+    expect(overlaps(range.from - 3, range.from)).toBe(false);
+    expect(overlaps(range.to, range.to + 3)).toBe(false);
+    editor.destroy();
+  });
 });
 
 describe("comments plugin ranges", () => {
@@ -221,5 +241,17 @@ describe("stored-JSON helpers", () => {
     const second = doc.content?.[0]?.content?.[1];
     expect(second?.marks).toEqual([{ type: "comment", attrs: { id: "T2" } }]);
     expect(stripCommentMarkFromJson(doc, "T1")).toBe(false);
+  });
+
+  it("thread deletion lifts duplicated-page anchors too (review round 2, P2)", () => {
+    // A duplicated page carries a copy of the mark with the same id; the
+    // view's removeThreadAnchorEverywhere strips every openable page, so
+    // after deleting the thread no page keeps a dead highlight.
+    const docA = plainDoc([paragraphWithAnchor("T1")]);
+    const docB = JSON.parse(JSON.stringify(docA)) as JSONContent; // the duplicate
+    expect(stripCommentMarkFromJson(docA, "T1")).toBe(true);
+    expect(stripCommentMarkFromJson(docB, "T1")).toBe(true);
+    expect(jsonHasCommentMark(docA, "T1")).toBe(false);
+    expect(jsonHasCommentMark(docB, "T1")).toBe(false);
   });
 });

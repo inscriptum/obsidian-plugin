@@ -11,8 +11,6 @@
     transparent
   );
   border-radius: 2px;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
   cursor: pointer;
   transition: background-color 0.15s ease;
 }

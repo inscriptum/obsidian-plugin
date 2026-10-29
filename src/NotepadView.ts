@@ -61,6 +61,7 @@ import {
   type ThreadViewModel,
 } from "./components/comments/commentsPanelState";
 import {
+  findCommentRanges,
   getCommentRanges,
   jsonHasCommentMark,
   refreshComments,
@@ -655,6 +656,12 @@ export class NotepadView extends FileView {
   }
 
   async onUnloadFile(_file: TFile): Promise<void> {
+    // BEFORE the flush: a pending composer owns an anchor mark with no
+    // thread — discarding it here lifts the mark from the still-active
+    // notepad, so the removal rides this file's own save. Canceling after
+    // the next file's load started would strip the old in-memory notepad
+    // that is never written again — a phantom highlight left on disk.
+    this.closeCommentsPanel();
     await this.flushSave("unload-file");
     this.destroyAllSections();
   }
@@ -2563,32 +2570,41 @@ export class NotepadView extends FileView {
     this.mutateThreads([...threads]);
   }
 
-  /** Panel + anchor decorations re-render: view models recompute (anchor
-   *  presence needs the freshest page JSON — flush the expanded editors
-   *  first) and every expanded editor gets a refresh meta. */
-  private refreshCommentsUI(): void {
+  /** Panel re-render from the current store + page JSON. No editor
+   *  transactions are dispatched — safe to call after any document or page
+   *  change (see writePendingChanges): anchor presence and page titles go
+   *  stale otherwise, e.g. deleting anchored text with the panel open left
+   *  the card claiming its anchor still exists. */
+  private refreshCommentsModels(): void {
     const notepad = this.notepad;
-    if (this.commentsPanelEl && notepad) {
+    if (!this.commentsPanelEl || !notepad) return;
+    const noteTitles = new Map<string, string>();
+    for (const descriptor of notepad.notes()) {
+      noteTitles.set(descriptor.id, descriptor.title ?? "");
+    }
+    const models: ThreadViewModel[] = buildThreadViewModels(
+      this.allThreads(),
+      noteTitles,
+      (thread) => {
+        const doc = notepad.noteContent(thread.noteId);
+        return doc ? jsonHasCommentMark(doc, thread.id) : false;
+      },
+    );
+    this.commentsPanelEl.props.threads = models;
+    this.commentsPanelEl.props.composer = this.commentsComposer;
+    this.commentsPanelEl.props.activeThreadId = this.commentsActiveThreadId;
+    void this.commentsPanelEl.next();
+  }
+
+  /** Comment-action refresh: fresh models + a decorations refresh meta on
+   *  every expanded editor (counts/resolved state ride the anchor marks). */
+  private refreshCommentsUI(): void {
+    if (this.commentsPanelEl && this.notepad) {
       for (const handle of this.sections.values()) {
         this.flushSectionToNotepad(handle);
       }
-      const noteTitles = new Map<string, string>();
-      for (const descriptor of notepad.notes()) {
-        noteTitles.set(descriptor.id, descriptor.title ?? "");
-      }
-      const models: ThreadViewModel[] = buildThreadViewModels(
-        this.allThreads(),
-        noteTitles,
-        (thread) => {
-          const doc = notepad.noteContent(thread.noteId);
-          return doc ? jsonHasCommentMark(doc, thread.id) : false;
-        },
-      );
-      this.commentsPanelEl.props.threads = models;
-      this.commentsPanelEl.props.composer = this.commentsComposer;
-      this.commentsPanelEl.props.activeThreadId = this.commentsActiveThreadId;
-      void this.commentsPanelEl.next();
     }
+    this.refreshCommentsModels();
     for (const handle of this.sections.values()) {
       const editor = handle.editor;
       if (!editor || editor.isDestroyed) continue;
@@ -2671,6 +2687,17 @@ export class NotepadView extends FileView {
       (h) => h.editor === editor,
     );
     if (!handle || !this.notepad?.isNoteOpenable(handle.id)) return;
+    // Anchors never overlap: setMark would replace an existing anchor (and
+    // canceling the new composer would leave the old thread unlinked). When
+    // the selection touches one, surface its thread instead.
+    const { from, to } = selection;
+    const overlapping = findCommentRanges(state.doc).find(
+      (range) => range.from < to && range.to > from,
+    );
+    if (overlapping) {
+      this.jumpToThread(overlapping.id);
+      return;
+    }
     const threadId = generateUmId();
     editor.commands.setComment({ id: threadId });
     this.commentsComposer = { threadId, noteId: handle.id };
@@ -2701,12 +2728,16 @@ export class NotepadView extends FileView {
   /** Composer canceled (empty submit, Esc, panel close): the anchor was
    *  never backed by a thread — remove the mark. Same fallback chain as a
    *  thread deletion: the page may already be collapsed (flushed with the
-   *  pending mark, editor destroyed), so the stored JSON gets the strip. */
+   *  pending mark, editor destroyed), so the stored JSON gets the strip.
+   *  The removal is scheduled for the save chain right here: on the JSON
+   *  path nothing else would (setNoteContent only dirties), and the unload
+   *  path's own flush runs after this via onUnloadFile. */
   private cancelComposer(): void {
     const composer = this.commentsComposer;
     this.commentsComposer = null;
     if (!composer) return;
-    this.removeThreadAnchor(composer.noteId, composer.threadId);
+    this.removeAnchorFromPage(composer.noteId, composer.threadId);
+    this.scheduleSave();
     this.refreshCommentsUI();
   }
 
@@ -2759,18 +2790,18 @@ export class NotepadView extends FileView {
   private deleteThread(threadId: string): void {
     const thread = this.allThreads().find((t) => t.id === threadId);
     if (!thread) return;
-    this.removeThreadAnchor(thread.noteId, threadId);
+    this.removeThreadAnchorEverywhere(threadId);
     this.mutateThreads(this.allThreads().filter((t) => t.id !== threadId));
     if (this.commentsActiveThreadId === threadId) {
       this.commentsActiveThreadId = null;
     }
   }
 
-  /** Lift the anchor mark of a deleted thread: through the page editor when
+  /** Lift a thread's anchor from one page: through the page editor when
    *  expanded (undoable, save scheduled by the transaction), otherwise by
-   *  rewriting the stored JSON. Pages this editor cannot interpret keep
-   *  their content verbatim — the mark there becomes an orphan. */
-  private removeThreadAnchor(noteId: string, threadId: string): void {
+   *  rewriting the stored JSON. Non-openable pages keep their content
+   *  verbatim — a mark there becomes an orphan. */
+  private removeAnchorFromPage(noteId: string, threadId: string): void {
     const notepad = this.notepad;
     if (!notepad) return;
     const editor = this.sections.get(noteId)?.editor;
@@ -2783,6 +2814,19 @@ export class NotepadView extends FileView {
     if (!doc) return;
     if (stripCommentMarkFromJson(doc, threadId)) {
       notepad.setNoteContent(noteId, doc);
+    }
+  }
+
+  /** Lift the anchor mark of a deleted thread from EVERY openable page —
+   *  not just the thread's home: a duplicated page carries a copy of the
+   *  mark with the same id, and deletion must not leave a dead highlight
+   *  there. */
+  private removeThreadAnchorEverywhere(threadId: string): void {
+    const notepad = this.notepad;
+    if (!notepad) return;
+    for (const descriptor of notepad.notes()) {
+      if (!notepad.isNoteOpenable(descriptor.id)) continue;
+      this.removeAnchorFromPage(descriptor.id, threadId);
     }
   }
 
@@ -3622,7 +3666,11 @@ export class NotepadView extends FileView {
       notepad.structureChanged = structureSnapshot || notepad.structureChanged;
       this.dirty = true;
       new Notice(`Failed to save notepad: ${String(err)}`);
+      return;
     }
+    // The flushed pages may have changed anchor presence (text deleted or
+    // undone) or the page set (deletion) — the open panel must follow.
+    this.refreshCommentsModels();
   }
 
   // ── External changes ──

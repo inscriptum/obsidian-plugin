@@ -59,6 +59,9 @@ export const CommentsPanelElement = litView.element({
   let editDraft = "";
   /** Composer identity the draft belongs to (see the reset in the loop). */
   let lastComposerId: string | null = null;
+  /** The thread the view jumped to — its segment gets selected, so a
+   *  clicked resolved anchor is never hidden behind the Open filter. */
+  let lastActiveThreadId: string | null = null;
 
   // eslint-disable-next-line @typescript-eslint/no-this-alias -- generator component: needs external this reference for the composer focus lookup
   const root: HTMLElement = this;
@@ -290,6 +293,18 @@ export const CommentsPanelElement = litView.element({
       if (composer) openComposer();
     }
     const items = props.threads;
+    // A jump to a thread selects its segment, so the requested card is
+    // always visible (a resolved anchor behind the Open filter would look
+    // like a dead click).
+    if ((props.activeThreadId ?? null) !== lastActiveThreadId) {
+      lastActiveThreadId = props.activeThreadId ?? null;
+      if (lastActiveThreadId != null) {
+        const active = items.find((i) => i.thread.id === lastActiveThreadId);
+        if (active) {
+          filter = active.thread.resolved ? "resolved" : "open";
+        }
+      }
+    }
     const openCount = items.filter((i) => !i.thread.resolved).length;
     const resolvedCount = items.length - openCount;
     const visible = filterThreads(items, filter);
