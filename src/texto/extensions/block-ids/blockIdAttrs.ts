@@ -1,4 +1,5 @@
 import { Extension } from "../../core";
+import { isBlockId } from "./generateBlockId";
 
 /** Block node types across all editor profiles that carry a block id —
  *  every block node of the schema (owner decision, issue block-ids ОВ-3).
@@ -55,7 +56,13 @@ export function blockIdAttribute(): {
         default: null,
         renderHTML: (attributes: { id?: string | null }) =>
           attributes.id == null ? {} : { "data-id": String(attributes.id) },
-        parseHTML: (element) => element.getAttribute("data-id"),
+        parseHTML: (element) => {
+          // Grammar is normative (spec §4.4): a data-id from foreign HTML
+          // that does not parse as a block id arrives as "no id" and the
+          // plugin assigns a fresh one.
+          const raw = element.getAttribute("data-id");
+          return isBlockId(raw) ? raw : null;
+        },
       },
     },
   };

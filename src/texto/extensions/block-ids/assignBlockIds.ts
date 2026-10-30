@@ -25,6 +25,16 @@ export function assignBlockIds(doc: JSONContent): JSONContent {
   return assignIn(doc, used);
 }
 
+/** Replace EVERY id in the document with a fresh one (existing ids are
+ *  never reused). For copies that arrive as whole notes — duplicating a
+ *  notepad page duplicates its content JSON verbatim, ids included, and
+ *  ids must be unique per note (spec um-cli §4.5: a transfer between notes
+ *  gets fresh ids in the target). */
+export function reassignBlockIds(doc: JSONContent): JSONContent {
+  const used = new Set<string>();
+  return assignIn(doc, used, true);
+}
+
 function collectIds(node: JSONContent, used: Set<string>): void {
   if (node.type != null && isBlockIdType(node.type)) {
     const id = (node.attrs as { id?: unknown } | undefined)?.id;
@@ -35,11 +45,15 @@ function collectIds(node: JSONContent, used: Set<string>): void {
   }
 }
 
-function assignIn(node: JSONContent, used: Set<string>): JSONContent {
+function assignIn(
+  node: JSONContent,
+  used: Set<string>,
+  force = false,
+): JSONContent {
   const next: JSONContent = { ...node };
   if (next.type != null && isBlockIdType(next.type)) {
     const attrs = { ...((next.attrs ?? {}) as Record<string, unknown>) };
-    if (!isBlockId(attrs.id)) {
+    if (force || !isBlockId(attrs.id)) {
       const id = generateBlockIdAvoiding(used);
       attrs.id = id;
       used.add(id);
@@ -47,7 +61,7 @@ function assignIn(node: JSONContent, used: Set<string>): JSONContent {
     }
   }
   if (Array.isArray(next.content)) {
-    next.content = next.content.map((child) => assignIn(child, used));
+    next.content = next.content.map((child) => assignIn(child, used, force));
   }
   return next;
 }
@@ -76,16 +90,23 @@ export function ensureUniqueBlockIds(editor: Editor): UniqueBlockIdsResult {
   const doc = editor.state.doc;
   const seen = new Set<string>();
   const duplicates: { id: string; pos: number }[] = [];
+  let missing = 0;
   doc.descendants((node, pos) => {
     if (!isBlockIdType(node.type.name)) return true;
     const id: unknown = node.attrs.id;
-    if (!isBlockId(id)) return true;
+    if (!isBlockId(id)) {
+      // A non-grammar value counts as "no id": the save net must not let an
+      // invalid id through, and a duplicate pair of invalid ids must be
+      // re-id'd just like a real duplicate.
+      missing += 1;
+      return true;
+    }
     if (seen.has(id)) duplicates.push({ id, pos });
     else seen.add(id);
     return true;
   });
 
-  if (duplicates.length === 0) {
+  if (duplicates.length === 0 && missing === 0) {
     return { fixed: false, replaced: [] };
   }
 
@@ -99,6 +120,24 @@ export function ensureUniqueBlockIds(editor: Editor): UniqueBlockIdsResult {
     used.add(fresh);
     tr.step(new AttrStep(pos, "id", fresh));
     replaced.push(id);
+  }
+  if (missing > 0) {
+    // Fill the grammar-invalid / missing ids with fresh ones (document
+    // order, after the duplicates — same walk shape).
+    const seenNow = new Set<string>();
+    tr.doc.descendants((node, pos) => {
+      if (!isBlockIdType(node.type.name)) return true;
+      const id: unknown = node.attrs.id;
+      if (isBlockId(id)) {
+        if (seenNow.has(id)) return true;
+        seenNow.add(id);
+        return true;
+      }
+      const fresh = generateBlockIdAvoiding(used);
+      used.add(fresh);
+      tr.step(new AttrStep(pos, "id", fresh));
+      return true;
+    });
   }
   tr.setMeta("addToHistory", false);
   view.dispatch(tr);

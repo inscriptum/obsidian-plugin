@@ -29,6 +29,7 @@ import { getExtensions, type ExtensionHooks } from "./texto/getExtensions";
 import {
   assignBlockIds,
   ensureUniqueBlockIds,
+  reassignBlockIds,
 } from "./texto/extensions/block-ids";
 import {
   createFoldPersistence,
@@ -1409,8 +1410,8 @@ export class NotepadView extends FileView {
     if (!this.notepad || !handle.editor || handle.editor.isDestroyed) return;
     if (!this.notepad.note(handle.id)) return;
     // Doc-wide block-id net (spec um-cli §4.5: duplicate ids are never
-    // written). The fix-up transaction is history-excluded; the resulting
-    // onTransaction re-enters here once with a clean doc and early-returns.
+    // written). The fix-up transaction is history-excluded; the extra
+    // dirtying is harmless — the flush that follows writes the fixed doc.
     const fix = ensureUniqueBlockIds(handle.editor);
     if (fix.fixed) {
       console.warn(
@@ -3552,6 +3553,14 @@ export class NotepadView extends FileView {
     if (descriptor.order === 0 || !notepad.isNoteOpenable(id)) return;
     const copy = notepad.duplicateNote(id);
     if (!copy) return;
+    // The copy is a new note: spec um-cli §4.5 — a transfer between notes
+    // gets fresh ids in the target. duplicateNote copies the content JSON
+    // verbatim (ids included); the per-editor id net cannot see
+    // cross-page duplicates, so the copy is re-tagged here.
+    const copyContent = notepad.noteContent(copy.id);
+    if (copyContent != null) {
+      notepad.setNoteContent(copy.id, reassignBlockIds(copyContent));
+    }
     this.render();
     void this.flushSave("duplicate-note");
   }

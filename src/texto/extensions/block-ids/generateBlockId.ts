@@ -16,11 +16,18 @@ export function isBlockId(value: unknown): value is string {
 }
 
 export function generateBlockId(): string {
-  const bytes = new Uint8Array(BLOCK_ID_LENGTH);
-  crypto.getRandomValues(bytes);
+  // Rejection sampling keeps the alphabet uniform: 256 % 36 != 0, so raw
+  // `byte % 36` would make the digits "0"–"3" ~1.6% more likely than the
+  // rest of the alphabet.
   let out = "";
-  for (let i = 0; i < BLOCK_ID_LENGTH; i += 1) {
-    out += ALPHABET[bytes[i] % ALPHABET.length];
+  while (out.length < BLOCK_ID_LENGTH) {
+    const bytes = new Uint8Array(BLOCK_ID_LENGTH * 2);
+    crypto.getRandomValues(bytes);
+    for (const byte of bytes) {
+      if (byte >= 252) continue; // 252 = 7 * 36 — drop the biased tail
+      out += ALPHABET[byte % ALPHABET.length];
+      if (out.length === BLOCK_ID_LENGTH) break;
+    }
   }
   return out;
 }

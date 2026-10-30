@@ -9,7 +9,11 @@ import { generateHTML } from "../../core/helpers/generateHTML";
 import { getExportExtensions } from "../../../export/extensions";
 import { findDraggableBlock, performBlockMove } from "../drag-handle/dragHandlePlugin";
 
-import { assignBlockIds, ensureUniqueBlockIds } from "./assignBlockIds";
+import {
+  assignBlockIds,
+  ensureUniqueBlockIds,
+  reassignBlockIds,
+} from "./assignBlockIds";
 import {
   generateBlockId,
   generateBlockIdAvoiding,
@@ -386,6 +390,56 @@ describe("block id lifecycle", () => {
   });
 });
 
+// ── whole-note copies (duplicated pages) ───────────────────────────────────
+
+describe("reassignBlockIds", () => {
+  it("replaces every id with fresh, disjoint ones", () => {
+    const source = assignBlockIds(legacyDoc());
+    const copy = reassignBlockIds(source);
+    const sourceIds: string[] = [];
+    const copyIds: string[] = [];
+    const walk = (node: JSONContent, out: string[]): void => {
+      const id = (node.attrs as WithId | undefined)?.id;
+      if (typeof id === "string") out.push(id);
+      node.content?.forEach((child) => walk(child, out));
+    };
+    walk(source, sourceIds);
+    walk(copy, copyIds);
+    expect(copyIds.length).toBe(sourceIds.length);
+    expect(new Set(copyIds).size).toBe(copyIds.length);
+    for (const id of copyIds) expect(sourceIds).not.toContain(id);
+  });
+});
+
+// ── grammar on parse and in the save net ───────────────────────────────────
+
+describe("id grammar enforcement", () => {
+  it("parseHTML drops data-id values that violate the grammar", () => {
+    const editor = createEditor(
+      '<p data-id="NOT-VALID!">from html</p>' as unknown as JSONContent,
+    );
+    const first = editor.state.doc.nodeAt(1);
+    expect((first?.attrs as WithId).id ?? null).toBeNull();
+  });
+
+  it("the save net re-ids grammar-invalid values like missing ids", () => {
+    const editor = createEditor({
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "T" }] },
+        p("a", "BAD-ID!"),
+        p("b", "BAD-ID!"),
+      ],
+    });
+    const fix = ensureUniqueBlockIds(editor);
+    expect(fix.fixed).toBe(true);
+    const paragraphs = editorIds(editor).filter((e) => e.name === "paragraph");
+    expect(isBlockId(paragraphs[0]?.id)).toBe(true);
+    expect(isBlockId(paragraphs[1]?.id)).toBe(true);
+    expect(paragraphs[0]?.id).not.toBe(paragraphs[1]?.id);
+  });
+});
+
 // ── save-path duplicate net ────────────────────────────────────────────────
 
 describe("ensureUniqueBlockIds", () => {
@@ -459,6 +513,103 @@ describe("block id serialization", () => {
     expect(html).not.toContain("data-id");
   });
 });
+
+  it("paste over a non-empty selection: replaced ids are gone, the copy is fresh", () => {
+    const editor = createEditor(idedDoc());
+    const positions = blockPositions(editor);
+    // Replace paragraph "two" (cccccccccc) with a copy of "one" (bbbbbbbbbb):
+    // the arriving id is cancelled by the removed content, but the copy must
+    // still be re-id'd — it duplicates the source elsewhere in the note.
+    const source = editor.state.doc.nodeAt(positions[1])!;
+    const slice = editor.state.doc.slice(positions[1], positions[1] + source.nodeSize);
+    editor.view.dispatch(
+      editor.state.tr.replace(positions[2], positions[2] + 5, slice),
+    );
+    const paragraphs = editorIds(editor).filter((e) => e.name === "paragraph");
+    expect(paragraphs).toHaveLength(2);
+    expect(paragraphs[0]?.id).toBe("bbbbbbbbbb");
+    expect(expectId(paragraphs[1]?.id)).not.toBe("bbbbbbbbbb");
+    expect(paragraphs.map((e) => e.id)).not.toContain("cccccccccc");
+  });
+
+  it("nested paste: every addressable node of the copy gets a fresh id", () => {
+    const editor = createEditor(idedDoc());
+    const nested = {
+      type: "noteDoc",
+      content: [
+        {
+          type: "bulletList",
+          attrs: { id: "llllllllll" },
+          content: [
+            {
+              type: "listItem",
+              attrs: { id: "iiiiiiiiii" },
+              content: [p("item", "pppppppppp")],
+            },
+          ],
+        },
+      ],
+    };
+    const node = editor.state.schema.nodeFromJSON(
+      (nested.content as JSONContent[])[0],
+    );
+    const slice = new Slice(Fragment.from(node), 0, 0);
+    const end = editor.state.doc.content.size;
+    editor.view.dispatch(editor.state.tr.replace(end, end, slice));
+
+    const pasted: string[] = [];
+    editor.state.doc.descendants((n) => {
+      const id = (n.attrs as WithId).id;
+      if (id != null && id !== "aaaaaaaaaa" && id !== "bbbbbbbbbb" && id !== "cccccccccc") {
+        pasted.push(id);
+      }
+      return true;
+    });
+    // list + item + its paragraph — fresh, grammar-valid ids (a trailing
+    // paragraph from the note-doc plugin may add one more). None of the
+    // ids the copy arrived with may survive.
+    expect(pasted.length).toBeGreaterThanOrEqual(3);
+    for (const id of pasted) expect(isBlockId(id)).toBe(true);
+    expect(new Set(pasted).size).toBe(pasted.length);
+    for (const arrived of ["llllllllll", "iiiiiiiiii", "pppppppppp"]) {
+      expect(pasted).not.toContain(arrived);
+    }
+  });
+
+  it("undo of a paste restores the fresh ids verbatim", () => {
+    const editor = createEditor(idedDoc());
+    const positions = blockPositions(editor);
+    const source = editor.state.doc.nodeAt(positions[1])!;
+    const slice = editor.state.doc.slice(positions[1], positions[1] + source.nodeSize);
+    const end = editor.state.doc.content.size;
+    editor.view.dispatch(editor.state.tr.replace(end, end, slice));
+    const afterPaste = editorIds(editor).map((e) => e.id);
+    expect(afterPaste).toHaveLength(4);
+
+    editor.commands.undo();
+    expect(editorIds(editor).map((e) => e.id)).toEqual([
+      "aaaaaaaaaa",
+      "bbbbbbbbbb",
+      "cccccccccc",
+    ]);
+
+    editor.commands.redo();
+    expect(editorIds(editor).map((e) => e.id)).toEqual(afterPaste);
+  });
+
+  it("split at the end of a block: the new empty part is tagged too", () => {
+    const editor = createEditor(idedDoc());
+    const positions = blockPositions(editor);
+    const endPos = positions[2] + 4; // inside "two", after the last character
+    editor.view.dispatch(editor.state.tr.split(endPos));
+    const paragraphs = editorIds(editor).filter((e) => e.name === "paragraph");
+    expect(paragraphs).toHaveLength(3);
+    expect(paragraphs[0]?.id).toBe("bbbbbbbbbb");
+    expect(paragraphs[1]?.id).toBe("cccccccccc");
+    // The trailing part carries default attrs (no copied id): the
+    // missing-id path must tag it.
+    expect(expectId(paragraphs[2]?.id)).toBeTruthy();
+  });
 
 // ── selection safety (AttrStep, not setNodeMarkup) ─────────────────────────
 

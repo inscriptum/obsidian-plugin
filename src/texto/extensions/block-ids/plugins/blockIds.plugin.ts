@@ -40,6 +40,16 @@ function collectFragmentBlockIds(fragment: Fragment, out: Set<string>): void {
  * Undo/redo restores prior ids verbatim and is excluded: history replays
  * the whole recorded event (including this plugin's own fix-ups), so both
  * undo and redo reproduce exactly the ids that existed before.
+ *
+ * Known deviation (spec §4.5 move rule): a CUT+paste (copy and delete in
+ * two separate dispatches) re-ids the pasted block — the two halves of the
+ * move never meet in one batch, so the ids cannot cancel. The document
+ * stays unique and valid; a moved-by-cut block simply changes id. Also
+ * indistinguishable from a move for this heuristic: copying a block and
+ * editing the source inline within one batch (copy first in document
+ * order) hands the source's id to the copy — unreachable through the
+ * app's own commands, and the storage invariant (unique valid ids) holds
+ * either way.
  */
 function collectIntroducedIds(transactions: readonly Transaction[]): Set<string> {
   const inserted = new Set<string>();

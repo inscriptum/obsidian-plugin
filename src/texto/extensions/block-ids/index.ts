@@ -46,6 +46,7 @@ export const BlockIds = new Extension<BlockIdsOptions>({
 export { BlockIdAttributes };
 export {
   assignBlockIds,
+  reassignBlockIds,
   ensureUniqueBlockIds,
   type UniqueBlockIdsResult,
 } from "./assignBlockIds";
