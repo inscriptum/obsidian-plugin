@@ -31,6 +31,7 @@ import {
   type FoldPersistence,
 } from "./storage/foldPersistence";
 import { readUmFile, umFingerprint, writeUmFile } from "./storage/um/umVault";
+import { generateUmId } from "./storage/um/umIds";
 import { UmNotepad } from "./storage/um/umNotepad";
 import { UmError, UM_SCHEMA_TITLE } from "./storage/um/umTypes";
 import { FileChangedModal } from "./ui/FileChangedModal";
@@ -46,11 +47,27 @@ import {
 import type { ImageToolContext } from "./tools/image";
 import { collectGalleryItems } from "./ui/imageLightbox";
 import { createKeyboardTracking } from "./tools/keyboardTracking";
+import {
+  commentAuthor,
+} from "./notepad/commentAuthor";
 import { setupScrollShadows, syncScrollShadow } from "./components/toolbar/scrollShadow";
 import { elTag } from "./tags";
 import { NoteElement } from "./components/note/note.element";
 import { ToolbarElement } from "./components/toolbar/toolbar.element";
 import { BubbleMenuBarElement } from "./components/bubble-menu-bar/bubble-menu-bar.element";
+import { CommentsPanelElement } from "./components/comments/comments-panel.element";
+import {
+  buildThreadViewModels,
+  type ThreadViewModel,
+} from "./components/comments/commentsPanelState";
+import {
+  findCommentRanges,
+  getCommentRanges,
+  jsonHasCommentMark,
+  refreshComments,
+  stripCommentMarkFromJson,
+  type CommentThread,
+} from "./texto/extensions/comment";
 import { TableBubbleMenuElement } from "./components/bubble-menu-bar/table-bubble-menu-bar.element";
 import { TableCellsBubbleMenuElement } from "./components/bubble-menu-bar/table-cells-bubble-menu-bar.element";
 import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubble-menu-bar.element";
@@ -134,6 +151,11 @@ const makeToolbarElement = () =>
   );
 const makeBubbleMenuBarElement = () =>
   createCustomElement("bubble-menu-bar", () => new BubbleMenuBarElement());
+const makeCommentsPanelElement = () =>
+  createCustomElement(
+    "inscriptum-comments",
+    () => new CommentsPanelElement(),
+  );
 const makeTableBubbleMenuElement = () =>
   createCustomElement(
     "table-bubble-menu-bar",
@@ -314,6 +336,20 @@ export class NotepadView extends FileView {
    *  navTitleSignature); the early exit for save-time refreshes. */
   private navTitles: string | null = null;
 
+  // ── Comments (.um only: thread store + side panel) ──
+  private commentsPanelEl: CommentsPanelElement | null = null;
+  /** Phone tap-away scrim behind the sheet (created with the panel). */
+  private commentsScrimEl: HTMLElement | null = null;
+  /** Composer state of a brand-new thread (bubble-menu flow): the anchor
+   *  mark is already set; the thread itself is created only when the first
+   *  comment is saved. Cancel → the anchor is discarded. */
+  private commentsComposer: { threadId: string; noteId: string } | null = null;
+  /** Thread card the panel highlights (last jumped to). */
+  private commentsActiveThreadId: string | null = null;
+  /** Read cache over the notepad's thread store — the decoration hooks run
+   *  on every editor transaction and must not re-parse the JSONL. */
+  private threadsCache: CommentThread[] | null = null;
+
   // ── Drag & drop reorder ──
   private drag: {
     id: string;
@@ -400,6 +436,12 @@ export class NotepadView extends FileView {
         .setTitle("Find in notepad")
         .setIcon("search")
         .onClick(() => this.openNotepadSearch()),
+    );
+    menu.addItem((item) =>
+      item
+        .setTitle("Comments")
+        .setIcon("message-square")
+        .onClick(() => this.openCommentsPanel()),
     );
     menu.addItem((item) =>
       item
@@ -535,6 +577,12 @@ export class NotepadView extends FileView {
       this.scrollShadowCleanup = setupScrollShadows(this.contentEl);
     }
 
+    // The bubble-bar «Comment» button announces through a DOM event (the
+    // bar cannot reach the view directly — it only knows its editor).
+    this.contentEl.addEventListener("inscriptum-request-comment", () =>
+      this.requestComment(),
+    );
+
     if (Platform.isPhone) {
       // Drawer entry is the page sheet's "All pages" item (design principle
       // 01: no floating ☰) — the scrim doubles as the tap-away dismissor.
@@ -589,6 +637,12 @@ export class NotepadView extends FileView {
 
   async onLoadFile(file: TFile): Promise<void> {
     this.destroyAllSections();
+    // The leaf is switching files: the panel, the thread cache and any
+    // pending composer belong to the previous file — a stale cache would
+    // leak its threads into the new file's comments.jsonl on the first
+    // mutation, and the composer's anchor is unreachable from here.
+    this.closeCommentsPanel();
+    this.threadsCache = null;
     const notepad = await this.readNotepadWithRetries(file);
     if (notepad == null) {
       this.renderUnreadableFileState(file);
@@ -602,11 +656,20 @@ export class NotepadView extends FileView {
   }
 
   async onUnloadFile(_file: TFile): Promise<void> {
+    // BEFORE the flush: a pending composer owns an anchor mark with no
+    // thread — discarding it here lifts the mark from the still-active
+    // notepad, so the removal rides this file's own save. Canceling after
+    // the next file's load started would strip the old in-memory notepad
+    // that is never written again — a phantom highlight left on disk.
+    this.closeCommentsPanel();
     await this.flushSave("unload-file");
     this.destroyAllSections();
   }
 
   async onClose(): Promise<void> {
+    // Before the final flush: a pending composer's anchor removal must ride
+    // the last save, not a scheduled autosave that can no longer fire.
+    this.closeCommentsPanel();
     await this.flushSave("close");
     this.navResize?.disconnect();
     this.navResize = null;
@@ -616,6 +679,7 @@ export class NotepadView extends FileView {
     this.scrollShadowCleanup = null;
     this.closeSheet();
     this.exitMoveMode();
+    this.threadsCache = null;
     this.destroyAllSections();
     this.contentEl.empty();
     this.notepad?.destroy();
@@ -1614,6 +1678,21 @@ export class NotepadView extends FileView {
           void app.workspace.openLinkText(path, this.file?.path ?? "", false);
         },
       },
+      comments: {
+        findThread: (id) => {
+          const thread = this.allThreads().find((t) => t.id === id);
+          return thread
+            ? {
+                id,
+                commentCount: thread.comments.length,
+                resolved: thread.resolved,
+              }
+            : null;
+        },
+        openThread: (id) => {
+          this.jumpToThread(id);
+        },
+      },
     };
   }
 
@@ -2463,6 +2542,346 @@ export class NotepadView extends FileView {
     }
   }
 
+  // ── Comments (thread store + side panel) ──
+
+  private allThreads(): CommentThread[] {
+    if (this.threadsCache == null) {
+      this.threadsCache = this.notepad?.readThreads() ?? [];
+    }
+    return this.threadsCache;
+  }
+
+  /** Replace the store, persist the container and re-render panel + anchors. */
+  private mutateThreads(threads: CommentThread[]): void {
+    this.notepad?.writeThreads(threads);
+    this.threadsCache = threads;
+    this.scheduleSave();
+    this.refreshCommentsUI();
+  }
+
+  private updateThread(
+    threadId: string,
+    update: (thread: CommentThread) => void,
+  ): void {
+    const threads = this.allThreads();
+    const thread = threads.find((t) => t.id === threadId);
+    if (!thread) return;
+    update(thread);
+    this.mutateThreads([...threads]);
+  }
+
+  /** Panel re-render from the current store + page JSON. No editor
+   *  transactions are dispatched — safe to call after any document or page
+   *  change (see writePendingChanges): anchor presence and page titles go
+   *  stale otherwise, e.g. deleting anchored text with the panel open left
+   *  the card claiming its anchor still exists. */
+  private refreshCommentsModels(): void {
+    const notepad = this.notepad;
+    if (!this.commentsPanelEl || !notepad) return;
+    const noteTitles = new Map<string, string>();
+    for (const descriptor of notepad.notes()) {
+      noteTitles.set(descriptor.id, descriptor.title ?? "");
+    }
+    const models: ThreadViewModel[] = buildThreadViewModels(
+      this.allThreads(),
+      noteTitles,
+      (thread) => {
+        const doc = notepad.noteContent(thread.noteId);
+        return doc ? jsonHasCommentMark(doc, thread.id) : false;
+      },
+    );
+    this.commentsPanelEl.props.threads = models;
+    this.commentsPanelEl.props.composer = this.commentsComposer;
+    this.commentsPanelEl.props.activeThreadId = this.commentsActiveThreadId;
+    void this.commentsPanelEl.next();
+  }
+
+  /** Comment-action refresh: fresh models + a decorations refresh meta on
+   *  every expanded editor (counts/resolved state ride the anchor marks). */
+  private refreshCommentsUI(): void {
+    if (this.commentsPanelEl && this.notepad) {
+      for (const handle of this.sections.values()) {
+        this.flushSectionToNotepad(handle);
+      }
+    }
+    this.refreshCommentsModels();
+    for (const handle of this.sections.values()) {
+      const editor = handle.editor;
+      if (!editor || editor.isDestroyed) continue;
+      editor.view.dispatch(refreshComments(editor.state));
+    }
+  }
+
+  private buildCommentsPanel(): void {
+    if (this.commentsPanelEl) return;
+    const panel = makeCommentsPanelElement();
+    panel.addClass("notepad-comments");
+    // Props BEFORE connect: the gfc generator starts in connectedCallback
+    // and only when every required prop is present — late assignments never
+    // boot it (next() is a no-op while generation is null).
+    panel.props.threads = [];
+    panel.props.composer = null;
+    panel.props.activeThreadId = null;
+    panel.props.onSubmitComposer = (threadId, text) =>
+      this.submitComposer(threadId, text);
+    panel.props.onCancelComposer = () => this.cancelComposer();
+    panel.props.onReply = (threadId, text) => this.replyToThread(threadId, text);
+    panel.props.onEditComment = (threadId, commentId, text) =>
+      this.editComment(threadId, commentId, text);
+    panel.props.onDeleteComment = (threadId, commentId) =>
+      this.deleteComment(threadId, commentId);
+    panel.props.onResolveThread = (threadId, resolved) =>
+      this.resolveThread(threadId, resolved);
+    panel.props.onDeleteThread = (threadId) => this.deleteThread(threadId);
+    panel.props.onOpenThread = (threadId) => this.jumpToThread(threadId);
+    panel.props.onClose = () => this.closeCommentsPanel();
+    this.commentsPanelEl = panel;
+    // Phone: a tap-away scrim behind the sheet (desktop keeps the desktop
+    // panel behavior — no scrim, close is the × / pane menu).
+    if (Platform.isPhone) {
+      const scrim = this.contentEl.createDiv("notepad-comments-scrim");
+      scrim.addEventListener("click", () => this.closeCommentsPanel());
+      this.commentsScrimEl = scrim;
+      panel.addEventListener("pointerdown", this.onCommentsDragStart);
+    }
+    this.contentEl.appendChild(panel);
+    this.contentEl.addClass("comments-open");
+  }
+
+  private openCommentsPanel(): void {
+    this.buildCommentsPanel();
+    this.refreshCommentsUI();
+  }
+
+  private closeCommentsPanel(): void {
+    // A pending composer owns an anchor mark with no thread — discarding the
+    // composer discards the mark (no invisible junk in the stored JSON).
+    if (this.commentsComposer) this.cancelComposer();
+    this.clearCommentsDragListeners();
+    this.commentsDrag = null;
+    this.commentsPanelEl?.setCssProps({ "--comments-drag-y": "" });
+    this.commentsPanelEl?.removeClass("is-dragging");
+    this.commentsScrimEl?.remove();
+    this.commentsScrimEl = null;
+    this.commentsPanelEl?.remove();
+    this.commentsPanelEl = null;
+    this.commentsActiveThreadId = null;
+    this.contentEl.removeClass("comments-open");
+  }
+
+  /** Bubble-menu «Comment»: mark the selection with a fresh id and open the
+   *  panel composer. The thread itself is created on the first save. Public
+   *  for the plugin command (main.ts «Add comment to selection»). */
+  requestComment(): void {
+    const editor = this.focusedEditor;
+    if (!editor || editor.isDestroyed) return;
+    const { state } = editor;
+    const { selection } = state;
+    if (selection.empty || !isTextSelection(selection)) return;
+    if (state.schema.marks.comment == null) return;
+    // One composer at a time: a second Comment request while the first
+    // composer is pending would orphan the first anchor mark (its id is
+    // dropped and no cancel path could ever remove it).
+    if (this.commentsComposer) this.cancelComposer();
+    const handle = [...this.sections.values()].find(
+      (h) => h.editor === editor,
+    );
+    if (!handle || !this.notepad?.isNoteOpenable(handle.id)) return;
+    // Anchors never overlap: setMark would replace an existing anchor (and
+    // canceling the new composer would leave the old thread unlinked). When
+    // the selection touches one, surface its thread instead.
+    const { from, to } = selection;
+    const overlapping = findCommentRanges(state.doc).find(
+      (range) => range.from < to && range.to > from,
+    );
+    if (overlapping) {
+      this.jumpToThread(overlapping.id);
+      return;
+    }
+    const threadId = generateUmId();
+    editor.commands.setComment({ id: threadId });
+    // Some inline content forbids the mark (code-block rows allow hljsMark
+    // only): setMark silently no-ops there, and opening the composer would
+    // create a thread that is born "Anchor removed". Verify it landed.
+    if (getCommentRanges(editor.state.doc, threadId).length === 0) {
+      new Notice("Comments are not supported in this content");
+      return;
+    }
+    this.commentsComposer = { threadId, noteId: handle.id };
+    this.openCommentsPanel();
+  }
+
+  private submitComposer(threadId: string, text: string): void {
+    const composer = this.commentsComposer;
+    if (!composer || composer.threadId !== threadId) return;
+    this.commentsComposer = null;
+    const thread: CommentThread = {
+      id: threadId,
+      noteId: composer.noteId,
+      resolved: false,
+      comments: [
+        {
+          id: generateUmId(),
+          author: commentAuthor(),
+          content: text,
+          createdAt: Date.now(),
+        },
+      ],
+    };
+    this.commentsActiveThreadId = threadId;
+    this.mutateThreads([...this.allThreads(), thread]);
+  }
+
+  /** Composer canceled (empty submit, Esc, panel close): the anchor was
+   *  never backed by a thread — remove the mark. Same fallback chain as a
+   *  thread deletion: the page may already be collapsed (flushed with the
+   *  pending mark, editor destroyed), so the stored JSON gets the strip.
+   *  The removal is scheduled for the save chain right here: on the JSON
+   *  path nothing else would (setNoteContent only dirties), and the unload
+   *  path's own flush runs after this via onUnloadFile. */
+  private cancelComposer(): void {
+    const composer = this.commentsComposer;
+    this.commentsComposer = null;
+    if (!composer) return;
+    this.removeAnchorFromPage(composer.noteId, composer.threadId);
+    this.scheduleSave();
+    this.refreshCommentsUI();
+  }
+
+  private replyToThread(threadId: string, text: string): void {
+    this.updateThread(threadId, (thread) => {
+      thread.comments.push({
+        id: generateUmId(),
+        author: commentAuthor(),
+        content: text,
+        createdAt: Date.now(),
+      });
+    });
+  }
+
+  private editComment(threadId: string, commentId: string, text: string): void {
+    this.updateThread(threadId, (thread) => {
+      const comment = thread.comments.find((c) => c.id === commentId);
+      if (!comment) return;
+      comment.content = text;
+      comment.updatedAt = Date.now();
+    });
+  }
+
+  private deleteComment(threadId: string, commentId: string): void {
+    const threads = this.allThreads();
+    const thread = threads.find((t) => t.id === threadId);
+    if (!thread) return;
+    if (thread.comments.length <= 1) {
+      // The last comment went away — the thread is empty, delete it like
+      // any other thread (which also lifts the anchor).
+      this.deleteThread(threadId);
+      return;
+    }
+    this.updateThread(threadId, (t) => {
+      t.comments = t.comments.filter((c) => c.id !== commentId);
+    });
+  }
+
+  private resolveThread(threadId: string, resolved: boolean): void {
+    this.updateThread(threadId, (thread) => {
+      thread.resolved = resolved;
+      if (resolved) {
+        thread.resolvedAt = Date.now();
+      } else {
+        delete thread.resolvedAt;
+      }
+    });
+  }
+
+  private deleteThread(threadId: string): void {
+    const thread = this.allThreads().find((t) => t.id === threadId);
+    if (!thread) return;
+    this.removeThreadAnchorEverywhere(threadId);
+    this.mutateThreads(this.allThreads().filter((t) => t.id !== threadId));
+    if (this.commentsActiveThreadId === threadId) {
+      this.commentsActiveThreadId = null;
+    }
+  }
+
+  /** Lift a thread's anchor from one page: through the page editor when
+   *  expanded (undoable, save scheduled by the transaction), otherwise by
+   *  rewriting the stored JSON. Non-openable pages keep their content
+   *  verbatim — a mark there becomes an orphan. */
+  private removeAnchorFromPage(noteId: string, threadId: string): void {
+    const notepad = this.notepad;
+    if (!notepad) return;
+    const editor = this.sections.get(noteId)?.editor;
+    if (editor && !editor.isDestroyed) {
+      editor.commands.unsetComment(threadId);
+      return;
+    }
+    if (!notepad.isNoteOpenable(noteId)) return;
+    const doc = notepad.noteContent(noteId);
+    if (!doc) return;
+    if (stripCommentMarkFromJson(doc, threadId)) {
+      notepad.setNoteContent(noteId, doc);
+    }
+  }
+
+  /** Lift the anchor mark of a deleted thread from EVERY openable page —
+   *  not just the thread's home: a duplicated page carries a copy of the
+   *  mark with the same id, and deletion must not leave a dead highlight
+   *  there. */
+  private removeThreadAnchorEverywhere(threadId: string): void {
+    const notepad = this.notepad;
+    if (!notepad) return;
+    for (const descriptor of notepad.notes()) {
+      if (!notepad.isNoteOpenable(descriptor.id)) continue;
+      this.removeAnchorFromPage(descriptor.id, threadId);
+    }
+  }
+
+  /** Panel card / anchor click: open the panel, expand the page if needed,
+   *  scroll the anchor into view and highlight the card. */
+  private jumpToThread(threadId: string): void {
+    const thread = this.allThreads().find((t) => t.id === threadId);
+    if (!thread) return;
+    this.commentsActiveThreadId = threadId;
+    this.openCommentsPanel();
+    const handle = this.sections.get(thread.noteId);
+    if (!handle) {
+      this.refreshCommentsUI();
+      return;
+    }
+    if (handle.editor == null) {
+      void this.expandSection(thread.noteId, {
+        focus: false,
+        autofocus: false,
+        morph: false,
+      }).then(() => this.revealThreadAnchor(threadId));
+      return;
+    }
+    this.revealThreadAnchor(threadId);
+  }
+
+  private revealThreadAnchor(threadId: string): void {
+    const thread = this.allThreads().find((t) => t.id === threadId);
+    const editor = thread
+      ? this.sections.get(thread.noteId)?.editor
+      : undefined;
+    if (editor && !editor.isDestroyed) {
+      const range = getCommentRanges(editor.state.doc, threadId)[0];
+      if (range) {
+        try {
+          const coords = editor.view.coordsAtPos(range.to);
+          const editorScroller = editor.view.dom.closest(".texto-editor");
+          if (editorScroller) this.scrollContainerTo(editorScroller, coords.top);
+          if (this.scrollerEl) this.scrollContainerTo(this.scrollerEl, coords.top);
+        } catch (err) {
+          // Position drift after edits — keep the panel as-is.
+          console.error("Failed to scroll to comment anchor:", err);
+        }
+      }
+    }
+    this.refreshCommentsUI();
+  }
+
   /** Scroll a scrollable ancestor so the viewport coordinate `docTop` sits
    *  about a third from the container's top. */
   // ── Bubble menus (desktop, per expanded section) ──
@@ -2660,6 +3079,7 @@ export class NotepadView extends FileView {
       this.setNavOpen(true, { animate: true }),
     );
     addRow("search", "Find in document", () => this.openNotepadSearch());
+    addRow("message-square", "Comments", () => this.openCommentsPanel());
     addDivider();
     addRow("plus", "Add page below", () => this.addNoteAfter(id));
     if (notepad.isNoteOpenable(id)) {
@@ -2835,6 +3255,118 @@ export class NotepadView extends FileView {
     window.removeEventListener("pointerup", this.onSheetDragEnd);
     window.removeEventListener("pointercancel", this.onSheetDragEnd);
     window.removeEventListener("touchmove", this.onSheetDragTouchMove);
+  }
+
+  /** Past this downward travel a release dismisses; below it springs back. */
+  private static readonly COMMENTS_DISMISS_PX = 96;
+
+  private commentsDrag: {
+    pointerId: number;
+    startX: number;
+    startY: number;
+    dy: number;
+    active: boolean;
+    panel: CommentsPanelElement;
+  } | null = null;
+
+  /** Phone drag-dismiss of the comments sheet (the .notepad-sheet gesture):
+   *  a downward push slides the sheet with the finger; past the threshold a
+   *  release dismisses, otherwise it springs back. Engages from the grab
+   *  strip / header, or when the list cannot scroll up any further — the
+   *  scroll position owns the gesture otherwise. */
+  private onCommentsDragStart = (event: PointerEvent): void => {
+    const panel = this.commentsPanelEl;
+    if (!panel || this.commentsDrag) return;
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    const target = event.target as HTMLElement | null;
+    const fromChrome = target?.closest(".ins-comments-head, .ins-comments-grab") != null;
+    // Inputs own their gestures (caret drag, selection) — never dismiss.
+    if (!fromChrome && target?.closest("input, textarea")) return;
+    if (!fromChrome) {
+      const list = panel.querySelector(".ins-comments-panel");
+      if (list && list.scrollTop > 0) return;
+    }
+    this.commentsDrag = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      dy: 0,
+      active: false,
+      panel,
+    };
+    window.addEventListener("pointermove", this.onCommentsDragMove);
+    window.addEventListener("pointerup", this.onCommentsDragEnd);
+    window.addEventListener("pointercancel", this.onCommentsDragEnd);
+    window.addEventListener("touchmove", this.onCommentsDragTouchMove, {
+      passive: false,
+    });
+  };
+
+  private onCommentsDragTouchMove = (event: TouchEvent): void => {
+    if (this.commentsDrag?.active) event.preventDefault();
+  };
+
+  private onCommentsDragMove = (event: PointerEvent): void => {
+    const drag = this.commentsDrag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    const dy = event.clientY - drag.startY;
+    const dx = event.clientX - drag.startX;
+    if (!drag.active) {
+      if (dy > 10 && Math.abs(dy) > Math.abs(dx)) {
+        drag.active = true;
+        drag.panel.addClass("is-dragging");
+      } else if (Math.abs(dx) > 10 || dy < -10) {
+        // Horizontal or upward: a scroll/caret gesture, not a dismissal.
+        this.clearCommentsDragListeners();
+        this.commentsDrag = null;
+        return;
+      } else {
+        return;
+      }
+    }
+    drag.dy = Math.max(dy, 0);
+    drag.panel.setCssProps({ "--comments-drag-y": `${drag.dy}px` });
+  };
+
+  private onCommentsDragEnd = (event: PointerEvent): void => {
+    const drag = this.commentsDrag;
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    this.clearCommentsDragListeners();
+    this.commentsDrag = null;
+    if (!drag.active) return;
+    const dismiss =
+      event.type === "pointerup" &&
+      drag.dy > NotepadView.COMMENTS_DISMISS_PX;
+    drag.panel.removeClass("is-dragging");
+    if (dismiss) {
+      const anim = drag.panel.animate(
+        [
+          { transform: `translateY(${drag.dy}px)`, opacity: "1" },
+          { transform: "translateY(100%)", opacity: "0.4" },
+        ],
+        { duration: 150, easing: "ease-in", fill: "forwards" },
+      );
+      anim.finished
+        .then(() => this.closeCommentsPanel())
+        .catch(() => this.closeCommentsPanel());
+      window.setTimeout(() => this.closeCommentsPanel(), 400);
+    } else {
+      drag.panel.setCssProps({ "--comments-drag-y": "" });
+      drag.panel.animate(
+        [
+          { transform: `translateY(${drag.dy}px)` },
+          { transform: "translateY(0px)" },
+        ],
+        { duration: 180, easing: "ease-out" },
+      );
+    }
+  };
+
+  private clearCommentsDragListeners(): void {
+    window.removeEventListener("pointermove", this.onCommentsDragMove);
+    window.removeEventListener("pointerup", this.onCommentsDragEnd);
+    window.removeEventListener("pointercancel", this.onCommentsDragEnd);
+    window.removeEventListener("touchmove", this.onCommentsDragTouchMove);
   }
 
   /** The "Move…" fallback (design S6): the row lifts and a chip names the
@@ -3141,7 +3673,11 @@ export class NotepadView extends FileView {
       notepad.structureChanged = structureSnapshot || notepad.structureChanged;
       this.dirty = true;
       new Notice(`Failed to save notepad: ${String(err)}`);
+      return;
     }
+    // The flushed pages may have changed anchor presence (text deleted or
+    // undone) or the page set (deletion) — the open panel must follow.
+    this.refreshCommentsModels();
   }
 
   // ── External changes ──
@@ -3204,9 +3740,17 @@ export class NotepadView extends FileView {
       this.destroyAllSections();
       this.notepad?.destroy();
       this.notepad = fresh;
+      // The pending composer's anchor lived in the replaced document (its
+      // page id may not even exist on disk anymore) — the old notepad is
+      // dropped wholesale, so the composer goes with it.
+      this.commentsComposer = null;
+      this.threadsCache = null;
       this.dirty = false;
       // Keep the user's expansion state across the reload.
       this.render();
+      // The panel (if open) must drop the pre-reload cards — the fresh
+      // notepad's threads replace them.
+      this.refreshCommentsUI();
     } catch (err) {
       console.error("Failed to reload notepad from disk:", err);
     }

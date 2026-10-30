@@ -4,6 +4,8 @@ import type { AttachmentOptionsHooks } from "./extensions/attachment";
 import type { StateOptionsHooks } from "./extensions/state";
 import type { WikiHooks } from "./extensions/wikilink";
 import { WikiLink, WikiLinkNode } from "./extensions/wikilink";
+import type { CommentHooks } from "./extensions/comment";
+import { Comments } from "./extensions/comment";
 import { NoteDoc, PlainDoc, TitleDoc } from "./extensions/note-doc";
 import { Link } from "./extensions/link";
 import { Cleanup } from "./extensions/cleanup";
@@ -53,6 +55,9 @@ export interface ExtensionHooks {
   /** Vault file provider for the «[[» links (WikiLink mark + suggest
    *  popup). Absent — the feature is off: «[[» stays plain text. */
   wiki?: WikiHooks;
+  /** Comment thread store of the open notepad (.um pages only). Absent —
+   *  anchors render inert (mark registered, no decorations). */
+  comments?: CommentHooks;
 }
 
 export interface GetExtensionsOptions {
@@ -74,6 +79,13 @@ export function getExtensions(
   // plugin order therefore stays identical across profiles.
   const topNode =
     profile === "title" ? TitleDoc : profile === "plain" ? PlainDoc : NoteDoc;
+  // Comment anchors are a .um-only feature (owner decision, issue comments):
+  // the .note profile never learns the mark, so HTML clipboard from a .um
+  // page loses it silently on paste into a .note.
+  const commentExtensions: Extensions =
+    profile === "note"
+      ? []
+      : [Comments.configure({ hooks: hooks.comments ?? null })];
   return [
     State.configure({
       nodeTypes: ["image", "attachment"],
@@ -155,6 +167,7 @@ export function getExtensions(
     // harmless on mobile where no drag ever starts).
     Dropcursor,
     Highlight.configure({ multicolor: true }),
+    ...commentExtensions,
     HorizontalRule,
     History,
   ];

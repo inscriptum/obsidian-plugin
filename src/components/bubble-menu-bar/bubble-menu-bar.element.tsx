@@ -288,6 +288,21 @@ export const BubbleMenuBarElement = litView.element({
     props.editor.chain().focus().unsetAllMarks().run();
   };
 
+  /* ── Comment flow ──
+     The bar cannot own the flow (thread ids and the store belong to the
+     host view): it only announces the request — NotepadView generates the
+     id, sets the mark and opens the panel composer. The button exists only
+     where the schema knows the comment mark (.um profiles; .note never
+     registers it, so NoteView bars simply don't render it). */
+  const schemaHasComments =
+    props.editor.state.schema.marks.comment != null;
+
+  const requestComment = () => {
+    root.dispatchEvent(
+      new CustomEvent("inscriptum-request-comment", { bubbles: true }),
+    );
+  };
+
   /* ── Selection center caret + flip (tippy flip) ── */
   const syncCaret = () => {
     const editor = props.editor;
@@ -453,6 +468,16 @@ export const BubbleMenuBarElement = litView.element({
             >
               {bubbleIconNodes.link()}
             </button>
+            {schemaHasComments ? (
+              <button
+                class="bb-btn"
+                data-tip="Comment"
+                onmousedown={(e: MouseEvent) => e.preventDefault()}
+                onclick={requestComment}
+              >
+                {bubbleIconNodes.comment()}
+              </button>
+            ) : null}
             <span class="bubble-menu-sep"></span>
             <button
               class="bb-btn"

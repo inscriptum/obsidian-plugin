@@ -1,0 +1,39 @@
+/* Comment anchors (comments extension) — the visual highlight is a plugin
+   decoration over the neutral span[data-comment-id] the mark renders, so
+   stored JSON and the website export (no plugin) stay plain. Colors derive
+   from the host theme tokens; the .um hosts define --ins-* on their view
+   containers, the fallbacks keep the rules self-sufficient in isolation. */
+
+.inscriptum-comment-anchor {
+  background-color: color-mix(
+    in srgb,
+    #fde68a 55%,
+    transparent
+  );
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.inscriptum-comment-anchor.is-resolved {
+  background-color: color-mix(in srgb, var(--ins-accent, #7c6af7) 12%, transparent);
+}
+
+/* The footnote-style comment count at the anchor end (click → panel):
+   a small superscript reference, not a pill. */
+.inscriptum-comment-ref {
+  display: inline-block;
+  margin-left: 1px;
+  padding: 0 1px;
+  color: var(--ins-accent, #7c6af7);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  vertical-align: super;
+  user-select: none;
+  cursor: pointer;
+}
+
+.inscriptum-comment-ref.is-resolved {
+  color: var(--text-muted, #888);
+}

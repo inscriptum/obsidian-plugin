@@ -41,6 +41,7 @@ import { Text } from "../texto/extensions/text";
 import { TextStyle } from "../texto/extensions/text-style";
 import { Underline } from "../texto/extensions/underline";
 import { Color } from "../texto/extensions/color";
+import { CommentMark } from "../texto/extensions/comment";
 
 /**
  * The export top node: one schema for both document families. The editor
@@ -126,6 +127,16 @@ export function getExportExtensions(): Extensions {
     Code,
     Underline,
     Highlight.configure({ multicolor: true }),
+    // The comment anchor must be in the export schema or Node.fromJSON
+    // throws for any stored page that carries one. It renders as a bare
+    // span — threads are not exported (ОВ-3), and an attribute-less span
+    // means text copied from the site pastes back WITHOUT resurrecting a
+    // dead anchor (the editor's parse rule matches data-comment-id only).
+    CommentMark.extend({
+      renderHTML() {
+        return ["span", {}, 0];
+      },
+    }),
     HorizontalRule,
   ];
 }
