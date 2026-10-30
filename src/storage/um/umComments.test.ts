@@ -56,6 +56,23 @@ describe("threads JSONL codec", () => {
     expect(parsed[0].comments).toHaveLength(2);
   });
 
+  it("junk dates are rejected (they would throw in the panel)", () => {
+    const bad = (patch: Record<string, unknown>): string =>
+      JSON.stringify({ ...thread("TX"), ...patch });
+    const text = [
+      bad({ resolvedAt: "bad" }), // non-numeric resolvedAt
+      bad({ comments: [{ id: "c", author: "You", content: "x", createdAt: 1e16 }] }), // beyond Date range
+      bad({
+        comments: [
+          { id: "c", author: "You", content: "x", createdAt: 1, updatedAt: -5 },
+        ],
+      }), // negative updatedAt
+      JSON.stringify(thread("OK")),
+    ].join("\n");
+    const parsed = parseThreads(new TextEncoder().encode(text));
+    expect(parsed.map((t) => t.id)).toEqual(["OK"]);
+  });
+
   it("an empty store parses as no threads", () => {
     expect(parseThreads(serializeThreads([]))).toEqual([]);
     expect(parseThreads(new TextEncoder().encode(""))).toEqual([]);

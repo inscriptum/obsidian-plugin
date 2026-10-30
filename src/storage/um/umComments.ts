@@ -14,6 +14,20 @@ export const UM_COMMENTS_ENTRY = "comments.jsonl";
 const TEXT_DECODER = new TextDecoder();
 const TEXT_ENCODER = new TextEncoder();
 
+/** Beyond this, Intl.DateTimeFormat.format throws (the Date limit); below
+ *  0 is junk. A value outside the range would break the panel's rendering
+ *  for the whole store. */
+const MAX_DATE_MS = 8_640_000_000_000;
+
+function isTimestamp(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 0 &&
+    value <= MAX_DATE_MS
+  );
+}
+
 /** Is this a comment-shaped object? */
 function isCommentEntry(value: unknown): value is CommentThread["comments"][number] {
   if (typeof value !== "object" || value === null) return false;
@@ -22,7 +36,8 @@ function isCommentEntry(value: unknown): value is CommentThread["comments"][numb
     typeof entry.id === "string" &&
     entry.id.length > 0 &&
     typeof entry.content === "string" &&
-    typeof entry.createdAt === "number"
+    isTimestamp(entry.createdAt) &&
+    (entry.updatedAt === undefined || isTimestamp(entry.updatedAt))
   );
 }
 
@@ -38,7 +53,9 @@ function isThread(value: unknown): value is CommentThread {
     typeof thread.noteId === "string" &&
     thread.noteId.length > 0 &&
     typeof thread.resolved === "boolean" &&
+    (thread.resolvedAt === undefined || isTimestamp(thread.resolvedAt)) &&
     Array.isArray(thread.comments) &&
+    thread.comments.length > 0 &&
     thread.comments.every(isCommentEntry)
   );
 }

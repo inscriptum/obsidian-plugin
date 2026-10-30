@@ -2700,6 +2700,13 @@ export class NotepadView extends FileView {
     }
     const threadId = generateUmId();
     editor.commands.setComment({ id: threadId });
+    // Some inline content forbids the mark (code-block rows allow hljsMark
+    // only): setMark silently no-ops there, and opening the composer would
+    // create a thread that is born "Anchor removed". Verify it landed.
+    if (getCommentRanges(editor.state.doc, threadId).length === 0) {
+      new Notice("Comments are not supported in this content");
+      return;
+    }
     this.commentsComposer = { threadId, noteId: handle.id };
     this.openCommentsPanel();
   }
@@ -3733,6 +3740,10 @@ export class NotepadView extends FileView {
       this.destroyAllSections();
       this.notepad?.destroy();
       this.notepad = fresh;
+      // The pending composer's anchor lived in the replaced document (its
+      // page id may not even exist on disk anymore) — the old notepad is
+      // dropped wholesale, so the composer goes with it.
+      this.commentsComposer = null;
       this.threadsCache = null;
       this.dirty = false;
       // Keep the user's expansion state across the reload.
