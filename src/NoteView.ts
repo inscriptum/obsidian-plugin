@@ -29,6 +29,10 @@ import {
 } from "./tools/attachment";
 import { getExtensions, type ExtensionHooks } from "./texto/getExtensions";
 import {
+  assignBlockIds,
+  ensureUniqueBlockIds,
+} from "./texto/extensions/block-ids";
+import {
   createFoldPersistence,
   type FoldPersistence,
 } from "./storage/foldPersistence";
@@ -454,7 +458,10 @@ export class NoteView extends FileView {
 
           this.editor = new Editor({
             element: editorEl,
-            content: content,
+            // Legacy documents get their block ids in the JSON before the
+            // editor parses them (spike verdict: the whole-document
+            // transaction pattern is quadratic and unusable at scale).
+            content: assignBlockIds(content),
             onError: (err) => {
               console.error("Editor creation failed:", err);
             },
@@ -1056,6 +1063,7 @@ export class NoteView extends FileView {
       return;
     }
     try {
+      this.fixDuplicateBlockIds("save");
       const json = this.editor.getJSON();
       const raw = JSON.stringify(json, null, 2);
       if (await this.blockEmptyOverwrite(json, trigger)) return;
@@ -1173,6 +1181,7 @@ export class NoteView extends FileView {
   private async overwriteFileFromEditor(): Promise<void> {
     if (!this.editor || !this.file || this.editor.isDestroyed) return;
     try {
+      this.fixDuplicateBlockIds("conflict-keep-local");
       const json = this.editor.getJSON();
       const raw = JSON.stringify(json, null, 2);
       if (await this.blockEmptyOverwrite(json, "conflict-keep-local")) return;
@@ -1189,7 +1198,10 @@ export class NoteView extends FileView {
   private async applyExternalContent(raw: string): Promise<void> {
     if (!this.editor || this.editor.isDestroyed) return;
     try {
-      const doc = parseNoteDoc(raw);
+      // Ids are assigned in the JSON (linear) — replacing a legacy doc
+      // without them would otherwise push the whole assignment through one
+      // full-document transaction (quadratic in steps).
+      const doc = assignBlockIds(parseNoteDoc(raw));
       // setContent with emitUpdate=false does not fire onUpdate, but guard
       // anyway so any incidental transaction can't trigger a write-back.
       this.applyingRemoteChange = true;
@@ -1238,7 +1250,9 @@ export class NoteView extends FileView {
       this.logDiag(`reload replaced: ${this.file.path}`);
       this.applyingRemoteChange = true;
       try {
-        this.editor.commands.setContent(content);
+        // Same reason as applyExternalContent: legacy docs are tagged in
+        // the JSON before the replace, not through the replace transaction.
+        this.editor.commands.setContent(assignBlockIds(content));
       } finally {
         this.applyingRemoteChange = false;
       }
@@ -1252,6 +1266,24 @@ export class NoteView extends FileView {
    *  only observability channel on the iOS App Store build. */
   private logDiag(msg: string): void {
     void logDiagEvent(this.app.vault, msg);
+  }
+
+  /** Doc-wide block-id net before a write (spec um-cli §4.5: a document
+   *  with duplicate ids is never saved). The fix-up dispatches a
+   *  history-excluded transaction; applyingRemoteChange keeps it from
+   *  marking the note dirty or re-entering the save flow. */
+  private fixDuplicateBlockIds(trigger: string): void {
+    if (!this.editor || this.editor.isDestroyed) return;
+    this.applyingRemoteChange = true;
+    try {
+      const fix = ensureUniqueBlockIds(this.editor);
+      if (!fix.fixed) return;
+      this.logDiag(
+        `duplicate block ids fixed before ${trigger}: ${this.file?.path} — replaced ${fix.replaced.join(", ")}`,
+      );
+    } finally {
+      this.applyingRemoteChange = false;
+    }
   }
 
   /**

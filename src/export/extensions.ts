@@ -42,6 +42,7 @@ import { TextStyle } from "../texto/extensions/text-style";
 import { Underline } from "../texto/extensions/underline";
 import { Color } from "../texto/extensions/color";
 import { CommentMark } from "../texto/extensions/comment";
+import { BlockIdAttributes } from "../texto/extensions/block-ids";
 
 /**
  * The export top node: one schema for both document families. The editor
@@ -71,6 +72,9 @@ const ExportDoc = NoteDoc.extend({
 export function getExportExtensions(): Extensions {
   return [
     ExportDoc,
+    // attrs.id must be declared or Node.fromJSON silently drops it from
+    // every stored block; it renders as data-id on the exported site.
+    BlockIdAttributes,
     NoteSummary,
     NoteProperty,
     NotePropertyName,

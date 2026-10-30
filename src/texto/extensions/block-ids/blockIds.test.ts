@@ -1,0 +1,483 @@
+import { describe, it, expect, afterEach } from "vitest";
+import { Editor } from "../../core/Editor";
+import type { JSONContent } from "../../core/@types";
+import { getExtensions } from "../../getExtensions";
+import { NodeSelection } from "prosemirror-state";
+import { Fragment, Slice } from "prosemirror-model";
+import { buildSchema } from "../../../../tests/helpers/buildSchema";
+import { generateHTML } from "../../core/helpers/generateHTML";
+import { getExportExtensions } from "../../../export/extensions";
+import { findDraggableBlock, performBlockMove } from "../drag-handle/dragHandlePlugin";
+
+import { assignBlockIds, ensureUniqueBlockIds } from "./assignBlockIds";
+import {
+  generateBlockId,
+  generateBlockIdAvoiding,
+  isBlockId,
+} from "./generateBlockId";
+import { isBlockIdType } from "./blockIdAttrs";
+
+// ── fixtures ───────────────────────────────────────────────────────────────
+
+const editors: Editor[] = [];
+
+function createEditor(content: JSONContent): Editor {
+  const element = createDiv();
+  document.body.appendChild(element);
+  const editor = new Editor({
+    element,
+    content,
+    extensions: getExtensions(),
+    editable: true,
+  });
+  editors.push(editor);
+  return editor;
+}
+
+/** Asserts the value is a grammar-valid id and returns it typed. */
+function expectId(id: unknown): string {
+  expect(isBlockId(id)).toBe(true);
+  return id as string;
+}
+
+afterEach(() => {
+  for (const editor of editors.splice(0)) {
+    editor.destroy();
+    editor.options.element.remove();
+  }
+});
+
+function p(text: string, id?: string): JSONContent {
+  return {
+    type: "paragraph",
+    ...(id != null ? { attrs: { id } } : {}),
+    content: text.length > 0 ? [{ type: "text", text }] : undefined,
+  };
+}
+
+function legacyDoc(): JSONContent {
+  return {
+    type: "noteDoc",
+    content: [
+      { type: "noteTitle", content: [{ type: "text", text: "Title" }] },
+      p("one"),
+      p("two"),
+      {
+        type: "bulletList",
+        content: [
+          {
+            type: "listItem",
+            content: [p("item")],
+          },
+        ],
+      },
+      {
+        type: "table",
+        attrs: { data: { rowsCount: 1, colsCount: 1 } },
+        content: [
+          {
+            type: "tableRow",
+            content: [
+              {
+                type: "tableCell",
+                content: [p("cell")],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
+/** Doc where every addressable block already carries an id (post-load). */
+function idedDoc(): JSONContent {
+  return {
+    type: "noteDoc",
+    content: [
+      { type: "noteTitle", attrs: { id: "aaaaaaaaaa" }, content: [{ type: "text", text: "Title" }] },
+      p("one", "bbbbbbbbbb"),
+      p("two", "cccccccccc"),
+    ],
+  };
+}
+
+interface WithId {
+  id?: string | null;
+}
+
+function idAt(doc: JSONContent, path: number[]): string | null | undefined {
+  let node: JSONContent | undefined = doc;
+  for (const index of path) {
+    node = node.content?.[index];
+    if (node == null) return undefined;
+  }
+  return (node.attrs as WithId | undefined)?.id;
+}
+
+function editorIds(editor: Editor): Array<{ name: string; id: string | null; pos: number }> {
+  const out: Array<{ name: string; id: string | null; pos: number }> = [];
+  editor.state.doc.descendants((node, pos) => {
+    const id = (node.attrs as WithId).id;
+    if (id != null) out.push({ name: node.type.name, id, pos });
+    return true;
+  });
+  return out;
+}
+
+function blockPositions(editor: Editor): number[] {
+  const out: number[] = [];
+  editor.state.doc.forEach((_, offset) => out.push(offset));
+  return out;
+}
+
+// ── generator & grammar (spec §4.4) ───────────────────────────────────────
+
+describe("block id generator", () => {
+  it("produces ids matching the spec grammar (length 10, [a-z0-9])", () => {
+    for (let i = 0; i < 200; i += 1) {
+      expect(isBlockId(generateBlockId())).toBe(true);
+    }
+  });
+
+  it("does not repeat ids across many samples", () => {
+    const used = new Set<string>();
+    for (let i = 0; i < 1000; i += 1) used.add(generateBlockId());
+    expect(used.size).toBe(1000);
+  });
+
+  it("avoids a provided collision set", () => {
+    const used = new Set<string>("aaaaaaaaaa");
+    expect(generateBlockIdAvoiding(used)).not.toBe("aaaaaaaaaa");
+  });
+
+  it("validates the grammar boundaries", () => {
+    expect(isBlockId("abcdefgh")).toBe(true); // 8
+    expect(isBlockId("abcdefghijkl")).toBe(true); // 12
+    expect(isBlockId("abcdefg")).toBe(false); // 7
+    expect(isBlockId("abcdefghijklm")).toBe(false); // 13
+    expect(isBlockId("ABCDEFGH")).toBe(false);
+    expect(isBlockId("abcdefgh-")).toBe(false);
+    expect(isBlockId(null)).toBe(false);
+    expect(isBlockId(undefined)).toBe(false);
+  });
+});
+
+// ── load-time assignment (JSON path) ──────────────────────────────────────
+
+describe("assignBlockIds", () => {
+  it("tags every addressable block of a legacy document, nested included", () => {
+    const tagged = assignBlockIds(legacyDoc());
+    const ids: string[] = [];
+    const walk = (node: JSONContent): void => {
+      if (node.type != null && isBlockIdType(node.type)) {
+        ids.push(expectId((node.attrs as WithId | undefined)?.id));
+      }
+      node.content?.forEach(walk);
+    };
+    walk(tagged);
+    // noteTitle + 2 paragraphs + bulletList + listItem + its paragraph
+    // + table + tableRow + tableCell + its paragraph
+    expect(ids.length).toBe(10);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("keeps existing valid ids and only fills the gaps", () => {
+    const tagged = assignBlockIds(idedDoc());
+    expect(idAt(tagged, [0])).toBe("aaaaaaaaaa");
+    expect(idAt(tagged, [1])).toBe("bbbbbbbbbb");
+    expect(idAt(tagged, [2])).toBe("cccccccccc");
+  });
+
+  it("does not mutate the input document", () => {
+    const doc = legacyDoc();
+    const snapshot = JSON.stringify(doc);
+    assignBlockIds(doc);
+    expect(JSON.stringify(doc)).toBe(snapshot);
+  });
+
+  it("is idempotent", () => {
+    const once = assignBlockIds(legacyDoc());
+    const twice = assignBlockIds(once);
+    expect(twice).toEqual(once);
+  });
+});
+
+// ── DOM projection ─────────────────────────────────────────────────────────
+
+describe("block id DOM projection", () => {
+  it("renders data-id (not id) onto block elements", () => {
+    const editor = createEditor(assignBlockIds(legacyDoc()));
+    const el = editor.view.dom.querySelector("p[data-id]");
+    expect(el).not.toBeNull();
+    expect(isBlockId(el?.getAttribute("data-id"))).toBe(true);
+    expect(el?.hasAttribute("id")).toBe(false);
+  });
+});
+
+// ── lifecycle (spec §4.5) ──────────────────────────────────────────────────
+
+describe("block id lifecycle", () => {
+  it("keeps ids on text edits and assigns none for pure typing", () => {
+    const editor = createEditor(idedDoc());
+    const before = editorIds(editor).map((e) => e.id);
+    const pos = blockPositions(editor)[1] + 2; // inside "one"
+    editor.view.dispatch(editor.state.tr.insertText("X", pos));
+    expect(editorIds(editor).map((e) => e.id)).toEqual(before);
+    expect(editor.state.doc.textContent).toContain("oXne");
+  });
+
+  it("keeps ids when node attrs change (task item check toggle)", () => {
+    const editor = createEditor({
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "T" }] },
+        {
+          type: "taskList",
+          content: [
+            {
+              type: "taskItem",
+              attrs: { checked: false, id: "dddddddddd" },
+              content: [p("todo")],
+            },
+          ],
+        },
+      ],
+    });
+    const taskPos = blockPositions(editor)[1];
+    editor.view.dispatch(editor.state.tr.setNodeMarkup(taskPos, null, { checked: true }));
+    expect(editorIds(editor).find((e) => e.name === "taskItem")?.id).toBe("dddddddddd");
+  });
+
+  it("split: the first part keeps the original id, the second gets a fresh one", () => {
+    const editor = createEditor(idedDoc());
+    const pos = blockPositions(editor)[1] + 2; // inside "one"
+    editor.view.dispatch(editor.state.tr.split(pos));
+    const paragraphs = editorIds(editor).filter((entry) => entry.name === "paragraph");
+    // "one" split into two + "two" untouched.
+    expect(paragraphs).toHaveLength(3);
+    expect(paragraphs[0]?.id).toBe("bbbbbbbbbb");
+    expect(isBlockId(paragraphs[1]?.id)).toBe(true);
+    expect(paragraphs[1]?.id).not.toBe("bbbbbbbbbb");
+    expect(paragraphs[2]?.id).toBe("cccccccccc");
+  });
+
+  it("join: the merged paragraph keeps the left id", () => {
+    const editor = createEditor(idedDoc());
+    const positions = blockPositions(editor);
+    // Join the two paragraphs at their boundary: the merged block keeps
+    // the left id (spec §4.5 join rule).
+    editor.view.dispatch(editor.state.tr.join(positions[2], 1));
+    const paragraphs = editorIds(editor).filter((e) => e.name === "paragraph");
+    expect(paragraphs).toHaveLength(1);
+    expect(paragraphs[0]?.id).toBe("bbbbbbbbbb");
+    expect(editor.state.doc.textContent).toContain("onetwo");
+  });
+
+  it("paste: the pasted copy gets fresh ids, the source keeps its id", () => {
+    const editor = createEditor(idedDoc());
+    const positions = blockPositions(editor);
+    const source = editor.state.doc.nodeAt(positions[1])!;
+    const slice = editor.state.doc.slice(positions[1], positions[1] + source.nodeSize);
+    // Paste after the last block — the same replace shape PM's paste uses.
+    const end = editor.state.doc.content.size - 1;
+    editor.view.dispatch(editor.state.tr.replace(end, end, slice));
+
+    const paragraphs = editorIds(editor).filter((e) => e.name === "paragraph");
+    expect(paragraphs).toHaveLength(3);
+    // Document order: one (source), two (source), pasted copy of "one".
+    expect(paragraphs[0]?.id).toBe("bbbbbbbbbb");
+    expect(paragraphs[1]?.id).toBe("cccccccccc");
+    expect(isBlockId(paragraphs[2]?.id)).toBe(true);
+    expect(paragraphs[2]?.id).not.toBe("bbbbbbbbbb");
+  });
+
+  it("paste from another note: fresh ids in the target (spec §4.5)", () => {
+    const editor = createEditor(idedDoc());
+    // A real cross-note paste re-parses the clipboard HTML into the target
+    // schema (parseHTML restores data-id), so the arriving slice carries the
+    // source note's id in the target schema — simulated via nodeFromJSON.
+    const foreignParagraph = editor.state.schema.nodeFromJSON(p("foreign", "zzzzzzzzzz"));
+    const slice = new Slice(Fragment.from(foreignParagraph), 0, 0);
+
+    const end = editor.state.doc.content.size;
+    editor.view.dispatch(editor.state.tr.replace(end, end, slice));
+
+    const ids = editorIds(editor).map((e) => e.id);
+    expect(ids).not.toContain("zzzzzzzzzz");
+    // The pasted copy was tagged with a fresh id instead.
+    expect(ids.filter((id) => id !== null && isBlockId(id)).length).toBe(4);
+  });
+
+  it("duplicate-shaped insert next to the source re-ids the copy", () => {
+    const editor = createEditor(idedDoc());
+    const positions = blockPositions(editor);
+    const source = editor.state.doc.nodeAt(positions[1])!;
+    const slice = editor.state.doc.slice(positions[1], positions[1] + source.nodeSize);
+    const afterSource = positions[1] + source.nodeSize;
+    editor.view.dispatch(editor.state.tr.replace(afterSource, afterSource, slice));
+
+    const paragraphs = editorIds(editor).filter((e) => e.name === "paragraph");
+    expect(paragraphs).toHaveLength(3);
+    expect(paragraphs[0]?.id).toBe("bbbbbbbbbb");
+    expect(paragraphs[1]?.id).not.toBe("bbbbbbbbbb");
+  });
+
+  it("move (drag-handle block move) keeps the id", () => {
+    const editor = createEditor(assignBlockIds(legacyDoc()));
+    const doc = editor.state.doc;
+    const positions = blockPositions(editor);
+    const moved = doc.nodeAt(positions[1])!;
+    const id = (moved.attrs as WithId).id;
+    const block = findDraggableBlock(doc, positions[1] + 1)!;
+
+    expect(performBlockMove(editor.view, block, positions[3])).toBe(true);
+
+    const after = editor.state.doc;
+    const found: string[] = [];
+    after.descendants((node) => {
+      if (node.textContent === "one" && node.type.name === "paragraph") {
+        found.push((node.attrs as WithId).id as string);
+      }
+      return true;
+    });
+    expect(found).toEqual([id]);
+  });
+
+  it("undo restores previous ids; redo returns the same ones", () => {
+    const editor = createEditor(idedDoc());
+    const pos = blockPositions(editor)[1] + 2;
+    editor.view.dispatch(editor.state.tr.split(pos));
+    const afterSplit = editorIds(editor);
+    const firstParagraphPos = afterSplit.find((e) => e.name === "paragraph")?.pos;
+    const secondId = afterSplit.find((e) => e.name === "paragraph" && e.id !== "bbbbbbbbbb")?.id;
+    expect(isBlockId(secondId)).toBe(true);
+
+    editor.commands.undo();
+    const afterUndo = editorIds(editor);
+    expect(afterUndo.find((e) => e.name === "paragraph")?.id).toBe("bbbbbbbbbb");
+    expect(afterUndo.some((e) => e.id === secondId)).toBe(false);
+
+    editor.commands.redo();
+    const afterRedo = editorIds(editor);
+    expect(
+      afterRedo.find((e) => e.name === "paragraph" && e.pos !== firstParagraphPos)?.id,
+    ).toBe(secondId);
+  });
+
+  it("history replays the assignments with the edit (typing after split)", () => {
+    const editor = createEditor(idedDoc());
+    const positions = blockPositions(editor);
+    editor.view.dispatch(editor.state.tr.split(positions[1] + 2));
+    editor.view.dispatch(editor.state.tr.insertText("hello", positions[1] + 2));
+    const after = editorIds(editor).map((e) => e.id);
+
+    // History groups the adjacent split+typing into one event; one undo
+    // must restore the pre-split ids verbatim.
+    editor.commands.undo();
+    expect(editorIds(editor).map((e) => e.id)).toEqual([
+      "aaaaaaaaaa",
+      "bbbbbbbbbb",
+      "cccccccccc",
+    ]);
+
+    editor.commands.redo();
+    expect(editorIds(editor).map((e) => e.id)).toEqual(after);
+  });
+});
+
+// ── save-path duplicate net ────────────────────────────────────────────────
+
+describe("ensureUniqueBlockIds", () => {
+  it("re-ids later duplicates, keeping the first in document order", () => {
+    const editor = createEditor({
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "T" }] },
+        p("a", "deadbeef01"),
+        p("b", "deadbeef01"),
+        p("c", "deadbeef01"),
+      ],
+    });
+    // The editor does not run the net on its own: a document arriving with
+    // duplicates keeps them until the save path calls the guard.
+    expect(editorIds(editor).filter((e) => e.id === "deadbeef01")).toHaveLength(3);
+
+    const fix = ensureUniqueBlockIds(editor);
+    expect(fix.fixed).toBe(true);
+    expect(fix.replaced).toEqual(["deadbeef01", "deadbeef01"]);
+
+    const paragraphs = editorIds(editor).filter((e) => e.name === "paragraph");
+    expect(paragraphs[0]?.id).toBe("deadbeef01");
+    expect(isBlockId(paragraphs[1]?.id)).toBe(true);
+    expect(isBlockId(paragraphs[2]?.id)).toBe(true);
+    expect(paragraphs[1]?.id).not.toBe(paragraphs[2]?.id);
+  });
+
+  it("is a no-op on a clean document", () => {
+    const editor = createEditor(idedDoc());
+    expect(ensureUniqueBlockIds(editor)).toEqual({ fixed: false, replaced: [] });
+  });
+
+  it("does not pollute undo history", () => {
+    const editor = createEditor({
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "T" }] },
+        p("a", "deadbeef01"),
+        p("b", "deadbeef01"),
+      ],
+    });
+    const textBefore = editor.state.doc.textContent;
+    ensureUniqueBlockIds(editor);
+    expect(editor.state.doc.textContent).toBe(textBefore);
+    // Nothing undoable: the fix is a storage repair, not an edit.
+    expect(editor.commands.undo()).toBe(false);
+  });
+});
+
+// ── serialization round-trip ───────────────────────────────────────────────
+
+describe("block id serialization", () => {
+  it("survives Node.fromJSON round-trips (schema declares attrs.id)", () => {
+    const editor = createEditor(assignBlockIds(legacyDoc()));
+    const json = editor.state.doc.toJSON() as JSONContent;
+    const schema = buildSchema();
+    const reparsed = schema.nodeFromJSON(json).toJSON() as JSONContent;
+    expect(reparsed).toEqual(json);
+  });
+
+  it("export schema keeps attrs.id and renders data-id", () => {
+    const tagged = assignBlockIds(legacyDoc());
+    const html = generateHTML(tagged, getExportExtensions());
+    expect(html).toContain("data-id=");
+    expect(html).toContain(`data-id="${expectId(idAt(tagged, [1]))}"`);
+  });
+
+  it("documents without ids export without data-id", () => {
+    const html = generateHTML(legacyDoc(), getExportExtensions());
+    expect(html).not.toContain("data-id");
+  });
+});
+
+// ── selection safety (AttrStep, not setNodeMarkup) ─────────────────────────
+
+describe("id assignment is selection-safe", () => {
+  it("a NodeSelection on a block survives its id assignment", () => {
+    // The app assigns ids at load; a block can still be tagged on a later
+    // edit (nodes the load path could not tag, content replaced from
+    // outside). The assignment must not drop a selection anchored on it.
+    const editor = createEditor(legacyDoc());
+    const positions = blockPositions(editor);
+    editor.view.dispatch(
+      editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, positions[2])),
+    );
+    expect(editor.state.selection instanceof NodeSelection).toBe(true);
+
+    // Type into the selected block — its id is assigned in the same batch.
+    editor.view.dispatch(editor.state.tr.insertText("X", positions[2] + 1));
+
+    expect(editor.state.selection instanceof NodeSelection).toBe(true);
+    expect(expectId(editorIds(editor).find((e) => e.pos === positions[2])?.id)).toBeTruthy();
+  });
+});

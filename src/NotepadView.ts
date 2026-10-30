@@ -27,6 +27,10 @@ import {
 } from "./notepad/notepadSearch";
 import { getExtensions, type ExtensionHooks } from "./texto/getExtensions";
 import {
+  assignBlockIds,
+  ensureUniqueBlockIds,
+} from "./texto/extensions/block-ids";
+import {
   createFoldPersistence,
   type FoldPersistence,
 } from "./storage/foldPersistence";
@@ -1404,6 +1408,15 @@ export class NotepadView extends FileView {
   private flushSectionToNotepad(handle: SectionHandle): void {
     if (!this.notepad || !handle.editor || handle.editor.isDestroyed) return;
     if (!this.notepad.note(handle.id)) return;
+    // Doc-wide block-id net (spec um-cli §4.5: duplicate ids are never
+    // written). The fix-up transaction is history-excluded; the resulting
+    // onTransaction re-enters here once with a clean doc and early-returns.
+    const fix = ensureUniqueBlockIds(handle.editor);
+    if (fix.fixed) {
+      console.warn(
+        `[inscriptum] Fixed duplicate block ids in notepad page "${handle.id}": replaced ${fix.replaced.join(", ")}`,
+      );
+    }
     // The editors' draft slots (the trailing empty value of every List
     // property row) are editor-side UI — they never reach the storage.
     const json = sanitizePropertyValues(handle.editor.getJSON());
@@ -1468,7 +1481,10 @@ export class NotepadView extends FileView {
 
     const editor = new Editor({
       element: editorEl,
-      content,
+      // Legacy pages get their block ids in the JSON before the editor
+      // parses them (spike verdict: whole-document assignment transactions
+      // are quadratic in steps and unusable at scale).
+      content: assignBlockIds(content),
       onError: (err) => console.error("Notepad editor creation failed:", err),
       onUpdate: () => {
         this.dirty = true;

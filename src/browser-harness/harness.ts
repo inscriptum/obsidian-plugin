@@ -229,6 +229,84 @@ defineHelper("setText", (el, [text]) => {
 export * from "../texto/getExtensions";
 export { Editor, headingFoldingKey, taskFoldingKey };
 
+// ── Block-ids performance benches (window.__spike) ───────────────────────
+// Driven by the block-ids spike/bench page (.harness/spike.html) through the
+// bundle: mounts the real editor (BlockIds ships in getExtensions) with or
+// without the JSON-level load assignment and runs the typing/save benches.
+// Nothing here ships in the plugin bundle.
+
+import {
+  benchDupScan,
+  benchSave,
+  benchTyping,
+  countBlocks,
+} from "./spike-block-ids";
+import { assignBlockIds } from "../texto/extensions/block-ids";
+
+interface SpikeMountOptions {
+  /** Assign ids into the JSON before the editor parses it (the shipped
+   *  load path); without it the editor parses a legacy doc. */
+  preassign?: boolean;
+  profile?: "note" | "title" | "plain";
+}
+
+interface SpikeMountResult {
+  openMs: number;
+  preassignMs: number;
+}
+
+let spikeEditor: Editor | null = null;
+
+g.__spike = {
+  mount(doc: unknown, opts: SpikeMountOptions = {}): SpikeMountResult {
+    if (spikeEditor != null) {
+      spikeEditor.destroy();
+      spikeEditor = null;
+    }
+    const app = appContainer();
+    app.replaceChildren();
+    const note = createDiv("note");
+    const article = createEl("article", { cls: "texto-editor" });
+    note.appendChild(article);
+    app.appendChild(note);
+
+    let content = doc as JSONContent;
+    let preassignMs = 0;
+    if (opts.preassign === true) {
+      const t0 = performance.now();
+      content = assignBlockIds(content);
+      preassignMs = performance.now() - t0;
+    }
+
+    const t0 = performance.now();
+    spikeEditor = new Editor({
+      element: article,
+      content,
+      extensions: getExtensions({}, { profile: opts.profile ?? "plain" }),
+      editable: true,
+      onError: (err) => console.error("EDITOR ERROR:", err),
+    });
+    return {
+      openMs: performance.now() - t0,
+      preassignMs,
+    };
+  },
+  destroy(): void {
+    spikeEditor?.destroy();
+    spikeEditor = null;
+  },
+  benchTyping: (runs?: number) =>
+    spikeEditor == null ? null : benchTyping(spikeEditor, { runs }),
+  benchSave: (runs?: number) =>
+    spikeEditor == null ? null : benchSave(spikeEditor, { runs }),
+  benchDupScan: (runs?: number) =>
+    spikeEditor == null ? null : benchDupScan(spikeEditor, { runs }),
+  countBlocks: () => (spikeEditor == null ? null : countBlocks(spikeEditor)),
+  get editor(): Editor | null {
+    return spikeEditor;
+  },
+};
+
 // ── Programmatic E2E API (window.__e2e) ─────────────────────────────────
 // Installed at import time and driven by the Playwright suite through the
 // committed page tests/e2e/harness/index.html. The manual MCP page
