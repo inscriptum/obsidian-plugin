@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Every block in a note and notebook now carries a small hidden id. It appears automatically and travels with the block as you edit, move or copy it — so a copy of a paragraph is always its own block, never a twin. Invisible in everyday writing, but it lets external tools (the upcoming `um` CLI) point at a specific block and change it without touching anything around it.
 - Comments for notepads (.um): select text, hit «Comment», and discuss it in a side panel — threads with replies, resolve/unresolve and an Open/Resolved filter. Anchors survive edits and copy-paste; thread data lives inside the .um container, and the website export stays comment-free.
 - Internal links like in Obsidian: type «[[» and pick a file from the suggestion popup to link notes and notebooks together. Once picked, the link settles into the note as plain words — no brackets left behind, and editing the words never breaks the link. Clicking a link opens the target right away; a small document icon marks internal links so they stand out from regular ones. A «|» sets the visible text; hovering a link shows a mini menu with Go, Edit and Delete (Delete keeps the words); links to deleted files gray out.
 - Undo and Redo buttons in the mobile toolbar — on a phone you can finally take an edit back (or return it) with a tap; buttons dim when there is nothing to undo or redo. On desktop the keyboard shortcuts work as before.
