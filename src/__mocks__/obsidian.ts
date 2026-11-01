@@ -111,6 +111,48 @@ export abstract class ItemView {
   abstract onClose(): Promise<void>;
 }
 
+export class WorkspaceLeaf {
+  view: unknown = null;
+}
+
+export class Menu {
+  addItem(_cb: (item: unknown) => unknown): Menu {
+    return this;
+  }
+  addSeparator(): Menu {
+    return this;
+  }
+  showAtMouseEvent(_evt: unknown): void {}
+}
+
+export function setIcon(_el: unknown, _name: string): void {}
+
+/** Minimal moment stub: only the format-token shapes the notepad views
+ *  use (um-page-updated-at) — everything else stringifies. */
+export function moment(epochMs?: number) {
+  const d = new Date(epochMs ?? 0);
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return {
+    format(f?: string): string {
+      if (f === "YYYY-MM-DD HH:mm:ss") {
+        return (
+          `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+          ` ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+        );
+      }
+      return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}` +
+        ` ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    },
+  };
+}
+
+export abstract class FileView extends ItemView {
+  file: TFile | null = null;
+  constructor(leaf: unknown) {
+    super(leaf);
+  }
+}
+
 /** Normalizes a vault path: backslashes → slashes, collapses duplicates,
  *  trims slashes (mirrors the real helper closely enough for tests). */
 export function normalizePath(path: string): string {

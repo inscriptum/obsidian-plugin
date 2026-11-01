@@ -1,4 +1,4 @@
-import { Fragment } from "prosemirror-model";
+import { Fragment, type Node as ProseMirrorNode } from "prosemirror-model";
 import { Plugin, PluginKey, type Transaction } from "prosemirror-state";
 import { isHistoryTransaction } from "prosemirror-history";
 import {
@@ -9,9 +9,20 @@ import {
 
 import { collectChangedRanges } from "../../../utils/changedRanges";
 import { isBlockIdType } from "../blockIdAttrs";
-import { generateBlockIdAvoiding } from "../generateBlockId";
+import { generateBlockIdAvoiding, isBlockId } from "../generateBlockId";
 
 export const blockIdsPluginKey = new PluginKey<null>("blockIds");
+
+/**
+ * Meta flag on content-replacement transactions whose content comes from
+ * OUTSIDE the editor (external sync, disk reload — the setContent callers
+ * in NoteView). Copy detection is skipped for such batches: the incoming
+ * ids are the document's own ids arriving from another device, not copies
+ * — re-id'ing them would churn ids back and forth between devices forever.
+ * Missing-id assignment still runs (a legacy document replaced wholesale
+ * still gets tagged).
+ */
+export const BLOCK_IDS_EXTERNAL_CONTENT = "blockIdsExternalContent";
 
 interface IdAttrs {
   id?: string | null;
@@ -78,8 +89,66 @@ function collectIntroducedIds(transactions: readonly Transaction[]): Set<string>
 }
 
 /**
+ * The id the SAME node carried before this batch, when the batch replaced
+ * the node's attrs wholesale (a partial setNodeMarkup: a code-block language
+ * switch, an image src resync — those pass `{class}` / `{data, state}`
+ * without spreading, and PM's setNodeMarkup REPLACES the whole attrs object,
+ * filling the missing id with its default null). The node is recognized in
+ * the pre-batch document by mapping its position back through the batch and
+ * comparing type, content and marks — an equal-shaped node there is this
+ * node with its pre-batch attrs, so its id must survive (spec §4.5: attr
+ * edits keep ids). Nodes that are genuinely new (paste, split) map onto
+ * different content and get a fresh id.
+ */
+function recoverPreBatchId(
+  transactions: readonly Transaction[],
+  oldDoc: ProseMirrorNode,
+  node: ProseMirrorNode,
+  pos: number,
+): string | null {
+  let oldPos = pos;
+  for (let i = transactions.length - 1; i >= 0; i -= 1) {
+    oldPos = transactions[i].mapping.invert().map(oldPos);
+  }
+  // Only a node the batch CONSUMED may donate its id: a partial
+  // attrs-replace's step covers exactly the node's span. A node that merely
+  // sits next to an insertion (same type/content by coincidence) must keep
+  // its id to itself — recovering into an inserted neighbor would hand out
+  // a duplicate until the save net runs.
+  let consumed = false;
+  let cur = oldPos;
+  walk: for (const tr of transactions) {
+    for (let i = 0; i < tr.steps.length; i += 1) {
+      const step = tr.steps[i];
+      if (
+        (step instanceof ReplaceStep || step instanceof ReplaceAroundStep) &&
+        cur >= step.from &&
+        cur + node.nodeSize <= step.to
+      ) {
+        consumed = true;
+        break walk;
+      }
+      cur = tr.mapping.maps[i].map(cur, 1);
+    }
+  }
+  if (!consumed) return null;
+
+  const oldNode = oldDoc.nodeAt(oldPos);
+  if (oldNode == null || oldNode.type !== node.type) return null;
+  if (!oldNode.content.eq(node.content)) return null;
+  if (oldNode.marks.length !== node.marks.length) return null;
+  for (let i = 0; i < oldNode.marks.length; i += 1) {
+    if (!oldNode.marks[i].eq(node.marks[i])) return null;
+  }
+  const oldId: unknown = oldNode.attrs.id;
+  return isBlockId(oldId) ? oldId : null;
+}
+
+/**
  * One pass over the changed ranges (document order):
- *  1. an addressable block without an id gets one (newly created blocks);
+ *  1. an addressable block without an id gets one (newly created blocks) —
+ *     unless it is the same node a partial attrs-replace stripped (see
+ *     recoverPreBatchId), in which case its previous id comes back;
  *  2. a block carrying an id this batch introduced as a COPY gets a fresh
  *     one — unless the id occurs more than once inside the ranges, which is
  *     a split shape: the first occurrence keeps the original id (spec
@@ -92,11 +161,18 @@ function collectIntroducedIds(transactions: readonly Transaction[]): Set<string>
 export function createBlockIdsPlugin(): Plugin<null> {
   return new Plugin<null>({
     key: blockIdsPluginKey,
-    appendTransaction(transactions, _oldState, newState) {
+    appendTransaction(transactions, oldState, newState) {
       const ranges = collectChangedRanges(transactions);
       if (ranges.length === 0) return null;
 
-      const introducedIds = collectIntroducedIds(transactions);
+      // External content swaps keep the arriving ids (CR-01): copy
+      // detection is skipped, missing-id assignment still runs.
+      const isExternalContent = transactions.some(
+        (tr) => tr.getMeta(BLOCK_IDS_EXTERNAL_CONTENT) === true,
+      );
+      const introducedIds = isExternalContent
+        ? new Set<string>()
+        : collectIntroducedIds(transactions);
 
       // Pass A — occurrences per id inside the ranges (document order).
       const occurrences = new Map<string, number>();
@@ -159,6 +235,24 @@ export function createBlockIdsPlugin(): Plugin<null> {
             if (!isBlockIdType(node.type.name)) return true;
             const id = (node.attrs as IdAttrs).id;
             if (id == null) {
+              // A stripped attrs-replace keeps its previous id (CR-02);
+              // a genuinely new node gets a fresh one.
+              const recovered = recoverPreBatchId(transactions, oldState.doc, node, pos);
+              if (recovered != null) {
+                used.add(recovered);
+                if (seenInRange.has(recovered)) {
+                  reId(pos);
+                  return true;
+                }
+                seenInRange.add(recovered);
+                try {
+                  tr.step(new AttrStep(pos, "id", recovered));
+                  changed = true;
+                } catch {
+                  // leave it to the save-time net
+                }
+                return true;
+              }
               reId(pos);
               return true;
             }

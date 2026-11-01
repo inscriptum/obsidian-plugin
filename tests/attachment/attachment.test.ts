@@ -74,7 +74,7 @@ describe("attachment node", () => {
     });
     const dom = DOMSerializer.fromSchema(schema).serializeNode(node);
     const el = (dom as HTMLElement).querySelector?.(HTML_TAG) ?? (dom as HTMLElement);
-    expect(el.getAttribute("data-id")).toBe("/outside/report.pdf");
+    expect(el.getAttribute("data-src")).toBe("/outside/report.pdf");
     expect(el.getAttribute("data-mode")).toBe("external");
   });
 

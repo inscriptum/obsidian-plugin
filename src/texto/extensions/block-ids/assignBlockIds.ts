@@ -67,10 +67,13 @@ function assignIn(
 }
 
 export interface UniqueBlockIdsResult {
-  /** True when at least one duplicate id was replaced. */
+  /** True when anything was repaired (duplicates replaced or fills made). */
   fixed: boolean;
   /** The duplicate ids that were replaced (diagnostics). */
   replaced: string[];
+  /** How many blocks were missing a grammar-valid id and got one filled in
+   *  (diagnostics; 0 when the doc was complete). */
+  filled: number;
 }
 
 /** Doc-wide uniqueness net for the save path (spec um-cli §4.5: a document
@@ -84,7 +87,7 @@ export interface UniqueBlockIdsResult {
 export function ensureUniqueBlockIds(editor: Editor): UniqueBlockIdsResult {
   const view = editor.view;
   if (view == null || editor.isDestroyed) {
-    return { fixed: false, replaced: [] };
+    return { fixed: false, replaced: [], filled: 0 };
   }
 
   const doc = editor.state.doc;
@@ -107,11 +110,12 @@ export function ensureUniqueBlockIds(editor: Editor): UniqueBlockIdsResult {
   });
 
   if (duplicates.length === 0 && missing === 0) {
-    return { fixed: false, replaced: [] };
+    return { fixed: false, replaced: [], filled: 0 };
   }
 
   const used = new Set<string>(seen);
   const replaced: string[] = [];
+  let filled = 0;
   const tr = view.state.tr;
   for (const { id, pos } of duplicates) {
     // AttrStep (not setNodeMarkup): an attribute-only repair must not
@@ -136,11 +140,12 @@ export function ensureUniqueBlockIds(editor: Editor): UniqueBlockIdsResult {
       const fresh = generateBlockIdAvoiding(used);
       used.add(fresh);
       tr.step(new AttrStep(pos, "id", fresh));
+      filled += 1;
       return true;
     });
   }
   tr.setMeta("addToHistory", false);
   view.dispatch(tr);
 
-  return { fixed: true, replaced };
+  return { fixed: true, replaced, filled };
 }

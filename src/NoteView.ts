@@ -30,8 +30,10 @@ import {
 import { getExtensions, type ExtensionHooks } from "./texto/getExtensions";
 import {
   assignBlockIds,
+  BLOCK_IDS_EXTERNAL_CONTENT,
   ensureUniqueBlockIds,
 } from "./texto/extensions/block-ids";
+import { notifyBlockIdsRepaired } from "./tools/blockIdFixNotice";
 import {
   createFoldPersistence,
   type FoldPersistence,
@@ -1204,9 +1206,14 @@ export class NoteView extends FileView {
       const doc = assignBlockIds(parseNoteDoc(raw));
       // setContent with emitUpdate=false does not fire onUpdate, but guard
       // anyway so any incidental transaction can't trigger a write-back.
+      // The external-content meta tells the block-ids plugin to keep the
+      // arriving ids: they are this document's ids from another device,
+      // not copies (re-id'ing them would churn ids between devices).
       this.applyingRemoteChange = true;
       try {
-        this.editor.commands.setContent(doc);
+        this.editor.commands.setContent(doc, false, {}, {
+          [BLOCK_IDS_EXTERNAL_CONTENT]: true,
+        });
       } finally {
         this.applyingRemoteChange = false;
       }
@@ -1251,8 +1258,11 @@ export class NoteView extends FileView {
       this.applyingRemoteChange = true;
       try {
         // Same reason as applyExternalContent: legacy docs are tagged in
-        // the JSON before the replace, not through the replace transaction.
-        this.editor.commands.setContent(assignBlockIds(content));
+        // the JSON before the replace, not through the replace transaction;
+        // the arriving ids survive (external-content gate).
+        this.editor.commands.setContent(assignBlockIds(content), false, {}, {
+          [BLOCK_IDS_EXTERNAL_CONTENT]: true,
+        });
       } finally {
         this.applyingRemoteChange = false;
       }
@@ -1278,9 +1288,16 @@ export class NoteView extends FileView {
     try {
       const fix = ensureUniqueBlockIds(this.editor);
       if (!fix.fixed) return;
+      const detail =
+        `replaced [${fix.replaced.join(", ")}]` +
+        (fix.filled > 0 ? `, filled ${fix.filled}` : "");
       this.logDiag(
-        `duplicate block ids fixed before ${trigger}: ${this.file?.path} — replaced ${fix.replaced.join(", ")}`,
+        `block ids repaired before ${trigger}: ${this.file?.path} — ${detail}`,
       );
+      console.warn(
+        `[inscriptum] Repaired block ids before ${trigger} of "${this.file?.path ?? ""}": ${detail}`,
+      );
+      notifyBlockIdsRepaired(fix.replaced.length + fix.filled);
     } finally {
       this.applyingRemoteChange = false;
     }

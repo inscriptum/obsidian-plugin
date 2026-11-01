@@ -50,6 +50,7 @@ export {
   ensureUniqueBlockIds,
   type UniqueBlockIdsResult,
 } from "./assignBlockIds";
+export { BLOCK_IDS_EXTERNAL_CONTENT } from "./plugins/blockIds.plugin";
 export {
   BLOCK_ID_LENGTH,
   BLOCK_ID_PATTERN,

@@ -9,11 +9,16 @@ import { createDocument } from "../helpers/createDocument";
 
 /**
  * Replace the whole document with new content.
+ *
+ * `meta` lands on the replacement transaction as extra keys — callers that
+ * replace content from OUTSIDE the editor (sync, disk reload) tag the batch
+ * so transaction observers can tell an external swap from a paste.
  */
 export function setContent(
   content: Content,
   emitUpdate = false,
   parseOptions: ParseOptions = {},
+  meta: Record<string, unknown> = {},
 ): Command {
   return ({ tr, editor, dispatch }) => {
     const { doc } = tr;
@@ -33,10 +38,11 @@ export function setContent(
     }
 
     if (dispatch) {
-      tr.replaceWith(0, doc.content.size, document).setMeta(
-        "preventUpdate",
-        !emitUpdate,
-      );
+      let next = tr.replaceWith(0, doc.content.size, document);
+      next = next.setMeta("preventUpdate", !emitUpdate);
+      for (const [key, value] of Object.entries(meta)) {
+        next = next.setMeta(key, value);
+      }
     }
 
     return true;

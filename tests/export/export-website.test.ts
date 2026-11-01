@@ -16,17 +16,30 @@ import { generateHTML } from "../../src/texto/core/helpers/generateHTML";
 import { FIXTURES } from "../fixtures";
 
 describe("createImageNameResolver", () => {
-  const vaultFiles = new Set(["img/a.png", "other/a.png", "img/b.jpeg"]);
+  const vaultFiles = new Set([
+    "img/a.png",
+    "other/a.png",
+    "img/b.jpeg",
+    "notes/secret.md",
+  ]);
   const app = {
     vault: {
       getAbstractFileByPath: (p: string) =>
-        vaultFiles.has(p) ? {} : null,
+        vaultFiles.has(p) ? new TFile(p) : null,
     },
   };
 
   it("returns null for files missing from the vault", () => {
     const resolve = createImageNameResolver(app as never);
     expect(resolve("img/nope.png")).toBeNull();
+  });
+
+  it("refuses non-image files: a crafted note cannot publish vault files", () => {
+    // The path arrives from note data — a shared note naming any vault
+    // file (a private .md, a .um container) must not be copied into the
+    // public site folder by the export.
+    const resolve = createImageNameResolver(app as never);
+    expect(resolve("notes/secret.md")).toBeNull();
   });
 
   it("deduplicates by vault path and resolves cross-folder name collisions", () => {
@@ -53,7 +66,7 @@ describe("createExportNameAllocator", () => {
     const app = {
       vault: {
         getAbstractFileByPath: (p: string) =>
-          vaultFiles.has(p) ? {} : null,
+          vaultFiles.has(p) ? new TFile(p) : null,
       },
     };
     const allocator = createExportNameAllocator();
@@ -283,11 +296,11 @@ describe("postProcessForExport: wikilinks", () => {
 describe("postProcessForExport", () => {
   const html = [
     "<p>before</p>",
-    '<texto-extension-image data-id="img/a.png" data-filename="a.png" data-align="wrap-right" data-width="40%"></texto-extension-image>',
-    '<texto-extension-image data-id="img/b.png" data-filename="b.png"></texto-extension-image>',
-    '<texto-extension-image data-id="img/missing.png" data-filename="missing.png"></texto-extension-image>',
-    '<texto-extension-image data-id="img/a.png" data-filename="a.png" data-align="full"></texto-extension-image>',
-    '<texto-extension-attachment data-id="docs/file.pdf"></texto-extension-attachment>',
+    '<texto-extension-image data-src="img/a.png" data-filename="a.png" data-align="wrap-right" data-width="40%"></texto-extension-image>',
+    '<texto-extension-image data-src="img/b.png" data-filename="b.png"></texto-extension-image>',
+    '<texto-extension-image data-src="img/missing.png" data-filename="missing.png"></texto-extension-image>',
+    '<texto-extension-image data-src="img/a.png" data-filename="a.png" data-align="full"></texto-extension-image>',
+    '<texto-extension-attachment data-src="docs/file.pdf"></texto-extension-attachment>',
     "<p>after</p>",
   ].join("");
 

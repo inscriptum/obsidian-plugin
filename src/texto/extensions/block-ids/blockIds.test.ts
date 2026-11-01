@@ -1,10 +1,11 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { Editor } from "../../core/Editor";
 import type { JSONContent } from "../../core/@types";
 import { getExtensions } from "../../getExtensions";
 import { NodeSelection } from "prosemirror-state";
 import { Fragment, Slice } from "prosemirror-model";
 import { buildSchema } from "../../../../tests/helpers/buildSchema";
+import { createDocument } from "../../core/helpers/createDocument";
 import { generateHTML } from "../../core/helpers/generateHTML";
 import { getExportExtensions } from "../../../export/extensions";
 import { findDraggableBlock, performBlockMove } from "../drag-handle/dragHandlePlugin";
@@ -14,6 +15,7 @@ import {
   ensureUniqueBlockIds,
   reassignBlockIds,
 } from "./assignBlockIds";
+import { BLOCK_IDS_EXTERNAL_CONTENT } from "./plugins/blockIds.plugin";
 import {
   generateBlockId,
   generateBlockIdAvoiding,
@@ -278,6 +280,24 @@ describe("block id lifecycle", () => {
     expect(editor.state.doc.textContent).toContain("onetwo");
   });
 
+  it("an inserted twin block does not steal its neighbor's id", () => {
+    // A batch that INSERTS id-less content identical to a surviving
+    // neighbor must not recover the neighbor's id into the insert (the
+    // recovery is reserved for nodes the batch consumed — review round 2).
+    const editor = createEditor(idedDoc());
+    const positions = blockPositions(editor);
+    const twin = editor.state.schema.nodes.paragraph.create(null, [
+      editor.state.schema.text("one"),
+    ]);
+    editor.view.dispatch(editor.state.tr.insert(positions[1], twin));
+
+    const paragraphs = editorIds(editor).filter((e) => e.name === "paragraph");
+    expect(paragraphs).toHaveLength(3);
+    const ids = paragraphs.map((e) => e.id);
+    expect(new Set(ids).size).toBe(3);
+    expect(ids).toContain("bbbbbbbbbb");
+  });
+
   it("paste: the pasted copy gets fresh ids, the source keeps its id", () => {
     const editor = createEditor(idedDoc());
     const positions = blockPositions(editor);
@@ -390,6 +410,32 @@ describe("block id lifecycle", () => {
   });
 });
 
+
+describe("collision regeneration (spec §4.4)", () => {
+  it("regenerates when the first candidate is already in use", () => {
+    // Deterministic stub: the first candidate comes out as "aaaaaaaaaa"
+    // (letter a = index 10 of the alphabet), which the caller already uses;
+    // the generator must notice the collision and emit the second
+    // candidate instead of returning a duplicate.
+    let call = 0;
+    const stub = vi
+      .spyOn(crypto, "getRandomValues")
+      .mockImplementation((buf: ArrayBufferView) => {
+        const bytes = buf as Uint8Array;
+        call += 1;
+        bytes.fill(call === 1 ? 10 : 11); // 11 → "bbbbbbbbbb"
+        return buf;
+      });
+    try {
+      const id = generateBlockIdAvoiding(new Set(["aaaaaaaaaa"]));
+      expect(id).toBe("bbbbbbbbbb");
+      expect(call).toBeGreaterThanOrEqual(2);
+    } finally {
+      stub.mockRestore();
+    }
+  });
+});
+
 // ── whole-note copies (duplicated pages) ───────────────────────────────────
 
 describe("reassignBlockIds", () => {
@@ -440,6 +486,172 @@ describe("id grammar enforcement", () => {
   });
 });
 
+// ── external content replacement (CR-01) ───────────────────────────────────
+
+describe("external content replacement", () => {
+  const incoming = {
+    type: "noteDoc",
+    content: [
+      {
+        type: "noteTitle",
+        attrs: { id: "deadbeef01" },
+        content: [{ type: "text", text: "Synced" }],
+      },
+      p("synced paragraph", "deadbeef02"),
+    ],
+  };
+
+  it("setContent tagged external keeps the arriving ids verbatim", () => {
+    const editor = createEditor(idedDoc());
+    editor.commands.setContent(incoming, false, {}, {
+      [BLOCK_IDS_EXTERNAL_CONTENT]: true,
+    });
+    const ids = editorIds(editor).map((e) => e.id);
+    expect(ids).toContain("deadbeef01");
+    expect(ids).toContain("deadbeef02");
+  });
+
+  it("an untagged whole-document replace re-ids the arriving ids (copy rule)", () => {
+    const editor = createEditor(idedDoc());
+    editor.commands.setContent(incoming);
+    const ids = editorIds(editor).map((e) => e.id);
+    expect(ids).not.toContain("deadbeef01");
+    expect(ids).not.toContain("deadbeef02");
+    for (const id of ids) expect(isBlockId(id)).toBe(true);
+  });
+});
+
+// ── partial attrs-replace keeps the id (CR-02) ─────────────────────────────
+
+describe("partial setNodeMarkup keeps ids", () => {
+  it("code-block language switch preserves the id", () => {
+    const doc = {
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "T" }] },
+        {
+          type: "hljsCodeBlock",
+          attrs: { class: "language-js" },
+          content: [
+            {
+              type: "hljsCodeBlockRow",
+              content: [{ type: "text", text: "const a = 1;" }],
+            },
+          ],
+        },
+      ],
+    };
+    const editor = createEditor(assignBlockIds(doc));
+    const blockPos = blockPositions(editor)[1];
+    const idBefore = (editor.state.doc.nodeAt(blockPos)?.attrs as WithId).id;
+
+    // The exact production shape (hljsCodeBlock.ts): a partial attrs object
+    // without a spread — PM's setNodeMarkup REPLACES the whole attrs object.
+    editor.view.dispatch(
+      editor.state.tr.setNodeMarkup(blockPos, undefined, {
+        class: "language-python",
+      }),
+    );
+
+    const node = editor.state.doc.nodeAt(blockPos);
+    expect(node?.attrs.class).toBe("language-python");
+    expect((node?.attrs as WithId).id).toBe(idBefore);
+  });
+
+  it("image src resync preserves the id", () => {
+    // The image is mounted like the smoke fixture does (no state) — the
+    // real resync then ADDS state through the same partial setNodeMarkup
+    // shape imageOnSetViewProps uses: {data, state} without a spread.
+    const doc = {
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "T" }] },
+        {
+          type: "image",
+          attrs: {
+            data: { id: "assets/pic.png", size: "70", filename: "pic.png" },
+          },
+        },
+      ],
+    };
+    const editor = createEditor(assignBlockIds(doc));
+    const imgPos = blockPositions(editor)[1];
+    const idBefore = (editor.state.doc.nodeAt(imgPos)?.attrs as WithId).id;
+    expect(typeof idBefore).toBe("string");
+
+    // The image NodeView cannot mount under jsdom (gfc custom element),
+    // so the batch goes through EditorState.apply — appendTransaction runs
+    // identically without a view.
+    const after = editor.state.apply(
+      editor.state.tr.setNodeMarkup(imgPos, undefined, {
+        data: { id: "assets/pic.png", size: "70", filename: "pic.png" },
+        state: { src: "app://new/pic.png" },
+      }),
+    );
+
+    const node = after.doc.nodeAt(imgPos);
+    expect((node?.attrs as { state?: { src?: string } }).state?.src).toBe(
+      "app://new/pic.png",
+    );
+    expect((node?.attrs as WithId).id).toBe(idBefore);
+  });
+});
+
+// ── media data-id namespace (CR-03) ────────────────────────────────────────
+
+describe("media data-id namespace", () => {
+  function imageDoc(): JSONContent {
+    return {
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "T" }] },
+        {
+          type: "image",
+          attrs: {
+            data: { id: "assets/pic.png", size: "70", filename: "pic.png" },
+          },
+        },
+      ],
+    };
+  }
+
+  it("renders data-src for the media path and data-id for the block id", () => {
+    const editor = createEditor(assignBlockIds(imageDoc()));
+    const el = editor.view.dom.querySelector("texto-extension-image");
+    expect(el).not.toBeNull();
+    const mediaPath = el?.getAttribute("data-src");
+    const blockId = el?.getAttribute("data-id");
+    expect(mediaPath).toBe("assets/pic.png");
+    expect(isBlockId(blockId)).toBe(true);
+    expect(blockId).not.toBe(mediaPath);
+  });
+
+  it("HTML round-trip restores both the media path and the block id", () => {
+    const tagged = assignBlockIds(imageDoc());
+    const html = generateHTML(tagged, getExportExtensions());
+    const editor = createEditor(html as unknown as JSONContent);
+    const img = editor.state.doc.nodeAt(blockPositions(editor)[1]);
+    const data = (img?.attrs as { data?: { id?: string } }).data;
+    expect(data?.id).toBe("assets/pic.png");
+    expect(isBlockId((img?.attrs as WithId).id)).toBe(true);
+  });
+
+  it("legacy clipboard HTML (data-id as media path) still parses", () => {
+    // Parsed through the schema directly (the image NodeView cannot mount
+    // under jsdom) — this is exactly what PM's HTML clipboard parse runs.
+    const doc = createDocument(
+      '<p>intro</p><texto-extension-image data-id="assets/old.png"></texto-extension-image>',
+      buildSchema(),
+      {},
+    );
+    const img = doc.content.child(1);
+    expect(img.type.name).toBe("image");
+    expect((img?.attrs as { data?: { id?: string } }).data?.id).toBe(
+      "assets/old.png",
+    );
+  });
+});
+
 // ── save-path duplicate net ────────────────────────────────────────────────
 
 describe("ensureUniqueBlockIds", () => {
@@ -470,7 +682,11 @@ describe("ensureUniqueBlockIds", () => {
 
   it("is a no-op on a clean document", () => {
     const editor = createEditor(idedDoc());
-    expect(ensureUniqueBlockIds(editor)).toEqual({ fixed: false, replaced: [] });
+    expect(ensureUniqueBlockIds(editor)).toEqual({
+      fixed: false,
+      replaced: [],
+      filled: 0,
+    });
   });
 
   it("does not pollute undo history", () => {

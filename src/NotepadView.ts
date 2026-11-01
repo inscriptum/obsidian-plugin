@@ -31,6 +31,7 @@ import {
   ensureUniqueBlockIds,
   reassignBlockIds,
 } from "./texto/extensions/block-ids";
+import { notifyBlockIdsRepaired } from "./tools/blockIdFixNotice";
 import {
   createFoldPersistence,
   type FoldPersistence,
@@ -468,6 +469,7 @@ export class NotepadView extends FileView {
    *  disk. Null when the view has no notepad open. */
   public getNotepadForExport(): UmNotepad | null {
     if (!this.notepad) return null;
+    this.fixBlockIdConflicts("export");
     for (const handle of this.sections.values()) {
       this.flushSectionToNotepad(handle);
     }
@@ -1367,6 +1369,22 @@ export class NotepadView extends FileView {
       // longer owns. The user's toggle is dropped; the rebuilt section is
       // consistent with the untouched model.
       if (this.notepad == null || this.sections.get(id) !== handle) return;
+      // The editor dies below and the write-path net only sees live
+      // editors — run the block-id net on THIS page before its content is
+      // flushed, or a defect present at collapse time would reach the disk
+      // unrepaired (the collapse is a user toggle, the scan is cheap).
+      if (handle.editor != null && !handle.editor.isDestroyed) {
+        const fix = ensureUniqueBlockIds(handle.editor);
+        if (fix.fixed) {
+          const detail =
+            `replaced [${fix.replaced.join(", ")}]` +
+            (fix.filled > 0 ? `, filled ${fix.filled}` : "");
+          console.warn(
+            `[inscriptum] Repaired block ids before collapse of page "${id}": ${detail}`,
+          );
+          notifyBlockIdsRepaired(fix.replaced.length + fix.filled);
+        }
+      }
       // Flush the editor content into the in-memory notepad first.
       this.flushSectionToNotepad(handle);
 
@@ -1409,15 +1427,6 @@ export class NotepadView extends FileView {
   private flushSectionToNotepad(handle: SectionHandle): void {
     if (!this.notepad || !handle.editor || handle.editor.isDestroyed) return;
     if (!this.notepad.note(handle.id)) return;
-    // Doc-wide block-id net (spec um-cli §4.5: duplicate ids are never
-    // written). The fix-up transaction is history-excluded; the extra
-    // dirtying is harmless — the flush that follows writes the fixed doc.
-    const fix = ensureUniqueBlockIds(handle.editor);
-    if (fix.fixed) {
-      console.warn(
-        `[inscriptum] Fixed duplicate block ids in notepad page "${handle.id}": replaced ${fix.replaced.join(", ")}`,
-      );
-    }
     // The editors' draft slots (the trailing empty value of every List
     // property row) are editor-side UI — they never reach the storage.
     const json = sanitizePropertyValues(handle.editor.getJSON());
@@ -1426,6 +1435,29 @@ export class NotepadView extends FileView {
       return;
     }
     this.notepad.setNoteContent(handle.id, json);
+  }
+
+  /** Doc-wide block-id net over every open page editor, right before the
+   *  content is written or exported (spec um-cli §4.5: duplicate or invalid
+   *  ids are never written). Lives on the write paths, NOT in
+   *  flushSectionToNotepad — the latter also runs on per-keystroke-adjacent
+   *  paths (search recompute, collapse, comments refresh) where a doc-wide
+   *  scan would be wasted work. The fix-up transaction is history-excluded;
+   *  the flush that follows persists the repaired doc. */
+  private fixBlockIdConflicts(trigger: string): void {
+    if (!this.notepad) return;
+    for (const [id, handle] of this.sections) {
+      if (!handle.editor || handle.editor.isDestroyed) continue;
+      const fix = ensureUniqueBlockIds(handle.editor);
+      if (!fix.fixed) continue;
+      const detail =
+        `replaced [${fix.replaced.join(", ")}]` +
+        (fix.filled > 0 ? `, filled ${fix.filled}` : "");
+      console.warn(
+        `[inscriptum] Repaired block ids in notepad page "${id}" before ${trigger}: ${detail}`,
+      );
+      notifyBlockIdsRepaired(fix.replaced.length + fix.filled);
+    }
   }
 
   private destroyAllSections(): void {
@@ -3667,6 +3699,7 @@ export class NotepadView extends FileView {
       this.saveTimer = null;
     }
 
+    this.fixBlockIdConflicts(trigger);
     for (const handle of this.sections.values()) {
       this.flushSectionToNotepad(handle);
     }

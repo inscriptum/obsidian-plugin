@@ -154,7 +154,12 @@ export const Image = Node.create<ImageOptions>({
         parseHTML: (element: HTMLElement) => {
           if (element.tagName === HTML_TAG.toUpperCase()) {
             return {
-              id: element.dataset["id"], // 'data-id' is a main property, if it's undefined the attributes consider as invalid
+              // data-src is the media namespace for the vault path — the
+              // data-id key belongs to the block-ids attr (the two must not
+              // share a DOM attribute). The old data-id is read as a
+              // fallback so clipboard HTML written by earlier builds still
+              // parses.
+              id: element.dataset["src"] ?? element.dataset["id"], // the main property, if it's undefined the attributes consider as invalid
               size: element.dataset["size"],
               filename: element.dataset["filename"],
               meta: element.dataset["meta"],
@@ -164,7 +169,11 @@ export const Image = Node.create<ImageOptions>({
           return null;
         },
         renderHTML: (attributes: ImageOptionsAttrs) => ({
-          [`data-id`]: attributes.data?.id,
+          // data-src, not data-id: the data-id DOM key belongs to the
+          // block-ids attr (see blockIdAttrs) — media must not squat on it,
+          // or the block id never reaches the DOM and the export
+          // post-processor reads the vault path as if it were a block id.
+          [`data-src`]: attributes.data?.id,
           [`data-size`]: attributes.data?.size,
           [`data-filename`]: attributes.data?.filename,
           [`data-meta`]: attributes.data?.meta,
