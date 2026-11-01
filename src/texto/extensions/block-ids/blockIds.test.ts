@@ -250,9 +250,15 @@ describe("block id lifecycle", () => {
         },
       ],
     });
-    const taskPos = blockPositions(editor)[1];
-    editor.view.dispatch(editor.state.tr.setNodeMarkup(taskPos, null, { checked: true }));
-    expect(editorIds(editor).find((e) => e.name === "taskItem")?.id).toBe("dddddddddd");
+    // Dispatch on the TASK ITEM (blockPositions[1] is the wrapping
+    // taskList — a setNodeMarkup there touches nothing the assertion
+    // reads; review CR-14).
+    const taskItemPos = blockPositions(editor)[1] + 1;
+    editor.view.dispatch(editor.state.tr.setNodeMarkup(taskItemPos, null, { checked: true }));
+    const item = editor.state.doc.nodeAt(taskItemPos);
+    expect(item?.type.name).toBe("taskItem");
+    expect(item?.attrs.checked).toBe(true);
+    expect((item?.attrs as WithId).id).toBe("dddddddddd");
   });
 
   it("split: the first part keeps the original id, the second gets a fresh one", () => {
@@ -660,6 +666,20 @@ describe("media data-id namespace", () => {
     expect(isBlockId((img?.attrs as WithId).id)).toBe(true);
   });
 
+  it("grammar-valid data-id values restore into attrs.id on parse (positive branch)", () => {
+    // Review CR-15: only the invalid branch was pinned; the valid restore
+    // is the branch the clipboard round-trip actually relies on. The h1
+    // parses as the mandatory noteTitle, the paragraph as a plain block —
+    // both keep their ids.
+    const doc = createDocument(
+      '<h1 data-id="aaaaaaaaaa">T</h1><p data-id="bbbbbbbbbb">tagged</p>',
+      buildSchema(),
+      {},
+    );
+    expect((doc.content.child(0).attrs as WithId).id).toBe("aaaaaaaaaa");
+    expect((doc.content.child(1).attrs as WithId).id).toBe("bbbbbbbbbb");
+  });
+
   it("a placeholder image's block id in data-id is NOT read as a vault path", () => {
     // A placeholder image (no data.id) renders its block id as data-id and
     // no data-src at all — parsing that HTML back must not persist the
@@ -716,6 +736,31 @@ describe("ensureUniqueBlockIds", () => {
     expect(isBlockId(paragraphs[1]?.id)).toBe(true);
     expect(isBlockId(paragraphs[2]?.id)).toBe(true);
     expect(paragraphs[1]?.id).not.toBe(paragraphs[2]?.id);
+  });
+
+  it("handles duplicates and invalid ids in ONE pass (combined branch)", () => {
+    // Review CR-16: the net's two branches must compose — duplicates are
+    // re-id'd first, then invalid/missing ids filled, everything unique.
+    const editor = createEditor({
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", attrs: { id: "aaaaaaaaaa" }, content: [{ type: "text", text: "T" }] },
+        p("a", "deadbeef01"),
+        p("b", "deadbeef01"),
+        p("c", "BAD-ID!"),
+        p("d"),
+      ],
+    });
+    const fix = ensureUniqueBlockIds(editor);
+    expect(fix.fixed).toBe(true);
+    expect(fix.replaced).toEqual(["deadbeef01"]);
+    expect(fix.filled).toBe(2);
+
+    const ids = editorIds(editor).map((e) => e.id);
+    expect(ids[0]).toBe("aaaaaaaaaa");
+    expect(ids[1]).toBe("deadbeef01");
+    expect(new Set(ids).size).toBe(5);
+    for (const id of ids) expect(isBlockId(id)).toBe(true);
   });
 
   it("is a no-op on a clean document", () => {

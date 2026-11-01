@@ -152,3 +152,93 @@ describe("NotepadView getNotepadForExport — block id net wiring", () => {
     element.remove();
   });
 });
+
+/**
+ * The DISK-path pin (review CR-29): the export wiring above is covered,
+ * but writePendingChanges — the path that actually serializes the
+ * container — had no pin, so deleting the net call there left every test
+ * green. This test fails if fixBlockIdConflicts is dropped from the write
+ * path: the defective live editor would reach the model and the
+ * serialized bytes with its duplicates intact.
+ */
+describe("NotepadView writePendingChanges — block id net wiring (disk)", () => {
+  it("repairs defective editors before the container is serialized", async () => {
+    const notepad = UmNotepad.empty();
+    const title = notepad.addNote(undefined, "Title");
+    const page = notepad.addNote(title.id, "Page");
+    notepad.setNoteContent(page.id, {
+      type: "noteDoc",
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: "one" }] },
+        { type: "paragraph", content: [{ type: "text", text: "two" }] },
+      ],
+    });
+
+    const element = createDiv();
+    document.body.appendChild(element);
+    const editor = new Editor({
+      element,
+      content: {
+        type: "noteDoc",
+        content: [
+          { type: "noteTitle", content: [{ type: "text", text: "T" }] },
+          { type: "paragraph", attrs: { id: "deadbeef01" }, content: [{ type: "text", text: "one" }] },
+          { type: "paragraph", attrs: { id: "deadbeef01" }, content: [{ type: "text", text: "two" }] },
+        ],
+      },
+      extensions: getExtensions(),
+      editable: true,
+    });
+
+    const tmpWrites: Uint8Array[] = [];
+    const view = new NotepadView(new WorkspaceLeaf() as never);
+    const v = view as unknown as Record<string, unknown>;
+    v.app = {
+      vault: {
+        adapter: {
+          // No getFullPath: replaceFile must take the adapter.rename
+          // branch (the node-fs fast path would touch the real disk).
+          stat: async () => null,
+          writeBinary: async (path: string, data: ArrayBuffer) => {
+            if (path.includes(".tmp")) tmpWrites.push(new Uint8Array(data));
+          },
+          rename: async () => {},
+          remove: async () => {},
+          append: async () => {},
+          read: async () => "",
+          readBinary: async () => new Uint8Array(),
+          exists: async () => false,
+          mkdir: async () => {},
+        },
+        on: () => () => {},
+      },
+      workspace: { on: () => () => {} },
+    };
+    v.file = new TFile("test.um");
+    v.notepad = notepad;
+    v.sections = new Map([["page-under-test", { id: page.id, editor }]]);
+    (view as unknown as { saveTimer: null }).saveTimer = null;
+
+    await (
+      view as unknown as {
+        writePendingChanges(trigger: string, force: boolean): Promise<void>;
+      }
+    ).writePendingChanges("test-pin", true);
+
+    // The model no longer carries the duplicate...
+    const modelIds: string[] = [];
+    walkIds(notepad.noteContent(page.id)!, modelIds);
+    expect(modelIds).toHaveLength(3);
+    expect(new Set(modelIds).size).toBe(3);
+
+    // ...and the serialized container bytes are duplicate-free too.
+    expect(tmpWrites.length).toBeGreaterThan(0);
+    const reparsed = UmNotepad.fromBytes(tmpWrites[0]);
+    const writtenIds: string[] = [];
+    walkIds(reparsed.noteContent(page.id)!, writtenIds);
+    expect(writtenIds).toHaveLength(3);
+    expect(new Set(writtenIds).size).toBe(3);
+    editor.destroy();
+    element.remove();
+  });
+});

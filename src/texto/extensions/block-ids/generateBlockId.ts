@@ -51,7 +51,13 @@ export function generateBlockIdAvoiding(used: ReadonlySet<string>): string {
  * placeholder image (no data.id) renders its block id as data-id —
  * parsing that back as a vault path would persist a "File not found"
  * into the note.
- */
+ *
+ * Accepted trade-off (review CR-30): a hypothetical extensionless vault
+ * path whose bare name matches the grammar would be dropped here. Vault
+ * media files always carry extensions in practice; the loss is
+ * recoverable (the image shows as missing, the note still opens), and a
+ * console.warn would fire on the COMMON placeholder round-trip — pure
+ * noise — so no log is emitted. */
 export function legacyMediaPath(value: string | null | undefined): string | null {
   if (value == null || value === "") return null;
   return isBlockId(value) ? null : value;
