@@ -61,7 +61,15 @@ export function createExportNameAllocator(): ExportNameAllocator {
 
 /** File extensions the export is allowed to read from the vault and publish
  *  into the site's images/ folder. Everything else (notes, .um containers,
- *  dot-files) must never leave the vault through an image reference. */
+ *  dot-files) must never leave the vault through an image reference.
+ *
+ *  Trust model (review CR-21, owner decision — documented vault trust):
+ *  vault media is published AS-IS; an svg carrying a <script> would only
+ *  execute if the published FILE were opened directly — on the site itself
+ *  figures embed it via <img>, which never executes scripts. The vault is
+ *  trusted the same way Obsidian's own preview trusts it; sanitizing
+ *  arbitrary svg is a separate feature if publishing ever opens to
+ *  untrusted sources. */
 const IMAGE_EXTENSIONS = new Set([
   "png",
   "jpg",

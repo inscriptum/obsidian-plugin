@@ -1,4 +1,5 @@
 import { isFunction, mergeAttributes, Node } from "../../core";
+import { legacyMediaPath } from "../block-ids";
 import { elTag } from "../../../tags";
 import {
   type NodeStatePluginAction,
@@ -158,8 +159,13 @@ export const Image = Node.create<ImageOptions>({
               // data-id key belongs to the block-ids attr (the two must not
               // share a DOM attribute). The old data-id is read as a
               // fallback so clipboard HTML written by earlier builds still
-              // parses.
-              id: element.dataset["src"] ?? element.dataset["id"], // the main property, if it's undefined the attributes consider as invalid
+              // parses — but a value shaped like a BLOCK ID is rejected: a
+              // placeholder image (no data.id) renders its block id as
+              // data-id, and parsing that back as a vault path would
+              // persist a "File not found" into the note.
+              id:
+                element.dataset["src"] ??
+                legacyMediaPath(element.dataset["id"]),
               size: element.dataset["size"],
               filename: element.dataset["filename"],
               meta: element.dataset["meta"],

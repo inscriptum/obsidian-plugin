@@ -316,6 +316,30 @@ describe("block id lifecycle", () => {
     expect(paragraphs[2]?.id).not.toBe("bbbbbbbbbb");
   });
 
+  it("paste over a node with the SAME text: no id inheritance either way", () => {
+    // Review CR-24 (author's answer): the pasted copy carries the source's
+    // id, the replaced target carries its own — neither survives. The spec
+    // §4.5 paste rule (fresh ids for the copy) wins over the §4.4 replace
+    // rule (keep the root target's id) for EDITOR pastes.
+    const editor = createEditor(idedDoc());
+    const positions = blockPositions(editor);
+    // Replace paragraph "two" (cccccccccc) with a SAME-TEXT paragraph
+    // carrying a different id (as if pasted from elsewhere in the note).
+    const sameText = editor.state.schema.nodes.paragraph.create(
+      { id: "dddddddddd" },
+      [editor.state.schema.text("two")],
+    );
+    const slice = new Slice(Fragment.from(sameText), 0, 0);
+    editor.view.dispatch(
+      editor.state.tr.replace(positions[2], positions[2] + 5, slice),
+    );
+    const paragraphs = editorIds(editor).filter((e) => e.name === "paragraph");
+    expect(paragraphs).toHaveLength(2);
+    const id = paragraphs[1]?.id;
+    expect(id).not.toBe("cccccccccc"); // target id is gone
+    expect(id).not.toBe("dddddddddd"); // and the arriving id was re-id'd
+  });
+
   it("paste from another note: fresh ids in the target (spec §4.5)", () => {
     const editor = createEditor(idedDoc());
     // A real cross-note paste re-parses the clipboard HTML into the target
@@ -634,6 +658,20 @@ describe("media data-id namespace", () => {
     const data = (img?.attrs as { data?: { id?: string } }).data;
     expect(data?.id).toBe("assets/pic.png");
     expect(isBlockId((img?.attrs as WithId).id)).toBe(true);
+  });
+
+  it("a placeholder image's block id in data-id is NOT read as a vault path", () => {
+    // A placeholder image (no data.id) renders its block id as data-id and
+    // no data-src at all — parsing that HTML back must not persist the
+    // block id as the media path ("File not found" round-trip, CR-22).
+    const doc = createDocument(
+      '<p>intro</p><texto-extension-image data-id="b1a2c3d4e5"></texto-extension-image>',
+      buildSchema(),
+      {},
+    );
+    const img = doc.content.child(1);
+    expect(img.type.name).toBe("image");
+    expect((img.attrs as { data?: { id?: string | null } }).data?.id ?? null).toBeNull();
   });
 
   it("legacy clipboard HTML (data-id as media path) still parses", () => {

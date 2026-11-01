@@ -42,3 +42,17 @@ export function generateBlockIdAvoiding(used: ReadonlySet<string>): string {
     }
   }
 }
+
+/**
+ * Legacy media HTML (pre-namespace builds) carried the vault path in
+ * data-id — the DOM key that now belongs to block ids. Accept a legacy
+ * value only when it cannot BE a block id: real vault paths carry a
+ * separator or an extension, block ids are ^[a-z0-9]{8,12}$. A
+ * placeholder image (no data.id) renders its block id as data-id —
+ * parsing that back as a vault path would persist a "File not found"
+ * into the note.
+ */
+export function legacyMediaPath(value: string | null | undefined): string | null {
+  if (value == null || value === "") return null;
+  return isBlockId(value) ? null : value;
+}

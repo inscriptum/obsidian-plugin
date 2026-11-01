@@ -57,5 +57,6 @@ export {
   generateBlockId,
   generateBlockIdAvoiding,
   isBlockId,
+  legacyMediaPath,
 } from "./generateBlockId";
 export { BLOCK_ID_TYPES, isBlockIdType } from "./blockIdAttrs";

@@ -7,6 +7,8 @@ import { NotepadView } from "../NotepadView";
 import { UmNotepad } from "../storage/um/umNotepad";
 import { assignBlockIds, isBlockId } from "../texto/extensions/block-ids";
 import type { JSONContent } from "../texto/core/@types";
+import { Editor } from "../texto/core/Editor";
+import { getExtensions } from "../texto/getExtensions";
 
 interface WithId {
   id?: string | null;
@@ -81,5 +83,72 @@ describe("NotepadView duplicateNote — block ids wiring", () => {
     // The source keeps its ids verbatim.
     walkIds(notepad.noteContent(page.id)!, sourceIds);
     for (const id of copyIds) expect(sourceIds).not.toContain(id);
+  });
+});
+
+/**
+ * The write/export path net (review CR-23 — same wiring class as CR-04):
+ * fixBlockIdConflicts must run BEFORE the page editors are flushed, or a
+ * defective live document reaches the notepad model and the disk un-fixed.
+ * getNotepadForExport is the cheapest real entry point to the wiring.
+ */
+describe("NotepadView getNotepadForExport — block id net wiring", () => {
+  it("repairs duplicate ids in the live editor before flushing the model", () => {
+    const notepad = UmNotepad.empty();
+    const title = notepad.addNote(undefined, "Title");
+    const page = notepad.addNote(title.id, "Page");
+    // The model carries a self-consistent page; the LIVE editor holds a
+    // transient duplicate (e.g. from a mid-flight batch).
+    notepad.setNoteContent(page.id, {
+      type: "noteDoc",
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: "one" }] },
+        { type: "paragraph", content: [{ type: "text", text: "two" }] },
+      ],
+    });
+
+    const element = createDiv();
+    document.body.appendChild(element);
+    const editor = new Editor({
+      element,
+      content: {
+        type: "noteDoc",
+        content: [
+          { type: "noteTitle", content: [{ type: "text", text: "T" }] },
+          { type: "paragraph", attrs: { id: "deadbeef01" }, content: [{ type: "text", text: "one" }] },
+          { type: "paragraph", attrs: { id: "deadbeef01" }, content: [{ type: "text", text: "two" }] },
+        ],
+      },
+      extensions: getExtensions(),
+      editable: true,
+    });
+
+    const view = new NotepadView(new WorkspaceLeaf() as never);
+    const v = view as unknown as Record<string, unknown>;
+    v.app = { vault: {}, workspace: { on: () => () => {} } };
+    v.file = new TFile("test.um");
+    v.notepad = notepad;
+    v.sections = new Map([["page-under-test", { id: page.id, editor }]]);
+
+    const returned = (
+      view as unknown as { getNotepadForExport(): UmNotepad | null }
+    ).getNotepadForExport();
+    expect(returned).not.toBeNull();
+
+    const modelIds: string[] = [];
+    walkIds(notepad.noteContent(page.id)!, modelIds);
+    expect(modelIds).toHaveLength(3);
+    expect(new Set(modelIds).size).toBe(3);
+    for (const id of modelIds) expect(isBlockId(id)).toBe(true);
+    // The live editor was repaired in place (the flush wrote its doc).
+    const liveIds: string[] = [];
+    editor.state.doc.descendants((n) => {
+      const id = (n.attrs as WithId).id;
+      if (typeof id === "string") liveIds.push(id);
+      return true;
+    });
+    expect(new Set(liveIds).size).toBe(3);
+    editor.destroy();
+    element.remove();
   });
 });

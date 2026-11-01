@@ -1,4 +1,5 @@
 import { isFunction, mergeAttributes, Node } from "../../core";
+import { legacyMediaPath } from "../block-ids";
 import { elTag } from "../../../tags";
 import { Plugin } from "prosemirror-state";
 
@@ -87,8 +88,10 @@ export const Attachment = Node.create<AttachmentOptions>({
         parseHTML: (element: HTMLElement) => ({
           // data-src is the media namespace for the vault path — data-id
           // belongs to the block-ids attr. Old data-id stays a fallback so
-          // clipboard HTML from earlier builds still parses.
-          id: element.dataset["src"] ?? element.dataset["id"], // the main property, if it's undefined the attributes consider as invalid
+          // clipboard HTML from earlier builds still parses; block-id-shaped
+          // values are rejected (placeholder images render their block id
+          // as data-id — not a vault path).
+          id: element.dataset["src"] ?? legacyMediaPath(element.dataset["id"]),
           size: element.dataset["size"],
           filename: element.dataset["filename"],
           // "external" — data.id is an absolute path outside the vault;
