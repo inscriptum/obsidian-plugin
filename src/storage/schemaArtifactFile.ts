@@ -20,9 +20,16 @@ export interface SchemaArtifactTarget {
   /** manifest.id — config-dir fallback for the standard layout. */
   pluginId: string;
   /** manifest.dir — vault-relative install dir per Obsidian's typings
-   *  (".obsidian/plugins/<id>"); the config-dir fallback resolves the
-   *  artifact path whenever the dir maps inside this vault. */
+   *  (".obsidian/plugins/<id>"); used directly, so a custom config dir
+   *  resolves exactly — no base path required. */
   pluginDir: string | undefined;
+}
+
+/** True for absolute paths ("/…" or a Windows drive) — those need the
+ *  vault base to become vault-relative; anything else is already a vault
+ *  path per the typings. */
+function isAbsoluteDir(dir: string): boolean {
+  return dir.startsWith("/") || /^[A-Za-z]:[\\/]/.test(dir);
 }
 
 /** Vault-relative path of the artifact, or null when the plugin directory
@@ -31,20 +38,28 @@ export function schemaArtifactPath(
   app: App,
   target: SchemaArtifactTarget,
 ): string | null {
-  const base = getVaultBasePath(app);
-  if (target.pluginDir && base != null) {
-    // Guard against a relative manifest.dir ("…x" would survive the
-    // prefix strip and corrupt the join) — such a value falls through to
-    // the config-dir fallback below.
-    const absolute =
-      target.pluginDir.startsWith("/") || /^[A-Za-z]:[\\/]/.test(target.pluginDir)
-        ? target.pluginDir
-        : `${base}/${target.pluginDir}`;
-    const rel = relativeToVault(base, absolute);
-    if (rel != null) return normalizePath(`${rel}/schema.json`);
+  const dir = target.pluginDir;
+  if (dir) {
+    // The dir goes verbatim into the path; ".." segments could escape the
+    // vault, so such a value degrades to the config-dir fallback (same
+    // reasoning as the deferred F15 hardening — cheap belt on top of
+    // "manifest control equals code control").
+    const segments = dir.split(/[\\/]/);
+    if (!segments.includes("..")) {
+      if (!isAbsoluteDir(dir)) {
+        // Vault-relative by contract: use directly — works on mobile,
+        // where getBasePath may be unavailable, and under any config dir.
+        return normalizePath(`${dir}/schema.json`);
+      }
+      const base = getVaultBasePath(app);
+      if (base != null) {
+        const rel = relativeToVault(base, dir);
+        if (rel != null) return normalizePath(`${rel}/schema.json`);
+      }
+    }
   }
-  // Standard community-plugin layout: .obsidian is vault-relative by
-  // definition, so this works without a filesystem base path (mobile).
+  // Standard community-plugin layout fallback: the plugin directory is
+  // unknown or lies outside this vault.
   const configDir = app.vault.configDir;
   if (!configDir) return null;
   return normalizePath(`${configDir}/plugins/${target.pluginId}/schema.json`);

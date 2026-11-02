@@ -107,10 +107,10 @@ describe("schemaArtifactPath", () => {
     );
   });
 
-  it("resolves a vault-relative manifest.dir exactly (custom configDir)", () => {
-    // manifest.dir is vault-relative per Obsidian's typings; joined with
-    // the base it wins over the config-dir fallback even when configDir
-    // is not the standard ".obsidian".
+  it("uses a vault-relative manifest.dir directly (custom configDir)", () => {
+    // manifest.dir is vault-relative per Obsidian's typings; used verbatim
+    // it wins over the config-dir fallback even when configDir is not the
+    // standard ".obsidian".
     const { app } = makeApp({ basePath: "/vault" });
     expect(
       schemaArtifactPath(app, {
@@ -120,6 +120,28 @@ describe("schemaArtifactPath", () => {
     ).toBe(".custom-config/plugins/inscriptum/schema.json");
   });
 
+  it("uses a vault-relative manifest.dir without getBasePath (mobile)", () => {
+    // No filesystem base available — the relative dir still resolves
+    // exactly instead of falling back to the config-dir guess.
+    const { app } = makeApp({ basePath: undefined });
+    expect(
+      schemaArtifactPath(app, {
+        pluginId: "inscriptum",
+        pluginDir: ".custom-config/plugins/inscriptum",
+      }),
+    ).toBe(".custom-config/plugins/inscriptum/schema.json");
+  });
+
+  it("falls back to the config-dir layout for a '..' dir", () => {
+    const { app } = makeApp({ basePath: "/vault" });
+    expect(
+      schemaArtifactPath(app, {
+        pluginId: "inscriptum",
+        pluginDir: "../outside/plugins/inscriptum",
+      }),
+    ).toBe(".config-test/plugins/inscriptum/schema.json");
+  });
+
   it("falls back to the config-dir layout when the dir is outside the vault", () => {
     const { app } = makeApp({ basePath: "/other-vault" });
     expect(
@@ -127,7 +149,7 @@ describe("schemaArtifactPath", () => {
     ).toBe(".config-test/plugins/inscriptum/schema.json");
   });
 
-  it("falls back to the config-dir layout without getBasePath (mobile)", () => {
+  it("falls back to the config-dir layout for an absolute dir without getBasePath (mobile)", () => {
     const { app } = makeApp({ basePath: undefined });
     expect(schemaArtifactPath(app, target)).toBe(
       ".config-test/plugins/inscriptum/schema.json",
