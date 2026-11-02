@@ -215,7 +215,9 @@ export async function postProcessForExport(
   for (const el of Array.from(
     parsed.body.querySelectorAll<HTMLElement>(IMAGE_TAG),
   )) {
-    const vaultPath = el.dataset["id"];
+    // data-src carries the media's vault path; data-id is the block-ids
+    // attribute and must never be treated as a path here.
+    const vaultPath = el.dataset["src"];
     if (vaultPath == null || vaultPath === "") {
       el.remove();
       continue;

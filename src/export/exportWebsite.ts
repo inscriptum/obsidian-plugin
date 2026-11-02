@@ -1,4 +1,4 @@
-import { Notice, normalizePath, type App, type TFile } from "obsidian";
+import { Notice, normalizePath, TFile, type App } from "obsidian";
 
 import type { JSONContent } from "../texto/core/@types";
 import { generateHTML } from "../texto/core/helpers/generateHTML";
@@ -59,12 +59,36 @@ export function createExportNameAllocator(): ExportNameAllocator {
   };
 }
 
+/** File extensions the export is allowed to read from the vault and publish
+ *  into the site's images/ folder. Everything else (notes, .um containers,
+ *  dot-files) must never leave the vault through an image reference.
+ *
+ *  Trust model (review CR-21, owner decision — documented vault trust):
+ *  vault media is published AS-IS; an svg carrying a <script> would only
+ *  execute if the published FILE were opened directly — on the site itself
+ *  figures embed it via <img>, which never executes scripts. The vault is
+ *  trusted the same way Obsidian's own preview trusts it; sanitizing
+ *  arbitrary svg is a separate feature if publishing ever opens to
+ *  untrusted sources. */
+const IMAGE_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "svg",
+  "bmp",
+  "avif",
+]);
+
 /**
  * Assigns export file names to vault images: same source → same file,
  * different sources never collide (`name-2.png`). `resolveTarget` returns
  * null for images missing from the vault so their figures get dropped.
- * Names are claimed in the shared allocator — diagrams allocate theirs
- * from the same namespace.
+ * Only image FILES resolve: the incoming path comes from note data
+ * (data-src), and a crafted note must not pull an arbitrary vault file
+ * into the public site folder. Names are claimed in the shared allocator —
+ * diagrams allocate theirs from the same namespace.
  */
 export function createImageNameResolver(
   app: App,
@@ -73,7 +97,13 @@ export function createImageNameResolver(
   const nameByPath = new Map<string, string>();
 
   return (vaultPath: string): string | null => {
-    if (app.vault.getAbstractFileByPath(vaultPath) == null) return null;
+    const file = app.vault.getAbstractFileByPath(vaultPath);
+    if (
+      !(file instanceof TFile) ||
+      !IMAGE_EXTENSIONS.has(file.extension.toLowerCase())
+    ) {
+      return null;
+    }
 
     const assigned = nameByPath.get(vaultPath);
     if (assigned != null) return assigned;

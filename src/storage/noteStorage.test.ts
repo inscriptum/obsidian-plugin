@@ -114,6 +114,19 @@ describe("noteStorage", () => {
       expect(isEmptyNoteDoc(doc as never)).toBe(true);
     });
 
+    it("is true for an id-tagged empty doc — attrs.id is not content", () => {
+      // block-ids tags every block on load; the wipe guard must keep
+      // treating such a doc as empty (issue empty-note-wipe-guard).
+      const doc = {
+        type: "noteDoc",
+        content: [
+          { type: "noteTitle", attrs: { id: "aaaaaaaaaa" } },
+          { type: "paragraph", attrs: { id: "bbbbbbbbbb" } },
+        ],
+      };
+      expect(isEmptyNoteDoc(doc as never)).toBe(true);
+    });
+
     it("is false when the title has text", () => {
       const doc = JSON.parse(JSON.stringify(EMPTY_DOC)) as {
         content: Array<{ type: string; content?: unknown }>;

@@ -94,11 +94,13 @@ function nodeCarriesContent(node: JSONContent): boolean {
     return true;
   }
   // Nodes like image/attachment/code blocks carry their payload in attrs —
-  // any non-empty attrs means there is something to preserve.
+  // any non-empty attrs means there is something to preserve. attrs.id is
+  // excluded: block ids are assigned to every block on load (block-ids),
+  // and an empty paragraph with an id must stay "empty" for the wipe guard.
   if (
     node.attrs != null &&
     typeof node.attrs === "object" &&
-    Object.keys(node.attrs).length > 0
+    Object.keys(node.attrs).some((key) => key !== "id")
   ) {
     return true;
   }

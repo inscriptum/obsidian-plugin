@@ -1,9 +1,7 @@
 import { Editor, isFunction } from "../../../core";
-import { joinOverlapRanges } from "../../../utils/joinOverlapRanges";
 import { Node as ProseMirrorNode } from "prosemirror-model";
 import { EditorState, Plugin, PluginKey, Transaction } from "prosemirror-state";
 import { isHistoryTransaction } from "prosemirror-history";
-import { ReplaceAroundStep, ReplaceStep } from "prosemirror-transform";
 import { Decoration, DecorationSet } from "prosemirror-view";
 
 import {
@@ -14,6 +12,7 @@ import {
 } from "../helpers/decorations";
 import { findPosByKey, getNodeByKey } from "../helpers/position";
 import { getTransactionsMetadata } from "../helpers/transactions";
+import { collectChangedRanges } from "../../../utils/changedRanges";
 import { StateOptions } from "../State";
 
 export const nodeStatePluginKey = new PluginKey<DecorationSet>(
@@ -237,26 +236,7 @@ function appendTransaction(
 
   const { isSilent, isChangeOrigin } = getTransactionsMetadata(transactions);
 
-  const ranges: { from: number; to: number }[] = [];
-  // @see https://discuss.prosemirror.net/t/find-new-node-instances-and-track-them/96/7
-  transactions.forEach((transform) => {
-    for (let i = 0; i < transform.steps.length; i++) {
-      const step = transform.steps[i];
-      const map = transform.mapping.maps[i];
-      if (step instanceof ReplaceStep || step instanceof ReplaceAroundStep) {
-        ranges.push({ from: step.from, to: step.to });
-      }
-
-      for (let j = 0; j < ranges.length; j++) {
-        const range = ranges[j];
-        range.from = map.map(range.from, -1);
-        range.to = map.map(range.to, 1);
-      }
-    }
-  });
-
-  // sorted order and join with overlapping ranges
-  const mergedRanges = joinOverlapRanges(ranges);
+  const mergedRanges = collectChangedRanges(transactions);
 
   const nodeStatePlugin = nodeStatePluginKey.getState(newState);
 

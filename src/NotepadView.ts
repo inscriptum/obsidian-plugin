@@ -27,6 +27,13 @@ import {
 } from "./notepad/notepadSearch";
 import { getExtensions, type ExtensionHooks } from "./texto/getExtensions";
 import {
+  assignBlockIds,
+  ensureUniqueBlockIds,
+  repairStoredBlockIds,
+  reassignBlockIds,
+} from "./texto/extensions/block-ids";
+import { notifyBlockIdsRepaired } from "./tools/blockIdFixNotice";
+import {
   createFoldPersistence,
   type FoldPersistence,
 } from "./storage/foldPersistence";
@@ -463,6 +470,7 @@ export class NotepadView extends FileView {
    *  disk. Null when the view has no notepad open. */
   public getNotepadForExport(): UmNotepad | null {
     if (!this.notepad) return null;
+    this.fixBlockIdConflicts("export");
     for (const handle of this.sections.values()) {
       this.flushSectionToNotepad(handle);
     }
@@ -1362,6 +1370,22 @@ export class NotepadView extends FileView {
       // longer owns. The user's toggle is dropped; the rebuilt section is
       // consistent with the untouched model.
       if (this.notepad == null || this.sections.get(id) !== handle) return;
+      // The editor dies below and the write-path net only sees live
+      // editors — run the block-id net on THIS page before its content is
+      // flushed, or a defect present at collapse time would reach the disk
+      // unrepaired (the collapse is a user toggle, the scan is cheap).
+      if (handle.editor != null && !handle.editor.isDestroyed) {
+        const fix = ensureUniqueBlockIds(handle.editor);
+        if (fix.fixed) {
+          const detail =
+            `replaced [${fix.replaced.join(", ")}]` +
+            (fix.filled > 0 ? `, filled ${fix.filled}` : "");
+          console.warn(
+            `[inscriptum] Repaired block ids before collapse of page "${id}": ${detail}`,
+          );
+          notifyBlockIdsRepaired(fix.replaced.length + fix.filled);
+        }
+      }
       // Flush the editor content into the in-memory notepad first.
       this.flushSectionToNotepad(handle);
 
@@ -1412,6 +1436,53 @@ export class NotepadView extends FileView {
       return;
     }
     this.notepad.setNoteContent(handle.id, json);
+  }
+
+  /** Doc-wide block-id net over every open page editor, right before the
+   *  content is written or exported (spec um-cli §4.5: duplicate or invalid
+   *  ids are never written). Lives on the write paths, NOT in
+   *  flushSectionToNotepad — the latter also runs on per-keystroke-adjacent
+   *  paths (search recompute, collapse, comments refresh) where a doc-wide
+   *  scan would be wasted work. The fix-up transaction is history-excluded;
+   *  the flush that follows persists the repaired doc. */
+  private fixBlockIdConflicts(trigger: string): void {
+    if (!this.notepad) return;
+    const liveEditors = new Set<string>();
+    for (const [id, handle] of this.sections) {
+      if (!handle.editor || handle.editor.isDestroyed) continue;
+      liveEditors.add(id);
+      const fix = ensureUniqueBlockIds(handle.editor);
+      if (!fix.fixed) continue;
+      const detail =
+        `replaced [${fix.replaced.join(", ")}]` +
+        (fix.filled > 0 ? `, filled ${fix.filled}` : "");
+      console.warn(
+        `[inscriptum] Repaired block ids in notepad page "${id}" before ${trigger}: ${detail}`,
+      );
+      notifyBlockIdsRepaired(fix.replaced.length + fix.filled);
+    }
+    // Pages without a live editor (collapsed, never opened, or already
+    // collapsed to a null editor) exist only as stored JSON this session —
+    // the editor-level net above cannot see them, so a notepad loaded with
+    // duplicate/missing ids on such a page would write them back as-is
+    // (review PR #19 CR-33). Repair the stored JSON of openable pages; a
+    // defect-free page is returned by reference and untouched.
+    for (const note of this.notepad.notes()) {
+      if (liveEditors.has(note.id)) continue;
+      if (!this.notepad.isNoteOpenable(note.id)) continue;
+      const content = this.notepad.noteContent(note.id);
+      if (content == null) continue;
+      const repair = repairStoredBlockIds(content);
+      if (!repair.fixed) continue;
+      this.notepad.setNoteContent(note.id, repair.doc);
+      const detail =
+        `replaced [${repair.replaced.join(", ")}]` +
+        (repair.filled > 0 ? `, filled ${repair.filled}` : "");
+      console.warn(
+        `[inscriptum] Repaired stored block ids in notepad page "${note.id}" before ${trigger}: ${detail}`,
+      );
+      notifyBlockIdsRepaired(repair.replaced.length + repair.filled);
+    }
   }
 
   private destroyAllSections(): void {
@@ -1468,7 +1539,10 @@ export class NotepadView extends FileView {
 
     const editor = new Editor({
       element: editorEl,
-      content,
+      // Legacy pages get their block ids in the JSON before the editor
+      // parses them (spike verdict: whole-document assignment transactions
+      // are quadratic in steps and unusable at scale).
+      content: assignBlockIds(content),
       onError: (err) => console.error("Notepad editor creation failed:", err),
       onUpdate: () => {
         this.dirty = true;
@@ -3536,6 +3610,14 @@ export class NotepadView extends FileView {
     if (descriptor.order === 0 || !notepad.isNoteOpenable(id)) return;
     const copy = notepad.duplicateNote(id);
     if (!copy) return;
+    // The copy is a new note: spec um-cli §4.5 — a transfer between notes
+    // gets fresh ids in the target. duplicateNote copies the content JSON
+    // verbatim (ids included); the per-editor id net cannot see
+    // cross-page duplicates, so the copy is re-tagged here.
+    const copyContent = notepad.noteContent(copy.id);
+    if (copyContent != null) {
+      notepad.setNoteContent(copy.id, reassignBlockIds(copyContent));
+    }
     this.render();
     void this.flushSave("duplicate-note");
   }
@@ -3642,6 +3724,7 @@ export class NotepadView extends FileView {
       this.saveTimer = null;
     }
 
+    this.fixBlockIdConflicts(trigger);
     for (const handle of this.sections.values()) {
       this.flushSectionToNotepad(handle);
     }

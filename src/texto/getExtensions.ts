@@ -24,6 +24,7 @@ import { TaskItem } from "./extensions/task-item";
 import { TaskItemFolding } from "./extensions/task-item-folding";
 import { BubbleMenu } from "./extensions/bubble-menu";
 import { State } from "./extensions/state";
+import { BlockIds } from "./extensions/block-ids";
 
 import { Blockquote } from "./extensions/blockquote";
 import { Bold } from "./extensions/bold";
@@ -91,6 +92,10 @@ export function getExtensions(
       nodeTypes: ["image", "attachment"],
       hooks: hooks.state,
     }),
+    // Stable ids on every addressable block (spec um-cli §4.4–4.5) — the
+    // app's own addressing layer for the future CLI; image/attachment keep
+    // their media-lifecycle `key` (State) alongside the id.
+    BlockIds,
     topNode,
     Link,
     // The node registers even without hooks: documents written by any
