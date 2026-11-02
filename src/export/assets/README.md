@@ -31,8 +31,12 @@ node scripts/generate-note-css.mjs                 # fetch the deployed CSS
 node scripts/generate-note-css.mjs --from old.css  # offline: use a local copy
 ```
 
-The script reuses the embedded `@font-face` rules and the `Export additions`
-section from the current file. When the source design (blog) changes,
+`--from` expects the **deployed stylesheet** (the part 3 source), not a
+generated note.css — a local copy saved with curl or a browser works, UTF-8
+BOM included (the generator strips it). The script reuses the embedded
+`@font-face` rules and the `Export additions` section from the current file
+and fails loudly if the regenerated output would still contain a
+review-bot-flagged construction. When the source design (blog) changes,
 re-fetch; when the fonts change, re-derive the `@font-face` block manually:
 extract the `@font-face` rules from any exported note in
 `blog/src/public/note/*.html`, inline the four font files from

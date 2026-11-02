@@ -115,8 +115,9 @@
    text-decoration-* (flagged by the review bot's CSS lint on any
    Chromium). An inline element's background paints per line fragment, so
    the line follows wrapped links; the calc() bottom offset reproduces
-   text-underline-offset: 3px. Hover deepens the line color instantly
-   (background-image is not transitionable). */
+   text-underline-offset: 3px. The hover line color (40% -> 55%) fades
+   where the engine interpolates matching gradients, falls back to a
+   discrete swap where it does not. */
 .note a {
   --note-link-line-color: color-mix(in srgb, var(--note-accent-text) 40%, transparent);
   color: var(--note-accent-text);
@@ -130,7 +131,8 @@
   background-repeat: no-repeat;
   transition:
     color 150ms,
-    background-size 150ms;
+    background-size 150ms,
+    background-image 150ms;
 }
 
 .note a:hover {

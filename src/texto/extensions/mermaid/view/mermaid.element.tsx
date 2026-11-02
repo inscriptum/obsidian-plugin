@@ -120,7 +120,8 @@ export const mermaidElement = litView.element({
             {/* pre and code are written without any whitespace between
                 tags: a stray newline text node inside pre renders as a
                 blank line above the draft (white-space: pre). The rows
-                container (display: contents) holds the backdrop rows; the
+                container (a plain display: block wrapper) holds the backdrop
+                rows; the
                 textarea is the borderless overlay on the code text box. */}
             <pre class="mermaid-editor__backlight"><code class="mermaid-editor__code language-plaintext"><span class="mermaid-editor__rows"></span><textarea
               class="mermaid-editor__input"

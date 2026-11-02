@@ -471,7 +471,7 @@ article figure:focus-visible {
 article .note-property {
   display: grid;
   grid-template-columns: minmax(140px, 200px) 1fr;
-  gap: 14px;
+  gap: 0 14px;
   margin: 0 21px 6px;
 }
 
