@@ -21,6 +21,7 @@ import {
 } from "./notepad/commentAuthor";
 import { createUmFile } from "./storage/um/umVault";
 import { UmNotepad } from "./storage/um/umNotepad";
+import { writeSchemaArtifact } from "./storage/schemaArtifactFile";
 import { NewNoteModal } from "./ui/NewNoteModal";
 import {
   findCommandsCollidingWith,
@@ -30,6 +31,8 @@ import {
 import type { JSONContent } from "./texto/core/@types";
 import { exportNoteAsWebsite } from "./export/exportWebsite";
 import { exportNotepadAsWebsite } from "./export/exportNotepadWebsite";
+import { getProfileSchema } from "./texto/editorSchemas";
+import { buildSchemaArtifact } from "./texto/schemaArtifact";
 
 interface InscriptumSettings {
   /** Append one JSONL line per note save to .inscriptum-log.jsonl
@@ -68,6 +71,12 @@ export default class NotesPlugin extends Plugin {
     // a settings change applies to the next comment without a reload).
     setCommentAuthorProvider(() => this.settings.commentAuthor);
     this.register(clearCommentAuthorProvider);
+
+    // Runtime schema artifact for the insum CLI (spec §4.7): regenerated
+    // from the actual schema on every start, written atomically into the
+    // plugin's install directory. Best-effort — a failure never blocks
+    // the plugin from loading.
+    void this.regenerateSchemaArtifact();
 
     installIconSprite();
 
@@ -217,6 +226,25 @@ export default class NotesPlugin extends Plugin {
     const stored = (await this.loadData()) as Partial<InscriptumSettings> | null;
     this.settings = Object.assign({}, DEFAULT_SETTINGS, stored);
     setWriteLogEnabled(this.settings.writeLog);
+  }
+
+  /** Regenerate schema.json from the actually used schema (title profile —
+   *  its node/mark inventory is the superset). Deterministic content: the
+   *  file only changes when the schema or the plugin version changes. */
+  private async regenerateSchemaArtifact(): Promise<void> {
+    try {
+      const schema = getProfileSchema("title");
+      const artifact = await buildSchemaArtifact(schema, {
+        pluginVersion: this.manifest.version,
+      });
+      await writeSchemaArtifact(
+        this.app,
+        { pluginId: this.manifest.id, pluginDir: this.manifest.dir },
+        artifact,
+      );
+    } catch (err) {
+      console.warn("[inscriptum] schema.json generation failed:", err);
+    }
   }
 
   async saveSettings(): Promise<void> {

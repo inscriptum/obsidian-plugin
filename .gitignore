@@ -5,6 +5,9 @@ local/
 .playwright-mcp/
 .npmrc
 .obsidian
+# Runtime-generated schema artifact (insum spec §4.7): the plugin writes
+# it into its install directory on start — never shipped or committed.
+/.obsidian/plugins/inscriptum/schema.json
 .DS_Store
 .inscriptum-log.jsonl
 /.zcode
