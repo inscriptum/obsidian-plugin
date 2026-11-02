@@ -253,28 +253,34 @@
 }
 
 /* ─── Links in content: v2 style (theme tokens) ─── */
+/* The muted 1px underline is drawn as a background gradient, not
+   text-decoration-*: the longhand styling properties are flagged by the
+   review bot's CSS lint on any Chromium. An inline element's background
+   paints per line fragment, so the line follows wrapped links; the
+   calc() bottom offset reproduces text-underline-offset: 3px. */
 .texto-editor .ProseMirror a {
-  color: var(--text-accent, var(--interactive-accent, #7c6af7));
-  text-decoration: underline;
-  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
-  text-decoration-thickness: 1px;
-  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
-  text-decoration-color: color-mix(
+  --link-line-color: color-mix(
     in srgb,
     var(--text-accent, var(--interactive-accent, #7c6af7)) 40%,
     transparent
   );
-  text-underline-offset: 3px;
+  color: var(--text-accent, var(--interactive-accent, #7c6af7));
+  text-decoration: none;
+  background-image: linear-gradient(
+    var(--link-line-color),
+    var(--link-line-color)
+  );
+  background-size: 100% 1px;
+  background-position: 0 calc(100% - 1px);
+  background-repeat: no-repeat;
   transition:
     color 150ms,
-    text-decoration-color 150ms,
-    text-decoration-thickness 150ms;
+    background-size 150ms;
 }
 
 .texto-editor .ProseMirror a:hover {
   color: var(--text-accent-hover, var(--text-accent, #7c6af7));
-  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
-  text-decoration-thickness: 1.5px;
+  background-size: 100% 1.5px;
 }
 
 .texto-editor .ProseMirror a:focus-visible {

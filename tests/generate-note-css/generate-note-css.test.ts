@@ -3,6 +3,7 @@ import {
   assertSplittable,
   dedupProperties,
   splitDeclarations,
+  stripFlaggedFeatures,
 } from "../../scripts/generate-note-css-lib.mjs";
 
 describe("splitDeclarations", () => {
@@ -86,5 +87,39 @@ describe("dedupProperties", () => {
   it("keeps a quoted value that contains a semicolon next to a duplicate", () => {
     const { out } = dedupProperties('.x{content:"a;b";color:red;color:blue}');
     expect(out).toBe('.x{content:"a;b";color:blue}');
+  });
+});
+
+describe("stripFlaggedFeatures", () => {
+  const abbr = "abbr[title]{border-bottom:none;text-decoration:underline dotted}";
+  const taskList = "article ul[data-type=taskList] li>div{display:contents}";
+  const figureWrapper = "article .figure_wrapper{position:relative;display:contents}";
+
+  it("drops the normalize dotted underline for abbr[title]", () => {
+    const { out, replaced } = stripFlaggedFeatures(`x{a:b}${abbr}`);
+    expect(out).toBe("x{a:b}abbr[title]{border-bottom:none}");
+    expect(replaced).toHaveLength(1);
+  });
+
+  it("rewrites display:contents to display:block in both rules", () => {
+    const { out, replaced } = stripFlaggedFeatures(`${taskList}${figureWrapper}`);
+    expect(out).toBe(
+      "article ul[data-type=taskList] li>div{display:block}" +
+        "article .figure_wrapper{position:relative;display:block}",
+    );
+    expect(replaced).toHaveLength(2);
+  });
+
+  it("rewrites every column-gap to gap", () => {
+    const { out, replaced } = stripFlaggedFeatures("a{column-gap:14px}b{column-gap:1rem}");
+    expect(out).toBe("a{gap:14px}b{gap:1rem}");
+    expect(replaced).toHaveLength(2);
+  });
+
+  it("is a no-op on css that has no flagged usages", () => {
+    const css = "a{gap:14px}abbr[title]{border-bottom:none}";
+    const { out, replaced } = stripFlaggedFeatures(css);
+    expect(out).toBe(css);
+    expect(replaced).toHaveLength(0);
   });
 });

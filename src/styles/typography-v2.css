@@ -111,31 +111,33 @@
   padding: 1.5px 5px;
 }
 
+/* Links: the muted 1px underline is drawn as a background gradient, not
+   text-decoration-* (flagged by the review bot's CSS lint on any
+   Chromium). An inline element's background paints per line fragment, so
+   the line follows wrapped links; the calc() bottom offset reproduces
+   text-underline-offset: 3px. Hover deepens the line color instantly
+   (background-image is not transitionable). */
 .note a {
+  --note-link-line-color: color-mix(in srgb, var(--note-accent-text) 40%, transparent);
   color: var(--note-accent-text);
-  text-decoration: underline;
-  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
-  text-decoration-thickness: 1px;
-  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
-  text-decoration-color: color-mix(
-    in srgb,
-    var(--note-accent-text) 40%,
-    transparent
+  text-decoration: none;
+  background-image: linear-gradient(
+    var(--note-link-line-color),
+    var(--note-link-line-color)
   );
-  text-underline-offset: 3px;
+  background-size: 100% 1px;
+  background-position: 0 calc(100% - 1px);
+  background-repeat: no-repeat;
   transition:
     color 150ms,
-    text-decoration-color 150ms,
-    text-decoration-thickness 150ms;
+    background-size 150ms;
 }
 
 .note a:hover {
   color: var(--note-accent-hover);
-  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
-  text-decoration-color: color-mix(
-    in srgb,
-    var(--note-accent-hover) 55%,
-    transparent
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--note-accent-hover) 55%, transparent),
+    color-mix(in srgb, var(--note-accent-hover) 55%, transparent)
   );
 }
 
@@ -155,16 +157,16 @@
 
 .note .texto-wikilink:hover {
   color: var(--note-accent-hover);
-  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
-  text-decoration: underline dotted;
-  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
-  text-decoration-color: color-mix(
-    in srgb,
-    var(--note-accent-hover) 55%,
-    transparent
+  /* Dotted hover underline as a repeating dot gradient — text-decoration
+     styling longhands are flagged by the review bot's CSS lint. */
+  background-image: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--note-accent-hover) 55%, transparent) 0.5px,
+    transparent 0.65px
   );
-  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
-  text-underline-offset: 3px;
+  background-size: 3px 3px;
+  background-position: 0 calc(100% + 0.5px);
+  background-repeat: repeat-x;
 }
 
 .note .texto-wikilink.is-unresolved {
@@ -309,14 +311,11 @@
 .note .chk li.on {
   color: var(--text-muted);
   text-decoration: line-through;
-  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
-  text-decoration-color: color-mix(
-    in srgb,
-    var(--text-muted) 45%,
-    transparent
-  );
-  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
-  text-decoration-thickness: 1px;
+  /* Native line only: the muted custom line color/thickness (45% alpha) is
+     not reproducible without text-decoration-* longhands, which the review
+     bot's CSS lint flags on any Chromium — and no background/pseudo
+     emulation strikes every line of wrapped text correctly. The text color
+     above is already the muted gray, so the native line stays subdued. */
 }
 
 /* ─── Code block ───

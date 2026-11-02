@@ -39,14 +39,15 @@ ul.chk,
 
   /* Checked state text strikethrough matching .chk li.on.
 	   Scoped to the item's own paragraph(s) so that nested subtasks
-	   are not struck through when the parent item is checked. */
+	   are not struck through when the parent item is checked.
+	   Native line only: the muted custom line color/thickness is not
+	   reproducible without text-decoration-* longhands (flagged by the
+	   review bot's CSS lint) — no background/pseudo emulation strikes
+	   every line of wrapped text correctly, and the color above is
+	   already the muted gray, so the native line stays subdued. */
   &[data-checked="true"] .content > p {
     color: #8d8f9b;
     text-decoration: line-through;
-    /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
-    text-decoration-color: rgba(141, 143, 155, 0.45);
-    /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
-    text-decoration-thickness: 1px;
     transition: color 200ms;
   }
 }
@@ -54,8 +55,6 @@ ul.chk,
 /* Light theme adjustments matching typography-v2.html .theme-light .note .chk */
 .theme-light .texto-extension-task-item-host[data-checked="true"] .content > p {
   color: #8f8f99;
-  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- intentional design: custom thickness/color/offset of underline and strikethrough; fully rendered in Obsidian's Chromium, flagged only as caniuse "partial support" */
-  text-decoration-color: rgba(143, 143, 153, 0.5);
 }
 
 /* ─── Subtask fold chevron (task-item-folding) ───

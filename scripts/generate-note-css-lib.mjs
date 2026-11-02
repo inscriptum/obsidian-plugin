@@ -116,3 +116,50 @@ export function dedupProperties(css) {
   });
   return { out, removed };
 }
+
+/**
+ * Rewrites the browser-feature usages the review bot's CSS lint flags on
+ * any Chromium (stylelint-disable comments are not honored by the bot):
+ *
+ *  - the normalize.css dotted underline for `abbr[title]` is dropped —
+ *    every browser the site targets draws it from the UA stylesheet, so
+ *    the declaration is redundant;
+ *  - `display:contents` becomes `display:block` in the two rules that use
+ *    it (taskList row wrapper, figure wrapper) — both are plain block-flow
+ *    spots where a block wrapper is layout-equivalent, and the progress bar
+ *    inside the figure wrapper anchors to the wrapper's position:relative,
+ *    which display:contents silently discarded;
+ *  - any `column-gap` becomes the unified `gap` (multicolumn is flagged;
+ *    gap is cascade-equivalent in the multicol/grid contexts of this
+ *    stylesheet — a lone row of columns has no row gap).
+ *
+ * Each pattern is applied only when present and the replacement count is
+ * reported, so regeneration from an upstream that already fixed itself is
+ * a no-op, and an upstream redesign shows up in the caller's output.
+ */
+export function stripFlaggedFeatures(css) {
+  const patterns = [
+    [
+      "abbr[title]{border-bottom:none;text-decoration:underline dotted}",
+      "abbr[title]{border-bottom:none}",
+    ],
+    ["article ul[data-type=taskList] li>div{display:contents}",
+      "article ul[data-type=taskList] li>div{display:block}"],
+    ["article .figure_wrapper{position:relative;display:contents}",
+      "article .figure_wrapper{position:relative;display:block}"],
+  ];
+  const replaced = [];
+  let out = css;
+  for (const [from, to] of patterns) {
+    while (out.includes(from)) {
+      out = out.replace(from, to);
+      replaced.push(from);
+    }
+  }
+  const columnGap = out.match(/column-gap:[^;}"]+/g);
+  if (columnGap) {
+    out = out.replace(/column-gap:/g, "gap:");
+    replaced.push(...columnGap);
+  }
+  return { out, replaced };
+}
