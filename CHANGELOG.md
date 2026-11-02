@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Pasting copied cells into another table replaces the selected cells' content instead of nesting a whole table inside a cell and breaking the layout. Pasting copied rows adds them as new rows aligned to the target table's columns, and Cut removes fully selected rows outright, Excel-style.
+- The editor looks the same, but link underlines, the wiki-link hover dots and the finished-task strikethrough are now drawn without the CSS properties the Obsidian plugin review dislikes — future reviews stay clean.
+- A bundled HTML-sanitizing library (DOMPurify) was updated past a security advisory. Nothing visible changes.
 
 ## [0.12.1] - 2026-10-22
 
