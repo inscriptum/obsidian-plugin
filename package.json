@@ -51,6 +51,7 @@
     "type-fest": "5.8.0"
   },
   "overrides": {
+    "dompurify": "^3.4.17",
     "prosemirror-model": "$prosemirror-model",
     "prosemirror-state": "$prosemirror-state",
     "prosemirror-view": "$prosemirror-view",

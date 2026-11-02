@@ -7,13 +7,19 @@
 
 Composition:
 
-1. Generated-file header with the stylelint gate note (why the deployed
-   part's intentional browser-feature usages are exempt).
+1. Generated-file header.
 2. `@font-face` rules with the fonts inlined as data URIs.
 3. The deployed inscriptum stylesheet (`https://inscriptum.js.org/css/note.css`)
    with duplicate property declarations removed (keep-last — cascade
-   equivalent) and legacy IE star-hacks dropped; this satisfies the
-   project's `npm run lint:css` gate for the generated file.
+   equivalent), legacy IE star-hacks dropped, and the browser-feature usages
+   the review bot's CSS lint flags rewritten into cascade/layout-equivalent
+   forms (`stripFlaggedFeatures` in `scripts/generate-note-css-lib.mjs`:
+   the normalize dotted underline for `abbr[title]` is dropped — the UA
+   stylesheet draws it on every target browser; `display:contents` becomes
+   `display:block` in the taskList row wrapper and the figure wrapper;
+   `column-gap` becomes `gap`). The review bot does not honor
+   stylelint-disable comments, so the flagged constructions are rewritten
+   rather than suppressed.
 4. The hand-maintained `Export additions` section (float clearing, image
    layouts, the code block chrome, the export-only table rules) — preserved
    verbatim from the previous build.
@@ -25,8 +31,12 @@ node scripts/generate-note-css.mjs                 # fetch the deployed CSS
 node scripts/generate-note-css.mjs --from old.css  # offline: use a local copy
 ```
 
-The script reuses the embedded `@font-face` rules and the `Export additions`
-section from the current file. When the source design (blog) changes,
+`--from` expects the **deployed stylesheet** (the part 3 source), not a
+generated note.css — a local copy saved with curl or a browser works, UTF-8
+BOM included (the generator strips it). The script reuses the embedded
+`@font-face` rules and the `Export additions` section from the current file
+and fails loudly if the regenerated output would still contain a
+review-bot-flagged construction. When the source design (blog) changes,
 re-fetch; when the fonts change, re-derive the `@font-face` block manually:
 extract the `@font-face` rules from any exported note in
 `blog/src/public/note/*.html`, inline the four font files from

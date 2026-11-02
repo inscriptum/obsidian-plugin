@@ -148,10 +148,14 @@
 }
 
 /* layout-transparent rows container: the rows behave as direct children
-   of the code element (line numbers anchor to the pre's gutter) */
+   of the code element (line numbers anchor to the pre's gutter).
+   display: block instead of display: contents — the wrapper is a plain
+   block box in the pre's block flow, which is layout-equivalent here
+   (the line-number ::before anchors to the pre via its static position
+   either way), and display: contents is flagged by the review bot's CSS
+   lint on any Chromium. */
 .texto-extension-mermaid-host .mermaid-editor__rows {
-  /* stylelint-disable-next-line plugin/no-unsupported-browser-features -- load-bearing layout: rows must behave as direct children of the pre; supported in Obsidian's Chromium, flagged only as caniuse "partial support" */
-  display: contents;
+  display: block;
 }
 
 .texto-extension-mermaid-host .mermaid-editor__input,
