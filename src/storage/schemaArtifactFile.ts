@@ -17,10 +17,11 @@ import type { SchemaArtifact } from "../texto/schemaArtifact";
  */
 
 export interface SchemaArtifactTarget {
-  /** manifest.id — fallback for the standard config-dir layout. */
+  /** manifest.id — config-dir fallback for the standard layout. */
   pluginId: string;
-  /** manifest.dir — absolute install dir; the exact path when it maps
-   *  inside this vault. */
+  /** manifest.dir — vault-relative install dir per Obsidian's typings
+   *  (".obsidian/plugins/<id>"); the config-dir fallback resolves the
+   *  artifact path whenever the dir maps inside this vault. */
   pluginDir: string | undefined;
 }
 
@@ -32,7 +33,14 @@ export function schemaArtifactPath(
 ): string | null {
   const base = getVaultBasePath(app);
   if (target.pluginDir && base != null) {
-    const rel = relativeToVault(base, target.pluginDir);
+    // Guard against a relative manifest.dir ("…x" would survive the
+    // prefix strip and corrupt the join) — such a value falls through to
+    // the config-dir fallback below.
+    const absolute =
+      target.pluginDir.startsWith("/") || /^[A-Za-z]:[\\/]/.test(target.pluginDir)
+        ? target.pluginDir
+        : `${base}/${target.pluginDir}`;
+    const rel = relativeToVault(base, absolute);
     if (rel != null) return normalizePath(`${rel}/schema.json`);
   }
   // Standard community-plugin layout: .obsidian is vault-relative by

@@ -8,6 +8,7 @@ import {
   VALIDATION_CAPABILITY,
 } from "./schemaArtifact";
 import { getProfileSchema } from "./editorSchemas";
+import { BLOCK_ID_TYPES } from "./extensions/block-ids";
 
 /**
  * The artifact is the machine-readable schema snapshot the insum CLI
@@ -65,9 +66,11 @@ describe("buildSchemaArtifact", () => {
     expect(artifact.schema_hash).toMatch(/^sha256:[0-9a-f]{64}$/);
     expect(artifact.id_rules).toEqual({
       attrs_key: "id",
+      dom_attribute: "data-id",
       pattern: "^[a-z0-9]{8,12}$",
       recommended_length: 10,
       uniqueness: "note",
+      encoding: "opaque",
     });
   });
 
@@ -82,40 +85,15 @@ describe("buildSchemaArtifact", () => {
 
   it("marks every block node except the top node addressable", () => {
     // The owner decision (issue block-ids ОВ-3): all block nodes carry a
-    // block id; the document root does not. When the block-ids extension
-    // lands, import its BLOCK_ID_TYPES here and compare directly — until
-    // then this list is the pinned contract.
+    // block id; the document root does not. Compared directly with the
+    // block-ids extension's list so the two cannot drift.
     expect(
       Object.entries(artifact.nodes)
         .filter(([, node]) => node.addressable)
         .map(([name]) => name)
         .sort(),
-    ).toEqual(
-      [
-        "attachment",
-        "blockquote",
-        "bulletList",
-        "heading",
-        "hljsCodeBlock",
-        "hljsCodeBlockRow",
-        "horizontalRule",
-        "image",
-        "listItem",
-        "mermaid",
-        "noteProperty",
-        "notePropertyName",
-        "notePropertyValue",
-        "noteTitle",
-        "orderedList",
-        "paragraph",
-        "table",
-        "tableCell",
-        "tableHeader",
-        "tableRow",
-        "taskItem",
-        "taskList",
-      ].sort(),
-    );
+    ).toEqual([...BLOCK_ID_TYPES].sort());
+    expect(artifact.nodes.noteDoc.addressable).toBe(false);
   });
 
   it("records content expressions and inline/searchable flags", () => {
@@ -161,12 +139,20 @@ describe("buildSchemaArtifact", () => {
   });
 
   it("generates a valid example per node type where safe", () => {
-    expect(artifact.nodes.paragraph.example).toEqual({ type: "paragraph" });
+    expect(artifact.nodes.paragraph.example).toEqual({
+      type: "paragraph",
+      attrs: { id: null },
+    });
     expect(artifact.nodes.text.example).toBeNull();
     for (const [name, node] of Object.entries(artifact.nodes)) {
       if (node.example == null) continue;
-      // The example must be a valid node of the very same schema.
-      expect(() => schema.nodeFromJSON(node.example), name).not.toThrow();
+      // The example must be a fully valid node of the very same schema:
+      // fromJSON only checks names, check() validates content
+      // expressions and attrs against the spec.
+      expect(() => {
+        const parsed = schema.nodeFromJSON(node.example);
+        parsed.check();
+      }, name).not.toThrow();
     }
   });
 

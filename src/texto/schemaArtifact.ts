@@ -19,12 +19,16 @@ export const SCHEMA_ID = "inscriptum";
 export const SCHEMA_VERSION = 1;
 export const VALIDATION_CAPABILITY = "partial";
 
-/** Block ID contract (spec §4.4) — what `addressable: true` means. */
+/** Block ID contract (spec §4.4 + um-format dictionary): ids are opaque —
+ *  they never encode position, type or order — and their DOM projection
+ *  is the data-id attribute (element ids belong to anchors/TOC). */
 export const ID_RULES = {
   attrs_key: "id",
+  dom_attribute: "data-id",
   pattern: "^[a-z0-9]{8,12}$",
   recommended_length: 10,
   uniqueness: "note",
+  encoding: "opaque",
 } as const;
 
 export interface SchemaArtifactAttr {

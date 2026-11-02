@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, afterEach } from "vitest";
 import type { App } from "obsidian";
 import { writeSchemaArtifact, schemaArtifactPath } from "./schemaArtifactFile";
 import { getProfileSchema } from "../texto/editorSchemas";
@@ -6,9 +6,12 @@ import { buildSchemaArtifact } from "../texto/schemaArtifact";
 
 /**
  * The artifact file lands in the plugin's install directory and must be
- * written atomically (same ladder as noteStorage: temp → fs.rename /
- * adapter.rename / in-place write). jsdom has no node fs, so the tests
- * exercise the adapter branches of the ladder.
+ * written atomically — the same ladder as noteStorage: hidden temp file
+ * first, then node fs.rename (desktop) / adapter.rename into a fresh path
+ * / in-place adapter.write. The rename mock mirrors the real adapter: it
+ * REFUSES to overwrite an existing destination, so the tests walk the
+ * same branches the runtime does. Safety pins follow the rule the ladder
+ * exists for: the target is never removed.
  */
 
 interface FileMap {
@@ -19,12 +22,10 @@ function makeApp({
   files = {},
   basePath,
   configDir = ".config-test",
-  renameError,
 }: {
   files?: FileMap;
   basePath?: string;
   configDir?: string;
-  renameError?: Error;
 } = {}) {
   const store: FileMap = { ...files };
   const calls = {
@@ -37,13 +38,27 @@ function makeApp({
       configDir,
       adapter: {
         getBasePath: basePath == null ? undefined : () => basePath,
+        getFullPath:
+          basePath == null ? undefined : (p: string) => `${basePath}/${p}`,
         write: async (path: string, data: string) => {
+          if (writeError) {
+            // targetOnly: the temp write succeeds, the in-place write of
+            // the target fails (the kept-temp scenario).
+            const blocked = path.includes(".schema-")
+              ? writeError.targetOnly !== true
+              : writeError.targetOnly === true;
+            if (blocked) throw writeError.err;
+          }
           calls.writes.push(path);
           store[path] = data;
         },
+        // Faithful to the real adapter (obsidian.d.ts): rename into an
+        // EXISTING destination fails.
         rename: async (from: string, to: string) => {
           calls.renames++;
-          if (renameError) throw renameError;
+          if (to in store) {
+            throw new Error("Destination file already exists!");
+          }
           if (!(from in store)) throw new Error("missing source");
           store[to] = store[from];
           delete store[from];
@@ -55,7 +70,18 @@ function makeApp({
       },
     },
   } as unknown as App;
-  return { app, store, calls };
+  let writeError: { err: Error; targetOnly?: boolean } | null = null;
+  return {
+    app,
+    store,
+    calls,
+    failAllWrites: (err: Error) => {
+      writeError = { err };
+    },
+    failTargetWrites: (err: Error) => {
+      writeError = { err, targetOnly: true };
+    },
+  };
 }
 
 const target = {
@@ -69,12 +95,29 @@ async function makeArtifact() {
   });
 }
 
+afterEach(() => {
+  delete (window as { require?: unknown }).require;
+});
+
 describe("schemaArtifactPath", () => {
-  it("strips the vault base from the absolute plugin dir", () => {
+  it("strips the vault base from an absolute plugin dir", () => {
     const { app } = makeApp({ basePath: "/vault" });
     expect(schemaArtifactPath(app, target)).toBe(
       ".config-test/plugins/inscriptum/schema.json",
     );
+  });
+
+  it("resolves a vault-relative manifest.dir exactly (custom configDir)", () => {
+    // manifest.dir is vault-relative per Obsidian's typings; joined with
+    // the base it wins over the config-dir fallback even when configDir
+    // is not the standard ".obsidian".
+    const { app } = makeApp({ basePath: "/vault" });
+    expect(
+      schemaArtifactPath(app, {
+        pluginId: "inscriptum",
+        pluginDir: ".custom-config/plugins/inscriptum",
+      }),
+    ).toBe(".custom-config/plugins/inscriptum/schema.json");
   });
 
   it("falls back to the config-dir layout when the dir is outside the vault", () => {
@@ -93,7 +136,7 @@ describe("schemaArtifactPath", () => {
 });
 
 describe("writeSchemaArtifact", () => {
-  it("writes atomically: temp file, then rename, no in-place write", async () => {
+  it("first run: temp file, then adapter.rename into the absent target", async () => {
     const { app, store, calls } = makeApp({ basePath: "/vault" });
     const artifact = await makeArtifact();
     const path = await writeSchemaArtifact(app, target, artifact);
@@ -102,33 +145,89 @@ describe("writeSchemaArtifact", () => {
     expect(calls.renames).toBe(1);
     // Exactly one adapter.write — the temp file; the rename consumes it.
     expect(calls.writes).toHaveLength(1);
-    expect(calls.writes[0]).toContain(".schema-");
     expect(calls.writes[0]).toMatch(
       /\.config-test\/plugins\/inscriptum\/\.schema-.+\.tmp$/,
     );
-    // The temp copy is consumed by the rename — only the artifact remains.
-    expect(Object.keys(store)).toEqual([
-      ".config-test/plugins/inscriptum/schema.json",
-    ]);
+    // The only file left is the artifact — and nothing was ever removed
+    // along the way (rule-open-file-safety pin).
+    expect(calls.removes).toEqual([]);
+    expect(Object.keys(store)).toEqual([path]);
     expect(store[path]).toBe(JSON.stringify(artifact, null, 2));
   });
 
-  it("falls back to an in-place write when rename refuses to overwrite", async () => {
-    const { app, store, calls } = makeApp({
-      basePath: "/vault",
-      renameError: new Error("Destination file already exists!"),
+  it("desktop: node fs.renameSync replaces the existing target — adapter fallbacks never engaged", async () => {
+    const { app, store, calls } = makeApp({ basePath: "/vault" });
+    // The node fs operates on FULL paths; the store is keyed by
+    // vault-relative ones.
+    const rel = (p: string) => p.replace(/^\/vault\//, "");
+    const renameSync = vi.fn((from: string, to: string) => {
+      store[rel(to)] = store[rel(from)];
+      delete store[rel(from)];
     });
+    (window as { require?: unknown }).require = (id: string) =>
+      id === "fs" ? { renameSync } : undefined;
+
+    // Two runs: the second replace goes over an EXISTING target —
+    // exactly the desktop fs.renameSync fast path.
+    const first = await writeSchemaArtifact(app, target, await makeArtifact());
     const artifact = await makeArtifact();
     const path = await writeSchemaArtifact(app, target, artifact);
 
-    expect(calls.renames).toBe(1);
-    // Two writes: the temp file, then the target (in-place fallback).
-    expect(calls.writes).toHaveLength(2);
-    expect(calls.writes[1]).toBe(path);
-    expect(store[path]).toBe(JSON.stringify(artifact, null, 2));
-    // The temp copy is cleaned up after the successful in-place write.
-    expect(calls.removes).toHaveLength(1);
+    expect(first).toBe(path);
+    expect(renameSync).toHaveBeenCalledTimes(2);
+    expect(renameSync).toHaveBeenLastCalledWith(
+      `/vault/${calls.writes[1]}`,
+      `/vault/${path}`,
+    );
+    expect(renameSync.mock.calls[0][1]).toBe(`/vault/${first}`);
+    expect(calls.writes[0]).toMatch(/\.schema-.+\.tmp$/);
+    // adapter-level destructive fallbacks never engaged
+    expect(calls.renames).toBe(0);
+    expect(calls.removes).toEqual([]);
     expect(Object.keys(store)).toEqual([path]);
+    expect(store[path]).toBe(JSON.stringify(artifact, null, 2));
+  });
+
+  it("second run over an existing target: rename refuses, in-place write, temp cleaned", async () => {
+    const { app, store, calls } = makeApp({ basePath: "/vault" });
+    await writeSchemaArtifact(app, target, await makeArtifact());
+    const writesBefore = calls.writes.length;
+    const artifact = await makeArtifact();
+    const path = await writeSchemaArtifact(app, target, artifact);
+
+    // One refused rename attempt, then the in-place replace.
+    expect(calls.renames).toBe(2);
+    expect(calls.writes).toHaveLength(writesBefore + 2);
+    expect(calls.writes[writesBefore]).toMatch(/\.schema-.+\.tmp$/);
+    expect(calls.writes[writesBefore + 1]).toBe(path);
+    expect(store[path]).toBe(JSON.stringify(artifact, null, 2));
+    // Only the dot-prefixed temp was removed — never the target
+    // (rule-open-file-safety pin).
+    expect(calls.removes).toEqual([calls.writes[writesBefore]]);
+    expect(calls.removes).not.toContain(path);
+    expect(Object.keys(store)).toEqual([path]);
+  });
+
+  it("on failure the temp file is kept and named in the error", async () => {
+    const { app, store, calls, failTargetWrites } = makeApp({
+      basePath: "/vault",
+    });
+    // Pre-seed the target so the rename refuses; the in-place write of
+    // the target then fails too — the temp holds the only good copy.
+    await writeSchemaArtifact(app, target, await makeArtifact());
+    failTargetWrites(new Error("EBUSY: resource busy"));
+    const artifact = await makeArtifact();
+
+    await expect(
+      writeSchemaArtifact(app, target, artifact),
+    ).rejects.toThrow(/new content kept in .*\.schema-.+\.tmp/);
+
+    // The temp copy is still there; the target was not touched.
+    const temp = Object.keys(store).find((p) => p.includes(".schema-"));
+    expect(temp).toBeDefined();
+    expect(store[temp as string]).toBe(JSON.stringify(artifact, null, 2));
+    expect(Object.keys(store)).toHaveLength(2);
+    expect(calls.removes).toEqual([]);
   });
 
   it("throws when the plugin directory cannot be located", async () => {

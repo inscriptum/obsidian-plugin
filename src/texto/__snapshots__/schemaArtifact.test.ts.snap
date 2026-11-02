@@ -4,6 +4,8 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
 {
   "id_rules": {
     "attrs_key": "id",
+    "dom_attribute": "data-id",
+    "encoding": "opaque",
     "pattern": "^[a-z0-9]{8,12}$",
     "recommended_length": 10,
     "uniqueness": "note",
@@ -86,6 +88,9 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
         "data": {
           "default": null,
         },
+        "id": {
+          "default": null,
+        },
         "key": {
           "default": null,
         },
@@ -97,6 +102,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
       "example": {
         "attrs": {
           "data": null,
+          "id": null,
           "state": null,
         },
         "type": "attachment",
@@ -110,11 +116,21 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     },
     "blockquote": {
       "addressable": true,
-      "attrs": {},
+      "attrs": {
+        "id": {
+          "default": null,
+        },
+      },
       "content": "block+",
       "example": {
+        "attrs": {
+          "id": null,
+        },
         "content": [
           {
+            "attrs": {
+              "id": null,
+            },
             "type": "paragraph",
           },
         ],
@@ -129,13 +145,26 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     },
     "bulletList": {
       "addressable": true,
-      "attrs": {},
+      "attrs": {
+        "id": {
+          "default": null,
+        },
+      },
       "content": "listItem+",
       "example": {
+        "attrs": {
+          "id": null,
+        },
         "content": [
           {
+            "attrs": {
+              "id": null,
+            },
             "content": [
               {
+                "attrs": {
+                  "id": null,
+                },
                 "type": "paragraph",
               },
             ],
@@ -169,6 +198,9 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     "heading": {
       "addressable": true,
       "attrs": {
+        "id": {
+          "default": null,
+        },
         "level": {
           "default": 1,
         },
@@ -176,6 +208,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
       "content": "inline*",
       "example": {
         "attrs": {
+          "id": null,
           "level": 1,
         },
         "type": "heading",
@@ -213,6 +246,9 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
         "class": {
           "default": "",
         },
+        "id": {
+          "default": null,
+        },
         "spellcheck": {
           "default": "false",
         },
@@ -227,6 +263,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
           "autocomplete": "off",
           "autocorrect": "off",
           "class": "",
+          "id": null,
           "spellcheck": "false",
           "wrap": false,
         },
@@ -245,11 +282,15 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
         "class": {
           "default": "l",
         },
+        "id": {
+          "default": null,
+        },
       },
       "content": "inline*",
       "example": {
         "attrs": {
           "class": "l",
+          "id": null,
         },
         "type": "hljsCodeBlockRow",
       },
@@ -264,9 +305,16 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     },
     "horizontalRule": {
       "addressable": true,
-      "attrs": {},
+      "attrs": {
+        "id": {
+          "default": null,
+        },
+      },
       "content": null,
       "example": {
+        "attrs": {
+          "id": null,
+        },
         "type": "horizontalRule",
       },
       "groups": [
@@ -285,6 +333,9 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
         "data": {
           "default": null,
         },
+        "id": {
+          "default": null,
+        },
         "key": {
           "default": null,
         },
@@ -300,6 +351,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
         "attrs": {
           "align": "left",
           "data": null,
+          "id": null,
           "key": null,
           "state": null,
           "width": null,
@@ -315,11 +367,21 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     },
     "listItem": {
       "addressable": true,
-      "attrs": {},
+      "attrs": {
+        "id": {
+          "default": null,
+        },
+      },
       "content": "paragraph block*",
       "example": {
+        "attrs": {
+          "id": null,
+        },
         "content": [
           {
+            "attrs": {
+              "id": null,
+            },
             "type": "paragraph",
           },
         ],
@@ -339,12 +401,16 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
         "code": {
           "default": "",
         },
+        "id": {
+          "default": null,
+        },
       },
       "content": null,
       "example": {
         "attrs": {
           "align": "left",
           "code": "",
+          "id": null,
         },
         "type": "mermaid",
       },
@@ -362,9 +428,15 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
       "example": {
         "content": [
           {
+            "attrs": {
+              "id": null,
+            },
             "type": "noteTitle",
           },
           {
+            "attrs": {
+              "id": null,
+            },
             "type": "paragraph",
           },
         ],
@@ -379,6 +451,9 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     "noteProperty": {
       "addressable": true,
       "attrs": {
+        "id": {
+          "default": null,
+        },
         "type": {
           "default": "text",
         },
@@ -386,10 +461,14 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
       "content": "notePropertyName notePropertyValue*",
       "example": {
         "attrs": {
+          "id": null,
           "type": "text",
         },
         "content": [
           {
+            "attrs": {
+              "id": null,
+            },
             "type": "notePropertyName",
           },
         ],
@@ -404,9 +483,16 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     },
     "notePropertyName": {
       "addressable": true,
-      "attrs": {},
+      "attrs": {
+        "id": {
+          "default": null,
+        },
+      },
       "content": "inline*",
       "example": {
+        "attrs": {
+          "id": null,
+        },
         "type": "notePropertyName",
       },
       "groups": [],
@@ -427,9 +513,16 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     },
     "notePropertyValue": {
       "addressable": true,
-      "attrs": {},
+      "attrs": {
+        "id": {
+          "default": null,
+        },
+      },
       "content": "inline*",
       "example": {
+        "attrs": {
+          "id": null,
+        },
         "type": "notePropertyValue",
       },
       "groups": [],
@@ -450,9 +543,16 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     },
     "noteTitle": {
       "addressable": true,
-      "attrs": {},
+      "attrs": {
+        "id": {
+          "default": null,
+        },
+      },
       "content": "inline*",
       "example": {
+        "attrs": {
+          "id": null,
+        },
         "type": "noteTitle",
       },
       "groups": [],
@@ -474,6 +574,9 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     "orderedList": {
       "addressable": true,
       "attrs": {
+        "id": {
+          "default": null,
+        },
         "start": {
           "default": 1,
         },
@@ -481,12 +584,19 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
       "content": "listItem+",
       "example": {
         "attrs": {
+          "id": null,
           "start": 1,
         },
         "content": [
           {
+            "attrs": {
+              "id": null,
+            },
             "content": [
               {
+                "attrs": {
+                  "id": null,
+                },
                 "type": "paragraph",
               },
             ],
@@ -505,9 +615,16 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     },
     "paragraph": {
       "addressable": true,
-      "attrs": {},
+      "attrs": {
+        "id": {
+          "default": null,
+        },
+      },
       "content": "inline*",
       "example": {
+        "attrs": {
+          "id": null,
+        },
         "type": "paragraph",
       },
       "groups": [
@@ -537,15 +654,22 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
         "data": {
           "default": null,
         },
+        "id": {
+          "default": null,
+        },
       },
       "content": "tableRow+",
       "example": {
         "attrs": {
           "borders": null,
           "data": null,
+          "id": null,
         },
         "content": [
           {
+            "attrs": {
+              "id": null,
+            },
             "type": "tableRow",
           },
         ],
@@ -578,6 +702,9 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
         "dataColor": {
           "default": null,
         },
+        "id": {
+          "default": null,
+        },
         "rowspan": {
           "default": 1,
         },
@@ -592,10 +719,14 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
             50,
           ],
           "dataColor": null,
+          "id": null,
           "rowspan": 1,
         },
         "content": [
           {
+            "attrs": {
+              "id": null,
+            },
             "type": "paragraph",
           },
         ],
@@ -626,6 +757,9 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
         "dataColor": {
           "default": null,
         },
+        "id": {
+          "default": null,
+        },
         "rowspan": {
           "default": 1,
         },
@@ -640,10 +774,14 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
             50,
           ],
           "dataColor": null,
+          "id": null,
           "rowspan": 1,
         },
         "content": [
           {
+            "attrs": {
+              "id": null,
+            },
             "type": "paragraph",
           },
         ],
@@ -656,9 +794,16 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     },
     "tableRow": {
       "addressable": true,
-      "attrs": {},
+      "attrs": {
+        "id": {
+          "default": null,
+        },
+      },
       "content": "(tableCell | tableHeader)*",
       "example": {
+        "attrs": {
+          "id": null,
+        },
         "type": "tableRow",
       },
       "groups": [],
@@ -672,14 +817,21 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
         "checked": {
           "default": false,
         },
+        "id": {
+          "default": null,
+        },
       },
       "content": "paragraph block*",
       "example": {
         "attrs": {
           "checked": false,
+          "id": null,
         },
         "content": [
           {
+            "attrs": {
+              "id": null,
+            },
             "type": "paragraph",
           },
         ],
@@ -692,16 +844,27 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     },
     "taskList": {
       "addressable": true,
-      "attrs": {},
+      "attrs": {
+        "id": {
+          "default": null,
+        },
+      },
       "content": "taskItem+",
       "example": {
+        "attrs": {
+          "id": null,
+        },
         "content": [
           {
             "attrs": {
               "checked": false,
+              "id": null,
             },
             "content": [
               {
+                "attrs": {
+                  "id": null,
+                },
                 "type": "paragraph",
               },
             ],
@@ -757,7 +920,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     },
   },
   "plugin_version": "0.0.0-test",
-  "schema_hash": "sha256:2ec3b30eb75d2ebcdf2ae059495ec70b24414d550c8c1f72ad8166a3fc8e332c",
+  "schema_hash": "sha256:dd0af3c595457539ceb68d7fd3fb52d33f535026eb85b4b7bf30d84062b14a8c",
   "schema_hash_scope": "sha256 of the RFC 8785 canonical JSON of this artifact, excluding the schema_hash and plugin_version fields (plugin_version changes every release and must not destabilize the schema fingerprint)",
   "schema_id": "inscriptum",
   "schema_version": 1,
