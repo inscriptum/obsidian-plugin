@@ -14,6 +14,7 @@ import {
   assignBlockIds,
   ensureUniqueBlockIds,
   reassignBlockIds,
+  repairStoredBlockIds,
 } from "./assignBlockIds";
 import { BLOCK_IDS_EXTERNAL_CONTENT } from "./plugins/blockIds.plugin";
 import {
@@ -286,6 +287,60 @@ describe("block id lifecycle", () => {
     expect(editor.state.doc.textContent).toContain("onetwo");
   });
 
+  it("a multi-row batch (column resize) keeps the enclosing table's id", () => {
+    // Review PR #19 CR-32: resizing a column updates one cell per row —
+    // separate ReplaceSteps in non-adjacent ranges. nodesBetween visits the
+    // enclosing TABLE once per range; without per-position dedupe the
+    // second visit reads as a duplicate and re-ids the table.
+    const editor = createEditor(assignBlockIds({
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", content: [{ type: "text", text: "T" }] },
+        {
+          type: "table",
+          attrs: { data: { rowsCount: 3, colsCount: 1 } },
+          content: [0, 1, 2].map((i) => ({
+            type: "tableRow",
+            content: [
+              {
+                type: "tableCell",
+                attrs: { colspan: 1, rowspan: 1, colwidth: [80] },
+                content: [p(`cell ${i}`)],
+              },
+            ],
+          })),
+        },
+      ],
+    }));
+    const tablePos = blockPositions(editor)[1];
+    const tableIdBefore = (editor.state.doc.nodeAt(tablePos)?.attrs as WithId).id;
+    expect(isBlockId(tableIdBefore)).toBe(true);
+
+    // The production batch shape (table commands forEachCell /
+    // prosemirror-tables colwidth normalization): one spread setNodeMarkup
+    // per cell, all in ONE transaction.
+    const tr = editor.state.tr;
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "tableCell") {
+        tr.setNodeMarkup(pos, null, { ...node.attrs, colwidth: [120] });
+      }
+      return true;
+    });
+    editor.view.dispatch(tr);
+
+    const table = editor.state.doc.nodeAt(tablePos);
+    expect(table?.type.name).toBe("table");
+    expect((table?.attrs as WithId).id).toBe(tableIdBefore);
+    // Every cell keeps its own id too.
+    const cellIds: unknown[] = [];
+    editor.state.doc.descendants((n) => {
+      if (n.type.name === "tableCell") cellIds.push((n.attrs as WithId).id);
+      return true;
+    });
+    expect(cellIds).toHaveLength(3);
+    expect(new Set(cellIds).size).toBe(3);
+  });
+
   it("an inserted twin block does not steal its neighbor's id", () => {
     // A batch that INSERTS id-less content identical to a surviving
     // neighbor must not recover the neighbor's id into the insert (the
@@ -463,6 +518,43 @@ describe("collision regeneration (spec §4.4)", () => {
     } finally {
       stub.mockRestore();
     }
+  });
+});
+
+// ── stored-JSON net (collapsed notepad pages) ──────────────────────────────
+
+describe("repairStoredBlockIds", () => {
+  it("returns the input by reference for a defect-free document", () => {
+    const doc = assignBlockIds(legacyDoc());
+    const repair = repairStoredBlockIds(doc);
+    expect(repair.fixed).toBe(false);
+    expect(repair.doc).toBe(doc); // no copy, no churn on every save
+  });
+
+  it("keeps the first duplicate in document order and fills the rest", () => {
+    const repair = repairStoredBlockIds({
+      type: "noteDoc",
+      content: [
+        { type: "noteTitle", attrs: { id: "aaaaaaaaaa" }, content: [{ type: "text", text: "T" }] },
+        p("a", "deadbeef01"),
+        p("b", "deadbeef01"),
+        p("c", "BAD-ID!"),
+      ],
+    });
+    expect(repair.fixed).toBe(true);
+    expect(repair.replaced).toEqual(["deadbeef01"]);
+    expect(repair.filled).toBe(1);
+    const ids: unknown[] = [];
+    const walk = (node: JSONContent): void => {
+      const id = (node.attrs as WithId | undefined)?.id;
+      if (typeof id === "string") ids.push(id);
+      node.content?.forEach(walk);
+    };
+    walk(repair.doc);
+    expect(ids[0]).toBe("aaaaaaaaaa");
+    expect(ids[1]).toBe("deadbeef01");
+    expect(new Set(ids).size).toBe(4);
+    for (const id of ids) expect(isBlockId(id)).toBe(true);
   });
 });
 

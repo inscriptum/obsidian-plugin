@@ -175,15 +175,23 @@ export function createBlockIdsPlugin(): Plugin<null> {
         : collectIntroducedIds(transactions);
 
       // Pass A — occurrences per id inside the ranges (document order).
+      // Ranges of one batch are frequently non-adjacent (a table column
+      // resize updates one cell per row), and nodesBetween visits the
+      // SHARED ANCESTOR (the table) once per range — count each NODE once,
+      // by position, or an ancestor with a single id reads as a duplicate
+      // of itself (review PR #19 CR-32).
       const occurrences = new Map<string, number>();
+      const counted = new Set<number>();
       let missing = 0;
       const docEnd = newState.doc.nodeSize;
       for (const range of ranges) {
         newState.doc.nodesBetween(
           range.from,
           Math.min(range.to, docEnd),
-          (node) => {
+          (node, pos) => {
             if (!isBlockIdType(node.type.name)) return true;
+            if (counted.has(pos)) return true;
+            counted.add(pos);
             const id = (node.attrs as IdAttrs).id;
             if (id == null) {
               missing += 1;
@@ -204,10 +212,13 @@ export function createBlockIdsPlugin(): Plugin<null> {
       }
 
       // Pass B — assign: first occurrence keeps its id, copies and later
-      // duplicates get fresh ones.
+      // duplicates get fresh ones. Same per-position dedupe as Pass A: a
+      // shared ancestor visited by several ranges must be handled exactly
+      // once.
       const tr = newState.tr;
       const used = new Set<string>();
       const seenInRange = new Set<string>();
+      const handled = new Set<number>();
       let changed = false;
 
       const reId = (pos: number): void => {
@@ -233,6 +244,8 @@ export function createBlockIdsPlugin(): Plugin<null> {
           Math.min(range.to, docEnd),
           (node, pos) => {
             if (!isBlockIdType(node.type.name)) return true;
+            if (handled.has(pos)) return true;
+            handled.add(pos);
             const id = (node.attrs as IdAttrs).id;
             if (id == null) {
               // A stripped attrs-replace keeps its previous id (CR-02);

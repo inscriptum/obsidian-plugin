@@ -35,6 +35,77 @@ export function reassignBlockIds(doc: JSONContent): JSONContent {
   return assignIn(doc, used, true);
 }
 
+export interface StoredBlockIdsRepair {
+  /** The repaired document — the input reference when nothing was wrong. */
+  doc: JSONContent;
+  fixed: boolean;
+  /** Duplicate ids that were replaced (diagnostics). */
+  replaced: string[];
+  /** Missing/invalid ids that were filled (diagnostics). */
+  filled: number;
+}
+
+/** The save net over STORED page JSON (review PR #19 CR-33): pages that
+ *  never opened in this session have no editor, so the editor-level net
+ *  never sees them — a notepad loaded with duplicate or invalid ids on a
+ *  collapsed page would write them back as-is. Same rules as
+ *  ensureUniqueBlockIds: the first occurrence in document order keeps its
+ *  id, later duplicates get fresh ones, missing/invalid values are filled.
+ *  Defect-free documents are returned by reference — no copy, no churn. */
+export function repairStoredBlockIds(doc: JSONContent): StoredBlockIdsRepair {
+  // Pass A — defect scan, no allocation.
+  const seen = new Set<string>();
+  let duplicates = 0;
+  let missing = 0;
+  const scan = (node: JSONContent): void => {
+    if (node.type != null && isBlockIdType(node.type)) {
+      const id: unknown = node.attrs?.id;
+      if (!isBlockId(id)) missing += 1;
+      else if (seen.has(id)) duplicates += 1;
+      else seen.add(id);
+    }
+    if (Array.isArray(node.content)) {
+      for (const child of node.content) scan(child);
+    }
+  };
+  scan(doc);
+
+  if (duplicates === 0 && missing === 0) {
+    return { doc, fixed: false, replaced: [], filled: 0 };
+  }
+
+  // Pass B — rebuild with the same document-order rules. seenNow starts
+  // EMPTY and accumulates during the walk: seeding it with the scan's
+  // result would count the first occurrence as a duplicate too.
+  const used = new Set<string>(seen);
+  const replaced: string[] = [];
+  let filled = 0;
+  const seenNow = new Set<string>();
+  const repair = (node: JSONContent): JSONContent => {
+    const next: JSONContent = { ...node };
+    if (next.type != null && isBlockIdType(next.type)) {
+      const attrs = { ...((next.attrs ?? {}) as Record<string, unknown>) };
+      const id: unknown = attrs.id;
+      if (isBlockId(id) && !seenNow.has(id)) {
+        seenNow.add(id);
+      } else {
+        const fresh = generateBlockIdAvoiding(used);
+        used.add(fresh);
+        attrs.id = fresh;
+        next.attrs = attrs;
+        if (isBlockId(id)) replaced.push(id);
+        else filled += 1;
+      }
+    }
+    if (Array.isArray(next.content)) {
+      next.content = next.content.map(repair);
+    }
+    return next;
+  };
+  const fixedDoc = repair(doc);
+  return { doc: fixedDoc, fixed: true, replaced, filled };
+}
+
 function collectIds(node: JSONContent, used: Set<string>): void {
   if (node.type != null && isBlockIdType(node.type)) {
     const id = (node.attrs as { id?: unknown } | undefined)?.id;

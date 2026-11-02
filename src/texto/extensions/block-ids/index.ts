@@ -47,6 +47,7 @@ export { BlockIdAttributes };
 export {
   assignBlockIds,
   reassignBlockIds,
+  repairStoredBlockIds,
   ensureUniqueBlockIds,
   type UniqueBlockIdsResult,
 } from "./assignBlockIds";

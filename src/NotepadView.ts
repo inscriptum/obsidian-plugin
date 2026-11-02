@@ -29,6 +29,7 @@ import { getExtensions, type ExtensionHooks } from "./texto/getExtensions";
 import {
   assignBlockIds,
   ensureUniqueBlockIds,
+  repairStoredBlockIds,
   reassignBlockIds,
 } from "./texto/extensions/block-ids";
 import { notifyBlockIdsRepaired } from "./tools/blockIdFixNotice";
@@ -1446,8 +1447,10 @@ export class NotepadView extends FileView {
    *  the flush that follows persists the repaired doc. */
   private fixBlockIdConflicts(trigger: string): void {
     if (!this.notepad) return;
+    const liveEditors = new Set<string>();
     for (const [id, handle] of this.sections) {
       if (!handle.editor || handle.editor.isDestroyed) continue;
+      liveEditors.add(id);
       const fix = ensureUniqueBlockIds(handle.editor);
       if (!fix.fixed) continue;
       const detail =
@@ -1457,6 +1460,28 @@ export class NotepadView extends FileView {
         `[inscriptum] Repaired block ids in notepad page "${id}" before ${trigger}: ${detail}`,
       );
       notifyBlockIdsRepaired(fix.replaced.length + fix.filled);
+    }
+    // Pages without a live editor (collapsed, never opened, or already
+    // collapsed to a null editor) exist only as stored JSON this session —
+    // the editor-level net above cannot see them, so a notepad loaded with
+    // duplicate/missing ids on such a page would write them back as-is
+    // (review PR #19 CR-33). Repair the stored JSON of openable pages; a
+    // defect-free page is returned by reference and untouched.
+    for (const note of this.notepad.notes()) {
+      if (liveEditors.has(note.id)) continue;
+      if (!this.notepad.isNoteOpenable(note.id)) continue;
+      const content = this.notepad.noteContent(note.id);
+      if (content == null) continue;
+      const repair = repairStoredBlockIds(content);
+      if (!repair.fixed) continue;
+      this.notepad.setNoteContent(note.id, repair.doc);
+      const detail =
+        `replaced [${repair.replaced.join(", ")}]` +
+        (repair.filled > 0 ? `, filled ${repair.filled}` : "");
+      console.warn(
+        `[inscriptum] Repaired stored block ids in notepad page "${note.id}" before ${trigger}: ${detail}`,
+      );
+      notifyBlockIdsRepaired(repair.replaced.length + repair.filled);
     }
   }
 

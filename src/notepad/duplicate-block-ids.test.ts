@@ -242,3 +242,80 @@ describe("NotepadView writePendingChanges — block id net wiring (disk)", () =>
     element.remove();
   });
 });
+
+/**
+ * Collapsed / never-opened pages have no editor — the editor-level net
+ * cannot see them (review PR #19 CR-33). The write-path repair must fix
+ * their STORED JSON too: a notepad loaded with duplicate ids on a collapsed
+ * page must not write them back as-is.
+ */
+describe("NotepadView fixBlockIdConflicts — stored pages without editors", () => {
+  it("repairs a collapsed page's stored ids on the write path", async () => {
+    const notepad = UmNotepad.empty();
+    const title = notepad.addNote(undefined, "Title");
+    const page = notepad.addNote(title.id, "Open");
+    const collapsed = notepad.addNote(title.id, "Collapsed");
+    notepad.setNoteContent(page.id, {
+      type: "noteDoc",
+      content: [
+        { type: "paragraph", attrs: { id: "aaaaaaaaaa" }, content: [{ type: "text", text: "open" }] },
+      ],
+    });
+    // The collapsed page carries duplicates (as loaded from a defective file).
+    notepad.setNoteContent(collapsed.id, {
+      type: "noteDoc",
+      content: [
+        { type: "paragraph", attrs: { id: "bbbbbbbbbb" }, content: [{ type: "text", text: "c1" }] },
+        { type: "paragraph", attrs: { id: "bbbbbbbbbb" }, content: [{ type: "text", text: "c2" }] },
+      ],
+    });
+
+    const element = createDiv();
+    document.body.appendChild(element);
+    // A live editor ONLY for the open page — the collapsed page never mounts.
+    const editor = new Editor({
+      element,
+      content: {
+        type: "noteDoc",
+        content: [
+          { type: "noteTitle", content: [{ type: "text", text: "T" }] },
+          { type: "paragraph", attrs: { id: "aaaaaaaaaa" }, content: [{ type: "text", text: "open" }] },
+        ],
+      },
+      extensions: getExtensions(),
+      editable: true,
+    });
+
+    const view = new NotepadView(new WorkspaceLeaf() as never);
+    const v = view as unknown as Record<string, unknown>;
+    v.app = { vault: {}, workspace: { on: () => () => {} } };
+    v.file = new TFile("test.um");
+    v.notepad = notepad;
+    v.sections = new Map([["open", { id: page.id, editor }]]);
+
+    const returned = (
+      view as unknown as { getNotepadForExport(): UmNotepad | null }
+    ).getNotepadForExport();
+    expect(returned).not.toBeNull();
+
+    // The open page kept its id; the collapsed page's duplicate was repaired.
+    const collapsedIds: string[] = [];
+    walkIds(notepad.noteContent(collapsed.id)!, collapsedIds);
+    expect(collapsedIds).toHaveLength(2);
+    expect(new Set(collapsedIds).size).toBe(2);
+    for (const id of collapsedIds) expect(isBlockId(id)).toBe(true);
+    expect(collapsedIds).toContain("bbbbbbbbbb"); // first keeps its id
+    // The open page kept its id (the editor net may also have filled the
+    // title block's missing id — the write guarantees every addressable
+    // block carries one).
+    const openIds: string[] = [];
+    walkIds(notepad.noteContent(page.id)!, openIds);
+    expect(openIds).toContain("aaaaaaaaaa");
+    expect(new Set(openIds).size).toBe(openIds.length);
+    for (const id of openIds) expect(isBlockId(id)).toBe(true);
+    // The repair dirtied the page — the write that follows persists it.
+    expect(notepad.dirtyNotes.has(collapsed.id)).toBe(true);
+    editor.destroy();
+    element.remove();
+  });
+});
