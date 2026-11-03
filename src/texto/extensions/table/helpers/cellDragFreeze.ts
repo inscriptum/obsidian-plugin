@@ -61,6 +61,37 @@ export function consumeTouchCompatMouse(): void {
 }
 
 /**
+ * Whether a desktop mouse drag has left its starting cell (issue
+ * table-fast-selection-reset).
+ *
+ * A fast drag never passes through the long-press activation: the pointer
+ * exits LONG_PRESS_SLOP within LONG_PRESS_MS, the hold never fires, and the
+ * native text-selection machinery — anchored at the plain mousedown — works
+ * on top of the rectangle prosemirror-tables is building. From the first
+ * move that lands in a different cell to the mouseup the browser must not
+ * select text and its late selection commits must not sync back into the
+ * editor as a TextSelection (that is the reset the owner sees). While the
+ * flag is on, selectstart attempts are prevented (handleCellSelection) and
+ * selection-resetting transactions are filtered out of the editor state.
+ */
+let crossCellDrag = false;
+
+/** The drag left its starting cell: suppress native text selection. */
+export function beginCrossCellDrag(): void {
+  crossCellDrag = true;
+}
+
+/** The gesture is over: native text selection behaves normally again. */
+export function endCrossCellDrag(): void {
+  crossCellDrag = false;
+}
+
+/** Whether a cross-cell mouse drag is currently running (desktop). */
+export function isCrossCellDragActive(): boolean {
+  return crossCellDrag;
+}
+
+/**
  * Hook for cancelling a pending (not yet activated) long-press cell gesture.
  *
  * A compatibility mousedown is only dispatched after the finger has lifted,
