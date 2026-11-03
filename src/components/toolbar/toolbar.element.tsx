@@ -1,6 +1,7 @@
 import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
 import { Editor, isTextSelection } from "../../texto/core";
+import { selectionInCodeBlock } from "../../texto/extensions/code-block-hljs";
 import { CellSelection, isInTable } from "prosemirror-tables";
 import { isMediaNodeSelection } from "../bubble-menu-bar/mediaMenuState";
 import { elTag, BUILD_TAG, TAG_VERSION } from "../../tags";
@@ -179,7 +180,14 @@ export const ToolbarElement = litView.element({
     if (isInTable(props.editor.state)) {
       if (selection.empty || selection instanceof CellSelection) return "table";
     }
-    if (!selection.empty && isTextSelection(selection)) return "text";
+    // Code blocks accept no marks — no selection bar inside one (a selection
+    // crossing the block boundary keeps the bar for the surrounding text).
+    if (
+      !selection.empty &&
+      isTextSelection(selection) &&
+      !selectionInCodeBlock(props.editor.state)
+    )
+      return "text";
     return "none";
   };
 
