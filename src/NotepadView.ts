@@ -81,6 +81,7 @@ import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubbl
 import { isMediaNodeSelection } from "./components/bubble-menu-bar/mediaMenuState";
 import { selectionInProperty, sanitizePropertyValues } from "./texto/extensions/note-property";
 import { selectionInWikiContext } from "./texto/extensions/wikilink";
+import { selectionInCodeBlock } from "./texto/extensions/code-block-hljs";
 import { getTableMenuState } from "./components/bubble-menu-bar/tableMenuState";
 import { moveTargetIndex } from "./notepad/moveTargetIndex";
 import {
@@ -3018,6 +3019,9 @@ export class NotepadView extends FileView {
           // link's label) carries no formatting controls — owner claim,
           // wikilinks round 7.
           if (selectionInWikiContext(state)) return false;
+          // Code blocks accept no marks (schema `marks: ""`) — formatting
+          // buttons can't do anything inside one.
+          if (selectionInCodeBlock(state)) return false;
           const inTable = isInTable(state);
           // Selected text — the text menu serves it even inside a table.
           if (inTable && !selection.empty && isTextSelection(selection))

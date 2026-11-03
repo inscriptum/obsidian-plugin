@@ -7,8 +7,12 @@ import {
 } from "../../core";
 import type { ExtendedRegExpMatchArray } from "../../core/@types";
 import { elTag } from "../../../tags";
-import { Slice } from "prosemirror-model";
-import { Plugin, TextSelection } from "prosemirror-state";
+import { type Node as PMNode, Slice } from "prosemirror-model";
+import {
+  type EditorState,
+  Plugin,
+  TextSelection,
+} from "prosemirror-state";
 
 import { addCommands } from "./commands";
 import { findLanguageByCssClass } from "./utils/findLanguageByCssClass";
@@ -683,7 +687,7 @@ function onChangeLang(
         : "";
 
     // The next line could be skipped, it's only needed for consistence DOM
-    // REVIEW: check performance, maybe we can remove this to reduce the render tree
+    // REVIEW: check performance, maybe we can remove it to reduce the render tree
     updateHljsElCssClass(domCodeEl, cssClass);
 
     editor.commands.blur();
@@ -694,4 +698,26 @@ function onChangeLang(
       }),
     );
   };
+}
+
+/** True when the whole selection lies strictly inside a single hljsCodeBlock.
+ *  The block accepts no marks (schema `marks: ""`), so text formatting
+ *  controls can't do anything there — the text bubble menu and the mobile
+ *  selection bar stay away. A selection crossing the block's boundary
+ *  belongs to the surrounding text too and keeps the menu.
+ *
+ *  Boundary positions (right before / after the block) resolve outside the
+ *  block, so such selections are never treated as "inside". */
+export function selectionInCodeBlock(state: EditorState): boolean {
+  const { from, to } = state.selection;
+  const enclosingBlock = (pos: number): PMNode | null => {
+    const $pos = state.doc.resolve(pos);
+    for (let depth = $pos.depth; depth > 0; depth--) {
+      const node = $pos.node(depth);
+      if (node.type.name === "hljsCodeBlock") return node;
+    }
+    return null;
+  };
+  const fromBlock = enclosingBlock(from);
+  return fromBlock !== null && fromBlock === enclosingBlock(to);
 }
