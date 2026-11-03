@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Selecting text inside a code block no longer shows the text-formatting menu — the floating bar on desktop, the button row above the keyboard on mobile. None of its buttons could change a code block anyway; a selection that starts outside the block keeps the menu as before.
+
 ## [0.13.0] - 2026-11-03
 
 ### Added
