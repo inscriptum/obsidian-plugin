@@ -162,4 +162,38 @@ test.describe("desktop mouse cell selection", () => {
     expect(state?.isCell).toBe(false);
     expect(state?.nativeSel.length).toBeGreaterThan(3);
   });
+
+  // Issue table-fast-selection-reset: a fast sweep (the pointer exits the
+  // long-press slop before the hold fires) must build the cell rectangle,
+  // never leave a native text range behind, and survive the mouseup.
+  test("a fast sweep across cells builds the rectangle without a text selection", async ({
+    page,
+  }) => {
+    const first = await cellBox(page, "alpha bravo");
+    const last = await cellBox(page, "golf hotel");
+
+    await page.mouse.move(first.cx, first.cy);
+    await page.mouse.down();
+    await page.mouse.move(first.cx + 4, first.cy, { steps: 2 }); // in-cell prefix
+    await page.mouse.move(last.cx, last.cy, { steps: 10 }); // fast sweep, crosses three cells
+    await page.mouse.up();
+    await page.waitForTimeout(150);
+
+    const state = await selectionState(page);
+    expect(state?.isCell).toBe(true);
+    expect(state?.selectedCount).toBe(4);
+    expect(state?.nativeSel).toBe("");
+  });
+
+  test("double-click in a cell selects the word (no cell selection)", async ({
+    page,
+  }) => {
+    const box = await cellBox(page, "alpha bravo");
+    await page.mouse.dblclick(box.cx, box.cy);
+    await page.waitForTimeout(150);
+
+    const state = await selectionState(page);
+    expect(state?.isCell).toBe(false);
+    expect(state?.nativeSel.length).toBeGreaterThan(0);
+  });
 });

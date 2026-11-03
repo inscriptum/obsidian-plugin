@@ -237,6 +237,20 @@
   user-select: none;
 }
 
+/* Cross-cell drag guard (issue table-fast-selection-reset): from the moment
+   a mouse drag leaves its starting cell until the mouseup, the cells are
+   unselectable — the native text-selection machinery (anchored at the plain
+   mousedown) must not (re)engage while the cell rectangle is being built,
+   and the .selectedCell rule above only exists AFTER the first CellSelection
+   dispatch. The class rides on the body: the dispatch re-renders the whole
+   table subtree, so a class on the table container lands on a detached
+   node. Added and removed by startDesktopLongPress (handleCellSelection.ts). */
+body.texto-table__cell-drag-select .ProseMirror td,
+body.texto-table__cell-drag-select .ProseMirror th {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
 /* Highlight — v2: radius 3px, padding 2px */
 .texto-editor .ProseMirror mark {
   background: rgba(245, 158, 11, 0.28);

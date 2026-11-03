@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Selecting text inside a code block no longer shows the text-formatting menu — the floating bar on desktop, the button row above the keyboard on mobile. None of its buttons could change a code block anyway; a selection that starts outside the block keeps the menu as before.
+- A quick drag across table cells now ends with the cells selected: the text no longer highlights along the way, and the selection no longer resets when you release the mouse. On mobile, a touch that starts on a table border can no longer summon the text selection either.
 
 ## [0.13.0] - 2026-11-03
 

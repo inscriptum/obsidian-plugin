@@ -81,7 +81,12 @@ export function handleTouchStart(
     return startColumnTouchResize(view, startEvent, target);
   }
 
-  if (target.closest("td, th")) {
+  // Cells AND the non-cell parts of the table (rows, borders): the WebView
+  // long-press machinery must never engage on any of them (issue
+  // table-fast-selection-reset, mobile residual gap — a gesture anchored on
+  // the border between cells could still open a native text selection).
+  // The wrapper's padding outside the table keeps native scrolling.
+  if (target.closest("td, th") || target.closest(".table-wrapper table")) {
     startEvent.preventDefault();
   }
 
@@ -153,9 +158,11 @@ function dispatchCellSelection(
   );
 }
 
-function cellTable(cell: HTMLElement): HTMLTableElement | null {
-  const wrapper = cell.closest(".table-wrapper");
-  const table = wrapper?.querySelector("table") ?? cell.closest("table");
+export function cellTable(cell: HTMLElement): HTMLTableElement | null {
+  // The innermost table containing the cell — closest(), not a wrapper
+  // querySelector (the first table in document order would be the OUTER one
+  // for cells of nested tables).
+  const table = cell.closest("table");
   return table instanceof HTMLTableElement &&
     table.getBoundingClientRect().width > 0
     ? table
@@ -167,7 +174,7 @@ function cellTable(cell: HTMLElement): HTMLTableElement | null {
  * depend on elementFromPoint (workspace-drawer-backdrop can swallow it on
  * mobile) or on ProseMirror state.
  */
-function domCellAtPoint(
+export function domCellAtPoint(
   table: HTMLTableElement | null,
   x: number,
   y: number,
