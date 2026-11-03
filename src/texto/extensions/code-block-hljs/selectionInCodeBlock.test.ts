@@ -65,8 +65,8 @@ describe("selectionInCodeBlock", () => {
 
   it("is false for a plain paragraph selection", () => {
     const doc = docWithCodeBlock("const x = 1;");
-    // noteTitle is 0-length; paragraph content spans [2, 2 + "plain text ".length]
-    const state = select(doc, 2, 2 + "plain text ".length);
+    // noteTitle (nodeSize 2) + paragraph open token: text spans [3, 3 + "plain text ".length]
+    const state = select(doc, 3, 3 + "plain text ".length);
     expect(selectionInCodeBlock(state)).toBe(false);
   });
 
@@ -100,17 +100,21 @@ describe("selectionInCodeBlock", () => {
       first,
       second,
     ]);
-    let firstTo = -1;
+    // Interior text positions: each block is open token + row open token,
+    // so its text starts at blockPos + 2.
+    let firstFrom = -1;
     let secondFrom = -1;
     doc.descendants((node, pos) => {
       if (node.type.name === "hljsCodeBlock") {
-        if (firstTo === -1) firstTo = pos + node.nodeSize;
+        if (firstFrom === -1) firstFrom = pos;
         else secondFrom = pos;
         return false;
       }
       return true;
     });
-    const state = select(doc, firstTo, secondFrom);
+    // From inside block A to inside block B: two different hljsCodeBlock
+    // nodes — not "entirely inside a single block", menu stays.
+    const state = select(doc, firstFrom + 2, secondFrom + 2);
     expect(selectionInCodeBlock(state)).toBe(false);
   });
 });

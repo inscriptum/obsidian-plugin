@@ -687,7 +687,7 @@ function onChangeLang(
         : "";
 
     // The next line could be skipped, it's only needed for consistence DOM
-    // REVIEW: check performance, maybe we can remove it to reduce the render tree
+    // REVIEW: check performance, maybe we can remove this to reduce the render tree
     updateHljsElCssClass(domCodeEl, cssClass);
 
     editor.commands.blur();
