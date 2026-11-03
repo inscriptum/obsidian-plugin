@@ -4,6 +4,7 @@ import { is } from "@web-companions/h/template";
 import { litView } from "@web-companions/lit";
 import { type Ref, createRef, ref } from "lit-html/directives/ref.js";
 
+import { DEFAULT_CHECKBOX_ICONS } from "../checkbox-icons";
 import type { TaskItemOptions } from "../task-item";
 import { itemIconNode } from "./svg/itemIcon.svgnode";
 
@@ -52,10 +53,25 @@ export const itemElement = litView.element({
     event.preventDefault();
   };
 
+  // The box pop must fire on a REAL false→true toggle, not on mount: a
+  // note opening with checked items would pop them all (issue
+  // task-item-theme review round). wasChecked seeds from the mount props.
+  let wasChecked = params.checked;
+  let justChecked = false;
+
   while (true) {
     const options = params.options ?? {};
     const isCustomSvgIcons = Array.isArray(options.checkboxIconLinks);
+    // The default icon pair renders as an inline SVG with a draw-in
+    // checkmark and a box pop (issue task-item-theme); any other icon set
+    // keeps the plain <use> sprite path (no animation there).
+    const isDefaultCheckIcons =
+      isCustomSvgIcons &&
+      options.checkboxIconLinks?.[0] === DEFAULT_CHECKBOX_ICONS[0] &&
+      options.checkboxIconLinks?.[1] === DEFAULT_CHECKBOX_ICONS[1];
     const isCustomSvgIconsOn = isCustomSvgIcons && params.checked;
+    justChecked = isDefaultCheckIcons && params.checked && !wasChecked;
+    wasChecked = params.checked;
 
     params = yield (
       <>
@@ -99,7 +115,39 @@ export const itemElement = litView.element({
           )}
 
           {is(
-            isCustomSvgIcons,
+            isDefaultCheckIcons,
+            <div class="custom-icon">
+              {/* Inline default checkbox (sprite twin): the checkmark is
+                  a stroke that draws itself in on check (see style.css) —
+                  impossible through the <use> shadow tree. */}
+              <svg
+                class={justChecked ? "texto-task-check is-pop" : "texto-task-check"}
+                viewBox="0 0 16 16"
+                fill="none"
+                aria-hidden="true"
+              >
+                <rect
+                  class="texto-task-check__box"
+                  x="0.5"
+                  y="0.5"
+                  width="15"
+                  height="15"
+                  rx="4.5"
+                  stroke-width="1"
+                />
+                <path
+                  class="texto-task-check__mark"
+                  d="M4.8 8L7.1 10.3L11.7 3.4"
+                  fill="none"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </div>,
+          )}
+          {is(
+            isCustomSvgIcons && !isDefaultCheckIcons,
             <div class="custom-icon">
               <ItemIconNode
                 key="taskItemCustomSvgIcon"

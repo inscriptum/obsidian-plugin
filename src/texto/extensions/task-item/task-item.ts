@@ -12,8 +12,7 @@ import type { Node as ProseMirrorNode } from "prosemirror-model";
 
 import { itemElement } from "./view/item.element";
 
-type checkboxOn = string;
-type checkboxOff = string;
+export { DEFAULT_CHECKBOX_ICONS } from "./checkbox-icons";
 
 export interface TaskItemOptions {
   nested: boolean;
@@ -23,7 +22,7 @@ export interface TaskItemOptions {
   HTMLAttributes: Record<string, string>;
   taskListTypeName: string;
   onReadOnlyChecked?: (node: ProseMirrorNode, checked: boolean) => boolean;
-  checkboxIconLinks?: [checkboxOn, checkboxOff];
+  checkboxIconLinks?: [string, string];
 }
 
 export const inputRegex = /^\s*(\[([( |x])?])\s$/;

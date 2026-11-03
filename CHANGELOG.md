@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Task list checkboxes now follow your Obsidian theme: their colors come from the theme's accent and text tokens instead of hardcoded purples, so they stop looking foreign in third-party and light themes. Checking an item got a small animation too — the checkmark draws itself in and the box gives a slight spring (disabled when the system asks for reduced motion).
+
 ## [0.13.0] - 2026-11-03
 
 ### Added

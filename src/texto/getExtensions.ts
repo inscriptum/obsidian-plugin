@@ -20,6 +20,7 @@ import {
 import { Mermaid } from "./extensions/mermaid";
 import { Table, TableCell, TableHeader, TableRow } from "./extensions/table";
 import { TaskList } from "./extensions/task-list";
+import { DEFAULT_CHECKBOX_ICONS } from "./extensions/task-item/checkbox-icons";
 import { TaskItem } from "./extensions/task-item";
 import { TaskItemFolding } from "./extensions/task-item-folding";
 import { BubbleMenu } from "./extensions/bubble-menu";
@@ -134,7 +135,7 @@ export function getExtensions(
       // Chevron only where the folding plugin is active — on mobile the
       // plugin is off and the chevron would be a dead control.
       taskFolding: options.isMobileView !== true,
-      checkboxIconLinks: ["check_box_on_20", "check_box_off_20"],
+      checkboxIconLinks: [...DEFAULT_CHECKBOX_ICONS],
     }),
     // Collapse subtasks of a task item (desktop-only, like heading folding).
     TaskItemFolding.configure({

@@ -46,15 +46,10 @@ ul.chk,
 	   every line of wrapped text correctly, and the color above is
 	   already the muted gray, so the native line stays subdued. */
   &[data-checked="true"] .content > p {
-    color: #8d8f9b;
+    color: var(--text-muted);
     text-decoration: line-through;
     transition: color 200ms;
   }
-}
-
-/* Light theme adjustments matching typography-v2.html .theme-light .note .chk */
-.theme-light .texto-extension-task-item-host[data-checked="true"] .content > p {
-  color: #8f8f99;
 }
 
 /* ─── Subtask fold chevron (task-item-folding) ───
@@ -139,7 +134,9 @@ ul.chk,
   width: 16px;
   height: 16px;
   flex: none;
-  color: #3a3a45;
+  /* Unchecked box border token (the <use> sprite's OFF rect strokes with
+     currentColor): matches the .chk .box preview border. */
+  color: color-mix(in srgb, var(--text-normal) 30%, transparent);
   transition: color 150ms ease;
 }
 
@@ -151,14 +148,85 @@ ul.chk,
 
 /* Checked item — accent icon (checkmark), box background/border are baked into the SVG */
 .texto-extension-task-item-host[data-checked="true"] .custom-icon {
-  color: var(--accent-2, #b3a3f7);
+  color: var(--note-accent-text);
 }
 
-/* Light theme for custom icons */
-.theme-light .texto-extension-task-item-host .custom-icon {
-  color: #c9c9d2;
+/* ─── Default checkbox: inline SVG with a draw-in checkmark (issue
+   task-item-theme) ───
+   The inline twin of the sprite's check_box_on/off_20 groups — a <use>
+   reference cannot animate the mark (the shadow tree has no per-state
+   styling hook), an inline node can. Colors follow the .chk .box preview:
+   unchecked border is a text-normal mix, checked box is a note-accent mix,
+   the checkmark is the accent text token. */
+.texto-extension-task-item-host .texto-task-check {
+  width: 16px;
+  height: 16px;
+  display: block;
+  transform-origin: center;
 }
 
-.theme-light .texto-extension-task-item-host[data-checked="true"] .custom-icon {
-  color: var(--accent-2, #b3a3f7);
+.texto-extension-task-item-host .texto-task-check__box {
+  stroke: color-mix(in srgb, var(--text-normal) 30%, transparent);
+  fill: transparent;
+  transition:
+    fill 180ms,
+    stroke 180ms;
+}
+
+/* The mark hides behind a dash gap wider than its length (11.5 units):
+   with round caps an offset equal to the length would leave a dot at the
+   path start. */
+.texto-extension-task-item-host .texto-task-check__mark {
+  stroke: transparent;
+  stroke-dasharray: 12 100;
+  stroke-dashoffset: 13;
+  transition:
+    stroke-dashoffset 120ms ease-in,
+    stroke 120ms;
+}
+
+.texto-extension-task-item-host[data-checked="true"] .texto-task-check__box {
+  fill: color-mix(in srgb, var(--note-accent) 14%, transparent);
+  stroke: color-mix(in srgb, var(--note-accent) 55%, transparent);
+}
+
+.texto-extension-task-item-host[data-checked="true"] .texto-task-check__mark {
+  stroke: var(--note-accent-text);
+  stroke-dashoffset: 0;
+  transition:
+    stroke-dashoffset 250ms ease-out,
+    stroke 120ms;
+}
+
+/* Box pop on check — the owner's requested "spring"; unchecking reverses
+   without drama (no pop, quick mark retract). The class is added by the
+   item view only on a REAL false→true toggle: a note opening with checked
+   items must not pop them all. */
+.texto-extension-task-item-host .texto-task-check.is-pop {
+  animation: texto-task-check-pop 220ms ease-out;
+}
+
+@keyframes texto-task-check-pop {
+  0% {
+    transform: scale(1);
+  }
+
+  45% {
+    transform: scale(1.14);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .texto-extension-task-item-host .texto-task-check__box,
+  .texto-extension-task-item-host .texto-task-check__mark {
+    transition: none;
+  }
+
+  .texto-extension-task-item-host .texto-task-check.is-pop {
+    animation: none;
+  }
 }
