@@ -130,9 +130,11 @@ test.describe("tasks and folding", () => {
         reduce: matchMedia("(prefers-reduced-motion: reduce)").matches,
         noPref: matchMedia("(prefers-reduced-motion: no-preference)").matches,
         inputChecked:
-          document
-            .querySelector(".texto-extension-task-item-host input")
-            ?.checked ?? null,
+          (
+            document.querySelector(
+              ".texto-extension-task-item-host input",
+            ) as HTMLInputElement | null
+          )?.checked ?? null,
         inputClass:
           document
             .querySelector(".texto-extension-task-item-host input")
