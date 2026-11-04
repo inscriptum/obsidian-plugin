@@ -81,6 +81,7 @@ import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubbl
 import { isMediaNodeSelection } from "./components/bubble-menu-bar/mediaMenuState";
 import { selectionInProperty, sanitizePropertyValues } from "./texto/extensions/note-property";
 import { selectionInWikiContext } from "./texto/extensions/wikilink";
+import { selectionInCodeBlock } from "./texto/extensions/code-block-hljs";
 import { getTableMenuState } from "./components/bubble-menu-bar/tableMenuState";
 import { moveTargetIndex } from "./notepad/moveTargetIndex";
 import {
@@ -295,6 +296,11 @@ export class NotepadView extends FileView {
    *  the set of physically intercepted shortcut keys (see main.ts and
    *  src/tools/isPressedCommand.ts). */
   static onEditorCreated: ((editor: Editor) => void) | null = null;
+
+  /** Installed by the plugin host (main.ts) — same contract as the
+   *  NoteView twin: the experimental dependent sub-tasks setting is read
+   *  at editor-creation time (see TaskItemOptions). */
+  static readDependentSubtasks: (() => boolean) | null = null;
 
   /** Called by the "Export as website" pane-menu item; the plugin host
    *  installs the actual export action (see main.ts). */
@@ -1562,7 +1568,11 @@ export class NotepadView extends FileView {
       },
       extensions: getExtensions(
         this.buildExtensionHooks(notepad, editorRef, ctx),
-        { isMobileView: isMobile, profile },
+        {
+          isMobileView: isMobile,
+          profile,
+          dependentSubtasks: NotepadView.readDependentSubtasks?.() === true,
+        },
       ),
       // Search jumps mount pages in the background and must not steal
       // focus from the search input.
@@ -3018,6 +3028,9 @@ export class NotepadView extends FileView {
           // link's label) carries no formatting controls — owner claim,
           // wikilinks round 7.
           if (selectionInWikiContext(state)) return false;
+          // Code blocks accept no marks (schema `marks: ""`) — formatting
+          // buttons can't do anything inside one.
+          if (selectionInCodeBlock(state)) return false;
           const inTable = isInTable(state);
           // Selected text — the text menu serves it even inside a table.
           if (inTable && !selection.empty && isTextSelection(selection))

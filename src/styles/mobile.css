@@ -9,12 +9,11 @@
    ─────────────────────────────────────────────────────────────── */
 
 /* ─── 1. Larger checkboxes for comfortable tapping ───
-   The checkbox is a custom SVG: #check_box_off_20 / #check_box_on_20 are
-   <g> groups (NOT <symbol>) defined in note.element.tsx inside an
-   <svg viewBox="0 0 16 16"> with fixed 16-unit coordinates. TaskItem
-   references them via <use>, so the icon scales with the outer <svg>'s
-   CSS size (its viewBox is "0 0 16 16" — see itemIcon.svgnode.tsx).
-   Desktop shows it at 16px; on mobile we bump it for easier tapping. ─── */
+   The default checkbox is an inline SVG with the sprite's 16-unit
+   geometry (viewBox "0 0 16 16", issue task-item-theme); custom icon
+   sets still go through <use> into the same box. The icon scales with
+   the outer <svg>'s CSS size: desktop shows it at 16px, on mobile we
+   bump it for easier tapping. ─── */
 .note-view-container.is-mobile .texto-extension-task-item-host .custom-icon,
 .notepad-view-container.is-mobile .texto-extension-task-item-host .custom-icon {
   width: 22px;

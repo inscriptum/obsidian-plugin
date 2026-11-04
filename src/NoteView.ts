@@ -61,6 +61,7 @@ import {
 } from "./texto/extensions/bubble-menu";
 import { BubbleMenuBarElement } from "./components/bubble-menu-bar/bubble-menu-bar.element";
 import { selectionInWikiContext } from "./texto/extensions/wikilink";
+import { selectionInCodeBlock } from "./texto/extensions/code-block-hljs";
 import { TableBubbleMenuElement } from "./components/bubble-menu-bar/table-bubble-menu-bar.element";
 import { TableCellsBubbleMenuElement } from "./components/bubble-menu-bar/table-cells-bubble-menu-bar.element";
 import { MediaBubbleMenuElement } from "./components/bubble-menu-bar/media-bubble-menu-bar.element";
@@ -116,6 +117,12 @@ export class NoteView extends FileView {
    *  of physically intercepted shortcut keys (see main.ts and
    *  src/tools/isPressedCommand.ts). */
   static onEditorCreated: ((editor: Editor) => void) | null = null;
+
+  /** Installed by the plugin host (main.ts): reads the plugin setting for
+   *  the experimental dependent sub-tasks mode at editor-creation time —
+   *  the editor picks the value up when it opens, a settings change
+   *  applies to newly opened notes (see TaskItemOptions). */
+  static readDependentSubtasks: (() => boolean) | null = null;
 
   /** Called by the "Export as website" pane-menu item; the plugin host
    *  installs the actual export action (see main.ts). */
@@ -477,7 +484,11 @@ export class NoteView extends FileView {
             },
             extensions: getExtensions(
               this.buildExtensionHooks(file, editorRef, ctx),
-              { isMobileView: isMobile },
+              {
+                isMobileView: isMobile,
+                dependentSubtasks:
+                  NoteView.readDependentSubtasks?.() === true,
+              },
             ),
             autofocus: "start",
           });
@@ -650,6 +661,12 @@ export class NoteView extends FileView {
                     // committed link's label) carries no formatting controls
                     // — owner claim, wikilinks round 7.
                     if (selectionInWikiContext(state)) {
+                      return false;
+                    }
+
+                    // Code blocks accept no marks (schema `marks: ""`) —
+                    // formatting buttons can't do anything inside one.
+                    if (selectionInCodeBlock(state)) {
                       return false;
                     }
 

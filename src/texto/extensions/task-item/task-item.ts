@@ -10,20 +10,25 @@ import type { KeyboardShortcutCommand } from "../../core/@types/index";
 import { ignoreMutationIOS } from "../../core/helpers";
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
+import { applyPopGate } from "./popGate";
+import { applyTaskCascade } from "./applyTaskCascade";
 import { itemElement } from "./view/item.element";
 
-type checkboxOn = string;
-type checkboxOff = string;
+export { DEFAULT_CHECKBOX_ICONS } from "./checkbox-icons";
 
 export interface TaskItemOptions {
   nested: boolean;
   /** Whether subtask folding (chevron) is enabled — the TaskItemFolding
    *  extension must be active for the toggle to have any effect. */
   taskFolding: boolean;
+  /** EXPERIMENTAL (owner setting, default off): on, checking a task also
+   *  checks all of its sub-tasks and unchecking any task unchecks its
+   *  parent chain; off, every checkbox toggles alone (independent). */
+  dependentSubtasks: boolean;
   HTMLAttributes: Record<string, string>;
   taskListTypeName: string;
   onReadOnlyChecked?: (node: ProseMirrorNode, checked: boolean) => boolean;
-  checkboxIconLinks?: [checkboxOn, checkboxOff];
+  checkboxIconLinks?: [string, string];
 }
 
 export const inputRegex = /^\s*(\[([( |x])?])\s$/;
@@ -60,6 +65,7 @@ export const TaskItem = Node.create<TaskItemOptions>({
     return {
       nested: false,
       taskFolding: false,
+      dependentSubtasks: false,
       HTMLAttributes: {},
       taskListTypeName: "taskList",
     };
@@ -179,6 +185,18 @@ export const TaskItem = Node.create<TaskItemOptions>({
                 checked,
               });
 
+              // EXPERIMENTAL dependent sub-tasks (owner setting, default
+              // off): with the setting on, the toggle cascades — see
+              // applyTaskCascade. Off, nothing beyond the single flip.
+              applyTaskCascade(
+                tr,
+                position,
+                checked,
+                currentNode,
+                this.type,
+                this.options.dependentSubtasks === true,
+              );
+
               return true;
             });
           }
@@ -201,6 +219,8 @@ export const TaskItem = Node.create<TaskItemOptions>({
         },
       );
 
+      // The pop gate seeds from the mount state: an item mounted checked
+      // must not pop (issue task-item-theme review round).
       element.dataset.checked = String(node.attrs.checked);
 
       Object.entries(HTMLAttributes).forEach(([key, value]) => {
@@ -237,11 +257,18 @@ export const TaskItem = Node.create<TaskItemOptions>({
             return false;
           }
 
-          element.dataset.checked = String(updatedNode.attrs.checked);
+          const nowChecked = !!updatedNode.attrs.checked;
+
+          // The box pop arms on a REAL false→true toggle (issue
+          // task-item-theme). The gate lives HERE, not in the item's
+          // generator: the view layer may RESTART the generator on a
+          // toggle (observed on CI — its closure state does not survive),
+          // which made the pop silently environment-dependent.
+          applyPopGate(element, nowChecked);
 
           element.props = {
             ...element.props,
-            checked: !!updatedNode.attrs.checked,
+            checked: nowChecked,
             foldable: isFoldableItem(
               this.options,
               updatedNode,

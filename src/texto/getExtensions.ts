@@ -20,6 +20,7 @@ import {
 import { Mermaid } from "./extensions/mermaid";
 import { Table, TableCell, TableHeader, TableRow } from "./extensions/table";
 import { TaskList } from "./extensions/task-list";
+import { DEFAULT_CHECKBOX_ICONS } from "./extensions/task-item/checkbox-icons";
 import { TaskItem } from "./extensions/task-item";
 import { TaskItemFolding } from "./extensions/task-item-folding";
 import { BubbleMenu } from "./extensions/bubble-menu";
@@ -69,6 +70,10 @@ export interface GetExtensionsOptions {
    *  mandatory title; "title"/"plain" are the notepad page families. The
    *  profiles share everything except the top node. */
   profile?: "note" | "title" | "plain";
+  /** EXPERIMENTAL dependent sub-tasks (owner setting, default off): on,
+   *  checking a task checks its descendants and unchecking any task
+   *  unchecks its parent chain; off, every checkbox toggles alone. */
+  dependentSubtasks?: boolean;
 }
 
 export function getExtensions(
@@ -134,7 +139,8 @@ export function getExtensions(
       // Chevron only where the folding plugin is active — on mobile the
       // plugin is off and the chevron would be a dead control.
       taskFolding: options.isMobileView !== true,
-      checkboxIconLinks: ["check_box_on_20", "check_box_off_20"],
+      checkboxIconLinks: [...DEFAULT_CHECKBOX_ICONS],
+      dependentSubtasks: options.dependentSubtasks === true,
     }),
     // Collapse subtasks of a task item (desktop-only, like heading folding).
     TaskItemFolding.configure({

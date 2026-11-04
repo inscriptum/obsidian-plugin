@@ -48,14 +48,19 @@ export const NoteElement = litView.element({
               xmlns="http://www.w3.org/2000/svg"
             >
               <g id="check_box_on_20">
+                {/* Colors ride on the style attribute: presentation
+                    attributes cannot hold var()/color-mix, style can — and
+                    the custom properties inherit into the <use> shadow
+                    tree from the .note wrapper (issue task-item-theme). */}
                 <rect
                   x="0.5"
                   y="0.5"
                   width="15"
                   height="15"
                   rx="4.5"
-                  fill="rgba(124, 106, 247, .14)"
-                  stroke="rgba(124, 106, 247, .55)"
+                  style={
+                    "fill: color-mix(in srgb, var(--note-accent) 14%, transparent); stroke: color-mix(in srgb, var(--note-accent) 55%, transparent);"
+                  }
                   stroke-width="1"
                 />
                 <path

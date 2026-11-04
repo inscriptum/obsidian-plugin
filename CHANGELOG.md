@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Task list checkboxes now follow your Obsidian theme: their colors come from the theme's accent and text tokens instead of hardcoded purples, so they stop looking foreign in third-party and light themes. Checking an item got a small animation too — the checkmark draws itself in and the box gives a slight spring (disabled when the system asks for reduced motion).
+
+### Added
+
+- A new experimental option, "Dependent sub-tasks" (off by default). Turned on, checking a task also checks all of its sub-tasks, and unchecking any sub-task unhooks its parent's checkmark — handy for checklists where a parent is done only when every step under it is. Off (the default), every checkbox stays independent.
+
+### Fixed
+
+- Checking a task no longer makes its nested sub-tasks look checked: their checkboxes kept their own state, but the strike-through and the checkmark leaked from the parent onto everything nested under it.
+- Selecting text inside a code block no longer shows the text-formatting menu — the floating bar on desktop, the button row above the keyboard on mobile. None of its buttons could change a code block anyway; a selection that starts outside the block keeps the menu as before.
+- A quick drag across table cells now ends with the cells selected: the text no longer highlights along the way, and the selection no longer resets when you release the mouse. On mobile, a touch that starts on a table border can no longer summon the text selection either.
+- The hidden line ids inside code blocks stay put now: editing a code block no longer silently regenerates them on every keystroke. Your console no longer fills with "repaired block ids" notices while you type in a code block, and external tools can rely on a line's address.
+
 ## [0.13.0] - 2026-11-03
 
 ### Added

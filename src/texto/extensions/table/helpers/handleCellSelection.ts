@@ -15,13 +15,18 @@ import {
 } from "prosemirror-view";
 
 import {
+  beginCrossCellDrag,
   endCellDrag,
+  endCrossCellDrag,
   isCellDragActive,
+  isCrossCellDragActive,
   isTouchCompatMouseSuppressed,
   consumeTouchCompatMouse,
 } from "./cellDragFreeze";
 import { cellAtPoint, handleMouseDown } from "./handleMouseDown";
 import {
+  cellTable,
+  domCellAtPoint,
   handlePointerDown,
   handleTouchMoveDuringDrag,
   handleTouchStart,
@@ -150,6 +155,15 @@ export function handleCellSelection(isMobileView: boolean) {
       if (isMobileView || tr.docChanged) return true;
       // The deliberate collapse of collapseCellSelectionOnClick passes.
       if (tr.getMeta(cellCollapseClickMeta)) return true;
+      // While a cross-cell mouse drag is building the rectangle, the
+      // browser's selection changes (anchored at the plain mousedown) must
+      // not sync back as a TextSelection — that late flush is what collapses
+      // the fresh cell selection after the mouseup (issue
+      // table-fast-selection-reset). Cell-selection dispatches (the rectangle
+      // itself) and transactions that do not touch the selection pass.
+      if (isCrossCellDragActive()) {
+        return !tr.selectionSet || tr.selection instanceof CellSelection;
+      }
       if (Date.now() > collapseLatchUntil) return true;
       if (!(state.selection instanceof TextoCellSelection)) return true;
       return tr.selection instanceof TextoCellSelection;
@@ -191,6 +205,17 @@ export function handleCellSelection(isMobileView: boolean) {
               event.preventDefault();
               collapseCellSelectionOnClick(view, event);
               return true;
+            }
+            // Only the primary button may start the hold/drag tracker
+            // (issue table-fast-selection-reset, PR #21 review): a
+            // right-click (context menu) or a middle click would otherwise
+            // arm the 450 ms hold with no button held — onUp ignores
+            // non-primary releases — and the cell would select itself
+            // after the click. onUp keeps its release guard for an
+            // existing PRIMARY drag (a stray secondary release must not
+            // tear down a live gesture).
+            if (event.button !== 0) {
+              return false;
             }
             startDesktopLongPress(view, event);
             return false;
@@ -352,12 +377,33 @@ let collapseLatchUntil = 0;
 const cellCollapseClickMeta = "textoTableCollapseClick";
 
 /**
+ * Body class from the moment the drag leaves its starting cell until the
+ * mouseup: the cells become user-select: none, so the native selection
+ * machinery cannot (re)engage while the rectangle is being built — the
+ * .selectedCell rule only exists AFTER the first CellSelection dispatch
+ * (issue table-fast-selection-reset). Body, not the table container: the
+ * CellSelection dispatch re-renders the whole table subtree (TableView is
+ * destroyed and re-created), so a class on the wrapper lands on a detached
+ * node — the body is the established carrier for gesture classes (the
+ * texto-table__cell-selecting rule in mobile.css).
+ */
+const CELL_DRAG_SELECT_CLASS = "texto-table__cell-drag-select";
+
+/**
  * Desktop long-press (issue table-selection-native-drag): holding the mouse
  * button still on a cell for a moment selects that cell — the mouse twin of
  * the mobile long-press, and the only single-cell affordance once the
  * circle is gone. A plain click (release before the timer, or moving out of
  * the slop) stays untouched: the caret was already placed by the default
  * mousedown handling and an immediate drag builds the rectangle natively.
+ *
+ * The same gesture tracker owns the FAST drag (issue
+ * table-fast-selection-reset): once the pointer leaves the starting cell,
+ * the native text-selection machinery — anchored at the plain mousedown —
+ * is suppressed for the rest of the gesture (selectstart prevention, a
+ * user-select guard class, and the crossCell transaction filter), so a fast
+ * sweep across cells builds the cell rectangle without ever highlighting
+ * text and without the mouseup commit resetting it.
  *
  * While the selection is active, moving extends the rectangle and the
  * moves are preventDefault-ed so the native text-selection drag does not
@@ -371,9 +417,119 @@ function startDesktopLongPress(view: EditorView, startEvent: MouseEvent): void {
   let active = false;
   let anchor: ResolvedPos | null = null;
 
+  // The cell the gesture started in (DOM identity): the crossing detector
+  // compares pure DOM hit-tests, no PM state involved. The element may go
+  // stale mid-gesture (the dispatch re-renders the table subtree) — that is
+  // fine, the crossing latches on the first detection.
+  const startCellEl = (startEvent.target as HTMLElement | null)?.closest?.(
+    "td, th",
+  ) as HTMLElement | null;
+  const table = startCellEl ? cellTable(startCellEl) : null;
+  let crossCell = false;
+
+  /** A lost gesture must never leave the suppression engaged: the flag in
+   *  cellDragFreeze blocks caret placement through filterTransaction until
+   *  it is cleared (issue table-fast-selection-reset review round). */
+  const guardDestroyed = (): boolean => {
+    if (!view.isDestroyed) return false;
+    stopSuppression();
+    return true;
+  };
+
+  /**
+   * The first move landing in a different cell (or off the table) latches
+   * the crossing; every move of a crossed drag keeps the native text
+   * selection machinery out: preventDefault drops the selection update the
+   * move would perform, and the range of the in-cell prefix is cleared so
+   * no text highlight survives into the rectangle drag.
+   */
+  const onMoveCapture = (event: MouseEvent): void => {
+    if (guardDestroyed()) return;
+    if (crossCell) {
+      event.preventDefault();
+      view.dom.ownerDocument.getSelection()?.removeAllRanges();
+      return;
+    }
+    if (!startCellEl || !table) {
+      return;
+    }
+    const cell = domCellAtPoint(table, event.clientX, event.clientY);
+    if (cell === startCellEl) {
+      return;
+    }
+    if (!cell) {
+      // No cell under the pointer: only a pointer that left the table
+      // counts (a hit-test miss inside the table is not a crossing).
+      const rect = table.getBoundingClientRect();
+      if (
+        event.clientX >= rect.left &&
+        event.clientX <= rect.right &&
+        event.clientY >= rect.top &&
+        event.clientY <= rect.bottom
+      ) {
+        return;
+      }
+    }
+    crossCell = true;
+    beginCrossCellDrag();
+    doc.body.classList.add(CELL_DRAG_SELECT_CLASS);
+    // The latching move itself would create a range in whatever content it
+    // landed on (past the table edge — an ordinary paragraph): the default
+    // selection update must not run for a crossed gesture.
+    event.preventDefault();
+    // The selection attempt(s) of the moves that stayed inside the starting
+    // cell may have created a range already — the in-cell prefix of the
+    // cross-cell gesture must not survive (owner invariant: no text
+    // highlight at any moment of a cell-rectangle drag).
+    view.dom.ownerDocument.getSelection()?.removeAllRanges();
+  };
+
+  /** Re-selection attempts of the native machinery never wanted now. */
+  const onSelectStart = (event: Event): void => {
+    if (guardDestroyed()) return;
+    if (crossCell) {
+      event.preventDefault();
+    }
+  };
+
+  /**
+   * Teardown of the text-selection suppression. Runs at the MOUSEUP (and on
+   * blur / native dragstart — a drag of cell content releases the button
+   * outside the document), not at the long-press abort: a fast drag leaves
+   * the slop long before it ends, and the suppression must outlive the
+   * abort — it protects the rectangle until the button is released. Latches
+   * the flush window so the selectionchange following the range removal
+   * cannot sync an empty DOM selection back over the fresh cell selection
+   * (the same tail guard the hold path uses); a user click cannot
+   * physically land within the window.
+   */
+  const stopSuppression = (): void => {
+    doc.removeEventListener("mousemove", onMoveCapture, true);
+    doc.removeEventListener("selectstart", onSelectStart, true);
+    doc.removeEventListener("mouseup", onUp);
+    window.removeEventListener("blur", onUp);
+    doc.removeEventListener("dragstart", onUp);
+    doc.body.classList.remove(CELL_DRAG_SELECT_CLASS);
+    if (crossCell) {
+      endCrossCellDrag();
+      if (!view.isDestroyed && view.state.selection instanceof TextoCellSelection) {
+        collapseLatchUntil = Date.now() + COLLAPSE_LATCH_MS;
+      }
+      // No text range may survive the gesture: clear whatever the browser
+      // holds (the in-cell prefix or a late mouseup commit) — whether or not
+      // a cell selection came out of it.
+      view.dom.ownerDocument.getSelection()?.removeAllRanges();
+    }
+  };
+
+  /**
+   * Teardown of the long-press tracking (the abort paths and the end of a
+   * hold). Does NOT touch the suppression listeners: a fast drag leaves the
+   * slop long before the mouseup, and the suppression must outlive the
+   * abort — it is torn down by onUp → stopSuppression.
+   */
   const stop = (): void => {
     doc.removeEventListener("mousemove", onMove);
-    doc.removeEventListener("mouseup", onUp);
     window.clearTimeout(timer);
     if (!active) {
       return;
@@ -434,8 +590,17 @@ function startDesktopLongPress(view: EditorView, startEvent: MouseEvent): void {
     dispatchSelection($head);
   };
 
-  const onUp = (): void => {
+  /** Gesture end: the left button's mouseup — or a lost gesture (the
+   *  window lost focus, or the content turned into a native drag and the
+   *  mouseup lands outside the document). Secondary buttons must not tear
+   *  down a running primary gesture (mirrors prosemirror-tables' own
+   *  button check). */
+  const onUp = (event: Event): void => {
+    if (event.type === "mouseup" && (event as MouseEvent).button !== 0) {
+      return;
+    }
     stop();
+    stopSuppression();
   };
 
   timer = window.setTimeout(() => {
@@ -459,6 +624,17 @@ function startDesktopLongPress(view: EditorView, startEvent: MouseEvent): void {
     view.dispatch(view.state.tr.setSelection(new TextoCellSelection($cell)));
   }, LONG_PRESS_MS);
 
+  // The crossing guard runs in the CAPTURE phase, before prosemirror-tables'
+  // move handler (view.root, bubble): the cleanup of the native range must
+  // precede the rectangle dispatch, so the DOM selection ends the event in
+  // the state PM just set.
+  doc.addEventListener("mousemove", onMoveCapture, true);
+  doc.addEventListener("selectstart", onSelectStart, true);
   doc.addEventListener("mousemove", onMove);
   doc.addEventListener("mouseup", onUp);
+  // A lost mouseup must not leave the suppression engaged: the window losing
+  // focus (alt-tab mid-drag) or the content turning into a native drag both
+  // end the gesture without our mouseup.
+  window.addEventListener("blur", onUp);
+  doc.addEventListener("dragstart", onUp);
 }
