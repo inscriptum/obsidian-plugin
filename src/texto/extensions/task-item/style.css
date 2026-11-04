@@ -49,7 +49,6 @@ ul.chk,
     color: var(--text-muted);
     text-decoration: line-through;
     transition: color 200ms;
-    text-decoration-thickness: 1px;
   }
 }
 
