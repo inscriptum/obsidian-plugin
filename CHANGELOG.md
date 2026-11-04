@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Checking a task no longer makes its nested sub-tasks look checked: their checkboxes kept their own state, but the strike-through and the checkmark leaked from the parent onto everything nested under it.
 - Selecting text inside a code block no longer shows the text-formatting menu — the floating bar on desktop, the button row above the keyboard on mobile. None of its buttons could change a code block anyway; a selection that starts outside the block keeps the menu as before.
 - A quick drag across table cells now ends with the cells selected: the text no longer highlights along the way, and the selection no longer resets when you release the mouse. On mobile, a touch that starts on a table border can no longer summon the text selection either.
 - The hidden line ids inside code blocks stay put now: editing a code block no longer silently regenerates them on every keystroke. Your console no longer fills with "repaired block ids" notices while you type in a code block, and external tools can rely on a line's address.
