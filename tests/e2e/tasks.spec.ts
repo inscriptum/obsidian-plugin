@@ -77,6 +77,10 @@ test.describe("tasks and folding", () => {
   test("default checkbox follows theme tokens and animates the checkmark", async ({
     page,
   }) => {
+    // Headless CI reports prefers-reduced-motion: reduce by default —
+    // which turns the pop animation off — so the animation expectations
+    // below need the explicit no-preference emulation.
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await openHarness(page);
     await mount(page, noteDoc(taskList([{ text: "todo tokens" }])));
 
