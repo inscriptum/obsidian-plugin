@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Cmd/Ctrl+X cuts the selected text again: the table feature had claimed the shortcut app-wide, which cancelled the native cut before it could run. Cutting selected table cells keeps its spreadsheet behavior (rows removed, or the rectangle cleared), now on both desktop and mobile.
+
 - Changes made to a notepad file outside the app — a git sync, another agent, another editor — can no longer be silently overwritten by the app's own autosave. The app now notices the external change and asks which version to keep, and when it reloads quietly, your open pages and scroll position stay put.
 
 - Checking a task no longer makes its nested sub-tasks look checked: their checkboxes kept their own state, but the strike-through and the checkmark leaked from the parent onto everything nested under it.
