@@ -18,6 +18,9 @@ export interface BubbleMenuState {
   quote: boolean;
   list: boolean;
   taskList: boolean;
+  /** Horizontal alignment of the current text block (issues/text-align):
+   *  left is the absence of the attrs.align attribute. */
+  align: "left" | "center" | "right";
   /** Text color (textStyle.color attribute) */
   color: string | null;
 }
@@ -46,6 +49,15 @@ export function getBubbleMenuState(
   editor: Pick<Editor, "isActive" | "getAttributes">,
 ): BubbleMenuState {
   const textStyle = editor.getAttributes("textStyle");
+  // The current text block is a paragraph or a heading (lists and cells hold
+  // paragraphs); whichever type is active carries the attrs.align value.
+  const blockAttrs = editor.isActive("heading")
+    ? editor.getAttributes("heading")
+    : editor.getAttributes("paragraph");
+  const rawAlign =
+    typeof blockAttrs?.align === "string" ? blockAttrs.align : null;
+  const align: BubbleMenuState["align"] =
+    rawAlign === "center" || rawAlign === "right" ? rawAlign : "left";
 
   return {
     bold: editor.isActive("bold"),
@@ -62,6 +74,7 @@ export function getBubbleMenuState(
     quote: editor.isActive("blockquote"),
     list: editor.isActive("bulletList") || editor.isActive("orderedList"),
     taskList: editor.isActive("taskList"),
+    align,
     color: typeof textStyle?.color === "string" ? textStyle.color : null,
   };
 }

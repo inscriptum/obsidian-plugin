@@ -141,7 +141,8 @@ describe("buildSchemaArtifact", () => {
   it("generates a valid example per node type where safe", () => {
     expect(artifact.nodes.paragraph.example).toEqual({
       type: "paragraph",
-      attrs: { id: null },
+      // align (issues/text-align) joined attrs.id as the global attrs.
+      attrs: { id: null, align: null },
     });
     expect(artifact.nodes.text.example).toBeNull();
     for (const [name, node] of Object.entries(artifact.nodes)) {

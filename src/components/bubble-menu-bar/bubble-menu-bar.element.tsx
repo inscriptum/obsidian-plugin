@@ -262,6 +262,10 @@ export const BubbleMenuBarElement = litView.element({
     }
   };
 
+  const applyAlign = (align: "left" | "center" | "right") => {
+    props.editor.chain().focus().setTextAlign(align).run();
+  };
+
   const applyColor = (color: string | null) => {
     const e = props.editor;
     if (color == null) {
@@ -573,6 +577,42 @@ export const BubbleMenuBarElement = litView.element({
               <span>Checkbox</span>
               <span class="bb-tick">{bubbleIconNodes.check()}</span>
             </button>
+
+            <div class="bb-layer-sep"></div>
+            <div class="bb-layer-label">Align</div>
+            {/* Horizontal alignment of the current text block (issues/text-
+               align). A row of icon buttons — .bb-al keeps its own look on
+               mobile (excluded from the generic button overrides, see
+               rule-bubble-menu-buttons). */}
+            <div class="bb-al-row">
+              <button
+                class={cls("bb-al", state.align === "left" && "is-active")}
+                aria-label="Align left"
+                data-tip="Align left"
+                onmousedown={(e: MouseEvent) => e.preventDefault()}
+                onclick={() => applyAlign("left")}
+              >
+                {bubbleIconNodes.alignLeft()}
+              </button>
+              <button
+                class={cls("bb-al", state.align === "center" && "is-active")}
+                aria-label="Align center"
+                data-tip="Align center"
+                onmousedown={(e: MouseEvent) => e.preventDefault()}
+                onclick={() => applyAlign("center")}
+              >
+                {bubbleIconNodes.alignCenter()}
+              </button>
+              <button
+                class={cls("bb-al", state.align === "right" && "is-active")}
+                aria-label="Align right"
+                data-tip="Align right"
+                onmousedown={(e: MouseEvent) => e.preventDefault()}
+                onclick={() => applyAlign("right")}
+              >
+                {bubbleIconNodes.alignRight()}
+              </button>
+            </div>
 
             <div class="bb-layer-sep"></div>
             <div class="bb-layer-label">Text color</div>
