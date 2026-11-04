@@ -185,6 +185,24 @@ test.describe("desktop mouse cell selection", () => {
     expect(state?.nativeSel).toBe("");
   });
 
+  // PR #21 review: a right-click in an unselected cell must not arm the
+  // hold — the tracker started on it ignores the non-primary release, and
+  // the cell would select itself 450 ms later with no button held.
+  test("a right-click does not start the cell-selection hold", async ({
+    page,
+  }) => {
+    const box = await cellBox(page, "alpha bravo");
+    await page.mouse.click(box.cx, box.cy, { button: "right" });
+    await page.waitForTimeout(700); // past the 450 ms hold
+
+    const state = await selectionState(page);
+    expect(state?.isCell).toBe(false);
+    expect(state?.selectedCount).toBe(0);
+    // A native word selection under the right-click is platform behavior
+    // (macOS selects a word on right-click) — not this bug; only the cell
+    // selection must stay off.
+  });
+
   test("double-click in a cell selects the word (no cell selection)", async ({
     page,
   }) => {
