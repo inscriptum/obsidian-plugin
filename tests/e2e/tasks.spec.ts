@@ -111,35 +111,16 @@ test.describe("tasks and folding", () => {
     expect(unchecked?.markOffset).toBeGreaterThan(0);
 
     await host.locator("label").click();
-    // The pop animation runs right after the check. The received object
-    // (shown in full on failure) carries the state needed to triage the
-    // CI-only failure: class, media emulation, checked attr, counts.
-    const animation = await page.evaluate(() => {
-      const svg = document.querySelector(".texto-task-check");
-      return {
-        anim: svg == null ? null : getComputedStyle(svg).animationName,
-        cls: svg?.getAttribute("class") ?? null,
-        svgCount: document.querySelectorAll(".texto-task-check").length,
-        hostCount: document.querySelectorAll(
-          ".texto-extension-task-item-host",
-        ).length,
-        checked:
-          document
-            .querySelector(".texto-extension-task-item-host")
-            ?.getAttribute("data-checked") ?? null,
-        reduce: matchMedia("(prefers-reduced-motion: reduce)").matches,
-        noPref: matchMedia("(prefers-reduced-motion: no-preference)").matches,
-        inputChecked:
-          document
-            .querySelector(".texto-extension-task-item-host input")
-            ?.checked ?? null,
-        inputClass:
-          document
-            .querySelector(".texto-extension-task-item-host input")
-            ?.className ?? null,
-      };
-    });
-    expect(animation).toEqual({ anim: "texto-task-check-pop" });
+    // The pop animation is armed by the node view for ~320 ms after the
+    // check (data-pop, see task-item.ts) — poll, do not race the render.
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const svg = document.querySelector(".texto-task-check");
+          return svg == null ? null : getComputedStyle(svg).animationName;
+        }),
+      )
+      .toBe("texto-task-check-pop");
 
     await expect
       .poll(() =>

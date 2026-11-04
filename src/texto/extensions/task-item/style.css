@@ -199,10 +199,11 @@ ul.chk,
 }
 
 /* Box pop on check — the owner's requested "spring"; unchecking reverses
-   without drama (no pop, quick mark retract). The class is added by the
-   item view only on a REAL false→true toggle: a note opening with checked
-   items must not pop them all. */
-.texto-extension-task-item-host .texto-task-check.is-pop {
+   without drama (no pop, quick mark retract). The data-pop attribute is
+   armed by the item's node view on a REAL false→true toggle and dropped
+   right after the animation, so a note opening with checked items never
+   pops and later re-renders never replay it (issue task-item-theme). */
+.texto-extension-task-item-host[data-pop] .texto-task-check {
   animation: texto-task-check-pop 220ms ease-out;
 }
 
@@ -226,7 +227,7 @@ ul.chk,
     transition: none;
   }
 
-  .texto-extension-task-item-host .texto-task-check.is-pop {
+  .texto-extension-task-item-host[data-pop] .texto-task-check {
     animation: none;
   }
 }

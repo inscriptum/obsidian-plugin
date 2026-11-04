@@ -200,6 +200,8 @@ export const TaskItem = Node.create<TaskItemOptions>({
         },
       );
 
+      // The pop gate seeds from the mount state: an item mounted checked
+      // must not pop (issue task-item-theme review round).
       element.dataset.checked = String(node.attrs.checked);
 
       Object.entries(HTMLAttributes).forEach(([key, value]) => {
@@ -236,11 +238,27 @@ export const TaskItem = Node.create<TaskItemOptions>({
             return false;
           }
 
-          element.dataset.checked = String(updatedNode.attrs.checked);
+          const nowChecked = !!updatedNode.attrs.checked;
+          const wasChecked = element.dataset.checked === "true";
+          element.dataset.checked = String(nowChecked);
+
+          // The box pop arms on a REAL false→true toggle (issue
+          // task-item-theme): the attribute drives the CSS animation and
+          // is dropped right after it finishes, so later re-renders never
+          // replay the pop. This lives HERE, not in the item's generator:
+          // the generator may be restarted (not resumed) by the view layer
+          // on some environments — its closure state does not survive a
+          // toggle, which made the pop silently environment-dependent.
+          if (nowChecked && !wasChecked) {
+            element.setAttribute("data-pop", "");
+            window.setTimeout(() => element.removeAttribute("data-pop"), 320);
+          } else if (!nowChecked) {
+            element.removeAttribute("data-pop");
+          }
 
           element.props = {
             ...element.props,
-            checked: !!updatedNode.attrs.checked,
+            checked: nowChecked,
             foldable: isFoldableItem(
               this.options,
               updatedNode,
