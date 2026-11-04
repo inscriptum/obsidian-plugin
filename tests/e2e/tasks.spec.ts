@@ -209,6 +209,22 @@ test.describe("tasks and folding", () => {
       })
       .toBe(true);
 
+    // The parent's mark transitions 13 -> 0 over 250 ms — poll it to zero
+    // like the token test above, or the one-shot read races the animation
+    // (PR #21 review).
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const mark = document.querySelector(
+            ".texto-task-check__mark",
+          ) as SVGElement;
+          return Number.parseFloat(
+            getComputedStyle(mark).strokeDashoffset,
+          );
+        }),
+      )
+      .toBe(0);
+
     const visuals = await page.evaluate(() => {
       const hosts = [
         ...document.querySelectorAll(".texto-extension-task-item-host"),
@@ -229,9 +245,9 @@ test.describe("tasks and folding", () => {
       };
     });
 
-    // Parent is visually checked.
+    // Parent is visually checked (the mark offset is asserted by the poll
+    // above — one-shot reads race the 250 ms transition).
     expect(visuals.parent.strike).toBe("line-through");
-    expect(visuals.parent.markOffset).toBe(0);
     // The nested sub stays visually unchecked.
     expect(visuals.sub.strike).toBe("none");
     expect(visuals.sub.markOffset).toBeGreaterThan(0);
