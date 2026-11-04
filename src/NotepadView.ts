@@ -51,6 +51,7 @@ import {
   handleAddImgContainer,
   imageOnSetViewPropsContainer,
 } from "./notepad/imageTools";
+import { resolveExternalWrite } from "./notepad/externalWrite";
 import type { ImageToolContext } from "./tools/image";
 import { collectGalleryItems } from "./ui/imageLightbox";
 import { createKeyboardTracking } from "./tools/keyboardTracking";
@@ -414,6 +415,10 @@ export class NotepadView extends FileView {
   private saveTimer: number | null = null;
   private externalChangeTimer: number | null = null;
   private conflictModalOpen = false;
+  /** Set when the user picks "Keep my changes" in the conflict dialog: the
+   *  next write must go through the pre-write gate despite the on-disk
+   *  fingerprint still differing (it is our overwrite of that version). */
+  private conflictKeepLocal = false;
 
   /** The page editor the user last focused; hotkey routing and command
    *  patching target it (see main.ts routeToNoteView). */
@@ -3750,6 +3755,28 @@ export class NotepadView extends FileView {
       return;
     }
 
+    // Pre-write gate (issues/um-external-change-watch): a flush trigger can
+    // fire after an external change the watcher never processed (lost
+    // "modify" event, event during a debounce window). Writing now would
+    // silently overwrite that version — the 2026-11-05 issues.um incident.
+    // Re-check the disk right before every real write and route an
+    // unobserved external change into the conflict dialog instead.
+    const bypassExternalCheck = this.conflictKeepLocal;
+    this.conflictKeepLocal = false;
+    const decision = resolveExternalWrite({
+      diskFingerprint: await umFingerprint(this.app.vault, file),
+      savedFingerprint: notepad.savedFingerprint,
+      conflictModalOpen: this.conflictModalOpen,
+      bypassExternalCheck,
+    });
+    if (decision.action === "block") return;
+    if (decision.action === "modal") {
+      // The view may have switched files while the save chain awaited —
+      // the dialog belongs to the file this flush was captured for.
+      if (this.file === file) this.openConflictModal();
+      return;
+    }
+
     // Clear the flags before the write, not after: writeUmFile serializes
     // synchronously, so the snapshot covers exactly this dirty state, while
     // an edit landing during the disk wait (e.g. flushed by a collapse)
@@ -3788,6 +3815,24 @@ export class NotepadView extends FileView {
     }, EXTERNAL_CHANGE_DEBOUNCE);
   }
 
+  /** The conflict dialog shared by the "modify" watcher and the pre-write
+   *  gate: the user picks which version wins, Esc keeps the status quo. */
+  private openConflictModal(): void {
+    this.conflictModalOpen = true;
+    new FileChangedModal(this.app, {
+      onKeepLocal: () => {
+        this.conflictKeepLocal = true;
+        void this.writeNow("conflict-keep-local");
+      },
+      onTakeDisk: () => {
+        void this.reloadFromDisk();
+      },
+      onClose: () => {
+        this.conflictModalOpen = false;
+      },
+    }).open();
+  }
+
   /** Decide what an observed file modification means:
    *  - fingerprint matches our last write/load → our own save, no-op;
    *  - no unsaved local edits → silently reload from disk;
@@ -3801,18 +3846,7 @@ export class NotepadView extends FileView {
     if (fingerprint === notepad.savedFingerprint) return; // our own save
 
     if (notepad.dirtyNotes.size > 0 || notepad.structureChanged || this.dirty) {
-      this.conflictModalOpen = true;
-      new FileChangedModal(this.app, {
-        onKeepLocal: () => {
-          void this.writeNow("conflict-keep-local");
-        },
-        onTakeDisk: () => {
-          void this.reloadFromDisk();
-        },
-        onClose: () => {
-          this.conflictModalOpen = false;
-        },
-      }).open();
+      this.openConflictModal();
       return;
     }
 
@@ -3833,6 +3867,10 @@ export class NotepadView extends FileView {
     try {
       const fresh = await readUmFile(file, this.app.vault);
       fresh.savedFingerprint = await umFingerprint(this.app.vault, file);
+      // The rebuild below resets everything the sections own — keep the
+      // user's view of the notepad (issues/um-external-change-watch): the
+      // open pages and the scroll position survive the silent reload.
+      const ui = this.captureNotepadUiState();
       this.destroyAllSections();
       this.notepad?.destroy();
       this.notepad = fresh;
@@ -3842,13 +3880,77 @@ export class NotepadView extends FileView {
       this.commentsComposer = null;
       this.threadsCache = null;
       this.dirty = false;
-      // Keep the user's expansion state across the reload.
       this.render();
+      await this.restoreNotepadUiState(ui);
       // The panel (if open) must drop the pre-reload cards — the fresh
       // notepad's threads replace them.
       this.refreshCommentsUI();
     } catch (err) {
       console.error("Failed to reload notepad from disk:", err);
+    }
+  }
+
+  /** The user-visible state a silent disk reload must preserve: which
+   *  sections are open and where the scroller was. */
+  private captureNotepadUiState(): {
+    scrollTop: number | null;
+    expanded: string[];
+  } {
+    const expanded: string[] = [];
+    for (const [id, handle] of this.sections) {
+      if (handle.noteEl != null) expanded.push(id);
+    }
+    return { scrollTop: this.scrollerEl?.scrollTop ?? null, expanded };
+  }
+
+  /** Re-open the captured sections (a page may exist on disk while its
+   *  manifest `expanded` flag differs — the UI state wins) and put the
+   *  scroller back. */
+  private async restoreNotepadUiState(state: {
+    scrollTop: number | null;
+    expanded: string[];
+  }): Promise<void> {
+    const notepad = this.notepad;
+    if (!notepad) return;
+    const openIds = new Set<string>();
+    for (const [id, handle] of this.sections) {
+      if (handle.noteEl != null) openIds.add(id);
+    }
+    const missing = state.expanded.filter(
+      (id) => !openIds.has(id) && notepad.note(id) != null,
+    );
+    if (missing.length > 0) {
+      await Promise.all(
+        missing.map((id) =>
+          this.expandSection(id, { focus: false, morph: false }),
+        ),
+      );
+    }
+    if (state.scrollTop != null && this.scrollerEl) {
+      // The reopened sections finish laying out over several frames (morph
+      // release, PM mount, assets) — a single assignment clamps to the
+      // not-yet-grown scroller and the position is lost. Re-assert the
+      // position across the settle frames; stop as soon as the user scrolls
+      // themselves (wheel/touch), their intent wins.
+      const scroller = this.scrollerEl;
+      const top = state.scrollTop;
+      let userScrolled = false;
+      const onUserScroll = () => {
+        userScrolled = true;
+      };
+      scroller.addEventListener("wheel", onUserScroll, { passive: true });
+      scroller.addEventListener("touchmove", onUserScroll, { passive: true });
+      const reassert = () => {
+        if (!userScrolled && scroller.isConnected) scroller.scrollTop = top;
+      };
+      reassert();
+      requestAnimationFrame(reassert);
+      requestAnimationFrame(() => requestAnimationFrame(reassert));
+      window.setTimeout(() => {
+        reassert();
+        scroller.removeEventListener("wheel", onUserScroll);
+        scroller.removeEventListener("touchmove", onUserScroll);
+      }, 150);
     }
   }
 }
