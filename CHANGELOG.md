@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Text blocks can now be aligned left (the default), centered, or right — like in Word or Notion. Pick the alignment in the "Styles & color" layer of the text menu: it works on paragraphs, headings, list items, and text inside table cells, and it carries through saving and the exported website.
+
 ### Changed
 
 - Task list checkboxes now follow your Obsidian theme: their colors come from the theme's accent and text tokens instead of hardcoded purples, so they stop looking foreign in third-party and light themes. Checking an item got a small animation too — the checkmark draws itself in and the box gives a slight spring (disabled when the system asks for reduced motion).

@@ -423,11 +423,11 @@
 .note-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go, .bb-mi),
+  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al),
 .notepad-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go, .bb-mi) {
+  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al) {
   width: 44px;
   height: 44px;
   flex: 0 0 auto;
@@ -438,22 +438,22 @@
 .note-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go, .bb-mi):hover,
+  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al):hover,
 .notepad-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go, .bb-mi):hover {
+  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al):hover {
   background: transparent;
   color: var(--text-normal);
 }
 .note-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go, .bb-mi).is-active,
+  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al).is-active,
 .notepad-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go, .bb-mi).is-active {
+  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al).is-active {
   background: transparent;
   box-shadow: none;
   color: var(--interactive-accent);
@@ -461,12 +461,12 @@
 .note-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go, .bb-mi)
+  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al)
   svg,
 .notepad-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go, .bb-mi)
+  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al)
   svg {
   width: 24px;
   height: 24px;

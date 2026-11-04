@@ -26,6 +26,7 @@ import { TaskItemFolding } from "./extensions/task-item-folding";
 import { BubbleMenu } from "./extensions/bubble-menu";
 import { State } from "./extensions/state";
 import { BlockIds } from "./extensions/block-ids";
+import { TextAlign } from "./extensions/text-align";
 
 import { Blockquote } from "./extensions/blockquote";
 import { Bold } from "./extensions/bold";
@@ -101,6 +102,9 @@ export function getExtensions(
     // app's own addressing layer for the future CLI; image/attachment keep
     // their media-lifecycle `key` (State) alongside the id.
     BlockIds,
+    // Horizontal alignment of text blocks (issues/text-align): a global
+    // attrs.align on paragraph/heading, left = no attribute.
+    TextAlign,
     topNode,
     Link,
     // The node registers even without hooks: documents written by any

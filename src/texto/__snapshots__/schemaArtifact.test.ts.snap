@@ -129,6 +129,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
         "content": [
           {
             "attrs": {
+              "align": null,
               "id": null,
             },
             "type": "paragraph",
@@ -163,6 +164,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
             "content": [
               {
                 "attrs": {
+                  "align": null,
                   "id": null,
                 },
                 "type": "paragraph",
@@ -198,6 +200,9 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     "heading": {
       "addressable": true,
       "attrs": {
+        "align": {
+          "default": null,
+        },
         "id": {
           "default": null,
         },
@@ -208,6 +213,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
       "content": "inline*",
       "example": {
         "attrs": {
+          "align": null,
           "id": null,
           "level": 1,
         },
@@ -380,6 +386,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
         "content": [
           {
             "attrs": {
+              "align": null,
               "id": null,
             },
             "type": "paragraph",
@@ -435,6 +442,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
           },
           {
             "attrs": {
+              "align": null,
               "id": null,
             },
             "type": "paragraph",
@@ -595,6 +603,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
             "content": [
               {
                 "attrs": {
+                  "align": null,
                   "id": null,
                 },
                 "type": "paragraph",
@@ -616,6 +625,9 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     "paragraph": {
       "addressable": true,
       "attrs": {
+        "align": {
+          "default": null,
+        },
         "id": {
           "default": null,
         },
@@ -623,6 +635,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
       "content": "inline*",
       "example": {
         "attrs": {
+          "align": null,
           "id": null,
         },
         "type": "paragraph",
@@ -725,6 +738,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
         "content": [
           {
             "attrs": {
+              "align": null,
               "id": null,
             },
             "type": "paragraph",
@@ -780,6 +794,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
         "content": [
           {
             "attrs": {
+              "align": null,
               "id": null,
             },
             "type": "paragraph",
@@ -830,6 +845,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
         "content": [
           {
             "attrs": {
+              "align": null,
               "id": null,
             },
             "type": "paragraph",
@@ -863,6 +879,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
             "content": [
               {
                 "attrs": {
+                  "align": null,
                   "id": null,
                 },
                 "type": "paragraph",
@@ -920,7 +937,7 @@ exports[`buildSchemaArtifact > matches the pinned snapshot 1`] = `
     },
   },
   "plugin_version": "0.0.0-test",
-  "schema_hash": "sha256:dd0af3c595457539ceb68d7fd3fb52d33f535026eb85b4b7bf30d84062b14a8c",
+  "schema_hash": "sha256:05ee561d1c02d6441863ba1e9bdcd42e456a6f963f7871aee3b1b72b08dbee96",
   "schema_hash_scope": "sha256 of the RFC 8785 canonical JSON of this artifact, excluding the schema_hash and plugin_version fields (plugin_version changes every release and must not destabilize the schema fingerprint)",
   "schema_id": "inscriptum",
   "schema_version": 1,

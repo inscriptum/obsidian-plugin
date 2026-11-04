@@ -19,10 +19,12 @@ function makeEditor(
           ? attributesOrUndefined
           : nameOrAttributes;
       if (name === "heading")
-        return (
-          active[`heading${(a as { level?: number } | undefined)?.level}`] ??
-          false
-        );
+        // The bare (name) form and the (name, attributes) form are both
+        // exercised: the bare one asks "is a heading", the second one
+        // pins the level.
+        return a == null
+          ? (active["heading"] ?? false)
+          : (active[`heading${(a as { level?: number }).level}`] ?? false);
       return active[name] ?? false;
     },
     getAttributes(name: string) {
@@ -48,8 +50,21 @@ describe("getBubbleMenuState", () => {
       quote: false,
       list: false,
       taskList: false,
+      align: "left",
       color: null,
     });
+  });
+
+  it("reports the paragraph alignment (left is the absence)", () => {
+    expect(
+      getBubbleMenuState(makeEditor({ paragraph: true }, { paragraph: { align: "center" } })).align,
+    ).toBe("center");
+    expect(
+      getBubbleMenuState(makeEditor({ paragraph: true }, { paragraph: {} })).align,
+    ).toBe("left");
+    expect(
+      getBubbleMenuState(makeEditor({ heading: true, heading1: true }, { heading: { align: "right" } })).align,
+    ).toBe("right");
   });
 
   it("detects inline marks", () => {
