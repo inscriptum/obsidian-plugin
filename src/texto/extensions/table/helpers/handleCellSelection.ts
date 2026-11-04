@@ -206,6 +206,17 @@ export function handleCellSelection(isMobileView: boolean) {
               collapseCellSelectionOnClick(view, event);
               return true;
             }
+            // Only the primary button may start the hold/drag tracker
+            // (issue table-fast-selection-reset, PR #21 review): a
+            // right-click (context menu) or a middle click would otherwise
+            // arm the 450 ms hold with no button held — onUp ignores
+            // non-primary releases — and the cell would select itself
+            // after the click. onUp keeps its release guard for an
+            // existing PRIMARY drag (a stray secondary release must not
+            // tear down a live gesture).
+            if (event.button !== 0) {
+              return false;
+            }
             startDesktopLongPress(view, event);
             return false;
           }
