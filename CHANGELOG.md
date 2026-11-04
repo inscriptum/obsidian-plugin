@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- The hidden line ids inside code blocks stay put now: editing a code block no longer silently regenerates them on every keystroke. Your console no longer fills with "repaired block ids" notices while you type in a code block, and external tools can rely on a line's address.
+
 ## [0.13.0] - 2026-11-03
 
 ### Added
