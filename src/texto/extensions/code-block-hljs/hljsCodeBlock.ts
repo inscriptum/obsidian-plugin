@@ -15,6 +15,7 @@ import {
 } from "prosemirror-state";
 
 import { addCommands } from "./commands";
+import { carryRowBlockIds } from "./utils/carryRowBlockIds";
 import { findLanguageByCssClass } from "./utils/findLanguageByCssClass";
 import { generateCodeBlockDomElement } from "./utils/generateCodeBlockDomElement";
 import { generateHljsNodeContent } from "./utils/generateHljsNodeContent";
@@ -623,6 +624,17 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
           lastContentKey = contentKey;
 
           const codeNodeJson = generateHljsNodeJson(codeText, language);
+          // The regeneration builds rows from plain hljs HTML — no block
+          // ids. The in-place content swap below bypasses transactions
+          // entirely, so the block-ids plugin never tags the new rows:
+          // the current rows' ids are carried onto the fresh ones here.
+          // (The delete+insert rebuild needs no carry — its two dispatches
+          // make the plugin re-id the carried ids as copies.) Without the
+          // carry, every save made while editing the block "repairs" the
+          // missing ids with NEW values — the row addresses churn on every
+          // keystroke + save (issue code-block-row-ids, spec um-cli
+          // §4.4–4.5).
+          carryRowBlockIds(codeNodeJson, updatedNode.content.content);
           const newNode = editor.schema.nodeFromJSON(codeNodeJson);
 
           if (updatedNode.content.size < 2) {
