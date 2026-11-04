@@ -56,6 +56,10 @@ export const itemElement = litView.element({
   // The box pop must fire on a REAL false→true toggle, not on mount: a
   // note opening with checked items would pop them all (issue
   // task-item-theme review round). wasChecked seeds from the mount props.
+  // The is-pop class STAYS on while the item stays checked: a re-render
+  // of the same checked state (params cycle twice per toggle on slow
+  // environments) must not drop the class mid-animation — unchecking
+  // disarms it, and the next check pops again.
   let wasChecked = params.checked;
   let justChecked = false;
 
@@ -70,7 +74,12 @@ export const itemElement = litView.element({
       options.checkboxIconLinks?.[0] === DEFAULT_CHECKBOX_ICONS[0] &&
       options.checkboxIconLinks?.[1] === DEFAULT_CHECKBOX_ICONS[1];
     const isCustomSvgIconsOn = isCustomSvgIcons && params.checked;
-    justChecked = isDefaultCheckIcons && params.checked && !wasChecked;
+    if (isDefaultCheckIcons) {
+      if (params.checked && !wasChecked) justChecked = true;
+      else if (!params.checked) justChecked = false;
+    } else {
+      justChecked = false;
+    }
     wasChecked = params.checked;
 
     params = yield (
