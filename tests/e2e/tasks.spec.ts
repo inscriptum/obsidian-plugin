@@ -174,6 +174,69 @@ test.describe("tasks and folding", () => {
     expect(checked?.markStroke).toMatch(/^rgb\(/);
   });
 
+  // Issue dependent-subtasks: the sub-task hosts are nested INSIDE the
+  // parent host's DOM — the checked-state CSS must not leak into them, or
+  // a checked parent visually checks its unchecked children.
+  test("checking a parent does not visually check its nested sub-tasks", async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await openHarness(page);
+    await mount(
+      page,
+      noteDoc(
+        taskList([
+          {
+            text: "parent nested",
+            sub: [{ text: "sub one", sub: [] }],
+          },
+        ]),
+      ),
+    );
+
+    const host = page.locator(`${EDITOR} .texto-extension-task-item-host`, {
+      hasText: "parent nested",
+    });
+    // The sub host is nested inside the parent's DOM — hasText matches
+    // both; the parent's label is the first one.
+    await host.locator("label").first().click();
+
+    // The doc flip.
+    await expect
+      .poll(async () => {
+        const items = nodesOfType(await docJson(page), "taskItem");
+        return items[0]?.attrs?.checked;
+      })
+      .toBe(true);
+
+    const visuals = await page.evaluate(() => {
+      const hosts = [
+        ...document.querySelectorAll(".texto-extension-task-item-host"),
+      ];
+      const probe = (h: Element) => {
+        const mark = h.querySelector(".texto-task-check__mark");
+        const p = h.querySelector(".content > p");
+        return {
+          markStroke: getComputedStyle(mark).stroke,
+          markOffset: Number.parseFloat(getComputedStyle(mark).strokeDashoffset),
+          textColor: getComputedStyle(p).color,
+          strike: getComputedStyle(p).textDecorationLine,
+        };
+      };
+      return {
+        parent: probe(hosts[0]),
+        sub: probe(hosts[1]),
+      };
+    });
+
+    // Parent is visually checked.
+    expect(visuals.parent.strike).toBe("line-through");
+    expect(visuals.parent.markOffset).toBe(0);
+    // The nested sub stays visually unchecked.
+    expect(visuals.sub.strike).toBe("none");
+    expect(visuals.sub.markOffset).toBeGreaterThan(0);
+  });
+
   test("reduced motion: no pop animation, instant mark", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await openHarness(page);

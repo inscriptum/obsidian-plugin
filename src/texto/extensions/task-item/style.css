@@ -45,7 +45,11 @@ ul.chk,
 	   review bot's CSS lint) — no background/pseudo emulation strikes
 	   every line of wrapped text correctly, and the color above is
 	   already the muted gray, so the native line stays subdued. */
-  &[data-checked="true"] .content > p {
+  /* > .content > p: DIRECT child only. The sub-task hosts are nested
+     INSIDE this host's .content — an unchecked sub under a checked parent
+     must not inherit the parent's strike (issue dependent-subtasks:
+     the visual cascade the owner reported). */
+  &[data-checked="true"] > .content > p {
     color: var(--text-muted);
     /* stylelint-disable-next-line plugin/no-unsupported-browser-features --
        the 1px strike is owner-approved; text-decoration thickness works
@@ -152,7 +156,7 @@ ul.chk,
 }
 
 /* Checked item — accent icon (checkmark), box background/border are baked into the SVG */
-.texto-extension-task-item-host[data-checked="true"] .custom-icon {
+.texto-extension-task-item-host[data-checked="true"] > label .custom-icon {
   color: var(--note-accent-text);
 }
 
@@ -190,12 +194,16 @@ ul.chk,
     stroke 120ms;
 }
 
-.texto-extension-task-item-host[data-checked="true"] .texto-task-check__box {
+/* > label: the state rules must not reach the marks of NESTED sub-task
+   hosts — they live inside this host's .content, and a checked parent
+   otherwise visually checks its unchecked children (issue
+   dependent-subtasks). */
+.texto-extension-task-item-host[data-checked="true"] > label .texto-task-check__box {
   fill: color-mix(in srgb, var(--note-accent) 14%, transparent);
   stroke: color-mix(in srgb, var(--note-accent) 55%, transparent);
 }
 
-.texto-extension-task-item-host[data-checked="true"] .texto-task-check__mark {
+.texto-extension-task-item-host[data-checked="true"] > label .texto-task-check__mark {
   stroke: var(--note-accent-text);
   stroke-dashoffset: 0;
   transition:
@@ -208,7 +216,7 @@ ul.chk,
    armed by the item's node view on a REAL false→true toggle and dropped
    right after the animation, so a note opening with checked items never
    pops and later re-renders never replay it (issue task-item-theme). */
-.texto-extension-task-item-host[data-pop] .texto-task-check {
+.texto-extension-task-item-host[data-pop] > label .texto-task-check {
   animation: texto-task-check-pop 220ms ease-out;
 }
 
@@ -232,7 +240,7 @@ ul.chk,
     transition: none;
   }
 
-  .texto-extension-task-item-host[data-pop] .texto-task-check {
+  .texto-extension-task-item-host[data-pop] > label .texto-task-check {
     animation: none;
   }
 }
