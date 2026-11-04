@@ -47,7 +47,12 @@ ul.chk,
 	   already the muted gray, so the native line stays subdued. */
   &[data-checked="true"] .content > p {
     color: var(--text-muted);
-    text-decoration: line-through;
+    /* stylelint-disable-next-line plugin/no-unsupported-browser-features --
+       the 1px strike is owner-approved; text-decoration thickness works
+       in the Obsidian runtime (Chromium 87+), the plugin's caniuse data
+       is conservative here. Shorthand form: no text-decoration-* longhand
+       property in the sheet (css-lint-fixes). */
+    text-decoration: line-through 1px;
     transition: color 200ms;
   }
 }
