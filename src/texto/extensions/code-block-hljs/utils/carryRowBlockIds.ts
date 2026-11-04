@@ -46,6 +46,9 @@ export function carryRowBlockIds(
       isBlockId(donorId) && !handedOut.has(donorId)
         ? donorId
         : generateBlockIdAvoiding(donors);
+    // Generated ids join the avoidance universe too (same pattern as
+    // blockIds.plugin.ts / assignBlockIds.ts).
+    donors.add(id);
     handedOut.add(id);
     rows[i] = { ...rows[i], attrs: { ...(rows[i].attrs ?? {}), id } };
   }

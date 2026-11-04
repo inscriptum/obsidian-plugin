@@ -33,13 +33,15 @@ describe("carryRowBlockIds", () => {
 
   it("fills rows without a donor with grammar-valid fresh ids", () => {
     const fresh = blockWithRows(2);
-    carryRowBlockIds(fresh, [row(null), row(undefined as unknown as string)]);
+    carryRowBlockIds(fresh, [row(null), row(undefined)]);
 
     for (const r of fresh.content ?? []) {
       expect(BLOCK_ID_PATTERN.test(String(r.attrs?.id))).toBe(true);
     }
     // Two fresh ids — distinct.
-    expect(fresh.content?.[0]?.attrs?.id).not.toBe(fresh.content?.[1]?.attrs?.id);
+    expect(fresh.content?.[0]?.attrs?.id).not.toBe(
+      fresh.content?.[1]?.attrs?.id,
+    );
   });
 
   it("generates fresh ids when the new block has more rows than donors", () => {
@@ -62,20 +64,22 @@ describe("carryRowBlockIds", () => {
 
     expect(fresh.content?.[0]?.attrs?.id).toBe("abcdefghij");
     expect(fresh.content?.[1]?.attrs?.id).not.toBe("abcdefghij");
-    expect(
-      BLOCK_ID_PATTERN.test(String(fresh.content?.[1]?.attrs?.id)),
-    ).toBe(true);
+    expect(BLOCK_ID_PATTERN.test(String(fresh.content?.[1]?.attrs?.id))).toBe(
+      true,
+    );
   });
 
-  it("keeps generated ids clear of every donor id", () => {
-    const fresh = blockWithRows(1);
-    carryRowBlockIds(fresh, [row(null)]);
+  it("keeps generated ids clear of the carried ones", () => {
+    const fresh = blockWithRows(2);
+    // Row 0 carries its donor; row 1 has no donor and gets a fresh id —
+    // the generator must avoid the whole donor universe, so the pair
+    // never collides.
+    carryRowBlockIds(fresh, [row("abcdefghij"), row(null)]);
 
-    // Just a grammar sanity check — collision avoidance is the generator's
-    // job; the donor universe is one id here.
-    expect(
-      BLOCK_ID_PATTERN.test(String(fresh.content?.[0]?.attrs?.id)),
-    ).toBe(true);
+    expect(fresh.content?.[0]?.attrs?.id).toBe("abcdefghij");
+    const generated = String(fresh.content?.[1]?.attrs?.id);
+    expect(BLOCK_ID_PATTERN.test(generated)).toBe(true);
+    expect(generated).not.toBe("abcdefghij");
   });
 
   it("is a no-op for a block without rows", () => {

@@ -621,13 +621,15 @@ export const HljsCodeBlock = Node.create<HljsCodeBlockOptions>({
 
           const codeNodeJson = generateHljsNodeJson(codeText, language);
           // The regeneration builds rows from plain hljs HTML — no block
-          // ids. Both consumers below (the in-place content swap and the
-          // delete+insert rebuild) bypass or rush past the block-ids
-          // plugin, so the current rows' ids are carried onto the fresh
-          // ones here: without this, every save made while editing the
-          // block "repairs" the missing ids with NEW values — the row
-          // addresses churn on every keystroke + save (issue
-          // code-block-row-ids, spec um-cli §4.4–4.5).
+          // ids. The in-place content swap below bypasses transactions
+          // entirely, so the block-ids plugin never tags the new rows:
+          // the current rows' ids are carried onto the fresh ones here.
+          // (The delete+insert rebuild needs no carry — its two dispatches
+          // make the plugin re-id the carried ids as copies.) Without the
+          // carry, every save made while editing the block "repairs" the
+          // missing ids with NEW values — the row addresses churn on every
+          // keystroke + save (issue code-block-row-ids, spec um-cli
+          // §4.4–4.5).
           carryRowBlockIds(codeNodeJson, updatedNode.content.content);
           const newNode = editor.schema.nodeFromJSON(codeNodeJson);
 

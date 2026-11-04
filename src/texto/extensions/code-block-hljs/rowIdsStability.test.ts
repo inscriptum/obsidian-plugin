@@ -18,9 +18,7 @@ function contentWithCodeBlock(lines: string[]) {
         content: lines.map((text, i) => ({
           type: "hljsCodeBlockRow",
           attrs: { id: ids[i] ?? null },
-          content: text.length
-            ? [{ type: "text", text }]
-            : [],
+          content: text.length ? [{ type: "text", text }] : [],
         })),
       },
     ],
