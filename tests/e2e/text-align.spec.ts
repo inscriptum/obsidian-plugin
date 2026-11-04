@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { heading, noteDoc, p } from "./fixtures/docs";
-import { findText, type JsonNode } from "./helpers";
+import { type JsonNode } from "./helpers";
 
 const EDITOR = ".texto-editor .ProseMirror";
 
@@ -142,12 +142,8 @@ test.describe("text align", () => {
     await page.waitForTimeout(200);
 
     expect(await blockTextAlign(page, "hello world")).toBe("center");
-    const json = await notepadJson(page);
-    const para = findText(json, "hello world");
-    // The paragraph node carrying the text has the align attr.
-    const paraNode = JSON.stringify(json);
+    const paraNode = JSON.stringify(await notepadJson(page));
     expect(paraNode).toContain('"align":"center"');
-    void para;
   });
 
   test("clicking the active alignment returns to left", async ({ page }) => {

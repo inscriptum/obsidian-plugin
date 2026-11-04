@@ -74,7 +74,6 @@ export const TextAlign = new Extension({
       setTextAlign:
         (align: TextAlignValue | "left"): Command =>
         ({ state, tr, dispatch }) => {
-          if (!dispatch) return true;
           const targetTypes = TEXT_ALIGN_TYPES.map(
             (name) => state.schema.nodes[name],
           ).filter(Boolean);
@@ -100,12 +99,19 @@ export const TextAlign = new Extension({
             });
           }
           if (positions.length === 0) return false;
-          // Toggle: the active alignment returns to left. Left is the
-          // attribute's absence — nothing new is stored for it.
-          const first = state.doc.nodeAt(positions[0]);
-          const active =
-            (first?.attrs as { align?: string | null } | null)?.align ?? null;
-          const next = active === align ? null : align === "left" ? null : align;
+          if (!dispatch) return true;
+          // Toggle — but only when the selection is uniform: Word/Notion
+          // apply the picked alignment to a mixed selection instead of
+          // clearing it. Left is the attribute's absence — nothing new is
+          // stored for it.
+          const aligns = positions.map(
+            (pos) =>
+              (state.doc.nodeAt(pos)?.attrs as { align?: string | null })
+                ?.align ?? null,
+          );
+          const uniform = aligns.every((a) => a === aligns[0]);
+          const next =
+            uniform && aligns[0] === align ? null : align === "left" ? null : align;
           for (const pos of positions) {
             const node = state.doc.nodeAt(pos);
             if (!node) continue;

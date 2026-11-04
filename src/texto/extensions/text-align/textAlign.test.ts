@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { generateHTML } from "../../core/helpers/generateHTML";
 import { Editor } from "../../core";
 import { getExtensions } from "../../getExtensions";
+import { getExportExtensions } from "../../../export/extensions";
 import type { JSONContent } from "../../core/@types";
 
 function buildEditor(content: JSONContent): Editor {
@@ -77,7 +79,7 @@ describe("setTextAlign command", () => {
     // One undo step covers the centering: undo → back to the untouched doc.
     editor.commands.setTextAlign("center");
     editor.commands.undo();
-    expect(editor.state.doc.child(0).attrs.align ?? null).toBeNull();
+    expect(editor.state.doc.child(1).attrs.align ?? null).toBeNull();
     editor.destroy();
   });
 
@@ -172,6 +174,37 @@ describe("setTextAlign command", () => {
     expect(restored.state.doc.child(2).attrs.align).toBe("right");
     // Export schema (attrs-only) keeps the attr through generateJSON too.
     restored.destroy();
+    editor.destroy();
+  });
+
+  it("a mixed selection applies the picked alignment; a uniform one toggles", () => {
+    const editor = buildEditor(docWith(p("one"), h(1, "Two")));
+    editor.commands.setTextSelection(blockStart(editor, 1) + 2);
+    editor.commands.setTextAlign("center");
+    // Mixed selection: paragraph(center) + heading(none) — center APPLIES.
+    editor.commands.setTextSelection({
+      from: blockStart(editor, 1) + 1,
+      to: blockStart(editor, 2) + 2,
+    });
+    expect(editor.commands.setTextAlign("center")).toBe(true);
+    expect(editor.state.doc.child(1).attrs.align).toBe("center");
+    expect(editor.state.doc.child(2).attrs.align).toBe("center");
+    // Now uniform — the same click toggles back to left.
+    expect(editor.commands.setTextAlign("center")).toBe(true);
+    expect(editor.state.doc.child(1).attrs.align ?? null).toBeNull();
+    expect(editor.state.doc.child(2).attrs.align ?? null).toBeNull();
+    editor.destroy();
+  });
+
+  it("the export schema renders the alignment as an inline style", () => {
+    const editor = buildEditor(docWith(p("hello"), h(1, "Head")));
+    editor.commands.setTextSelection(blockStart(editor, 1) + 2);
+    editor.commands.setTextAlign("center");
+    editor.commands.setTextSelection(blockStart(editor, 2) + 2);
+    editor.commands.setTextAlign("right");
+    const html = generateHTML(editor.getJSON(), getExportExtensions());
+    expect(html).toContain('style="text-align: center;"');
+    expect(html).toContain('style="text-align: right;"');
     editor.destroy();
   });
 
