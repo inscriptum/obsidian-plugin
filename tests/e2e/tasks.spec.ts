@@ -214,8 +214,8 @@ test.describe("tasks and folding", () => {
         ...document.querySelectorAll(".texto-extension-task-item-host"),
       ];
       const probe = (h: Element) => {
-        const mark = h.querySelector(".texto-task-check__mark");
-        const p = h.querySelector(".content > p");
+        const mark = h.querySelector(".texto-task-check__mark") as SVGElement;
+        const p = h.querySelector(".content > p") as HTMLElement;
         return {
           markStroke: getComputedStyle(mark).stroke,
           markOffset: Number.parseFloat(getComputedStyle(mark).strokeDashoffset),
