@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Changes made to a notepad file outside the app — a git sync, another agent, another editor — can no longer be silently overwritten by the app's own autosave. The app now notices the external change and asks which version to keep, and when it reloads quietly, your open pages and scroll position stay put.
+
 - Checking a task no longer makes its nested sub-tasks look checked: their checkboxes kept their own state, but the strike-through and the checkmark leaked from the parent onto everything nested under it.
 - Selecting text inside a code block no longer shows the text-formatting menu — the floating bar on desktop, the button row above the keyboard on mobile. None of its buttons could change a code block anyway; a selection that starts outside the block keeps the menu as before.
 - A quick drag across table cells now ends with the cells selected: the text no longer highlights along the way, and the selection no longer resets when you release the mouse. On mobile, a touch that starts on a table border can no longer summon the text selection either.
