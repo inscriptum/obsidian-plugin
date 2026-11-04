@@ -111,12 +111,27 @@ test.describe("tasks and folding", () => {
     expect(unchecked?.markOffset).toBeGreaterThan(0);
 
     await host.locator("label").click();
-    // The pop animation runs right after the check.
+    // The pop animation runs right after the check. The received object
+    // (shown in full on failure) carries the state needed to triage the
+    // CI-only failure: class, media emulation, checked attr, counts.
     const animation = await page.evaluate(() => {
       const svg = document.querySelector(".texto-task-check");
-      return svg == null ? null : getComputedStyle(svg).animationName;
+      return {
+        anim: svg == null ? null : getComputedStyle(svg).animationName,
+        cls: svg?.getAttribute("class") ?? null,
+        svgCount: document.querySelectorAll(".texto-task-check").length,
+        hostCount: document.querySelectorAll(
+          ".texto-extension-task-item-host",
+        ).length,
+        checked:
+          document
+            .querySelector(".texto-extension-task-item-host")
+            ?.getAttribute("data-checked") ?? null,
+        reduce: matchMedia("(prefers-reduced-motion: reduce)").matches,
+        noPref: matchMedia("(prefers-reduced-motion: no-preference)").matches,
+      };
     });
-    expect(animation).toBe("texto-task-check-pop");
+    expect(animation.anim).toBe("texto-task-check-pop");
 
     await expect
       .poll(() =>
