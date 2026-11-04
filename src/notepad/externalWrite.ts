@@ -40,6 +40,15 @@ export function resolveExternalWrite(
 ): ExternalWriteDecision {
   if (input.bypassExternalCheck) return { action: "write" };
   if (input.diskFingerprint === null) return { action: "write" };
-  if (input.diskFingerprint === input.savedFingerprint) return { action: "write" };
+  if (input.diskFingerprint === input.savedFingerprint) {
+    return { action: "write" };
+  }
   return input.conflictModalOpen ? { action: "block" } : { action: "modal" };
 }
+
+/** Known limitation (accepted): the gate checks the disk, but an external
+ *  write landing between that check and the atomic rename (TOCTOU) is still
+ *  silently overwritten — closing that window needs cross-process locking,
+ *  out of scope (issues/um-external-change-watch, constraints). The gate
+ *  narrows the loss window from "any flush after a missed event" to this
+ *  single millisecond-scale race. */

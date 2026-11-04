@@ -415,10 +415,6 @@ export class NotepadView extends FileView {
   private saveTimer: number | null = null;
   private externalChangeTimer: number | null = null;
   private conflictModalOpen = false;
-  /** Set when the user picks "Keep my changes" in the conflict dialog: the
-   *  next write must go through the pre-write gate despite the on-disk
-   *  fingerprint still differing (it is our overwrite of that version). */
-  private conflictKeepLocal = false;
 
   /** The page editor the user last focused; hotkey routing and command
    *  patching target it (see main.ts routeToNoteView). */
@@ -1506,6 +1502,9 @@ export class NotepadView extends FileView {
     }
     this.sections.clear();
     this.pendingExpansions.clear();
+    // A collapse mid-flight would stand down the restore's expandSection
+    // calls (reloadFromDisk) — the sections would stay folded forever.
+    this.pendingCollapses.clear();
     // Removing the hosts destroys their editors (NoteElement cleanup).
     this.focusedEditorValue = null;
     if (this.sectionsEl) this.sectionsEl.empty();
@@ -3722,9 +3721,13 @@ export class NotepadView extends FileView {
     }, AUTOSAVE_DELAY);
   }
 
-  private async flushSave(trigger = "autosave", force = false): Promise<void> {
+  private async flushSave(
+    trigger = "autosave",
+    force = false,
+    bypassExternalCheck = false,
+  ): Promise<void> {
     const run = this.saveChain.then(() =>
-      this.writePendingChanges(trigger, force),
+      this.writePendingChanges(trigger, force, bypassExternalCheck),
     );
     this.saveChain = run.catch(() => {});
     return run;
@@ -3733,6 +3736,7 @@ export class NotepadView extends FileView {
   private async writePendingChanges(
     trigger: string,
     force = false,
+    bypassExternalCheck = false,
   ): Promise<void> {
     const notepad = this.notepad;
     const file = this.file;
@@ -3761,8 +3765,6 @@ export class NotepadView extends FileView {
     // silently overwrite that version — the 2026-11-05 issues.um incident.
     // Re-check the disk right before every real write and route an
     // unobserved external change into the conflict dialog instead.
-    const bypassExternalCheck = this.conflictKeepLocal;
-    this.conflictKeepLocal = false;
     const decision = resolveExternalWrite({
       diskFingerprint: await umFingerprint(this.app.vault, file),
       savedFingerprint: notepad.savedFingerprint,
@@ -3772,8 +3774,12 @@ export class NotepadView extends FileView {
     if (decision.action === "block") return;
     if (decision.action === "modal") {
       // The view may have switched files while the save chain awaited —
-      // the dialog belongs to the file this flush was captured for.
-      if (this.file === file) this.openConflictModal();
+      // the dialog belongs to the file this flush was captured for. And a
+      // teardown flush (unload-file/close) must not raise UI: the dialog's
+      // resolution would race the view's death. Skipping the write keeps
+      // the disk version intact (safe direction) — same as pressing Esc.
+      const teardown = trigger === "unload-file" || trigger === "close";
+      if (!teardown && this.file === file) this.openConflictModal();
       return;
     }
 
@@ -3816,16 +3822,30 @@ export class NotepadView extends FileView {
   }
 
   /** The conflict dialog shared by the "modify" watcher and the pre-write
-   *  gate: the user picks which version wins, Esc keeps the status quo. */
+   *  gate: the user picks which version wins, Esc keeps the status quo.
+   *  The dialog captures the file and notepad it was opened for — a leaf
+   *  that switched files (or a destroyed view) must not resolve the old
+   *  conflict against the new state, so a late click becomes a no-op. */
   private openConflictModal(): void {
+    const capturedFile = this.file;
+    const capturedNotepad = this.notepad;
+    if (!capturedFile || !capturedNotepad) return;
     this.conflictModalOpen = true;
     new FileChangedModal(this.app, {
       onKeepLocal: () => {
-        this.conflictKeepLocal = true;
-        void this.writeNow("conflict-keep-local");
+        if (this.file !== capturedFile || this.notepad !== capturedNotepad) {
+          return;
+        }
+        void this.flushSave("conflict-keep-local", true, true);
       },
       onTakeDisk: () => {
-        void this.reloadFromDisk();
+        if (this.file !== capturedFile || this.notepad !== capturedNotepad) {
+          return;
+        }
+        // Reload behind the save chain: an in-flight autosave must not
+        // re-enter the gate (and reopen the dialog) mid-rebuild.
+        const run = this.saveChain.then(() => this.reloadFromDisk());
+        this.saveChain = run.catch(() => {});
       },
       onClose: () => {
         this.conflictModalOpen = false;
@@ -3851,13 +3871,6 @@ export class NotepadView extends FileView {
     }
 
     await this.reloadFromDisk();
-  }
-
-  /** Unconditional write (conflict resolution: local version wins). Chained
-   *  like every other save: an in-flight autosave must not land after it
-   *  and overwrite the chosen version. */
-  private writeNow(trigger: string): Promise<void> {
-    return this.flushSave(trigger, true);
   }
 
   /** Replace the in-memory notepad and the UI with the on-disk state. */
@@ -3944,8 +3957,10 @@ export class NotepadView extends FileView {
         if (!userScrolled && scroller.isConnected) scroller.scrollTop = top;
       };
       reassert();
-      requestAnimationFrame(reassert);
-      requestAnimationFrame(() => requestAnimationFrame(reassert));
+      window.requestAnimationFrame(reassert);
+      window.requestAnimationFrame(() =>
+        window.requestAnimationFrame(reassert),
+      );
       window.setTimeout(() => {
         reassert();
         scroller.removeEventListener("wheel", onUserScroll);
