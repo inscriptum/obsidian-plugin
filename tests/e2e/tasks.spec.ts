@@ -139,6 +139,9 @@ test.describe("tasks and folding", () => {
           document
             .querySelector(".texto-extension-task-item-host input")
             ?.className ?? null,
+        renderLog: (
+          window as { __taskRenderLog?: unknown[] }
+        ).__taskRenderLog?.slice(-8),
       };
     });
     expect(animation).toEqual({ anim: "texto-task-check-pop" });

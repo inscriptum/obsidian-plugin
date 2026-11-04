@@ -81,6 +81,14 @@ export const itemElement = litView.element({
       justChecked = false;
     }
     wasChecked = params.checked;
+    // TEMP triage instrumentation (CI-only pop e2e failure, PR #21):
+    (window as { __taskRenderLog?: unknown[] }).__taskRenderLog ??= [];
+    (window as { __taskRenderLog?: unknown[] }).__taskRenderLog!.push({
+      checked: params.checked,
+      wasChecked,
+      justChecked,
+      isDefault: isDefaultCheckIcons,
+    });
 
     params = yield (
       <>
