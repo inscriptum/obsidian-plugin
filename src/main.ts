@@ -42,12 +42,16 @@ interface InscriptumSettings {
   exportFolder: string;
   /** Display name signed into new comments (v1 single-user). Empty → "You". */
   commentAuthor: string;
+  /** EXPERIMENTAL: checking a task checks its sub-tasks; unchecking any
+   *  task unchecks its parent chain. Off — every item toggles alone. */
+  dependentSubtasks: boolean;
 }
 
 const DEFAULT_SETTINGS: InscriptumSettings = {
   writeLog: false,
   exportFolder: "export",
   commentAuthor: "You",
+  dependentSubtasks: false,
 };
 
 /** Runtime shape of the command registry. Obsidian's public typings omit
@@ -103,8 +107,13 @@ export default class NotesPlugin extends Plugin {
     NoteView.onEditorCreated = (editor) => {
       this.patchCollidingCommands(editor.registeredShortcuts);
     };
+    // The experimental dependent sub-tasks setting is read when an editor
+    // opens (TaskItemOptions) — a live provider, so the current value is
+    // picked up for every newly opened note.
+    NoteView.readDependentSubtasks = () => this.settings.dependentSubtasks;
     this.register(() => {
       NoteView.onEditorCreated = null;
+      NoteView.readDependentSubtasks = null;
       this.restorePatchedCommands();
     });
 
@@ -112,8 +121,10 @@ export default class NotesPlugin extends Plugin {
     NotepadView.onEditorCreated = (editor) => {
       this.patchCollidingCommands(editor.registeredShortcuts);
     };
+    NotepadView.readDependentSubtasks = () => this.settings.dependentSubtasks;
     this.register(() => {
       NotepadView.onEditorCreated = null;
+      NotepadView.readDependentSubtasks = null;
     });
 
     NoteView.onExportRequested = (view) => void this.exportNoteAsWebsite(view);
@@ -598,6 +609,15 @@ class InscriptumSettingTab extends PluginSettingTab {
       {
         control: {
           type: "toggle",
+          key: "dependentSubtasks",
+          defaultValue: DEFAULT_SETTINGS.dependentSubtasks,
+        },
+        name: "Dependent sub-tasks (experimental)",
+        desc: "EXPERIMENTAL — off by default. When on, checking a task also checks all of its sub-tasks, and unchecking any task (a sub-task or the parent) unchecks its parent chain. When off, every checkbox toggles on its own. Applies to notes opened after the change.",
+      },
+      {
+        control: {
+          type: "toggle",
           key: "writeLog",
           defaultValue: DEFAULT_SETTINGS.writeLog,
         },
@@ -630,6 +650,8 @@ class InscriptumSettingTab extends PluginSettingTab {
       this.plugin.settings.commentAuthor = value.trim();
     } else if (key === "writeLog" && typeof value === "boolean") {
       this.plugin.settings.writeLog = value;
+    } else if (key === "dependentSubtasks" && typeof value === "boolean") {
+      this.plugin.settings.dependentSubtasks = value;
     }
     await this.plugin.saveSettings();
   }
@@ -664,6 +686,20 @@ class InscriptumSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.commentAuthor)
           .onChange(async (value) => {
             this.plugin.settings.commentAuthor = value.trim();
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    new Setting(containerEl)
+      .setName("Dependent sub-tasks (experimental)")
+      .setDesc(
+        "Experimental — off by default. When on, checking a task also checks all of its sub-tasks, and unchecking any task (a sub-task or the parent) unchecks its parent chain. When off, every checkbox toggles on its own. Applies to notes opened after the change.",
+      )
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.dependentSubtasks)
+          .onChange(async (value) => {
+            this.plugin.settings.dependentSubtasks = value;
             await this.plugin.saveSettings();
           }),
       );

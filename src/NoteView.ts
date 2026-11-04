@@ -118,6 +118,12 @@ export class NoteView extends FileView {
    *  src/tools/isPressedCommand.ts). */
   static onEditorCreated: ((editor: Editor) => void) | null = null;
 
+  /** Installed by the plugin host (main.ts): reads the plugin setting for
+   *  the experimental dependent sub-tasks mode at editor-creation time —
+   *  the editor picks the value up when it opens, a settings change
+   *  applies to newly opened notes (see TaskItemOptions). */
+  static readDependentSubtasks: (() => boolean) | null = null;
+
   /** Called by the "Export as website" pane-menu item; the plugin host
    *  installs the actual export action (see main.ts). */
   static onExportRequested: ((view: NoteView) => void) | null = null;
@@ -478,7 +484,11 @@ export class NoteView extends FileView {
             },
             extensions: getExtensions(
               this.buildExtensionHooks(file, editorRef, ctx),
-              { isMobileView: isMobile },
+              {
+                isMobileView: isMobile,
+                dependentSubtasks:
+                  NoteView.readDependentSubtasks?.() === true,
+              },
             ),
             autofocus: "start",
           });

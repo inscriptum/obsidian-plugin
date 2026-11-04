@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Task list checkboxes now follow your Obsidian theme: their colors come from the theme's accent and text tokens instead of hardcoded purples, so they stop looking foreign in third-party and light themes. Checking an item got a small animation too — the checkmark draws itself in and the box gives a slight spring (disabled when the system asks for reduced motion).
 
+### Added
+
+- A new experimental option, "Dependent sub-tasks" (off by default). Turned on, checking a task also checks all of its sub-tasks, and unchecking any sub-task unhooks its parent's checkmark — handy for checklists where a parent is done only when every step under it is. Off (the default), every checkbox stays independent.
+
 ### Fixed
 
 - Selecting text inside a code block no longer shows the text-formatting menu — the floating bar on desktop, the button row above the keyboard on mobile. None of its buttons could change a code block anyway; a selection that starts outside the block keeps the menu as before.

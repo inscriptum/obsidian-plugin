@@ -297,6 +297,11 @@ export class NotepadView extends FileView {
    *  src/tools/isPressedCommand.ts). */
   static onEditorCreated: ((editor: Editor) => void) | null = null;
 
+  /** Installed by the plugin host (main.ts) — same contract as the
+   *  NoteView twin: the experimental dependent sub-tasks setting is read
+   *  at editor-creation time (see TaskItemOptions). */
+  static readDependentSubtasks: (() => boolean) | null = null;
+
   /** Called by the "Export as website" pane-menu item; the plugin host
    *  installs the actual export action (see main.ts). */
   static onExportRequested: ((view: NotepadView) => void) | null = null;
@@ -1563,7 +1568,11 @@ export class NotepadView extends FileView {
       },
       extensions: getExtensions(
         this.buildExtensionHooks(notepad, editorRef, ctx),
-        { isMobileView: isMobile, profile },
+        {
+          isMobileView: isMobile,
+          profile,
+          dependentSubtasks: NotepadView.readDependentSubtasks?.() === true,
+        },
       ),
       // Search jumps mount pages in the background and must not steal
       // focus from the search input.

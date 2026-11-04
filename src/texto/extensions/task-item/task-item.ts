@@ -11,6 +11,7 @@ import { ignoreMutationIOS } from "../../core/helpers";
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
 import { applyPopGate } from "./popGate";
+import { applyTaskCascade } from "./applyTaskCascade";
 import { itemElement } from "./view/item.element";
 
 export { DEFAULT_CHECKBOX_ICONS } from "./checkbox-icons";
@@ -20,6 +21,10 @@ export interface TaskItemOptions {
   /** Whether subtask folding (chevron) is enabled — the TaskItemFolding
    *  extension must be active for the toggle to have any effect. */
   taskFolding: boolean;
+  /** EXPERIMENTAL (owner setting, default off): on, checking a task also
+   *  checks all of its sub-tasks and unchecking any task unchecks its
+   *  parent chain; off, every checkbox toggles alone (independent). */
+  dependentSubtasks: boolean;
   HTMLAttributes: Record<string, string>;
   taskListTypeName: string;
   onReadOnlyChecked?: (node: ProseMirrorNode, checked: boolean) => boolean;
@@ -60,6 +65,7 @@ export const TaskItem = Node.create<TaskItemOptions>({
     return {
       nested: false,
       taskFolding: false,
+      dependentSubtasks: false,
       HTMLAttributes: {},
       taskListTypeName: "taskList",
     };
@@ -178,6 +184,18 @@ export const TaskItem = Node.create<TaskItemOptions>({
                 ...currentNode?.attrs,
                 checked,
               });
+
+              // EXPERIMENTAL dependent sub-tasks (owner setting, default
+              // off): with the setting on, the toggle cascades — see
+              // applyTaskCascade. Off, nothing beyond the single flip.
+              applyTaskCascade(
+                tr,
+                position,
+                checked,
+                currentNode,
+                this.type,
+                this.options.dependentSubtasks === true,
+              );
 
               return true;
             });
