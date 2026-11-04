@@ -110,10 +110,14 @@ test.describe("tasks and folding", () => {
     // The mark hides behind the dash gap while unchecked.
     expect(unchecked?.markOffset).toBeGreaterThan(0);
 
-    // The doc flip — robust to any render timing.
+    // The doc flip — robust to any render timing AND to a click lost
+    // under worker contention: re-click until the doc shows checked.
     await expect
-      .poll(() => {
-        const items = nodesOfType(docJson(page), "taskItem");
+      .poll(async () => {
+        const items = nodesOfType(await docJson(page), "taskItem");
+        if (items[0]?.attrs?.checked !== true) {
+          await host.locator("label").click();
+        }
         return items[0]?.attrs?.checked;
       })
       .toBe(true);

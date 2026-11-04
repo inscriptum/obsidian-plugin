@@ -10,6 +10,7 @@ import type { KeyboardShortcutCommand } from "../../core/@types/index";
 import { ignoreMutationIOS } from "../../core/helpers";
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 
+import { applyPopGate } from "./popGate";
 import { itemElement } from "./view/item.element";
 
 export { DEFAULT_CHECKBOX_ICONS } from "./checkbox-icons";
@@ -239,22 +240,13 @@ export const TaskItem = Node.create<TaskItemOptions>({
           }
 
           const nowChecked = !!updatedNode.attrs.checked;
-          const wasChecked = element.dataset.checked === "true";
-          element.dataset.checked = String(nowChecked);
 
           // The box pop arms on a REAL false→true toggle (issue
-          // task-item-theme): the attribute drives the CSS animation and
-          // is dropped right after it finishes, so later re-renders never
-          // replay the pop. This lives HERE, not in the item's generator:
-          // the generator may be restarted (not resumed) by the view layer
-          // on some environments — its closure state does not survive a
-          // toggle, which made the pop silently environment-dependent.
-          if (nowChecked && !wasChecked) {
-            element.setAttribute("data-pop", "");
-            window.setTimeout(() => element.removeAttribute("data-pop"), 320);
-          } else if (!nowChecked) {
-            element.removeAttribute("data-pop");
-          }
+          // task-item-theme). The gate lives HERE, not in the item's
+          // generator: the view layer may RESTART the generator on a
+          // toggle (observed on CI — its closure state does not survive),
+          // which made the pop silently environment-dependent.
+          applyPopGate(element, nowChecked);
 
           element.props = {
             ...element.props,

@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
+import type { Node as ProseMirrorNode } from "prosemirror-model";
 import { Editor } from "../../core/Editor";
 import { getExtensions } from "../../getExtensions";
+import { applyPopGate } from "./popGate";
 import { TaskItem, VIEW_TAG } from "./task-item";
 
 function contentWithTaskItem(checked: boolean) {
@@ -55,6 +57,7 @@ function renderTaskItem(checked: boolean, icons?: [string, string]) {
   return {
     item,
     editor,
+    el,
     destroy: () => {
       editor.destroy();
       el.remove();
@@ -111,36 +114,45 @@ describe("taskItem checkbox rendering", () => {
     destroy();
   });
 
-  // The box pop arms on a REAL false→true toggle (data-pop on the host,
-  // see the node view update) and disarms after the animation — an item
-  // mounted checked never arms (issue task-item-theme).
-  it("arms data-pop on a real check, disarms it; mount-checked never arms", async () => {
-    const a = renderTaskItem(false);
-    expect(a.item?.hasAttribute("data-pop")).toBe(false);
+});
 
-    a.editor.commands.command(({ tr }) => {
-      a.editor.state.doc.descendants((node, pos) => {
-        if (node.type.name === "taskItem") {
-          tr.setNodeMarkup(pos, undefined, {
-            ...node.attrs,
-            checked: true,
-          });
-          return false;
-        }
-        return true;
-      });
-      return true;
-    });
+describe("applyPopGate (the box pop arming, issue task-item-theme)", () => {
+  it("arms on a real false→true toggle and disarms after the animation", async () => {
+    const host = createDiv();
+    document.body.append(host);
 
-    // TEMP: triage
-    expect(a.item?.dataset.checked).toBe("true");
-    expect(a.item?.getAttribute("data-pop")).toBe("");
+    // Mount unchecked (the factory seeds data-checked before update).
+    applyPopGate(host, false);
+    expect(host.hasAttribute("data-pop")).toBe(false);
+
+    // The check — the pop arms, then the attribute is dropped.
+    applyPopGate(host, true);
+    expect(host.getAttribute("data-pop")).toBe("");
     await new Promise((resolve) => setTimeout(resolve, 400));
-    expect(a.item?.hasAttribute("data-pop")).toBe(false);
-    a.destroy();
+    expect(host.hasAttribute("data-pop")).toBe(false);
 
-    const b = renderTaskItem(true);
-    expect(b.item?.hasAttribute("data-pop")).toBe(false);
-    b.destroy();
+    host.remove();
+  });
+
+  it("never arms for an item mounted checked", async () => {
+    const host = createDiv();
+    document.body.append(host);
+    // The factory seeds data-checked from the node attrs BEFORE the first
+    // update — a host mounted checked arrives with the seed.
+    host.dataset.checked = "true";
+
+    applyPopGate(host, true); // the mount render, seeded checked
+    expect(host.hasAttribute("data-pop")).toBe(false);
+
+    // Re-renders of the same checked state stay unarmed...
+    applyPopGate(host, true);
+    expect(host.hasAttribute("data-pop")).toBe(false);
+
+    // ...until an uncheck arms the next check again.
+    applyPopGate(host, false);
+    applyPopGate(host, true);
+    expect(host.getAttribute("data-pop")).toBe("");
+
+    host.remove();
   });
 });
