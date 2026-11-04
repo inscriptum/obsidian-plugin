@@ -129,9 +129,17 @@ test.describe("tasks and folding", () => {
             ?.getAttribute("data-checked") ?? null,
         reduce: matchMedia("(prefers-reduced-motion: reduce)").matches,
         noPref: matchMedia("(prefers-reduced-motion: no-preference)").matches,
+        inputChecked:
+          document
+            .querySelector(".texto-extension-task-item-host input")
+            ?.checked ?? null,
+        inputClass:
+          document
+            .querySelector(".texto-extension-task-item-host input")
+            ?.className ?? null,
       };
     });
-    expect(animation.anim).toBe("texto-task-check-pop");
+    expect(animation).toEqual({ anim: "texto-task-check-pop" });
 
     await expect
       .poll(() =>
