@@ -52,7 +52,7 @@ function checkedStates(editor: InstanceType<typeof Editor>): (boolean | undefine
   return out;
 }
 
-describe("repro: parent check cascades?", () => {
+describe("default off: clicking a parent does not cascade", () => {
   it("clicking the parent checkbox", () => {
     const el = createDiv();
     document.body.appendChild(el);
@@ -65,17 +65,12 @@ describe("repro: parent check cascades?", () => {
 
     expect(checkedStates(editor)).toEqual([false, false, false]);
 
-    // click the PARENT's label (first host)
+    // click the PARENT's label (first host) — one click: the flip
+    // recreates the view in jsdom, further clicks would land on a detached
+    // label and silently no-op
     const hosts = el.querySelectorAll(VIEW_TAG);
     expect(hosts.length).toBe(3);
     const parentLabel = hosts[0].querySelector("label");
-    parentLabel?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-    // onClick uses preventDefault + checkboxEl.checked toggle; the handler
-    // reads checkboxEl.checked — simulate exactly what a real click does
-    const cb = parentLabel?.querySelector('input[type="checkbox"]') as HTMLInputElement;
-    // a real trusted click on the label flips the input BEFORE onClick? The
-    // handler toggles it itself; replicate the handler's contract:
-    if (cb && !cb.checked) cb.checked = true;
     parentLabel?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
 
     expect(checkedStates(editor)).toEqual([true, false, false]);

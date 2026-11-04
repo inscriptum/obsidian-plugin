@@ -3,6 +3,10 @@ import { EditorState } from "prosemirror-state";
 
 import { buildSchema } from "../../../../tests/helpers/buildSchema";
 
+import { Editor } from "../../core/Editor";
+import { getExtensions } from "../../getExtensions";
+
+import { TaskItem, VIEW_TAG } from "./task-item";
 import { applyTaskCascade } from "./applyTaskCascade";
 
 const schema = buildSchema();
@@ -105,6 +109,74 @@ function runCascade(
   const next = EditorState.create({ doc }).apply(tr);
   return states(next.doc);
 }
+
+describe("dependent sub-tasks click-path threading", () => {
+  it("the option threads getExtensions → handleCheckboxClick (one click cascades)", () => {
+    const el = createDiv();
+    document.body.appendChild(el);
+    const editor = new Editor({
+      element: el,
+      content: {
+        type: "noteDoc",
+        content: [
+          { type: "noteTitle", content: [] },
+          { type: "taskList", content: [
+            { type: "taskItem", attrs: { checked: false }, content: [
+              { type: "paragraph", content: [{ type: "text", text: "parent" }] },
+              { type: "taskList", content: [
+                { type: "taskItem", attrs: { checked: false }, content: [{ type: "paragraph", content: [{ type: "text", text: "sub" }] }] },
+              ] },
+            ] },
+          ] },
+        ],
+      },
+      extensions: getExtensions(undefined, { dependentSubtasks: true }),
+      editable: true,
+    });
+    const label = el.querySelector(VIEW_TAG)?.querySelector("label");
+    label?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    const out: boolean[] = [];
+    editor.state.doc.descendants((n) => {
+      if (n.type.name === "taskItem") out.push(n.attrs.checked);
+      return true;
+    });
+    expect(out).toEqual([true, true]);
+    editor.destroy();
+    el.remove();
+  });
+
+  it("one toggle is one undo step", () => {
+    const el = createDiv();
+    document.body.appendChild(el);
+    const editor = new Editor({
+      element: el,
+      content: {
+        type: "noteDoc",
+        content: [
+          { type: "noteTitle", content: [] },
+          { type: "taskList", content: [
+            { type: "taskItem", attrs: { checked: false }, content: [
+              { type: "paragraph", content: [{ type: "text", text: "parent" }] },
+              { type: "taskList", content: [
+                { type: "taskItem", attrs: { checked: false }, content: [{ type: "paragraph", content: [{ type: "text", text: "sub" }] }] },
+              ] },
+            ] },
+          ] },
+        ],
+      },
+      extensions: getExtensions(undefined, { dependentSubtasks: true }),
+      editable: true,
+    });
+    const label = el.querySelector(VIEW_TAG)?.querySelector("label");
+    label?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    expect(states(editor.state.doc)).toEqual([true, true]);
+    // One undo reverts the whole cascade (the toggle is one transaction).
+    editor.commands.undo();
+    expect(states(editor.state.doc)).toEqual([false, false]);
+    editor.destroy();
+    el.remove();
+  });
+});
 
 describe("applyTaskCascade (experimental dependent sub-tasks)", () => {
   it("off: no cascade — the flipped item changes alone", () => {

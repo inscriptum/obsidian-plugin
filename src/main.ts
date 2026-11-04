@@ -693,7 +693,7 @@ class InscriptumSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Dependent sub-tasks (experimental)")
       .setDesc(
-        "EXPERIMENTAL — off by default. When on, checking a task also checks all of its sub-tasks, and unchecking any task (a sub-task or the parent) unchecks its parent chain. When off, every checkbox toggles on its own. Applies to notes opened after the change.",
+        "Experimental — off by default. When on, checking a task also checks all of its sub-tasks, and unchecking any task (a sub-task or the parent) unchecks its parent chain. When off, every checkbox toggles on its own. Applies to notes opened after the change.",
       )
       .addToggle((toggle) =>
         toggle
