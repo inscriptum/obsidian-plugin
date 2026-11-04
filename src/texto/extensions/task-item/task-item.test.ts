@@ -54,6 +54,7 @@ function renderTaskItem(checked: boolean, icons?: [string, string]) {
 
   return {
     item,
+    editor,
     destroy: () => {
       editor.destroy();
       el.remove();
@@ -108,5 +109,38 @@ describe("taskItem checkbox rendering", () => {
     expect(use?.getAttribute("href")).toBe("#my_on_icon");
 
     destroy();
+  });
+
+  // The box pop arms on a REAL false→true toggle (data-pop on the host,
+  // see the node view update) and disarms after the animation — an item
+  // mounted checked never arms (issue task-item-theme).
+  it("arms data-pop on a real check, disarms it; mount-checked never arms", async () => {
+    const a = renderTaskItem(false);
+    expect(a.item?.hasAttribute("data-pop")).toBe(false);
+
+    a.editor.commands.command(({ tr }) => {
+      a.editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === "taskItem") {
+          tr.setNodeMarkup(pos, undefined, {
+            ...node.attrs,
+            checked: true,
+          });
+          return false;
+        }
+        return true;
+      });
+      return true;
+    });
+
+    // TEMP: triage
+    expect(a.item?.dataset.checked).toBe("true");
+    expect(a.item?.getAttribute("data-pop")).toBe("");
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(a.item?.hasAttribute("data-pop")).toBe(false);
+    a.destroy();
+
+    const b = renderTaskItem(true);
+    expect(b.item?.hasAttribute("data-pop")).toBe(false);
+    b.destroy();
   });
 });
