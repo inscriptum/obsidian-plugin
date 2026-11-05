@@ -1346,7 +1346,10 @@ export class NotepadView extends FileView {
     }
   }
 
-  private async collapseSection(id: string): Promise<void> {
+  private async collapseSection(
+    id: string,
+    opts?: { morph?: boolean },
+  ): Promise<void> {
     const handle = this.sections.get(id);
     if (!handle || this.notepad?.isExpanded(id) !== true) return;
     // A collapse is two phases now (dissolve, then fold) — a second toggle
@@ -1356,7 +1359,7 @@ export class NotepadView extends FileView {
     try {
       // Pin the page height before tearing it down so the swap to the row
       // animates instead of snapping (0 = reduced motion, no morph).
-      const morphH = this.pinFoldMorph(handle);
+      const morphH = opts?.morph === false ? 0 : this.pinFoldMorph(handle);
       if (morphH !== 0) {
         // Phase one: dissolve the page BEFORE teardown — the eye sees the
         // text fade away, then the frame folds shut around the row fading
@@ -3827,6 +3830,11 @@ export class NotepadView extends FileView {
    *  that switched files (or a destroyed view) must not resolve the old
    *  conflict against the new state, so a late click becomes a no-op. */
   private openConflictModal(): void {
+    // Single choke point for both entry paths: the watcher checks the flag
+    // BEFORE its fingerprint await — a gate run that opened the dialog
+    // while the watcher was suspended would otherwise stack a second
+    // dialog over the already-open one (PR #22 review).
+    if (this.conflictModalOpen) return;
     const capturedFile = this.file;
     const capturedNotepad = this.notepad;
     if (!capturedFile || !capturedNotepad) return;
@@ -3916,18 +3924,52 @@ export class NotepadView extends FileView {
     return { scrollTop: this.scrollerEl?.scrollTop ?? null, expanded };
   }
 
-  /** Re-open the captured sections (a page may exist on disk while its
-   *  manifest `expanded` flag differs — the UI state wins) and put the
-   *  scroller back. */
+  /** Wait (bounded) for the in-flight expand/collapse toggles to settle —
+   *  their DOM effects (mounted editors, folded rows) are what the UI-state
+   *  restore reads. */
+  private async waitForSectionToggles(timeoutMs = 2000): Promise<void> {
+    const started = Date.now();
+    while (
+      (this.pendingExpansions.size > 0 || this.pendingCollapses.size > 0) &&
+      Date.now() - started < timeoutMs
+    ) {
+      await new Promise((resolve) => window.setTimeout(resolve, 20));
+    }
+  }
+
+  /** Rebuild the captured open/closed state (a page may exist on disk while
+   *  its manifest `expanded` flag differs — the UI state wins on BOTH
+   *  sides: pages the user had closed are re-closed even when the incoming
+   *  disk version marks them expanded, or the reload would leave extra
+   *  pages open and shift the layout around the restored scroll) and put
+   *  the scroller back. */
   private async restoreNotepadUiState(state: {
     scrollTop: number | null;
     expanded: string[];
   }): Promise<void> {
     const notepad = this.notepad;
     if (!notepad) return;
+    // render() kicks its manifest-driven expandSections off with `void` —
+    // wait for those in-flight toggles to finish, or the open-section
+    // snapshot below misses sections that are still mounting (PR #22
+    // review: closed pages survived the restore for exactly this reason).
+    await this.waitForSectionToggles();
     const openIds = new Set<string>();
     for (const [id, handle] of this.sections) {
       if (handle.noteEl != null) openIds.add(id);
+    }
+    const wasOpen = new Set(state.expanded);
+    // Close first: render() opened whatever the new disk version marks
+    // expanded — pages the user had closed must fold before the scroll
+    // restore measures the layout.
+    const toClose = [...openIds].filter(
+      (id) => !wasOpen.has(id) && notepad.note(id) != null,
+    );
+    if (toClose.length > 0) {
+      // Silent reload — no fold animation on someone else's write.
+      await Promise.all(
+        toClose.map((id) => this.collapseSection(id, { morph: false })),
+      );
     }
     const missing = state.expanded.filter(
       (id) => !openIds.has(id) && notepad.note(id) != null,
