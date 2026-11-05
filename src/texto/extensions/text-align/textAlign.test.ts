@@ -132,6 +132,35 @@ describe("setTextAlign command", () => {
     editor.destroy();
   });
 
+  it("aligns the paragraph inside a task item (PR #22 CR-22-04)", () => {
+    const editor = buildEditor(
+      docWith({
+        type: "taskList",
+        content: [
+          {
+            type: "taskItem",
+            attrs: { checked: false },
+            content: [
+              { type: "paragraph", content: [{ type: "text", text: "todo" }] },
+            ],
+          },
+        ],
+      }),
+    );
+    // Caret inside the task item's paragraph: the title block's size, then
+    // taskList/taskItem/paragraph openings, one char into the text.
+    editor.commands.setTextSelection(blockStart(editor, 1) + 4);
+    expect(editor.commands.setTextAlign("right")).toBe(true);
+    const list = editor.state.doc.child(1);
+    expect(list.type.name).toBe("taskList");
+    const item = list.child(0);
+    expect(item.type.name).toBe("taskItem");
+    expect(item.child(0).attrs.align).toBe("right");
+    // The taskItem checkbox state is untouched by the alignment change.
+    expect(item.attrs.checked).toBe(false);
+    editor.destroy();
+  });
+
   it("aligns the paragraph inside a table cell", () => {
     const editor = buildEditor(
       docWith({
