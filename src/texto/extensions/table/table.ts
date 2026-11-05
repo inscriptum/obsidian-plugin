@@ -11,7 +11,7 @@ import { NodeView } from "prosemirror-view";
 
 import { addCommands } from "./commands";
 import { deleteTableWhenAllCellsSelected } from "./helpers";
-import { cellClipboardPlugin, cutCellSelection } from "./helpers/cellClipboard";
+import { cellClipboardPlugin } from "./helpers/cellClipboard";
 import { cellTrailingParagraphPlugin } from "./helpers/cellTrailingParagraph";
 import { createColGroup } from "./helpers/createColGroup";
 import { handleCellSelection } from "./helpers/handleCellSelection";
@@ -133,9 +133,11 @@ export const Table = Node.create<TableOptions, AnyObject>({
       "Mod-Backspace": deleteTableWhenAllCellsSelected,
       Delete: deleteTableWhenAllCellsSelected,
       "Mod-Delete": deleteTableWhenAllCellsSelected,
-      // Excel cut semantics for cell selections (rows are removed, partial
-      // rectangles are cleared); the block is copied to the clipboard first.
-      "Mod-x": () => cutCellSelection(this.editor.view),
+      // NO Mod-x binding here: cell cut rides the DOM cut event (see
+      // cellClipboardPlugin). A keymap binding would register the shortcut
+      // globally (editor.registeredShortcuts) and the host's physical-
+      // shortcut router would swallow every Cmd+X — killing the native text
+      // cut (issues/text-cut-mod-x).
     };
   },
 

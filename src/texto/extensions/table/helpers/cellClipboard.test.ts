@@ -562,6 +562,50 @@ describe("cut (Excel semantics)", () => {
     });
     expect(cutCellSelection(view)).toBe(false);
   });
+
+  // The DOM cut event (issues/text-cut-mod-x): the Cmd+X path for cell
+  // selections lives in the plugin's handleDOMEvents — NOT in the keymap,
+  // whose Mod-x binding made the host router swallow every text cut.
+  function pluginCut(view: EditorView): { handled: boolean; prevented: boolean } {
+    const plugin = cellClipboardPlugin();
+    const cut = plugin.spec.props?.handleDOMEvents?.cut as
+      | ((view: EditorView, event: ClipboardEvent) => boolean)
+      | undefined;
+    expect(cut).toBeDefined();
+    let prevented = false;
+    const handled = cut!(view, {
+      preventDefault: () => {
+        prevented = true;
+      },
+    } as unknown as ClipboardEvent);
+    return { handled, prevented };
+  }
+
+  it("the DOM cut handler runs the Excel cut for a cell selection", async () => {
+    stubWriteOk();
+    const doc = twoTablesDoc();
+    let next = stateWithSelection(doc, rectSelection(doc, 1));
+    const view = fakeView(next, (tr) => {
+      next = next.apply(tr);
+    });
+    const { handled, prevented } = pluginCut(view);
+    expect(handled).toBe(true);
+    expect(prevented).toBe(true);
+    await flush();
+    // Full-row rect (2×2 of a 2-col table) → the row is gone.
+    expect(cellTexts(next.doc, 1)).toEqual([]);
+  });
+
+  it("the DOM cut handler falls through for a text selection", () => {
+    const doc = twoTablesDoc();
+    const state = stateWithSelection(doc, TextSelection.create(doc, 6));
+    const view = fakeView(state, () => {
+      throw new Error("must not dispatch");
+    });
+    const { handled, prevented } = pluginCut(view);
+    expect(handled).toBe(false);
+    expect(prevented).toBe(false); // native cut proceeds untouched
+  });
 });
 
 describe("toolbar clipboard buttons (caret 1×1 scope)", () => {

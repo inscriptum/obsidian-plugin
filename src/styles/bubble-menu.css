@@ -580,6 +580,45 @@ never keep the menu invisible. */
   padding: 8px 10px 6px;
 }
 
+/* Horizontal alignment row (issues/text-align): three icon buttons in the
+   Styles layer. .bb-al keeps its own size/look on mobile too — it is in the
+   generic-override exclusion list (rule-bubble-menu-buttons). */
+.bubble-menu-bar .bb-al-row {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px 2px;
+}
+
+.bubble-menu-bar .bb-al {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-s);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.bubble-menu-bar .bb-al svg {
+  width: 18px;
+  height: 18px;
+}
+
+.bubble-menu-bar .bb-al:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.bubble-menu-bar .bb-al.is-active {
+  background: var(--background-modifier-active-hover);
+  color: var(--interactive-accent);
+}
+
 /* "Auto (theme)" dot inside the swatch grid: half dark / half light */
 .bubble-menu-bar .bb-dd .bb-sw--auto {
   background: linear-gradient(45deg, #2c2c34 50%, #d7d7e0 50%);

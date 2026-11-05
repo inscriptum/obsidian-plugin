@@ -419,9 +419,10 @@ function handleCellPaste(view: EditorView, slice: Slice): boolean {
 }
 
 /**
- * Cmd+X for a cell selection: the copied block goes to the system clipboard,
- * then Excel semantics — full rows are removed, a partial rectangle only
- * clears cell contents. Returns false outside a cell selection (normal cut).
+ * Cut for a cell selection (the DOM cut event and the toolbar button): the
+ * copied block goes to the system clipboard, then Excel semantics — full
+ * rows are removed, a partial rectangle only clears cell contents. Returns
+ * false outside a cell selection (normal cut).
  */
 export function cutCellSelection(view: EditorView): boolean {
   const { state } = view;
@@ -610,6 +611,27 @@ export function cellClipboardPlugin(): Plugin {
           return false;
         }
         return handleCellPaste(view, slice);
+      },
+      // Cell cut rides the DOM cut event, symmetric with the native Cmd+C
+      // copy: NO keymap binding for Mod-x. A keymap binding lands in
+      // editor.registeredShortcuts, which makes the host's physical-shortcut
+      // router swallow EVERY Cmd+X globally (preventDefault before the
+      // re-dispatch) — and for a plain text selection nothing then executes
+      // (issues/text-cut-mod-x: text cut died with the table-clipboard
+      // release). Without the binding the native cut event fires, this
+      // handler takes cell selections, and text cuts stay native — on any
+      // keyboard layout.
+      handleDOMEvents: {
+        cut: (view: EditorView, event: ClipboardEvent) => {
+          if (!(view.state.selection instanceof CellSelection)) {
+            return false; // plain text cut — native path
+          }
+          // Excel cut for the cell selection (copy-confirm + delete); the
+          // native cut must not also delete the selection underneath it.
+          event.preventDefault();
+          cutCellSelection(view);
+          return true;
+        },
       },
     },
   });

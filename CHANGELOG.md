@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Text blocks can now be aligned left (the default), centered, or right — like in Word or Notion. Pick the alignment in the "Styles & color" layer of the text menu: it works on paragraphs, headings, list items, and text inside table cells, and it carries through saving and the exported website.
+
 ### Changed
 
 - Task list checkboxes now follow your Obsidian theme: their colors come from the theme's accent and text tokens instead of hardcoded purples, so they stop looking foreign in third-party and light themes. Checking an item got a small animation too — the checkmark draws itself in and the box gives a slight spring (disabled when the system asks for reduced motion).
@@ -16,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A new experimental option, "Dependent sub-tasks" (off by default). Turned on, checking a task also checks all of its sub-tasks, and unchecking any sub-task unhooks its parent's checkmark — handy for checklists where a parent is done only when every step under it is. Off (the default), every checkbox stays independent.
 
 ### Fixed
+
+- Cmd/Ctrl+X cuts the selected text again: the table feature had claimed the shortcut app-wide, which cancelled the native cut before it could run. Cutting selected table cells keeps its spreadsheet behavior (rows removed, or the rectangle cleared), now on both desktop and mobile.
+
+- Changes made to a notepad file outside the app — a git sync, another agent, another editor — can no longer be silently overwritten by the app's own autosave. The app now notices the external change and asks which version to keep, and when it reloads quietly, your open pages and scroll position stay put.
 
 - Checking a task no longer makes its nested sub-tasks look checked: their checkboxes kept their own state, but the strike-through and the checkmark leaked from the parent onto everything nested under it.
 - Selecting text inside a code block no longer shows the text-formatting menu — the floating bar on desktop, the button row above the keyboard on mobile. None of its buttons could change a code block anyway; a selection that starts outside the block keeps the menu as before.

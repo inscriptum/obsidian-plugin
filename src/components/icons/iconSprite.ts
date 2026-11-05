@@ -80,6 +80,11 @@ const BUBBLE_ICON_PATHS: Record<string, string> = {
   link: `<path d="M10 14a3.5 3.5 0 0 0 5 0l4 -4a3.5 3.5 0 0 0 -5 -5l-1.5 1.5"/><path d="M14 10a3.5 3.5 0 0 0 -5 0l-4 4a3.5 3.5 0 0 0 5 5l1.5 -1.5"/>`,
   clear: `<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>`,
   paragraph: `<line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/>`,
+  /* Horizontal text alignment (issues/text-align): left-anchored, centered
+     and right-anchored line triples (Tabler align-left/center/right, MIT). */
+  alignLeft: `<line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="12" y2="12"/><line x1="4" y1="18" x2="16" y2="18"/>`,
+  alignCenter: `<line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="6" y1="18" x2="18" y2="18"/>`,
+  alignRight: `<line x1="4" y1="6" x2="20" y2="6"/><line x1="12" y1="12" x2="20" y2="12"/><line x1="8" y1="18" x2="20" y2="18"/>`,
   h1: TOOLBAR_ICON_PATHS.h1,
   h2: TOOLBAR_ICON_PATHS.h2,
   h3: TOOLBAR_ICON_PATHS.h3,
