@@ -92,7 +92,8 @@ if (stage === 'select') {
         const r = h.getBoundingClientRect();
         return {
           cellPos: h.dataset.cellPos ?? null,
-          ignoreSwipe: h.dataset.ignoreSwipe ?? null,
+          // the fix puts the opt-out on the wrapper, not the handle itself
+          ignoreSwipe: h.closest('[data-ignore-swipe]')?.getAttribute('data-ignore-swipe') ?? null,
           rect: { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) },
           screen: { w: window.innerWidth, h: window.innerHeight },
         };
@@ -134,15 +135,14 @@ if (stage === 'check') {
       drawerLeft: drawer('left'),
       drawerRight: drawer('right'),
       bodyClass: document.body.className,
-      docChangedSinceOpen: ed ? ed.state.doc !== ed.state.doc : null,
     };
   });
-  R.screenshot = `local/../scripts/debug/resize-swipe-${stage}-${Date.now()}.png`;
-  const shotPath = `scripts/debug/resize-swipe-${Date.now()}.png`;
+  // scratch artifacts live in the dev vault's gitignored local/
+  const shotPath = `local/resize-swipe-${Date.now()}.png`;
   await page.screenshot({ path: shotPath });
   R.screenshot = shotPath;
 }
 
-writeFileSync('scripts/debug/verify-resize-swipe-last.json', JSON.stringify(R, null, 2));
+writeFileSync('local/verify-resize-swipe-last.json', JSON.stringify(R, null, 2));
 console.log(JSON.stringify(R, null, 1));
 await browser.close().catch(() => {});

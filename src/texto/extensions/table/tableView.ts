@@ -77,12 +77,9 @@ export class TableView implements NodeView {
     this.cellMinWidth = cellMinWidth;
     this.dom = createDiv();
     this.dom.className = "table-wrapper";
-    // TRAP: on mobile the shell reads horizontal drags near the screen edges
-    // as drawer swipes — a resize grab on the first/last column of a
-    // full-width table starts there, and the handle may be clipped away by
-    // the wrapper's overflow so the touch target is not our element. The
-    // wrapper (the handle's container) opts the whole table area out of the
-    // shell swipe (issue table-resize-edge-swipe).
+    // TRAP: the mobile shell reads edge drags as drawer swipes; the wrapper
+    // (the resize handle's container) opts the table area out — same as the
+    // toDOM path below (issue table-resize-edge-swipe).
     this.dom.setAttribute("data-ignore-swipe", "true");
     this.table = this.dom.appendChild(createEl("table"));
     this.colgroup = this.table.appendChild(createEl("colgroup"));
