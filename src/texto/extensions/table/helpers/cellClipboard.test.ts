@@ -1,5 +1,5 @@
 import type { Node as ProseMirrorNode } from "prosemirror-model";
-import { DOMSerializer, Fragment, Slice } from "prosemirror-model";
+import { DOMParser, DOMSerializer, Fragment, Slice } from "prosemirror-model";
 import { EditorState, TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import { CellSelection } from "prosemirror-tables";
@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildSchema } from "../../../../../tests/helpers/buildSchema";
 
-import { cellClipboardPlugin, copyTableSelection, cutCellSelection, cutTableSelection, extractCellGrid, pasteFromSystemClipboard } from "./cellClipboard";
+import { cellClipboardPlugin, copyTableSelection, cutCellSelection, cutTableSelection, extractCellGrid, gridToTsv, pasteFromSystemClipboard, tsvToHtml } from "./cellClipboard";
 
 const schema = buildSchema();
 
@@ -800,7 +800,7 @@ describe("system clipboard (toolbar button path)", () => {
     expect(written[0]).toContain("A00");
   });
 
-  it("Android: paste degrades to readText — the event carries text, no html", async () => {
+  it("Android: readText over a cell selection rebuilds a 1x1 TSV grid", async () => {
     setUA(ANDROID_UA);
     stubClipboard({
       read: async () => {
@@ -812,8 +812,91 @@ describe("system clipboard (toolbar button path)", () => {
     await expect(pasteFromSystemClipboard(view)).resolves.toBe(true);
     expect(events).toHaveLength(1);
     const dt = events[0]?.clipboardData;
+    // the single value tiles over the rectangle as a 1x1 grid (the same
+    // shape the rich flavor produces on desktop)
+    expect(dt?.getData("text/html")).toContain("<table");
+    expect(dt?.getData("text/html")).toContain("A00 A01");
     expect(dt?.getData("text/plain")).toBe("A00 A01");
+  });
+
+  it("Android: plain single-line text at a caret stays native (no TSV rebuild)", async () => {
+    setUA(ANDROID_UA);
+    stubClipboard({
+      read: async () => {
+        throw new DOMException("Read permission denied", "NotAllowedError");
+      },
+      readText: async () => "just a sentence",
+    });
+    const doc = twoTablesDoc();
+    const p = cellPositions(doc, 0)[0];
+    const state = stateWithSelection(doc, TextSelection.create(doc, p + 2));
+    const { view, events } = clipboardView(state);
+    await expect(pasteFromSystemClipboard(view)).resolves.toBe(true);
+    expect(events).toHaveLength(1);
+    const dt = events[0]?.clipboardData;
+    // caret + single-line text: inline insertion, no grid rebuild
     expect(dt?.getData("text/html")).toBe("");
+    expect(dt?.getData("text/plain")).toBe("just a sentence");
+  });
+
+  it("Android: tabbed text at a caret rebuilds the grid (external TSV paste)", async () => {
+    setUA(ANDROID_UA);
+    stubClipboard({
+      read: async () => {
+        throw new DOMException("Read permission denied", "NotAllowedError");
+      },
+      readText: async () => "X0\tX1\nY0\tY1",
+    });
+    const doc = twoTablesDoc();
+    const p = cellPositions(doc, 0)[0];
+    const state = stateWithSelection(doc, TextSelection.create(doc, p + 2));
+    const { view, events } = clipboardView(state);
+    await expect(pasteFromSystemClipboard(view)).resolves.toBe(true);
+    const dt = events[0]?.clipboardData;
+    expect(dt?.getData("text/html")).toContain("<table");
+    expect(dt?.getData("text/html")).toContain("X0");
+    expect(dt?.getData("text/plain")).toBe("X0\tX1\nY0\tY1");
+  });
+
+  it("Android: newline-only text at a caret stays native (no column growth)", async () => {
+    // a multiline text paste into a cell must not turn into a column insert
+    setUA(ANDROID_UA);
+    stubClipboard({
+      read: async () => {
+        throw new DOMException("Read permission denied", "NotAllowedError");
+      },
+      readText: async () => "A\nB\nC",
+    });
+    const doc = twoTablesDoc();
+    const p = cellPositions(doc, 0)[0];
+    const state = stateWithSelection(doc, TextSelection.create(doc, p + 2));
+    const { view, events } = clipboardView(state);
+    await expect(pasteFromSystemClipboard(view)).resolves.toBe(true);
+    const dt = events[0]?.clipboardData;
+    expect(dt?.getData("text/html")).toBe("");
+    expect(dt?.getData("text/plain")).toBe("A\nB\nC");
+  });
+
+  it("desktop: html flavor wins when present (TSV stays the text flavor)", async () => {
+    setUA(DESKTOP_UA);
+    stubClipboard({
+      read: async () => [
+        {
+          types: ["text/html", "text/plain"],
+          getType: async (type: string) =>
+            new Blob([type === "text/html" ? "<table><tr><td><p>HTML</p></td></tr></table>" : "A\tB"], { type }),
+        },
+      ],
+    });
+    const doc = twoTablesDoc();
+    const p = cellPositions(doc, 0)[0];
+    const state = stateWithSelection(doc, TextSelection.create(doc, p + 2));
+    const { view, events } = clipboardView(state);
+    await expect(pasteFromSystemClipboard(view)).resolves.toBe(true);
+    const dt = events[0]?.clipboardData;
+    expect(dt?.getData("text/html")).toContain("HTML");
+    expect(dt?.getData("text/html")).not.toContain("<td><p>A</p>");
+    expect(dt?.getData("text/plain")).toBe("A\tB");
   });
 
   it("desktop: paste reads the rich flavor when read() is allowed", async () => {
@@ -833,5 +916,140 @@ describe("system clipboard (toolbar button path)", () => {
     const dt = events[0]?.clipboardData;
     expect(dt?.getData("text/html")).toContain("<table");
     expect(dt?.getData("text/plain")).toBe("A00");
+  });
+});
+
+describe("TSV text flavor (toolbar copy / paste rebuild)", () => {
+  const flush = () => new Promise((r) => window.setTimeout(r, 0));
+  const ANDROID_UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/152.0.0.0 Mobile";
+  const DESKTOP_UA = "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/152.0.0.0 Safari/537.36";
+  const realUA = navigator.userAgent;
+  const realClipboard = (navigator as unknown as { clipboard: unknown }).clipboard;
+  const realClipboardItem = (globalThis as unknown as Record<string, unknown>).ClipboardItem;
+
+  afterEach(() => {
+    Object.defineProperty(navigator, "userAgent", { value: realUA, configurable: true });
+    (navigator as unknown as { clipboard: unknown }).clipboard = realClipboard;
+    (globalThis as unknown as Record<string, unknown>).ClipboardItem = realClipboardItem;
+  });
+
+  function stubClipboard(stub: Record<string, unknown>): void {
+    (navigator as unknown as { clipboard: unknown }).clipboard = stub;
+  }
+
+  function setUA(ua: string): void {
+    Object.defineProperty(navigator, "userAgent", { value: ua, configurable: true });
+  }
+
+  class FakeClipboardItem {
+    data: Record<string, Blob>;
+    constructor(data: Record<string, Blob>) {
+      this.data = data;
+    }
+  }
+
+  function viewFor(state: EditorState): EditorView {
+    const serializer = DOMSerializer.fromSchema(state.schema);
+    return {
+      state,
+      dispatch: () => {},
+      focus: () => {},
+      dom: createDiv(),
+      serializeForClipboard: (slice: Slice) => {
+        const el = createDiv();
+        el.appendChild(serializer.serializeFragment(slice.content));
+        return { dom: el, text: slice.content.textBetween(0, slice.content.size, "\n\n"), slice };
+      },
+    } as unknown as EditorView;
+  }
+
+  it("toolbar copy writes the TSV text flavor (Excel-compatible)", async () => {
+    setUA(DESKTOP_UA);
+    (globalThis as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
+    let tsv = "";
+    let html = "";
+    stubClipboard({
+      write: async (items: Array<FakeClipboardItem>) => {
+        html = await items[0]?.data["text/html"].text();
+        tsv = await items[0]?.data["text/plain"].text();
+      },
+      writeText: async () => {
+        throw new Error("writeText must not run on the rich path");
+      },
+    });
+    const doc = twoTablesDoc();
+    const state = stateWithSelection(doc, rectSelection(doc, 0));
+    expect(copyTableSelection(viewFor(state))).toBe(true);
+    await flush();
+    expect(tsv).toBe("A00\tA01\nA10\tA11");
+    expect(html).toContain("<table");
+  });
+
+  it("Android copy (values-only) writes the same TSV", async () => {
+    setUA(ANDROID_UA);
+    (globalThis as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
+    const written: string[] = [];
+    stubClipboard({
+      write: async () => {
+        throw new Error("rich write must not run on Android");
+      },
+      writeText: async (t: string) => {
+        written.push(t);
+      },
+    });
+    const doc = twoTablesDoc();
+    const state = stateWithSelection(doc, rectSelection(doc, 0));
+    expect(copyTableSelection(viewFor(state))).toBe(true);
+    await flush();
+    expect(written[0]).toBe("A00\tA01\nA10\tA11");
+    expect(written[0]).not.toContain("<table");
+  });
+
+  it("multi-paragraph cells flatten to one line in TSV", async () => {
+    setUA(DESKTOP_UA);
+    (globalThis as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
+    let tsv = "";
+    stubClipboard({
+      write: async (items: Array<FakeClipboardItem>) => {
+        tsv = await items[0]?.data["text/plain"].text();
+      },
+      writeText: async () => {
+        throw new Error("writeText must not run on the rich path");
+      },
+    });
+    const multi = schema.nodes.tableCell.create(null, [
+      schema.nodes.paragraph.create(null, [schema.text("a")]),
+      schema.nodes.paragraph.create(null, [schema.text("b")]),
+    ]);
+    const doc = schema.nodes.noteDoc.create(null, [
+      schema.nodes.noteTitle.create(null, [schema.text("T")]),
+      table([row([multi])]),
+    ]);
+    const [p] = cellPositions(doc, 0);
+    const state = stateWithSelection(doc, new CellSelection(doc.resolve(p)));
+    expect(copyTableSelection(viewFor(state))).toBe(true);
+    await flush();
+    expect(tsv).toBe("a b");
+    expect(tsv).not.toContain("\n");
+  });
+
+  it("tsvToHtml round-trips through the paste parser as a cell grid", () => {
+    // the real paste pipeline: PM parses the event's html into a slice,
+    // handleCellPaste extracts the grid from it
+    const html = tsvToHtml("A00\tA01\nA10\tA11");
+    const dom = new window.DOMParser().parseFromString(html, "text/html");
+    const slice = DOMParser.fromSchema(schema).parseSlice(dom.body.firstChild as Element);
+    const grid = extractCellGrid(slice);
+    expect(grid).not.toBeNull();
+    expect(grid?.map((cells) => cells.map((c) => c.textContent))).toEqual([
+      ["A00", "A01"],
+      ["A10", "A11"],
+    ]);
+  });
+
+  it("tsvToHtml escapes html-significant characters", () => {
+    const html = tsvToHtml('a<b & "c"');
+    expect(html).toContain("a&lt;b &amp; &quot;c&quot;");
+    expect(html).not.toContain("<b");
   });
 });

@@ -38,6 +38,11 @@ import { TextoCellSelection } from "./TextoCellSelection";
  * prosemirror-tables' pastedCells (its shape assumptions are stricter than
  * what our clipboard round-trip produces) and ended up as a nested table
  * inside a cell.
+ *
+ * Toolbar copy/cut put the grid into the text flavor as TSV (cells by tab,
+ * rows by newline — Excel-compatible); the paste button rebuilds a table
+ * from TSV text when no readable html flavor exists, so both platforms ride
+ * the same cell-grid pipeline (issue table-clipboard-tsv).
  */
 
 function isCellLike(node: ProseMirrorNode): boolean {
@@ -111,6 +116,52 @@ export function extractCellGrid(slice: Slice): Array<Array<ProseMirrorNode>> | n
   flushRun();
 
   return rows.length ? rows : null;
+}
+
+/** The plain-text flavor of a toolbar cell copy: TSV — cells joined by tab,
+ *  rows by newline (Excel-compatible: external spreadsheet apps paste it as
+ *  cells). Multi-paragraph cells flatten to one line (blocks space-joined);
+ *  full fidelity travels in the rich flavor where it is readable. */
+function cellPlainText(cell: ProseMirrorNode): string {
+  return cell.textBetween(0, cell.content.size, " ");
+}
+
+/** TSV text of a cell grid (see cellPlainText). */
+export function gridToTsv(grid: Array<Array<ProseMirrorNode>>): string {
+  return grid.map((row) => row.map(cellPlainText).join("\t")).join("\n");
+}
+
+const escapeCellHtml = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+/** Rebuild a minimal table from TSV text so a paste with no readable rich
+ *  flavor reaches handleCellPaste as a real cell grid — the same pipeline
+ *  the desktop html flavor feeds (issue table-clipboard-tsv). Excel's
+ *  quoted multi-line cells are not parsed: values are plain single lines. */
+export function tsvToHtml(text: string): string {
+  const rows = text.replace(/\r?\n+$/, "").split(/\r?\n/);
+  const body = rows
+    .map((row) => {
+      const cells = row.split("\t");
+      return `<tr>${cells
+        .map((value) => `<td><p>${escapeCellHtml(value)}</p></td>`)
+        .join("")}</tr>`;
+    })
+    .join("");
+  return `<table><tbody>${body}</tbody></table>`;
+}
+
+/** When plain-text paste should be read as a TSV grid: any text over a cell
+ *  selection (a single value tiles as a 1x1 grid), or tabbed text at a
+ *  caret (a real multi-column grid). Newline-only text at a caret stays
+ *  native — pasting multiline plain text into a cell must not grow a
+ *  column. */
+function tsvPasteCandidate(text: string, cellSelection: boolean): boolean {
+  return text.length > 0 && (cellSelection || text.includes("\t"));
 }
 
 /** Offset of the start of the row with the given index, in table content
@@ -490,7 +541,10 @@ export function copyTableSelection(view: EditorView): boolean {
     return false;
   }
   const { dom, text } = view.serializeForClipboard(scope.slice);
-  void copyToSystemClipboard(dom.innerHTML, text);
+  // Text flavor is canonical TSV (see gridToTsv); the PM serialization is
+  // only a fallback for a scope without a grid.
+  const grid = extractCellGrid(scope.slice);
+  void copyToSystemClipboard(dom.innerHTML, grid ? gridToTsv(grid) : text);
   return true;
 }
 
@@ -505,7 +559,8 @@ export async function cutTableSelection(view: EditorView): Promise<boolean> {
     return false;
   }
   const { dom, text } = view.serializeForClipboard(scope.slice);
-  const written = await copyToSystemClipboard(dom.innerHTML, text);
+  const grid = extractCellGrid(scope.slice);
+  const written = await copyToSystemClipboard(dom.innerHTML, grid ? gridToTsv(grid) : text);
   if (!written) {
     return false;
   }
@@ -564,6 +619,12 @@ export async function pasteFromSystemClipboard(view: EditorView): Promise<boolea
     } catch {
       return false;
     }
+  }
+  if (html == null && text != null && tsvPasteCandidate(text, view.state.selection instanceof CellSelection)) {
+    // No readable rich flavor: the text is our TSV copy (or an external
+    // spreadsheet's) — rebuild the grid so the paste rides handleCellPaste
+    // (tiling, caret inserts) instead of landing as raw text.
+    html = tsvToHtml(text);
   }
   const dt = new DataTransfer();
   if (html != null) dt.setData("text/html", html);

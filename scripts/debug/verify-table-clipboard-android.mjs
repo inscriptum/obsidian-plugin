@@ -79,6 +79,9 @@ R.afterUndo = await page.evaluate(() => {
   return window.__tableTexts(1);
 });
 
+// button path (issue table-clipboard-tsv) runs AFTER the caret stage: the
+// paste writes source values into table A, which would confuse the B-table
+// cell lookups of the earlier stages
 // rows insert at caret
 R.rowsAtCaret = await page.evaluate(() => {
   const ed = window.__ed;
@@ -89,6 +92,33 @@ R.rowsAtCaret = await page.evaluate(() => {
   dt.setData('text/html', html);
   ed.view.dom.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
   return window.__tableTexts(1);
+});
+
+// Copy puts TSV into the system clipboard; Paste (no readable html on
+// Android) rebuilds the grid and tiles — desktop parity
+R.buttonCopy = await page.evaluate(async () => {
+  const ed = window.__ed;
+  ed.commands.setCellSelection({ anchorCell: window.__cellPos('Bh0'), headCell: window.__cellPos('Bh2') });
+  await new Promise((r) => setTimeout(r, 500));
+  const btn = [...document.querySelectorAll('.table-bubble-menu-bar-host button')]
+    .find((b) => b.querySelector('svg use')?.getAttribute('href') === '#inscriptum-bb-copy' && b.getBoundingClientRect().width > 0);
+  if (!btn) return { err: 'copy button not visible' };
+  btn.click();
+  await new Promise((r) => setTimeout(r, 700));
+  return { clipText: await navigator.clipboard.readText() };
+});
+
+R.buttonPaste = await page.evaluate(async () => {
+  const ed = window.__ed;
+  // select the target rect in table A
+  ed.commands.setCellSelection({ anchorCell: window.__cellPos('A00'), headCell: window.__cellPos('A11') });
+  await new Promise((r) => setTimeout(r, 500));
+  const btn = [...document.querySelectorAll('.table-bubble-menu-bar-host button')]
+    .find((b) => b.querySelector('svg use')?.getAttribute('href') === '#inscriptum-bb-paste' && b.getBoundingClientRect().width > 0);
+  if (!btn) return { err: 'paste button not visible' };
+  btn.click();
+  await new Promise((r) => setTimeout(r, 900));
+  return { tableA: window.__tableTexts(0) };
 });
 
 // cleanup: close the leaf, delete this run's note (file closed first)
