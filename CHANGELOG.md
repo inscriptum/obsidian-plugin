@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Android: resizing the edge columns of a table no longer opens the app's side panel — the resize drag is no longer mistaken for a shell swipe, and the new column width applies as before.
+- Android: the table toolbar's Copy then Paste now puts the copied values into the target cells instead of raw table markup.
 
 ## [0.14.0] - 2026-11-05
 
