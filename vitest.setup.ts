@@ -92,8 +92,8 @@ g.createFragment = () => document.createDocumentFragment();
 
 // jsdom has no DataTransfer/ClipboardEvent: the clipboard degradation paths
 // (cellClipboard paste branches) are untestable without a minimal shim. The
-// shims carry only what production code and the tests use — setData/getData,
-// types, and an init-provided clipboardData on the event.
+// shims carry only what production code and the tests use — setData/getData/
+// clearData, types, and an init-provided clipboardData on the event.
 class DataTransferShim {
   private data = new Map<string, string>();
   setData(type: string, value: string): void {
@@ -101,6 +101,9 @@ class DataTransferShim {
   }
   getData(type: string): string {
     return this.data.get(type) ?? "";
+  }
+  clearData(): void {
+    this.data.clear();
   }
   get types(): string[] {
     return [...this.data.keys()];

@@ -160,12 +160,12 @@ export function tsvToHtml(text: string): string {
 }
 
 /** When plain-text paste should be read as a TSV grid: any text over a cell
- *  selection (a single value tiles as a 1x1 grid), or tabbed text at a
- *  caret (a real multi-column grid). Newline-only text at a caret stays
- *  native — pasting multiline plain text into a cell must not grow a
- *  column. */
+ *  selection (a single value tiles as a 1x1 grid), or structured text
+ *  (tab or newline — a grid row/column shape) at a caret, matching the
+ *  Excel paste semantics the owner expects (issue table-clipboard-tsv,
+ *  device-testing round). */
 function tsvPasteCandidate(text: string, cellSelection: boolean): boolean {
-  return text.length > 0 && (cellSelection || text.includes("\t"));
+  return text.length > 0 && (cellSelection || /\t|\n/.test(text));
 }
 
 /** Offset of the start of the row with the given index, in table content
@@ -698,16 +698,62 @@ export function cellClipboardPlugin(): Plugin {
         }
         return handleCellPaste(view, slice);
       },
-      // Cell cut rides the DOM cut event, symmetric with the native Cmd+C
-      // copy: NO keymap binding for Mod-x. A keymap binding lands in
-      // editor.registeredShortcuts, which makes the host's physical-shortcut
-      // router swallow EVERY Cmd+X globally (preventDefault before the
-      // re-dispatch) — and for a plain text selection nothing then executes
-      // (issues/text-cut-mod-x: text cut died with the table-clipboard
-      // release). Without the binding the native cut event fires, this
-      // handler takes cell selections, and text cuts stay native — on any
-      // keyboard layout.
       handleDOMEvents: {
+        // Keyboard cell copy (Cmd+C) must carry the same payload as the
+        // toolbar button — rich html AND the TSV text flavor. PM's stock
+        // copy handler handles CellSelection content, but writes the PM
+        // block-separator text, and for a 1x1 TextoCellSelection nothing at
+        // all (its collapsed endpoints read as an empty selection). Same
+        // DOM-event shape as the cut handler below.
+        copy: (view: EditorView, event: ClipboardEvent) => {
+          if (!(view.state.selection instanceof CellSelection)) {
+            return false; // plain text copy — native path
+          }
+          const scope = clipboardSlice(view);
+          if (!scope) {
+            return false;
+          }
+          const { dom } = view.serializeForClipboard(scope.slice);
+          const grid = extractCellGrid(scope.slice);
+          event.preventDefault();
+          event.clipboardData?.clearData();
+          event.clipboardData?.setData("text/html", dom.innerHTML);
+          event.clipboardData?.setData("text/plain", grid ? gridToTsv(grid) : scope.slice.content.textBetween(0, scope.slice.content.size, "\n\n"));
+          return true;
+        },
+        // TRAP: a stock table copy's html carries data-id attrs (block ids
+        // of the source cells). With them present the live paste pipeline
+        // misses the cell grid and lands the paste as raw text (verified
+        // live: the same html without data-id tiles). The ids are worthless
+        // on arrival anyway — the block-ids plugin re-ids pasted duplicates
+        // — so strip them from table html and replay the event clean.
+        paste: (view: EditorView, event: ClipboardEvent) => {
+          const clipboard = event.clipboardData;
+          const html = clipboard?.getData("text/html") ?? "";
+          if (!clipboard || !html || !/<table[\s>]/i.test(html) || !/\sdata-id=/.test(html)) {
+            return false;
+          }
+          event.preventDefault();
+          const dt = new DataTransfer();
+          dt.setData("text/html", html.replace(/\sdata-id="[^"]*"/g, ""));
+          const text = clipboard.getData("text/plain");
+          if (text) {
+            dt.setData("text/plain", text);
+          }
+          view.dom.dispatchEvent(
+            new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }),
+          );
+          return true;
+        },
+        // Cell cut rides the DOM cut event, symmetric with the native Cmd+C
+        // copy: NO keymap binding for Mod-x. A keymap binding lands in
+        // editor.registeredShortcuts, which makes the host's physical-shortcut
+        // router swallow EVERY Cmd+X globally (preventDefault before the
+        // re-dispatch) — and for a plain text selection nothing then executes
+        // (issues/text-cut-mod-x: text cut died with the table-clipboard
+        // release). Without the binding the native cut event fires, this
+        // handler takes cell selections, and text cuts stay native — on any
+        // keyboard layout.
         cut: (view: EditorView, event: ClipboardEvent) => {
           if (!(view.state.selection instanceof CellSelection)) {
             return false; // plain text cut — native path
