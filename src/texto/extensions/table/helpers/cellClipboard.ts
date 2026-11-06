@@ -141,9 +141,13 @@ const escapeCellHtml = (value: string): string =>
 /** Rebuild a minimal table from TSV text so a paste with no readable rich
  *  flavor reaches handleCellPaste as a real cell grid — the same pipeline
  *  the desktop html flavor feeds (issue table-clipboard-tsv). Excel's
- *  quoted multi-line cells are not parsed: values are plain single lines. */
+ *  quoted multi-line cells are not parsed: values are plain single lines,
+ *  and repeated whitespace inside a value collapses in the parsed html. */
 export function tsvToHtml(text: string): string {
-  const rows = text.replace(/\r?\n+$/, "").split(/\r?\n/);
+  // Strip EVERY trailing newline: spreadsheet selections often cover one
+  // row past the data, so the TSV arrives "…\r\n\r\n" — a trailing empty
+  // row would tile half the rectangle / fall back to raw text.
+  const rows = text.replace(/(?:\r?\n)+$/, "").split(/\r?\n/);
   const body = rows
     .map((row) => {
       const cells = row.split("\t");

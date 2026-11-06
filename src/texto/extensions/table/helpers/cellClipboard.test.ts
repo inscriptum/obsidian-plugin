@@ -1047,6 +1047,25 @@ describe("TSV text flavor (toolbar copy / paste rebuild)", () => {
     ]);
   });
 
+  it("tsvToHtml strips CRLF runs of trailing blank rows (spreadsheet selections)", () => {
+    // Excel/Sheets often cover one row past the data: "…\r\n\r\n" — the
+    // trailing empty row must not become part of the grid
+    const gridFrom = (text: string): unknown => {
+      const dom = new window.DOMParser().parseFromString(tsvToHtml(text), "text/html");
+      const slice = DOMParser.fromSchema(schema).parseSlice(dom.body.firstChild as Element);
+      return extractCellGrid(slice)?.map((cells) => cells.map((c) => c.textContent));
+    };
+    expect(gridFrom("A\tB\r\nC\tD\r\n\r\n")).toEqual([["A", "B"], ["C", "D"]]);
+    expect(gridFrom("A\nB\n")).toEqual([["A"], ["B"]]);
+    expect(gridFrom("A")).toEqual([["A"]]);
+  });
+
+  it("tsvToHtml keeps empty cells of a row", () => {
+    const dom = new window.DOMParser().parseFromString(tsvToHtml("a\t"), "text/html");
+    const slice = DOMParser.fromSchema(schema).parseSlice(dom.body.firstChild as Element);
+    expect(extractCellGrid(slice)?.map((cells) => cells.map((c) => c.textContent))).toEqual([["a", ""]]);
+  });
+
   it("tsvToHtml escapes html-significant characters", () => {
     const html = tsvToHtml('a<b & "c"');
     expect(html).toContain("a&lt;b &amp; &quot;c&quot;");
