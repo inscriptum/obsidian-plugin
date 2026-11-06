@@ -3,11 +3,11 @@ import { DOMSerializer, Fragment, Slice } from "prosemirror-model";
 import { EditorState, TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import { CellSelection } from "prosemirror-tables";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { buildSchema } from "../../../../../tests/helpers/buildSchema";
 
-import { cellClipboardPlugin, copyTableSelection, cutCellSelection, cutTableSelection, extractCellGrid } from "./cellClipboard";
+import { cellClipboardPlugin, copyTableSelection, cutCellSelection, cutTableSelection, extractCellGrid, pasteFromSystemClipboard } from "./cellClipboard";
 
 const schema = buildSchema();
 
@@ -676,5 +676,151 @@ describe("toolbar clipboard buttons (caret 1×1 scope)", () => {
     expect(copyTableSelection(view)).toBe(false);
     void cutTableSelection(view); // must not throw; result checked below
     return cutTableSelection(view).then((r) => expect(r).toBe(false));
+  });
+});
+
+describe("system clipboard (toolbar button path)", () => {
+  const flush = () => new Promise((r) => window.setTimeout(r, 0));
+  const ANDROID_UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Mobile Safari/537.36";
+  const DESKTOP_UA = "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36";
+  const realUA = navigator.userAgent;
+  const realClipboard = (navigator as unknown as { clipboard: unknown }).clipboard;
+
+  function setUA(ua: string): void {
+    Object.defineProperty(navigator, "userAgent", { value: ua, configurable: true });
+  }
+
+  function stubClipboard(stub: Record<string, unknown>): void {
+    (navigator as unknown as { clipboard: unknown }).clipboard = stub;
+  }
+
+  /** ClipboardItem is undefined in jsdom — a data-carrier stub for the rich
+   *  write branch. */
+  class FakeClipboardItem {
+    data: Record<string, Blob>;
+    constructor(data: Record<string, Blob>) {
+      this.data = data;
+    }
+  }
+
+  function cellSelectionState(): EditorState {
+    const doc = twoTablesDoc();
+    return stateWithSelection(doc, rectSelection(doc, 0));
+  }
+
+  /** A view mock with a real event target so pasteFromSystemClipboard's
+   *  synthetic paste event can be observed. */
+  function clipboardView(state: EditorState): { view: EditorView; events: ClipboardEvent[] } {
+    const events: ClipboardEvent[] = [];
+    const dom = createDiv();
+    dom.addEventListener("paste", (e) => events.push(e as ClipboardEvent));
+    const serializer = DOMSerializer.fromSchema(state.schema);
+    const view = {
+      state,
+      dispatch: () => {},
+      focus: () => {},
+      dom,
+      serializeForClipboard: (slice: Slice) => {
+        const el = createDiv();
+        el.appendChild(serializer.serializeFragment(slice.content));
+        return { dom: el, text: slice.content.textBetween(0, slice.content.size, "\n\n"), slice };
+      },
+    } as unknown as EditorView;
+    return { view, events };
+  }
+
+  it("Android: copy writes values only — no ClipboardItem write (no text-flavor poisoning)", async () => {
+    setUA(ANDROID_UA);
+    (globalThis as unknown as Record<string, unknown>).ClipboardItem = undefined;
+    const write = vi.fn(async () => {});
+    const written: string[] = [];
+    stubClipboard({
+      write,
+      writeText: async (t: string) => {
+        written.push(t);
+      },
+    });
+    const { view } = clipboardView(cellSelectionState());
+    expect(copyTableSelection(view)).toBe(true);
+    await flush();
+    expect(write).not.toHaveBeenCalled();
+    expect(written).toHaveLength(1);
+    expect(written[0]).toContain("A00");
+    expect(written[0]).toContain("A11");
+    expect(written[0]).not.toContain("<table");
+  });
+
+  it("desktop: copy writes the rich flavor (html + text)", async () => {
+    setUA(DESKTOP_UA);
+    (globalThis as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
+    const written: Array<FakeClipboardItem> = [];
+    stubClipboard({
+      write: async (items: Array<FakeClipboardItem>) => {
+        written.push(...items);
+      },
+      writeText: async () => {
+        throw new Error("writeText must not run on the rich path");
+      },
+    });
+    const { view } = clipboardView(cellSelectionState());
+    expect(copyTableSelection(view)).toBe(true);
+    await flush();
+    expect(written).toHaveLength(1);
+    expect(Object.keys(written[0].data).sort()).toEqual(["text/html", "text/plain"]);
+    expect(await written[0].data["text/html"].text()).toContain("<table");
+  });
+
+  it("rich write denied falls back to writeText (values still land)", async () => {
+    setUA(DESKTOP_UA);
+    (globalThis as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
+    const written: string[] = [];
+    stubClipboard({
+      write: async () => {
+        throw new Error("denied");
+      },
+      writeText: async (t: string) => {
+        written.push(t);
+      },
+    });
+    const { view } = clipboardView(cellSelectionState());
+    expect(copyTableSelection(view)).toBe(true);
+    await flush();
+    expect(written).toHaveLength(1);
+    expect(written[0]).toContain("A00");
+  });
+
+  it("Android: paste degrades to readText — the event carries text, no html", async () => {
+    setUA(ANDROID_UA);
+    stubClipboard({
+      read: async () => {
+        throw new DOMException("Read permission denied", "NotAllowedError");
+      },
+      readText: async () => "A00 A01",
+    });
+    const { view, events } = clipboardView(cellSelectionState());
+    await expect(pasteFromSystemClipboard(view)).resolves.toBe(true);
+    expect(events).toHaveLength(1);
+    const dt = events[0]?.clipboardData;
+    expect(dt?.getData("text/plain")).toBe("A00 A01");
+    expect(dt?.getData("text/html")).toBe("");
+  });
+
+  it("desktop: paste reads the rich flavor when read() is allowed", async () => {
+    setUA(DESKTOP_UA);
+    stubClipboard({
+      read: async () => [
+        {
+          types: ["text/html", "text/plain"],
+          getType: async (type: string) =>
+            new Blob([type === "text/html" ? "<table><tr><td>A00</td></tr></table>" : "A00"], { type }),
+        },
+      ],
+    });
+    const { view, events } = clipboardView(cellSelectionState());
+    await expect(pasteFromSystemClipboard(view)).resolves.toBe(true);
+    expect(events).toHaveLength(1);
+    const dt = events[0]?.clipboardData;
+    expect(dt?.getData("text/html")).toContain("<table");
+    expect(dt?.getData("text/plain")).toBe("A00");
   });
 });

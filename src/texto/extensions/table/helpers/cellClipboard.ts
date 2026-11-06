@@ -575,12 +575,30 @@ export async function pasteFromSystemClipboard(view: EditorView): Promise<boolea
   return true;
 }
 
+/**
+ * Android's WebView replaces the text flavor with the HTML string when a
+ * ClipboardItem write lands, and navigator.clipboard.read() is
+ * permission-denied — so the rich flavor is unreadable by the paste button
+ * AND its side effect feeds table markup to the readText() fallback, which
+ * then pastes the markup as text (issue table-clipboard-android). On such
+ * platforms the write goes values-only. Same regex as browser.ts `android`,
+ * read live so tests can stub the UA.
+ */
+function richWritePoisonsTextFlavor(): boolean {
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  return /Android \d/.test(ua);
+}
+
 /** Write the payload to the system clipboard; true when any write landed.
  *  Cut flows gate their removal on this — a failed copy must not destroy
  *  content. */
 async function copyToSystemClipboard(html: string, text: string): Promise<boolean> {
   try {
-    if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+    if (
+      !richWritePoisonsTextFlavor() &&
+      typeof ClipboardItem !== "undefined" &&
+      navigator.clipboard?.write
+    ) {
       await navigator.clipboard.write([
         new ClipboardItem({
           "text/html": new Blob([html], { type: "text/html" }),
