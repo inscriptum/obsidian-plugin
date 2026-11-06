@@ -3,7 +3,7 @@ import { DOMSerializer, Fragment, Slice } from "prosemirror-model";
 import { EditorState, TextSelection } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
 import { CellSelection } from "prosemirror-tables";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildSchema } from "../../../../../tests/helpers/buildSchema";
 
@@ -685,6 +685,14 @@ describe("system clipboard (toolbar button path)", () => {
   const DESKTOP_UA = "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36";
   const realUA = navigator.userAgent;
   const realClipboard = (navigator as unknown as { clipboard: unknown }).clipboard;
+  const realClipboardItem = (globalThis as unknown as Record<string, unknown>).ClipboardItem;
+
+  afterEach(() => {
+    // stubs leak into later tests in this file otherwise
+    setUA(realUA);
+    stubClipboard(realClipboard as Record<string, unknown>);
+    (globalThis as unknown as Record<string, unknown>).ClipboardItem = realClipboardItem;
+  });
 
   function setUA(ua: string): void {
     Object.defineProperty(navigator, "userAgent", { value: ua, configurable: true });
@@ -731,7 +739,10 @@ describe("system clipboard (toolbar button path)", () => {
 
   it("Android: copy writes values only — no ClipboardItem write (no text-flavor poisoning)", async () => {
     setUA(ANDROID_UA);
-    (globalThis as unknown as Record<string, unknown>).ClipboardItem = undefined;
+    // ClipboardItem AVAILABLE: the platform gate itself must skip the rich
+    // write (the poisoning is a WebView quirk, not a missing API — a stubbed
+    // undefined ClipboardItem would silently test the generic fallback).
+    (globalThis as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
     const write = vi.fn(async () => {});
     const written: string[] = [];
     stubClipboard({
