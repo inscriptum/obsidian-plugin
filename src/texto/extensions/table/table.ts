@@ -99,6 +99,12 @@ export const Table = Node.create<TableOptions, AnyObject>({
       "div",
       {
         class: "table-wrapper",
+        // TRAP: the mobile shell reads edge drags as drawer swipes; a resize
+        // grab on a full-width table's edge column starts there (and its
+        // handle may be clipped away, so the touch target is not ours). The
+        // wrapper opts the table area out — see TableView for the node-view
+        // path (issue table-resize-edge-swipe).
+        "data-ignore-swipe": "true",
       },
       [
         "table",

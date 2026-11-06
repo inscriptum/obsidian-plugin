@@ -15,6 +15,7 @@ import {
 } from "prosemirror-tables";
 
 import { TextoCellSelection } from "./TextoCellSelection";
+import { isAndroidApp } from "../../../core/utilities/isAndroidApp";
 
 /**
  * Table clipboard semantics (owner decisions, issue table-clipboard):
@@ -38,6 +39,11 @@ import { TextoCellSelection } from "./TextoCellSelection";
  * prosemirror-tables' pastedCells (its shape assumptions are stricter than
  * what our clipboard round-trip produces) and ended up as a nested table
  * inside a cell.
+ *
+ * Toolbar copy/cut put the grid into the text flavor as TSV (cells by tab,
+ * rows by newline — Excel-compatible); the paste button rebuilds a table
+ * from TSV text when no readable html flavor exists, so both platforms ride
+ * the same cell-grid pipeline (issue table-clipboard-tsv).
  */
 
 function isCellLike(node: ProseMirrorNode): boolean {
@@ -111,6 +117,64 @@ export function extractCellGrid(slice: Slice): Array<Array<ProseMirrorNode>> | n
   flushRun();
 
   return rows.length ? rows : null;
+}
+
+/** The plain-text flavor of a toolbar cell copy: TSV — cells joined by tab,
+ *  rows by newline (Excel-compatible: external spreadsheet apps paste it as
+ *  cells). Multi-paragraph cells flatten to one line (blocks space-joined);
+ *  full fidelity travels in the rich flavor where it is readable. */
+function cellPlainText(cell: ProseMirrorNode): string {
+  return cell.textBetween(0, cell.content.size, " ");
+}
+
+/** TSV text of a cell grid (see cellPlainText). ALWAYS ends with one
+ *  newline — the row terminator. The trailing terminator is the
+ *  disambiguator the paste side relies on: stripping exactly one lets a
+ *  genuine trailing EMPTY row (copied as "…\n\n") survive, while a bare
+ *  "…\n" reads as a single-row copy with a terminator — the shape
+ *  external spreadsheets emit (issue table-clipboard-tsv, greptile P1). */
+export function gridToTsv(grid: Array<Array<ProseMirrorNode>>): string {
+  return `${grid.map((row) => row.map(cellPlainText).join("\t")).join("\n")}\n`;
+}
+
+const escapeCellHtml = (value: string): string =>
+  value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+/** Rebuild a minimal table from TSV text so a paste with no readable rich
+ *  flavor reaches handleCellPaste as a real cell grid — the same pipeline
+ *  the desktop html flavor feeds (issue table-clipboard-tsv). Excel's
+ *  quoted multi-line cells are not parsed: values are plain single lines,
+ *  and repeated whitespace inside a value collapses in the parsed html. */
+export function tsvToHtml(text: string): string {
+  // Exactly ONE trailing terminator is removed (see gridToTsv): CRLF is
+  // normalized first, and what remains after the single strip is grid
+  // data — a trailing empty row survives as a real row.
+  const rows = text
+    .replace(/\r\n?/g, "\n")
+    .replace(/\n$/, "")
+    .split("\n");
+  const body = rows
+    .map((row) => {
+      const cells = row.split("\t");
+      return `<tr>${cells
+        .map((value) => `<td><p>${escapeCellHtml(value)}</p></td>`)
+        .join("")}</tr>`;
+    })
+    .join("");
+  return `<table><tbody>${body}</tbody></table>`;
+}
+
+/** When plain-text paste should be read as a TSV grid: any text over a cell
+ *  selection (a single value tiles as a 1x1 grid), or structured text
+ *  (tab or newline — a grid row/column shape) at a caret, matching the
+ *  Excel paste semantics the owner expects (issue table-clipboard-tsv,
+ *  device-testing round). */
+function tsvPasteCandidate(text: string, cellSelection: boolean): boolean {
+  return text.length > 0 && (cellSelection || /\t|\n/.test(text));
 }
 
 /** Offset of the start of the row with the given index, in table content
@@ -490,7 +554,10 @@ export function copyTableSelection(view: EditorView): boolean {
     return false;
   }
   const { dom, text } = view.serializeForClipboard(scope.slice);
-  void copyToSystemClipboard(dom.innerHTML, text);
+  // Text flavor is canonical TSV (see gridToTsv); the PM serialization is
+  // only a fallback for a scope without a grid.
+  const grid = extractCellGrid(scope.slice);
+  void copyToSystemClipboard(dom.innerHTML, grid ? gridToTsv(grid) : text);
   return true;
 }
 
@@ -505,7 +572,8 @@ export async function cutTableSelection(view: EditorView): Promise<boolean> {
     return false;
   }
   const { dom, text } = view.serializeForClipboard(scope.slice);
-  const written = await copyToSystemClipboard(dom.innerHTML, text);
+  const grid = extractCellGrid(scope.slice);
+  const written = await copyToSystemClipboard(dom.innerHTML, grid ? gridToTsv(grid) : text);
   if (!written) {
     return false;
   }
@@ -565,6 +633,12 @@ export async function pasteFromSystemClipboard(view: EditorView): Promise<boolea
       return false;
     }
   }
+  if (html == null && text != null && tsvPasteCandidate(text, view.state.selection instanceof CellSelection)) {
+    // No readable rich flavor: the text is our TSV copy (or an external
+    // spreadsheet's) — rebuild the grid so the paste rides handleCellPaste
+    // (tiling, caret inserts) instead of landing as raw text.
+    html = tsvToHtml(text);
+  }
   const dt = new DataTransfer();
   if (html != null) dt.setData("text/html", html);
   if (text != null) dt.setData("text/plain", text);
@@ -575,12 +649,32 @@ export async function pasteFromSystemClipboard(view: EditorView): Promise<boolea
   return true;
 }
 
+/**
+ * Android's WebView replaces the text flavor with the HTML string when a
+ * ClipboardItem write lands, and navigator.clipboard.read() is
+ * permission-denied — so the rich flavor is unreadable by the paste button
+ * AND its side effect feeds table markup to the readText() fallback, which
+ * then pastes the markup as text (issue table-clipboard-android). On the
+ * Android app the write goes values-only; the paste button's readText()
+ * degradation then inserts the values as plain text into every cell of the
+ * target rectangle (tiled replacement needs the rich flavor, which such a
+ * platform cannot read back). iOS is not covered here (checks deferred by
+ * the owner); desktop keeps the rich flavor.
+ */
+function richWritePoisonsTextFlavor(): boolean {
+  return isAndroidApp();
+}
+
 /** Write the payload to the system clipboard; true when any write landed.
  *  Cut flows gate their removal on this — a failed copy must not destroy
  *  content. */
 async function copyToSystemClipboard(html: string, text: string): Promise<boolean> {
   try {
-    if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+    if (
+      !richWritePoisonsTextFlavor() &&
+      typeof ClipboardItem !== "undefined" &&
+      navigator.clipboard?.write
+    ) {
       await navigator.clipboard.write([
         new ClipboardItem({
           "text/html": new Blob([html], { type: "text/html" }),
@@ -612,16 +706,72 @@ export function cellClipboardPlugin(): Plugin {
         }
         return handleCellPaste(view, slice);
       },
-      // Cell cut rides the DOM cut event, symmetric with the native Cmd+C
-      // copy: NO keymap binding for Mod-x. A keymap binding lands in
-      // editor.registeredShortcuts, which makes the host's physical-shortcut
-      // router swallow EVERY Cmd+X globally (preventDefault before the
-      // re-dispatch) — and for a plain text selection nothing then executes
-      // (issues/text-cut-mod-x: text cut died with the table-clipboard
-      // release). Without the binding the native cut event fires, this
-      // handler takes cell selections, and text cuts stay native — on any
-      // keyboard layout.
       handleDOMEvents: {
+        // Keyboard cell copy (Cmd+C) must carry the same payload as the
+        // toolbar button — rich html AND the TSV text flavor. PM's stock
+        // copy handler handles CellSelection content, but writes the PM
+        // block-separator text, and for a 1x1 TextoCellSelection nothing at
+        // all (its collapsed endpoints read as an empty selection). Same
+        // DOM-event shape as the cut handler below.
+        copy: (view: EditorView, event: ClipboardEvent) => {
+          if (!(view.state.selection instanceof CellSelection)) {
+            return false; // plain text copy — native path
+          }
+          const scope = clipboardSlice(view);
+          if (!scope) {
+            return false;
+          }
+          const { dom } = view.serializeForClipboard(scope.slice);
+          const grid = extractCellGrid(scope.slice);
+          event.preventDefault();
+          event.clipboardData?.clearData();
+          event.clipboardData?.setData("text/html", dom.innerHTML);
+          event.clipboardData?.setData("text/plain", grid ? gridToTsv(grid) : scope.slice.content.textBetween(0, scope.slice.content.size, "\n\n"));
+          return true;
+        },
+        // TRAP: a stock table copy's html carries data-id attrs (block ids
+        // of the source cells). With them present the live paste pipeline
+        // misses the cell grid and lands the paste as raw text (verified
+        // live: the same html without data-id tiles). The ids are worthless
+        // on arrival anyway — the block-ids plugin re-ids pasted duplicates
+        // — so remove the ATTRIBUTES (a text-level replace would eat cell
+        // content that merely mentions data-id) and replay the event clean.
+        paste: (view: EditorView, event: ClipboardEvent) => {
+          const clipboard = event.clipboardData;
+          const html = clipboard?.getData("text/html") ?? "";
+          if (!clipboard || !html || !/<table[\s>]/i.test(html)) {
+            return false;
+          }
+          const parsed = new DOMParser().parseFromString(html, "text/html");
+          const withIds = parsed.querySelectorAll("[data-id]");
+          // Progress guarantee: only intercept when an attribute is actually
+          // removed — replaying an identical html would re-enter this
+          // handler synchronously and recurse without end.
+          if (withIds.length === 0) {
+            return false;
+          }
+          withIds.forEach((el) => el.removeAttribute("data-id"));
+          event.preventDefault();
+          const dt = new DataTransfer();
+          dt.setData("text/html", parsed.body.innerHTML);
+          const text = clipboard.getData("text/plain");
+          if (text) {
+            dt.setData("text/plain", text);
+          }
+          view.dom.dispatchEvent(
+            new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }),
+          );
+          return true;
+        },
+        // Cell cut rides the DOM cut event, symmetric with the native Cmd+C
+        // copy: NO keymap binding for Mod-x. A keymap binding lands in
+        // editor.registeredShortcuts, which makes the host's physical-shortcut
+        // router swallow EVERY Cmd+X globally (preventDefault before the
+        // re-dispatch) — and for a plain text selection nothing then executes
+        // (issues/text-cut-mod-x: text cut died with the table-clipboard
+        // release). Without the binding the native cut event fires, this
+        // handler takes cell selections, and text cuts stay native — on any
+        // keyboard layout.
         cut: (view: EditorView, event: ClipboardEvent) => {
           if (!(view.state.selection instanceof CellSelection)) {
             return false; // plain text cut — native path

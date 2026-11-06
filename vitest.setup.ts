@@ -89,3 +89,38 @@ g.createSvg = (tag: string, attrs?: DomAttrs | string) =>
     attrs,
   );
 g.createFragment = () => document.createDocumentFragment();
+
+// jsdom has no DataTransfer/ClipboardEvent: the clipboard degradation paths
+// (cellClipboard paste branches) are untestable without a minimal shim. The
+// shims carry only what production code and the tests use — setData/getData/
+// clearData, types, and an init-provided clipboardData on the event.
+class DataTransferShim {
+  private data = new Map<string, string>();
+  setData(type: string, value: string): void {
+    this.data.set(type, value);
+  }
+  getData(type: string): string {
+    return this.data.get(type) ?? "";
+  }
+  clearData(): void {
+    this.data.clear();
+  }
+  get types(): string[] {
+    return [...this.data.keys()];
+  }
+  // the editor's image paste handler reads both on every paste event
+  files: readonly unknown[] = [];
+  items: readonly unknown[] = [];
+}
+class ClipboardEventShim extends Event {
+  clipboardData: DataTransferShim;
+  constructor(
+    type: string,
+    init?: EventInit & { clipboardData?: DataTransferShim },
+  ) {
+    super(type, init);
+    this.clipboardData = init?.clipboardData ?? new DataTransferShim();
+  }
+}
+g.DataTransfer = DataTransferShim;
+g.ClipboardEvent = ClipboardEventShim;
