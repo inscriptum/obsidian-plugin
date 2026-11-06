@@ -7,8 +7,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildSchema } from "../../../../../tests/helpers/buildSchema";
 
-import { cellClipboardPlugin, copyTableSelection, cutCellSelection, cutTableSelection, extractCellGrid, gridToTsv, pasteFromSystemClipboard, tsvToHtml } from "./cellClipboard";
+import { cellClipboardPlugin, copyTableSelection, cutCellSelection, cutTableSelection, extractCellGrid, pasteFromSystemClipboard, tsvToHtml } from "./cellClipboard";
 import { TextoCellSelection } from "./TextoCellSelection";
+import { Platform } from "obsidian";
 
 const schema = buildSchema();
 
@@ -682,22 +683,14 @@ describe("toolbar clipboard buttons (caret 1×1 scope)", () => {
 
 describe("system clipboard (toolbar button path)", () => {
   const flush = () => new Promise((r) => window.setTimeout(r, 0));
-  const ANDROID_UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Mobile Safari/537.36";
-  const DESKTOP_UA = "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36";
-  const realUA = navigator.userAgent;
   const realClipboard = (navigator as unknown as { clipboard: unknown }).clipboard;
-  const realClipboardItem = (globalThis as unknown as Record<string, unknown>).ClipboardItem;
+  const realClipboardItem = (window as unknown as Record<string, unknown>).ClipboardItem;
 
   afterEach(() => {
     // stubs leak into later tests in this file otherwise
-    setUA(realUA);
     stubClipboard(realClipboard as Record<string, unknown>);
-    (globalThis as unknown as Record<string, unknown>).ClipboardItem = realClipboardItem;
+    (window as unknown as Record<string, unknown>).ClipboardItem = realClipboardItem;
   });
-
-  function setUA(ua: string): void {
-    Object.defineProperty(navigator, "userAgent", { value: ua, configurable: true });
-  }
 
   function stubClipboard(stub: Record<string, unknown>): void {
     (navigator as unknown as { clipboard: unknown }).clipboard = stub;
@@ -722,7 +715,7 @@ describe("system clipboard (toolbar button path)", () => {
   function clipboardView(state: EditorState): { view: EditorView; events: ClipboardEvent[] } {
     const events: ClipboardEvent[] = [];
     const dom = createDiv();
-    dom.addEventListener("paste", (e) => events.push(e as ClipboardEvent));
+    dom.addEventListener("paste", (e) => events.push(e));
     const serializer = DOMSerializer.fromSchema(state.schema);
     const view = {
       state,
@@ -739,11 +732,11 @@ describe("system clipboard (toolbar button path)", () => {
   }
 
   it("Android: copy writes values only — no ClipboardItem write (no text-flavor poisoning)", async () => {
-    setUA(ANDROID_UA);
+    Platform.isAndroidApp = true;
     // ClipboardItem AVAILABLE: the platform gate itself must skip the rich
     // write (the poisoning is a WebView quirk, not a missing API — a stubbed
     // undefined ClipboardItem would silently test the generic fallback).
-    (globalThis as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
+    (window as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
     const write = vi.fn(async () => {});
     const written: string[] = [];
     stubClipboard({
@@ -763,8 +756,8 @@ describe("system clipboard (toolbar button path)", () => {
   });
 
   it("desktop: copy writes the rich flavor (html + text)", async () => {
-    setUA(DESKTOP_UA);
-    (globalThis as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
+    Platform.isAndroidApp = false;
+    (window as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
     const written: Array<FakeClipboardItem> = [];
     stubClipboard({
       write: async (items: Array<FakeClipboardItem>) => {
@@ -783,8 +776,8 @@ describe("system clipboard (toolbar button path)", () => {
   });
 
   it("rich write denied falls back to writeText (values still land)", async () => {
-    setUA(DESKTOP_UA);
-    (globalThis as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
+    Platform.isAndroidApp = false;
+    (window as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
     const written: string[] = [];
     stubClipboard({
       write: async () => {
@@ -802,7 +795,7 @@ describe("system clipboard (toolbar button path)", () => {
   });
 
   it("Android: readText over a cell selection rebuilds a 1x1 TSV grid", async () => {
-    setUA(ANDROID_UA);
+    Platform.isAndroidApp = true;
     stubClipboard({
       read: async () => {
         throw new DOMException("Read permission denied", "NotAllowedError");
@@ -821,7 +814,7 @@ describe("system clipboard (toolbar button path)", () => {
   });
 
   it("Android: plain single-line text at a caret stays native (no TSV rebuild)", async () => {
-    setUA(ANDROID_UA);
+    Platform.isAndroidApp = true;
     stubClipboard({
       read: async () => {
         throw new DOMException("Read permission denied", "NotAllowedError");
@@ -841,7 +834,7 @@ describe("system clipboard (toolbar button path)", () => {
   });
 
   it("Android: tabbed text at a caret rebuilds the grid (external TSV paste)", async () => {
-    setUA(ANDROID_UA);
+    Platform.isAndroidApp = true;
     stubClipboard({
       read: async () => {
         throw new DOMException("Read permission denied", "NotAllowedError");
@@ -862,7 +855,7 @@ describe("system clipboard (toolbar button path)", () => {
   it("Android: newline-only text at a caret rebuilds a column grid (device-tested expectation)", async () => {
     // owner's device round: copying a whole column and pasting at a caret
     // inserts a new column — the same Excel semantics desktop html delivers
-    setUA(ANDROID_UA);
+    Platform.isAndroidApp = true;
     stubClipboard({
       read: async () => {
         throw new DOMException("Read permission denied", "NotAllowedError");
@@ -881,7 +874,7 @@ describe("system clipboard (toolbar button path)", () => {
   });
 
   it("desktop: html flavor wins when present (TSV stays the text flavor)", async () => {
-    setUA(DESKTOP_UA);
+    Platform.isAndroidApp = false;
     stubClipboard({
       read: async () => [
         {
@@ -903,7 +896,7 @@ describe("system clipboard (toolbar button path)", () => {
   });
 
   it("desktop: paste reads the rich flavor when read() is allowed", async () => {
-    setUA(DESKTOP_UA);
+    Platform.isAndroidApp = false;
     stubClipboard({
       read: async () => [
         {
@@ -924,24 +917,17 @@ describe("system clipboard (toolbar button path)", () => {
 
 describe("TSV text flavor (toolbar copy / paste rebuild)", () => {
   const flush = () => new Promise((r) => window.setTimeout(r, 0));
-  const ANDROID_UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/152.0.0.0 Mobile";
-  const DESKTOP_UA = "Mozilla/5.0 (Macintosh) AppleWebKit/537.36 Chrome/152.0.0.0 Safari/537.36";
-  const realUA = navigator.userAgent;
   const realClipboard = (navigator as unknown as { clipboard: unknown }).clipboard;
-  const realClipboardItem = (globalThis as unknown as Record<string, unknown>).ClipboardItem;
+  const realClipboardItem = (window as unknown as Record<string, unknown>).ClipboardItem;
 
   afterEach(() => {
-    Object.defineProperty(navigator, "userAgent", { value: realUA, configurable: true });
+    Platform.isAndroidApp = false;
     (navigator as unknown as { clipboard: unknown }).clipboard = realClipboard;
-    (globalThis as unknown as Record<string, unknown>).ClipboardItem = realClipboardItem;
+    (window as unknown as Record<string, unknown>).ClipboardItem = realClipboardItem;
   });
 
   function stubClipboard(stub: Record<string, unknown>): void {
     (navigator as unknown as { clipboard: unknown }).clipboard = stub;
-  }
-
-  function setUA(ua: string): void {
-    Object.defineProperty(navigator, "userAgent", { value: ua, configurable: true });
   }
 
   class FakeClipboardItem {
@@ -967,8 +953,8 @@ describe("TSV text flavor (toolbar copy / paste rebuild)", () => {
   }
 
   it("toolbar copy writes the TSV text flavor (Excel-compatible)", async () => {
-    setUA(DESKTOP_UA);
-    (globalThis as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
+    Platform.isAndroidApp = false;
+    (window as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
     let tsv = "";
     let html = "";
     stubClipboard({
@@ -989,8 +975,8 @@ describe("TSV text flavor (toolbar copy / paste rebuild)", () => {
   });
 
   it("Android copy (values-only) writes the same TSV", async () => {
-    setUA(ANDROID_UA);
-    (globalThis as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
+    Platform.isAndroidApp = true;
+    (window as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
     const written: string[] = [];
     stubClipboard({
       write: async () => {
@@ -1009,8 +995,8 @@ describe("TSV text flavor (toolbar copy / paste rebuild)", () => {
   });
 
   it("multi-paragraph cells flatten to one line in TSV", async () => {
-    setUA(DESKTOP_UA);
-    (globalThis as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
+    Platform.isAndroidApp = false;
+    (window as unknown as Record<string, unknown>).ClipboardItem = FakeClipboardItem;
     let tsv = "";
     stubClipboard({
       write: async (items: Array<FakeClipboardItem>) => {
@@ -1085,7 +1071,7 @@ describe("keyboard cell copy / paste interception (device-testing round)", () =>
   function clipboardDomView(state: EditorState): { view: EditorView; events: ClipboardEvent[] } {
     const events: ClipboardEvent[] = [];
     const dom = createDiv();
-    dom.addEventListener("paste", (e) => events.push(e as ClipboardEvent));
+    dom.addEventListener("paste", (e) => events.push(e));
     const serializer = DOMSerializer.fromSchema(state.schema);
     const view = {
       state,
