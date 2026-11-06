@@ -970,7 +970,7 @@ describe("TSV text flavor (toolbar copy / paste rebuild)", () => {
     const state = stateWithSelection(doc, rectSelection(doc, 0));
     expect(copyTableSelection(viewFor(state))).toBe(true);
     await flush();
-    expect(tsv).toBe("A00\tA01\nA10\tA11");
+    expect(tsv).toBe("A00\tA01\nA10\tA11\n");
     expect(html).toContain("<table");
   });
 
@@ -990,7 +990,7 @@ describe("TSV text flavor (toolbar copy / paste rebuild)", () => {
     const state = stateWithSelection(doc, rectSelection(doc, 0));
     expect(copyTableSelection(viewFor(state))).toBe(true);
     await flush();
-    expect(written[0]).toBe("A00\tA01\nA10\tA11");
+    expect(written[0]).toBe("A00\tA01\nA10\tA11\n");
     expect(written[0]).not.toContain("<table");
   });
 
@@ -1018,8 +1018,7 @@ describe("TSV text flavor (toolbar copy / paste rebuild)", () => {
     const state = stateWithSelection(doc, new CellSelection(doc.resolve(p)));
     expect(copyTableSelection(viewFor(state))).toBe(true);
     await flush();
-    expect(tsv).toBe("a b");
-    expect(tsv).not.toContain("\n");
+    expect(tsv).toBe("a b\n");
   });
 
   it("tsvToHtml round-trips through the paste parser as a cell grid", () => {
@@ -1036,15 +1035,19 @@ describe("TSV text flavor (toolbar copy / paste rebuild)", () => {
     ]);
   });
 
-  it("tsvToHtml strips CRLF runs of trailing blank rows (spreadsheet selections)", () => {
-    // Excel/Sheets often cover one row past the data: "…\r\n\r\n" — the
-    // trailing empty row must not become part of the grid
+  it("tsvToHtml strips exactly ONE trailing terminator (CRLF normalized)", () => {
+    // gridToTsv always appends one newline, external spreadsheets end with
+    // one too; anything BEYOND that single terminator is grid data — a
+    // trailing empty row must survive it (greptile P1 round 2)
     const gridFrom = (text: string): unknown => {
       const dom = new window.DOMParser().parseFromString(tsvToHtml(text), "text/html");
       const slice = DOMParser.fromSchema(schema).parseSlice(dom.body.firstChild as Element);
       return extractCellGrid(slice)?.map((cells) => cells.map((c) => c.textContent));
     };
-    expect(gridFrom("A\tB\r\nC\tD\r\n\r\n")).toEqual([["A", "B"], ["C", "D"]]);
+    expect(gridFrom("A\tB\nC\tD\n")).toEqual([["A", "B"], ["C", "D"]]);
+    expect(gridFrom("A\tB\r\nC\tD\r\n")).toEqual([["A", "B"], ["C", "D"]]);
+    // our copy of a column with a trailing empty row arrives as "A\n\n"
+    expect(gridFrom("A\n\n")).toEqual([["A"], [""]]);
     expect(gridFrom("A\nB\n")).toEqual([["A"], ["B"]]);
     expect(gridFrom("A")).toEqual([["A"]]);
   });
@@ -1105,7 +1108,7 @@ describe("keyboard cell copy / paste interception (device-testing round)", () =>
     expect(pluginProps(state).copy(view, ev)).toBe(true);
     expect(ev.defaultPrevented).toBe(true);
     expect(dt.getData("text/html")).toContain("<table");
-    expect(dt.getData("text/plain")).toBe("A00\tA01\nA10\tA11");
+    expect(dt.getData("text/plain")).toBe("A00\tA01\nA10\tA11\n");
   });
 
   it("keyboard copy of a 1x1 TextoCellSelection produces a non-empty payload", () => {
@@ -1124,7 +1127,7 @@ describe("keyboard cell copy / paste interception (device-testing round)", () =>
     // for open slices) — non-empty and carrying the cell's value
     expect(dt.getData("text/html")).toContain("A00");
     expect(dt.getData("text/html")).toContain("<td");
-    expect(dt.getData("text/plain")).toBe("A00");
+    expect(dt.getData("text/plain")).toBe("A00\n");
   });
 
   it("keyboard copy outside a cell selection stays native", () => {
@@ -1168,5 +1171,31 @@ describe("keyboard cell copy / paste interception (device-testing round)", () =>
     const ev2 = new ClipboardEvent("paste", { clipboardData: dt2, bubbles: true, cancelable: true });
     expect(pluginProps(state).paste(view, ev2)).toBe(false);
     expect(events).toHaveLength(0);
+  });
+
+  it("data-id mentioned as cell TEXT survives the strip", () => {
+    // a text-level replace would eat the value; only the ATTRIBUTE goes
+    const state = cellRectState();
+    const { view, events } = clipboardDomView(state);
+    const dt = new DataTransfer();
+    dt.setData("text/html", '<table><tbody><tr data-id="abc12345xy"><td data-id="def67890uv" colspan="1" rowspan="1"><p>Example data-id="abc"</p></td></tr></tbody></table>');
+    const ev = new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true });
+    expect(pluginProps(state).paste(view, ev)).toBe(true);
+    const replayedHtml = events[0]?.clipboardData?.getData("text/html") ?? "";
+    const parsed = new window.DOMParser().parseFromString(replayedHtml, "text/html");
+    expect(parsed.querySelectorAll("[data-id]")).toHaveLength(0);
+    // the cell TEXT mentioning data-id survives verbatim
+    expect(replayedHtml).toContain('Example data-id="abc"');
+  });
+
+  it("single-quoted data-id attributes are stripped (no replay recursion)", () => {
+    const state = cellRectState();
+    const { view, events } = clipboardDomView(state);
+    const dt = new DataTransfer();
+    dt.setData("text/html", "<table><tbody><tr><td data-id='abc12345xy'><p>A00</p></td></tr></tbody></table>");
+    const ev = new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true });
+    expect(pluginProps(state).paste(view, ev)).toBe(true);
+    const replayed = events[0]?.clipboardData;
+    expect(replayed?.getData("text/html")).not.toContain("data-id");
   });
 });

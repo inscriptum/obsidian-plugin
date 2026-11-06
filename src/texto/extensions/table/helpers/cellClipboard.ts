@@ -127,9 +127,14 @@ function cellPlainText(cell: ProseMirrorNode): string {
   return cell.textBetween(0, cell.content.size, " ");
 }
 
-/** TSV text of a cell grid (see cellPlainText). */
+/** TSV text of a cell grid (see cellPlainText). ALWAYS ends with one
+ *  newline — the row terminator. The trailing terminator is the
+ *  disambiguator the paste side relies on: stripping exactly one lets a
+ *  genuine trailing EMPTY row (copied as "…\n\n") survive, while a bare
+ *  "…\n" reads as a single-row copy with a terminator — the shape
+ *  external spreadsheets emit (issue table-clipboard-tsv, greptile P1). */
 export function gridToTsv(grid: Array<Array<ProseMirrorNode>>): string {
-  return grid.map((row) => row.map(cellPlainText).join("\t")).join("\n");
+  return `${grid.map((row) => row.map(cellPlainText).join("\t")).join("\n")}\n`;
 }
 
 const escapeCellHtml = (value: string): string =>
@@ -145,10 +150,13 @@ const escapeCellHtml = (value: string): string =>
  *  quoted multi-line cells are not parsed: values are plain single lines,
  *  and repeated whitespace inside a value collapses in the parsed html. */
 export function tsvToHtml(text: string): string {
-  // Strip EVERY trailing newline: spreadsheet selections often cover one
-  // row past the data, so the TSV arrives "…\r\n\r\n" — a trailing empty
-  // row would tile half the rectangle / fall back to raw text.
-  const rows = text.replace(/(?:\r?\n)+$/, "").split(/\r?\n/);
+  // Exactly ONE trailing terminator is removed (see gridToTsv): CRLF is
+  // normalized first, and what remains after the single strip is grid
+  // data — a trailing empty row survives as a real row.
+  const rows = text
+    .replace(/\r\n?/g, "\n")
+    .replace(/\n$/, "")
+    .split("\n");
   const body = rows
     .map((row) => {
       const cells = row.split("\t");
@@ -726,23 +734,26 @@ export function cellClipboardPlugin(): Plugin {
         // misses the cell grid and lands the paste as raw text (verified
         // live: the same html without data-id tiles). The ids are worthless
         // on arrival anyway — the block-ids plugin re-ids pasted duplicates
-        // — so strip them from table html and replay the event clean.
+        // — so remove the ATTRIBUTES (a text-level replace would eat cell
+        // content that merely mentions data-id) and replay the event clean.
         paste: (view: EditorView, event: ClipboardEvent) => {
           const clipboard = event.clipboardData;
           const html = clipboard?.getData("text/html") ?? "";
           if (!clipboard || !html || !/<table[\s>]/i.test(html)) {
             return false;
           }
-          // Progress guarantee: only intercept when something is actually
+          const parsed = new DOMParser().parseFromString(html, "text/html");
+          const withIds = parsed.querySelectorAll("[data-id]");
+          // Progress guarantee: only intercept when an attribute is actually
           // removed — replaying an identical html would re-enter this
           // handler synchronously and recurse without end.
-          const cleaned = html.replace(/\sdata-id="[^"]*"/g, "");
-          if (cleaned === html) {
+          if (withIds.length === 0) {
             return false;
           }
+          withIds.forEach((el) => el.removeAttribute("data-id"));
           event.preventDefault();
           const dt = new DataTransfer();
-          dt.setData("text/html", cleaned);
+          dt.setData("text/html", parsed.body.innerHTML);
           const text = clipboard.getData("text/plain");
           if (text) {
             dt.setData("text/plain", text);
