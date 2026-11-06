@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Table cells copied with the toolbar now paste into Excel, Google Sheets, and other spreadsheets as proper cells (TSV format) — and spreadsheet data copied from those apps pastes into your tables cell by cell, on every platform.
+
 ### Fixed
 
 - Android: resizing the edge columns of a table no longer opens the app's side panel — the resize drag is no longer mistaken for a shell swipe, and the new column width applies as before.
