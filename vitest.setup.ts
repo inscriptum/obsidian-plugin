@@ -108,6 +108,9 @@ class DataTransferShim {
   get types(): string[] {
     return [...this.data.keys()];
   }
+  // the editor's image paste handler reads both on every paste event
+  files: readonly unknown[] = [];
+  items: readonly unknown[] = [];
 }
 class ClipboardEventShim extends Event {
   clipboardData: DataTransferShim;

@@ -31,15 +31,20 @@ describe("table wrapper drawer-swipe opt-out", () => {
     // With columnResizing active the table renders through the TableView
     // node view — the path the live editor actually uses.
     const editor = editorWithTable();
-    const wrapper = editor.view.dom.querySelector(".table-wrapper");
-    expect(wrapper?.getAttribute("data-ignore-swipe")).toBe("true");
+    try {
+      const wrapper = editor.view.dom.querySelector(".table-wrapper");
+      expect(wrapper?.getAttribute("data-ignore-swipe")).toBe("true");
+    } finally {
+      // paste rules hold window listeners until the editor is destroyed
+      editor.destroy();
+    }
   });
 
   it("serializes the renderHTML wrapper with data-ignore-swipe", () => {
     // The toDOM path (read-only renders, serialization) must carry the
     // attribute too — a columnResizing-less render skips the node view.
     const table = createTable(schema, 2, 2, false);
-    const target = document.createElement("div");
+    const target = createDiv();
     DOMSerializer.fromSchema(schema).serializeFragment(Fragment.from(table), {}, target);
     expect(target.querySelector(".table-wrapper")?.getAttribute("data-ignore-swipe")).toBe("true");
   });

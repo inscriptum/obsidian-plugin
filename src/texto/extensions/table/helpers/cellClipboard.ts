@@ -15,6 +15,7 @@ import {
 } from "prosemirror-tables";
 
 import { TextoCellSelection } from "./TextoCellSelection";
+import { isAndroidApp } from "../../../core/utilities/isAndroidApp";
 
 /**
  * Table clipboard semantics (owner decisions, issue table-clipboard):
@@ -645,16 +646,15 @@ export async function pasteFromSystemClipboard(view: EditorView): Promise<boolea
  * ClipboardItem write lands, and navigator.clipboard.read() is
  * permission-denied — so the rich flavor is unreadable by the paste button
  * AND its side effect feeds table markup to the readText() fallback, which
- * then pastes the markup as text (issue table-clipboard-android). On such
- * platforms the write goes values-only; the paste button's readText()
+ * then pastes the markup as text (issue table-clipboard-android). On the
+ * Android app the write goes values-only; the paste button's readText()
  * degradation then inserts the values as plain text into every cell of the
  * target rectangle (tiled replacement needs the rich flavor, which such a
- * platform cannot read back). Same regex as browser.ts `android`,
- * read live so tests can stub the UA.
+ * platform cannot read back). iOS is not covered here (checks deferred by
+ * the owner); desktop keeps the rich flavor.
  */
 function richWritePoisonsTextFlavor(): boolean {
-  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
-  return /Android \d/.test(ua);
+  return isAndroidApp();
 }
 
 /** Write the payload to the system clipboard; true when any write landed.
