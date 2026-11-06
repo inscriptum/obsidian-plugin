@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildSchema } from "../../../../../tests/helpers/buildSchema";
 
 import { cellClipboardPlugin, copyTableSelection, cutCellSelection, cutTableSelection, extractCellGrid, gridToTsv, pasteFromSystemClipboard, tsvToHtml } from "./cellClipboard";
+import { TextoCellSelection } from "./TextoCellSelection";
 
 const schema = buildSchema();
 
@@ -1119,6 +1120,25 @@ describe("keyboard cell copy / paste interception (device-testing round)", () =>
     expect(ev.defaultPrevented).toBe(true);
     expect(dt.getData("text/html")).toContain("<table");
     expect(dt.getData("text/plain")).toBe("A00\tA01\nA10\tA11");
+  });
+
+  it("keyboard copy of a 1x1 TextoCellSelection produces a non-empty payload", () => {
+    // the motivating case: TextoCellSelection collapses its endpoints, so
+    // PM's stock copy handler reads the selection as empty and writes
+    // nothing at all — the handler must carry the cell instead
+    const doc = twoTablesDoc();
+    const [p1] = cellPositions(doc, 0);
+    const state = stateWithSelection(doc, new TextoCellSelection(doc.resolve(p1)));
+    const { view } = clipboardDomView(state);
+    const dt = new DataTransfer();
+    const ev = new ClipboardEvent("copy", { clipboardData: dt, bubbles: true, cancelable: true });
+    expect(pluginProps(state).copy(view, ev)).toBe(true);
+    expect(ev.defaultPrevented).toBe(true);
+    // an open 1x1 slice serializes as a bare td fragment (PM's stock shape
+    // for open slices) — non-empty and carrying the cell's value
+    expect(dt.getData("text/html")).toContain("A00");
+    expect(dt.getData("text/html")).toContain("<td");
+    expect(dt.getData("text/plain")).toBe("A00");
   });
 
   it("keyboard copy outside a cell selection stays native", () => {

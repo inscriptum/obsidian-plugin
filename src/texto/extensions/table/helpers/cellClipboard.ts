@@ -730,12 +730,19 @@ export function cellClipboardPlugin(): Plugin {
         paste: (view: EditorView, event: ClipboardEvent) => {
           const clipboard = event.clipboardData;
           const html = clipboard?.getData("text/html") ?? "";
-          if (!clipboard || !html || !/<table[\s>]/i.test(html) || !/\sdata-id=/.test(html)) {
+          if (!clipboard || !html || !/<table[\s>]/i.test(html)) {
+            return false;
+          }
+          // Progress guarantee: only intercept when something is actually
+          // removed — replaying an identical html would re-enter this
+          // handler synchronously and recurse without end.
+          const cleaned = html.replace(/\sdata-id="[^"]*"/g, "");
+          if (cleaned === html) {
             return false;
           }
           event.preventDefault();
           const dt = new DataTransfer();
-          dt.setData("text/html", html.replace(/\sdata-id="[^"]*"/g, ""));
+          dt.setData("text/html", cleaned);
           const text = clipboard.getData("text/plain");
           if (text) {
             dt.setData("text/plain", text);
