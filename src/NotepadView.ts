@@ -21,6 +21,7 @@ import {
   createDocumentSearchPlugin,
   documentSearchKey,
 } from "./search/documentSearch";
+import { unfoldFoldedSectionsOverlapping } from "./search/unfoldSections";
 import {
   searchNotepad,
   type NotepadSearchMatch,
@@ -2615,6 +2616,10 @@ export class NotepadView extends FileView {
       if (this.searchMatches[i].noteId === match.noteId) localIndex++;
     }
     const query = this.searchInputEl?.value ?? "";
+    // A match hidden inside a folded section of the page (heading/task fold)
+    // has no correct coords (display:none) — expand its section first, or the
+    // scroll below silently misses.
+    unfoldFoldedSectionsOverlapping(editor.view, match.from, match.to);
     editor.view.dispatch(
       editor.state.tr.setMeta(documentSearchKey, {
         query,

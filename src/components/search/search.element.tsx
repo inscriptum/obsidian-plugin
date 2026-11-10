@@ -5,6 +5,7 @@ import {
   documentSearchKey,
   getDocumentSearchState,
 } from "../../search/documentSearch";
+import { unfoldFoldedSectionsOverlapping } from "../../search/unfoldSections";
 import { elTag } from "../../tags";
 
 const OPEN_EVENT = "open-search";
@@ -22,6 +23,14 @@ export const SearchElement = litView.element({
   const scrollToActiveMatch = () => {
     window.requestAnimationFrame(() => {
       if (!isOpen) return;
+      // A match hidden inside a folded section (heading/task fold) is invisible:
+      // expand the section of the active match before scrolling, or the
+      // scrollIntoView silently misses (display:none target).
+      const searchState = getDocumentSearchState(props.editor.state);
+      const match = searchState.matches[searchState.activeIndex];
+      if (match) {
+        unfoldFoldedSectionsOverlapping(props.editor.view, match.from, match.to);
+      }
       props.editor.view.dom
         .querySelector<HTMLElement>(".inscriptum-search-match-active")
         ?.scrollIntoView({ block: "center", inline: "nearest" });
