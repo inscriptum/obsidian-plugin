@@ -9,6 +9,7 @@ import {
   WorkspaceLeaf,
 } from "obsidian";
 import { CellSelection, isInTable } from "prosemirror-tables";
+import { NOTE_ICON_NAME } from "./components/icons/iconSprite";
 import { Editor, isTextSelection } from "./texto/core";
 import {
   createPhysicalShortcutPlugin,
@@ -436,7 +437,7 @@ export class NotepadView extends FileView {
   }
 
   getIcon(): string {
-    return "notepad";
+    return NOTE_ICON_NAME;
   }
 
   canAcceptExtension(extension: string): boolean {
