@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Search now finds matches hidden inside folded sections: jumping to such a match unfolds just that section, so the hit is on screen and highlighted. What the search unfolded stays unfolded — fold it back whenever you want.
+
 ### Changed
 
 - The little arrow under the floating menus (text, media, table, cells) is gone — it claimed to point at your selection but always landed somewhere else, and the menus sit cleaner without it. Arrows that point to their own buttons in sub-panels are untouched.
