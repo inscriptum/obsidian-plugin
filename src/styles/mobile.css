@@ -349,10 +349,8 @@
   display: none;
 }
 
-/* No pointer-to-selection caret inside a docked bar. */
-.note-view-container.is-mobile .bubble-menu-bar .bb-caret,
+/* No pointer-to-button caret inside a docked bar. */
 .note-view-container.is-mobile .bubble-menu-layer .bb-layer-caret,
-.notepad-view-container.is-mobile .bubble-menu-bar .bb-caret,
 .notepad-view-container.is-mobile .bubble-menu-layer .bb-layer-caret {
   display: none;
 }
@@ -370,8 +368,8 @@
   position: static;
   min-width: 0;
   width: 100%;
-  /* Docked ABOVE the action rows: in the DOM the layer comes after them
-     (and after .bb-caret), so pull it to the front of the column. */
+  /* Docked ABOVE the action rows: in the DOM the layer comes after them,
+     so pull it to the front of the column. */
   order: -1;
   margin: 0 0 2px;
   /* Static ⇒ bottom/top/transform from the desktop rules are inert, but keep

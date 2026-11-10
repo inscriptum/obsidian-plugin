@@ -177,11 +177,6 @@
   padding: 0;
 }
 
-/* The selection-center caret makes no sense docked into the bar. */
-.note-toolbar .note-toolbar__table-bar .bb-caret {
-  display: none;
-}
-
 /* Hover tooltips open downwards: above the bar is the window edge. */
 .note-toolbar .note-toolbar__table-bar .bb-btn[data-tip]::after {
   bottom: auto;

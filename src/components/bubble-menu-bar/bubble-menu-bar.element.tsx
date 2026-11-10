@@ -1,7 +1,7 @@
 import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
 import type { Instance } from "tippy.js";
-import { Editor, isTextSelection, posToDOMRect } from "../../texto/core";
+import { Editor, isTextSelection } from "../../texto/core";
 import { elTag } from "../../tags";
 import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
 import {
@@ -43,7 +43,7 @@ type BlockAction =
  * a "Styles & color" layer (blocks + palette) and a "Link" layer (URL input).
  *
  * Positions the menu via tippy.js (bubbleMenuPlugin); here — content, layers,
- * active states, keyboard (Esc, ⌘K), and a caret pointing to the selection center.
+ * active states, and keyboard (Esc, ⌘K).
  */
 export const BubbleMenuBarElement = litView.element({
   props: {
@@ -307,33 +307,6 @@ export const BubbleMenuBarElement = litView.element({
     );
   };
 
-  /* ── Selection center caret + flip (tippy flip) ── */
-  const syncCaret = () => {
-    const editor = props.editor;
-    if (editor.isDestroyed || !editor.view) return;
-    const { from, to } = editor.view.state.selection;
-    // In table mode the selection is collapsed (caret in cell) — zero-width rect at caret
-    const rect = posToDOMRect(editor.view, from, to);
-    // The rAF can land while the element is detached or not yet rendered
-    // (tippy move / generator restart) — nothing to sync then.
-    const bar = barEl();
-    if (!bar) return;
-    const barRect = bar.getBoundingClientRect();
-    if (!barRect.width) return;
-    const cx = rect.left + rect.width / 2;
-    const caret = Math.max(20, Math.min(barRect.width - 20, cx - barRect.left));
-    bar.style.setProperty("--caret-left", `${caret}px`);
-
-    let box: HTMLElement | null = root.parentElement;
-    while (box && !box.hasAttribute("data-placement")) {
-      box = box.parentElement;
-    }
-    bar.classList.toggle(
-      "is-flip",
-      box?.getAttribute("data-placement")?.startsWith("bottom") ?? false,
-    );
-  };
-
   /* ── State update from editor events ── */
   const wireTippy = () => {
     const tippy = getTippy();
@@ -343,9 +316,6 @@ export const BubbleMenuBarElement = litView.element({
         // Click outside / hide menu closes open layers
         onHide: () => {
           closeLayer();
-        },
-        onShow: () => {
-          window.requestAnimationFrame(syncCaret);
         },
       });
     }
@@ -360,7 +330,6 @@ export const BubbleMenuBarElement = litView.element({
     lastSelKey = selKey;
     wireTippy();
     void this.next();
-    window.requestAnimationFrame(syncCaret);
   };
 
   /* ── Keyboard: Esc (layer → menu), ⌘K (link) ── */
@@ -492,8 +461,6 @@ export const BubbleMenuBarElement = litView.element({
               {bubbleIconNodes.clear()}
             </button>
           </div>
-
-          <span class="bb-caret"></span>
 
           {/* "Styles & color" layer — pops up above the menu */}
           <div
