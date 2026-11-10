@@ -1,7 +1,7 @@
 import type { Instance } from "tippy.js";
 import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
-import { Editor, posToDOMRect } from "../../texto/core";
+import { Editor } from "../../texto/core";
 import { CellSelection } from "prosemirror-tables";
 import { elTag } from "../../tags";
 import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
@@ -199,31 +199,6 @@ export const TableCellsBubbleMenuElement = litView.element({
     closeLayer();
   };
 
-  const syncCaret = () => {
-    const editor = props.editor;
-    if (editor.isDestroyed || !editor.view) return;
-    const { from, to } = editor.view.state.selection;
-    const rect = posToDOMRect(editor.view, from, to);
-    // The rAF can land while the element is detached or not yet rendered
-    // (tippy move / generator restart) — there is nothing to sync then.
-    const bar = barEl();
-    if (!bar) return;
-    const barRect = bar.getBoundingClientRect();
-    if (!barRect.width) return;
-    const cx = rect.left + rect.width / 2;
-    const caret = Math.max(20, Math.min(barRect.width - 20, cx - barRect.left));
-    bar.style.setProperty("--caret-left", `${caret}px`);
-
-    let box: HTMLElement | null = root.parentElement;
-    while (box && !box.hasAttribute("data-placement")) {
-      box = box.parentElement;
-    }
-    bar.classList.toggle(
-      "is-flip",
-      box?.getAttribute("data-placement")?.startsWith("bottom") ?? false,
-    );
-  };
-
   /** Plugin instances expose a private `key` field holding the PluginKey name. */
   type KeyedPlugin = { key?: { key?: string } };
 
@@ -250,9 +225,6 @@ export const TableCellsBubbleMenuElement = litView.element({
         onHide: () => {
           closeLayer();
         },
-        onShow: () => {
-          window.requestAnimationFrame(syncCaret);
-        },
       });
     }
   };
@@ -265,7 +237,6 @@ export const TableCellsBubbleMenuElement = litView.element({
     lastSelKey = selKey;
     wireTippy();
     void this.next();
-    window.requestAnimationFrame(syncCaret);
   };
 
   /* ── Keyboard: Esc (layer → menu), ⌘K (link) ── */
@@ -397,8 +368,6 @@ export const TableCellsBubbleMenuElement = litView.element({
               {bubbleIconNodes.clear()}
             </button>
           </div>
-
-          <span class="bb-caret"></span>
 
           <div
             class={cls(

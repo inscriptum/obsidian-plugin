@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The little arrow under the floating menus (text, media, table, cells) is gone — it claimed to point at your selection but always landed somewhere else, and the menus sit cleaner without it. Arrows that point to their own buttons in sub-panels are untouched.
+
 ### Fixed
 
 - Tabs for .um notepad files now show an icon — the same notebook-pen as regular notes. The app had been asking Obsidian for an icon name that doesn't exist, so the tab stayed blank.
