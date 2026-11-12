@@ -73,6 +73,105 @@ function testContent(): JSONContent {
   };
 }
 
+/**
+ * Nested-heading document (see folding.test.ts 'folds nested sub-sections
+ * independently' for the same shape):
+ *
+ *   noteTitle  "Title"
+ *   p          "Intro"
+ *   h2         "Outer"       <- foldable (body: p Outer body, h3, p Inner body)
+ *   p          "Outer body"
+ *   h3         "Inner"       <- foldable (body: p Inner body)
+ *   p          "Inner body"
+ */
+function nestedHeadingContent(): JSONContent {
+  return {
+    type: "noteDoc",
+    content: [
+      { type: "noteTitle", content: [{ type: "text", text: "Title" }] },
+      { type: "paragraph", content: [{ type: "text", text: "Intro" }] },
+      {
+        type: "heading",
+        attrs: { level: 2 },
+        content: [{ type: "text", text: "Outer" }],
+      },
+      { type: "paragraph", content: [{ type: "text", text: "Outer body" }] },
+      {
+        type: "heading",
+        attrs: { level: 3 },
+        content: [{ type: "text", text: "Inner" }],
+      },
+      { type: "paragraph", content: [{ type: "text", text: "Inner body" }] },
+    ],
+  };
+}
+
+/**
+ * Nested-task document (mirror of the nested heading case):
+ *
+ *   noteTitle  "Title"
+ *   taskList
+ *     taskItem "Outer task"      <- foldable (body: the nested taskList)
+ *       taskList
+ *         taskItem "Inner task"  <- foldable (body: the nested bulletList)
+ *           bulletList
+ *             listItem "Inner detail"
+ */
+function nestedTaskContent(): JSONContent {
+  return {
+    type: "noteDoc",
+    content: [
+      { type: "noteTitle", content: [{ type: "text", text: "Title" }] },
+      {
+        type: "taskList",
+        content: [
+          {
+            type: "taskItem",
+            attrs: { checked: false },
+            content: [
+              {
+                type: "paragraph",
+                content: [{ type: "text", text: "Outer task" }],
+              },
+              {
+                type: "taskList",
+                content: [
+                  {
+                    type: "taskItem",
+                    attrs: { checked: false },
+                    content: [
+                      {
+                        type: "paragraph",
+                        content: [{ type: "text", text: "Inner task" }],
+                      },
+                      {
+                        type: "bulletList",
+                        content: [
+                          {
+                            type: "listItem",
+                            content: [
+                              {
+                                type: "paragraph",
+                                content: [
+                                  { type: "text", text: "Inner detail" },
+                                ],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+}
+
 interface Fixture {
   editor: Editor;
   /** Text positions of named paragraphs, by their text content. */
@@ -82,13 +181,13 @@ interface Fixture {
   dispose: () => void;
 }
 
-function createFixture(): Fixture {
+function createFixture(content: JSONContent = testContent()): Fixture {
   const el = document.createElement("div");
   document.body.appendChild(el);
 
   const editor = new Editor({
     element: el,
-    content: testContent(),
+    content,
     extensions: getExtensions(),
     editable: true,
   });
@@ -123,8 +222,8 @@ function createFixture(): Fixture {
 
 const fixtures: Fixture[] = [];
 
-function useFixture(): Fixture {
-  const fixture = createFixture();
+function useFixture(content?: JSONContent): Fixture {
+  const fixture = createFixture(content ?? testContent());
   fixtures.push(fixture);
   return fixture;
 }
@@ -283,5 +382,51 @@ describe("unfoldFoldedSectionsOverlapping", () => {
     unfoldFoldedSectionsOverlapping(fixture.editor.view, aOne, aOne + 2);
 
     expect(fixture.editor.state.doc.toJSON()).toEqual(before);
+  });
+
+  it("unfolds nested heading folds in one pass (h3 inside folded h2)", () => {
+    const fixture = useFixture(nestedHeadingContent());
+    foldHeading(fixture, fixture.headings[0]); // "Outer" h2
+    foldHeading(fixture, fixture.headings[1]); // "Inner" h3
+
+    // The match sits inside the inner h3's body — which is also inside the
+    // outer h2's body. One call must clear both folds via the two
+    // consecutive dispatches of the heading loop against the captured
+    // fold state.
+    const innerBody = fixture.textPos("Inner body");
+    const unfolded = unfoldFoldedSectionsOverlapping(
+      fixture.editor.view,
+      innerBody,
+      innerBody + 2,
+    );
+
+    expect(unfolded).toBe(2);
+    expect(getFoldedHeadingPositions(fixture.editor.state)).toEqual([]);
+  });
+
+  it("unfolds nested task item folds in one pass (taskItem inside folded taskItem)", () => {
+    const fixture = useFixture(nestedTaskContent());
+    foldTask(fixture, fixture.taskItems[0]); // "Outer task"
+    foldTask(fixture, fixture.taskItems[1]); // "Inner task"
+
+    // The nested detail is inside both bodies: the outer item's body holds
+    // the whole subtask list, the inner item's body holds its own content.
+    const detail = fixture.textPos("Inner detail");
+    const sections = collectTaskSections(fixture.editor.state.doc, "taskItem");
+    const outer = sections.find((s) => s.itemPos === fixture.taskItems[0])!;
+    const inner = sections.find((s) => s.itemPos === fixture.taskItems[1])!;
+    expect(outer.body!.from).toBeLessThan(detail);
+    expect(outer.body!.to).toBeGreaterThan(detail);
+    expect(inner.body!.from).toBeLessThan(detail);
+    expect(inner.body!.to).toBeGreaterThan(detail);
+
+    const unfolded = unfoldFoldedSectionsOverlapping(
+      fixture.editor.view,
+      detail,
+      detail + 2,
+    );
+
+    expect(unfolded).toBe(2);
+    expect(getFoldedTaskPositions(fixture.editor.state)).toEqual([]);
   });
 });

@@ -9,12 +9,18 @@ import {
 } from "../texto/extensions/task-item-folding/taskFoldingPlugin";
 
 /**
- * Unfold every folded heading/task section whose hidden body overlaps the
- * given document range. Used by search jumps: matches inside folded sections
- * are invisible (display:none decorations), so the section of the current
- * match must expand before the scroll can land on it. Sections without a
- * match in their body are left folded. Folded state persists as usual — an
- * unfold here is indistinguishable from a manual one.
+ * Unfold every folded heading/task section whose hidden body overlaps or
+ * abuts the given document range. Used by search jumps: matches inside
+ * folded sections are invisible (display:none decorations), so the section
+ * of the current match must expand before the scroll can land on it.
+ * Sections without a match in their body are left folded. Folded state
+ * persists as usual — an unfold here is indistinguishable from a manual one.
+ *
+ * The overlap test is closed-interval: a section whose body merely touches
+ * the range boundary (body.from === to || body.to === from) is unfolded
+ * too. Unreachable from the current search call sites (a match always sits
+ * strictly inside its section), but the desired behavior for future
+ * selection-based ranges.
  */
 export function unfoldFoldedSectionsOverlapping(
   view: EditorView,
