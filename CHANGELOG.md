@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Search now finds matches hidden inside folded sections: jumping to such a match unfolds just that section, so the hit is on screen and highlighted. What the search unfolded stays unfolded — fold it back whenever you want.
+
+### Changed
+
+- The little arrow under the floating menus (text, media, table, cells) is gone — it claimed to point at your selection but always landed somewhere else, and the menus sit cleaner without it. Arrows that point to their own buttons in sub-panels are untouched.
+
+### Fixed
+
+- Tabs for .um notepad files now show an icon — the same notebook-pen as regular notes. The app had been asking Obsidian for an icon name that doesn't exist, so the tab stayed blank.
+
 ## [0.14.1] - 2026-11-06
 
 ### Added
