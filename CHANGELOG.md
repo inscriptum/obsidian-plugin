@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Documents read calmer: headings step through a clearer scale (34/24/20/17), pull their own text close and properly separate from the previous section; paragraphs, lists, quotes and dividers now share one 12px rhythm, so block spacing no longer jumps around the page. A horizontal rule is one quiet pause instead of a wall of empty space.
+- Documents read calmer: headings step through a clearer scale (34/24/20/17) and keep their own text close, paragraphs, lists, quotes and dividers share one 12px rhythm, so block spacing no longer jumps around the page. A horizontal rule is one quiet pause instead of a wall of empty space.
 - The little arrow under the floating menus (text, media, table, cells) is gone — it claimed to point at your selection but always landed somewhere else, and the menus sit cleaner without it. Arrows that point to their own buttons in sub-panels are untouched.
 
 ### Fixed
