@@ -1,9 +1,11 @@
 /* ─────────────────────────────────────────────────────────────
    Bubble menu — design: docs/design/Bubble-Menu-Prototype
-   Tokens match .design/src/styles/tokens.css:
+   Neutral tokens match .design/src/styles/tokens.css:
    surface #19191e, border #30303a, hover #23232a,
-   icon #83838f / hover #e6e6ee / active #c0b1ff,
-   active fill rgba(124,106,247,.16) + inset outline.
+   icon #83838f / hover #e6e6ee.
+   Accent follows the Obsidian theme: text var(--text-accent),
+   fills color-mix of var(--interactive-accent) at the old alpha
+   values, so the accent follows the user's theme color.
    ───────────────────────────────────────────────────────────── */
 
 /* bubble-menu-bar host — block so tippy measures it correctly */
@@ -156,12 +158,12 @@ never keep the menu invisible. */
    fill" swatch was repainted violet by this rule). Swatches indicate the
    active state with their own outline (see .bb-sw.is-active below). */
 .bubble-menu-bar button.is-active:not(.bb-sw, .bb-dd-it) {
-  color: #c0b1ff;
-  background-color: rgba(124, 106, 247, 0.16);
-  box-shadow: inset 0 0 0 1px rgba(124, 106, 247, 0.35);
+  color: var(--text-accent, #c0b1ff);
+  background-color: color-mix(in srgb, var(--interactive-accent, #7c6af7) 16%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--interactive-accent, #7c6af7) 35%, transparent);
 }
 .bubble-menu-bar button.is-active:not(.bb-sw, .bb-dd-it):hover {
-  background-color: rgba(124, 106, 247, 0.24);
+  background-color: color-mix(in srgb, var(--interactive-accent, #7c6af7) 24%, transparent);
 }
 /* Unavailable table operation (merge/split) */
 .bubble-menu-bar button.is-disabled {
@@ -177,7 +179,7 @@ never keep the menu invisible. */
   background-color: rgba(248, 113, 113, 0.12);
 }
 .bubble-menu-bar button:focus-visible {
-  outline: 1px solid rgba(124, 106, 247, 0.8);
+  outline: 1px solid color-mix(in srgb, var(--interactive-accent, #7c6af7) 80%, transparent);
   outline-offset: 1px;
 }
 .bubble-menu-bar button svg {
@@ -361,7 +363,7 @@ never keep the menu invisible. */
   width: 14px;
   height: 14px;
   flex: none;
-  color: #b3a3f7;
+  color: var(--text-accent, #b3a3f7);
   opacity: 0;
 }
 .bubble-menu-bar .bb-mi .bb-tick svg {
@@ -372,10 +374,10 @@ never keep the menu invisible. */
   flex: 0 0 auto;
 }
 .bubble-menu-bar .bb-mi.is-active {
-  color: #c0b1ff;
+  color: var(--text-accent, #c0b1ff);
 }
 .bubble-menu-bar .bb-mi.is-active:hover {
-  color: #c0b1ff;
+  color: var(--text-accent, #c0b1ff);
 }
 .bubble-menu-bar .bb-mi.is-active .bb-tick {
   opacity: 1;
@@ -648,7 +650,7 @@ never keep the menu invisible. */
 }
 
 .bubble-menu-bar .bb-dd-hex:focus {
-  outline: 1px solid rgba(124, 106, 247, 0.8);
+  outline: 1px solid color-mix(in srgb, var(--interactive-accent, #7c6af7) 80%, transparent);
 }
 
 .bubble-menu-bar .bb-dd-it {
@@ -676,13 +678,13 @@ never keep the menu invisible. */
 }
 
 .bubble-menu-bar .bb-dd-it.is-active .bb-dd-label {
-  color: #c0b1ff;
+  color: var(--text-accent, #c0b1ff);
 }
 
 .bubble-menu-bar .bb-dd-tick {
   margin-left: auto;
   display: inline-flex;
-  color: #b3a3f7;
+  color: var(--text-accent, #b3a3f7);
 }
 
 .bubble-menu-bar .bb-dd-tick svg {
@@ -715,8 +717,8 @@ never keep the menu invisible. */
     box-shadow 0.1s;
 }
 .bubble-menu-bar .bubble-menu-link-input:focus {
-  border-color: rgba(124, 106, 247, 0.55);
-  box-shadow: 0 0 0 3px rgba(124, 106, 247, 0.14);
+  border-color: color-mix(in srgb, var(--interactive-accent, #7c6af7) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--interactive-accent, #7c6af7) 14%, transparent);
 }
 .bubble-menu-bar .bubble-menu-link-input::placeholder {
   color: #565660;
@@ -726,14 +728,14 @@ never keep the menu invisible. */
   height: 31px;
   flex: none;
   border-radius: 7px;
-  background: rgba(124, 106, 247, 0.16);
-  border: 1px solid rgba(124, 106, 247, 0.4);
-  color: #c8baff;
+  background: color-mix(in srgb, var(--interactive-accent, #7c6af7) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--interactive-accent, #7c6af7) 40%, transparent);
+  color: var(--text-accent, #c8baff);
   cursor: pointer;
   transition: background-color 0.1s;
 }
 .bubble-menu-bar .bb-go:hover {
-  background: rgba(124, 106, 247, 0.26);
+  background: color-mix(in srgb, var(--interactive-accent, #7c6af7) 26%, transparent);
 }
 .bubble-menu-bar .bb-go svg {
   width: 15px;
