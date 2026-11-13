@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Selection menus and drag indicators now follow your Obsidian accent color instead of a fixed violet: change the accent in the theme settings and highlights, active states and drop markers all pick it up.
 - The little arrow under the floating menus (text, media, table, cells) is gone — it claimed to point at your selection but always landed somewhere else, and the menus sit cleaner without it. Arrows that point to their own buttons in sub-panels are untouched.
 
 ### Fixed
