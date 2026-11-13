@@ -1,10 +1,8 @@
-import type { Instance } from "tippy.js";
 import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
 import type { App } from "obsidian";
-import { Editor, posToDOMRect } from "../../texto/core";
+import { Editor } from "../../texto/core";
 import { elTag } from "../../tags";
-import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
 import { getMediaMenuState, getSelectedMediaNode } from "./mediaMenuState";
 import { bubbleIconNodes } from "./icons.svgnode";
 import type { BubbleIconName } from "../icons/iconSprite";
@@ -29,61 +27,10 @@ export const MediaBubbleMenuElement = litView.element({
 })(function* (props) {
   let state = getMediaMenuState(props.editor.state);
 
-  // eslint-disable-next-line @typescript-eslint/no-this-alias -- generator component
-  const root: HTMLElement = this;
-  const barEl = () => root.querySelector<HTMLElement>(".bubble-menu-bar")!;
-
-  type KeyedPlugin = { key?: { key?: string } };
-  const wiredTippies = new WeakSet<Instance>();
-
-  const getTippy = (): Instance | undefined => {
-    if (props.editor.isDestroyed) return undefined;
-    const es = props.editor.state;
-    for (const plugin of es.plugins) {
-      const key = (plugin as KeyedPlugin).key?.key;
-      if (key === "mediaBubbleMenu") {
-        return (plugin.getState(es) as BubbleMenuPluginState | undefined)
-          ?.tippy;
-      }
-    }
-    return undefined;
-  };
-
-  const syncCaret = () => {
-    const editor = props.editor;
-    if (editor.isDestroyed || !editor.view) return;
-    const { from, to } = editor.view.state.selection;
-    const rect = posToDOMRect(editor.view, from, to);
-    // The rAF can land while the element is detached or not yet rendered
-    // (tippy move / generator restart) — nothing to sync then.
-    const bar = barEl();
-    if (!bar) return;
-    const barRect = bar.getBoundingClientRect();
-    if (!barRect.width) return;
-    const cx = rect.left + rect.width / 2;
-    const caret = Math.max(20, Math.min(barRect.width - 20, cx - barRect.left));
-    bar.style.setProperty("--caret-left", `${caret}px`);
-  };
-
-  const wireTippy = () => {
-    const tippy = getTippy();
-    if (tippy && !wiredTippies.has(tippy)) {
-      wiredTippies.add(tippy);
-      // onShow must return void — a bare arrow would leak the rAF id
-      tippy.setProps({
-        onShow: () => {
-          window.requestAnimationFrame(syncCaret);
-        },
-      });
-    }
-  };
-
   const refreshState = () => {
     if (props.editor.isDestroyed) return;
     state = getMediaMenuState(props.editor.state);
-    wireTippy();
     void this.next();
-    window.requestAnimationFrame(syncCaret);
   };
 
   props.editor.on("selectionUpdate", refreshState);
@@ -222,7 +169,6 @@ export const MediaBubbleMenuElement = litView.element({
               {bubbleIconNodes.trash()}
             </button>
           </div>
-          <span class="bb-caret"></span>
         </div>
       );
     }

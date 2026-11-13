@@ -234,28 +234,6 @@ never keep the menu invisible. */
   transform: translateX(-50%) translateY(0);
 }
 
-/* ─── Selection center caret ─────────────────────────── */
-.bubble-menu-bar .bb-caret {
-  position: absolute;
-  bottom: -5px;
-  left: var(--caret-left, 50%);
-  margin-left: -4.5px;
-  width: 9px;
-  height: 9px;
-  background: #19191e;
-  border-right: 1px solid #30303a;
-  border-bottom: 1px solid #30303a;
-  transform: rotate(45deg);
-  pointer-events: none;
-}
-.bubble-menu-bar.is-flip .bb-caret {
-  top: -5px;
-  bottom: auto;
-  border: none;
-  border-left: 1px solid #30303a;
-  border-top: 1px solid #30303a;
-}
-
 /* ─── Layers above the menu ──────────────────────────────────────── */
 /* The layer opens up by default; the class layer-open-down (set in
    TSX based on actual screen position) flips it downwards. */

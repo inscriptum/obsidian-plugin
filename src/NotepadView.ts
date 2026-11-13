@@ -9,6 +9,7 @@ import {
   WorkspaceLeaf,
 } from "obsidian";
 import { CellSelection, isInTable } from "prosemirror-tables";
+import { NOTE_ICON_NAME } from "./components/icons/iconSprite";
 import { Editor, isTextSelection } from "./texto/core";
 import {
   createPhysicalShortcutPlugin,
@@ -21,6 +22,7 @@ import {
   createDocumentSearchPlugin,
   documentSearchKey,
 } from "./search/documentSearch";
+import { unfoldFoldedSectionsOverlapping } from "./search/unfoldSections";
 import {
   searchNotepad,
   type NotepadSearchMatch,
@@ -436,7 +438,7 @@ export class NotepadView extends FileView {
   }
 
   getIcon(): string {
-    return "notepad";
+    return NOTE_ICON_NAME;
   }
 
   canAcceptExtension(extension: string): boolean {
@@ -2615,6 +2617,10 @@ export class NotepadView extends FileView {
       if (this.searchMatches[i].noteId === match.noteId) localIndex++;
     }
     const query = this.searchInputEl?.value ?? "";
+    // A match hidden inside a folded section of the page (heading/task fold)
+    // has no correct coords (display:none) — expand its section first, or the
+    // scroll below silently misses.
+    unfoldFoldedSectionsOverlapping(editor.view, match.from, match.to);
     editor.view.dispatch(
       editor.state.tr.setMeta(documentSearchKey, {
         query,
