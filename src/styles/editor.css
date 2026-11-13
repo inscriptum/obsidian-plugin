@@ -259,13 +259,6 @@ body.texto-table__cell-drag-select .ProseMirror th {
   padding: 0 2px;
 }
 
-/* ─── Subtle dividers inside ProseMirror ─── */
-.texto-editor .ProseMirror hr {
-  border: none;
-  border-top: 1px solid var(--background-modifier-border);
-  margin: 44px 0;
-}
-
 /* ─── Links in content: v2 style (theme tokens) ─── */
 /* The muted 1px underline is drawn as a background gradient, not
    text-decoration-*: the longhand styling properties are flagged by the

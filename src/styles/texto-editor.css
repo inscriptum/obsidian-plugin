@@ -99,22 +99,9 @@ img.ProseMirror-separator.ProseMirror-separator.ProseMirror-separator.ProseMirro
   padding-right: 0;
 }
 
-.ProseMirror ol,
-.ProseMirror ul,
-.ProseMirror ul[data-type="taskList"] {
-  padding-top: 4px;
-  padding-bottom: 4px;
-}
-
 .ProseMirror ul > li,
 .ProseMirror ol > li {
   padding-left: 4px;
-}
-
-.ProseMirror ol > li > *:not(hr),
-.ProseMirror ul > li > *:not(hr) {
-  padding-top: 4px;
-  padding-bottom: 4px;
 }
 
 .ProseMirror ol ol,
