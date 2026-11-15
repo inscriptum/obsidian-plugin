@@ -4,38 +4,61 @@
 [![Latest release](https://img.shields.io/github/v/release/inscriptum/obsidian-plugin?logo=github)](https://github.com/inscriptum/obsidian-plugin/releases/latest)
 [![License](https://img.shields.io/github/license/inscriptum/obsidian-plugin)](LICENSE)
 
-**A comfortable WYSIWYG editor for creating structured documents.**
+**A comfortable editor for creating structured documents.**
 
-Inscriptum lets you create and edit rich documents without having to write Markdown.
+Inscriptum lets you create and edit rich documents without having to write Markdown. Work in single notes or in notepads — one file that keeps many related pages together. Your documents stay local and under your control: no cloud, no account, no lock-in.
 
-Work in single notes or in notepads — one file that keeps many related pages together.
 
-Write structured documents with headings, lists, todo items, tables, images, links, code blocks, and more — using a familiar visual editor.
-
-Your documents stay **local and under your control**. No cloud storage, no account, and no lock-in.
-
-![Rich text editing example](demo/example.png)
+![Rich text editing example](demo/hero.webp)
 
 The Obsidian plugin brings Inscriptum to your Obsidian vault, allowing you to use the editor alongside your existing notes and workflow.
 
+## Getting started
+
+1. **Create a document.** Click the «New inscriptum» button in the file explorer (next to «New note»), right-click any folder for the same action, or run **New note** / **New notepad (.um)** from the command palette.
+2. **Note or notepad?** A *note* (`.note`) is one document. A *notepad* (`.um`) is one file with many pages: a cover with properties, pages that fold away when you don't need them, and search across everything. Pick a note for a single document, a notepad for something structured — a journal, a guide, a project hub.
+3. **Format as you go.** Select any text and the bubble menu appears — bold, headings, colors, links, comments. The toolbar above the note covers block types, tables, images, diagrams and attachments.
+4. **Tune it in settings.** Open **Settings → Inscriptum** for the website export folder, the comment author name, experimental options and the diagnostic log.
+
 ## Features
 
-* WYSIWYG rich text editing
-* Notepads (`.um`): many pages in one file, with a cover page, a pages drawer and notebook-wide search
-* Cover properties: add fields (description, tags, status, any name) to a notepad's cover, as text or lists
-* Headings and structured documents, with foldable sections
-* Todo lists and regular lists, including nested subtasks
-* Blockquotes
-* Tables: cell selection, cell fill, Word-style borders and images inside cells
-* Images: resizing, text wrap layouts, and a gallery viewer with zoom and pan
-* Mermaid diagrams: insert from the toolbar, edit the source with live syntax checks, render as theme-aware images
-* Links and automatic URL/email linking
-* Attachments: link vault files in place or copy them into the note
-* Code blocks with syntax highlighting
-* Switchable syntax highlighting themes
-* Bubble menu for quick formatting
-* In-note search
-* Export a note — or a whole notepad — as a self-contained static website
+* **WYSIWYG rich text editing** — headings, lists, quotes, highlights, text alignment (left, center, right) and code blocks, all without Markdown syntax
+
+  ![Rich text editing in Inscriptum: formatted document with a task checklist, a colored table and the formatting bubble menu](demo/editing.png)
+
+* **Bubble menu** for quick formatting right above your selection
+* **Notepads** (`.um`): many pages in one file, with a cover page, a pages drawer and notebook-wide search
+
+  ![Notepad: cover with properties and the pages drawer](demo/notepad.png)
+
+* **Cover properties**: add fields (description, tags, status, any name) to a notepad's cover, as text or lists
+* **Headings and structured documents**, with foldable sections
+* **Comments** (in notepads): select text, hit «Comment» and discuss it in a side panel — threads with replies, resolve/unresolve and an Open/Resolved filter
+
+  ![Comments panel with two threads beside the highlighted anchors](demo/comments.png)
+
+* **Internal links**: type «[[» and pick a file from the suggestion popup to link notes and notebooks together; links open on click and survive edits
+
+  ![Internal link suggestion popup over typed text](demo/links.png)
+
+* **Tables**: cell selection, cell fill colors, Word-style borders and images inside cells; duplicate rows and columns with one click
+
+  ![Table with selected cells and the cell fill palette open](demo/tables.png)
+
+* **Spreadsheet exchange**: table cells copied from Inscriptum paste into Excel and Google Sheets as proper cells — and spreadsheet data pastes into your tables cell by cell
+* **Search that reaches folded sections** — in a note or across a whole notepad; jumping to a match hidden in a folded section unfolds just that section, so the hit is on screen
+
+  ![Notepad search: jumping to a match unfolded the Notes page and highlighted the hit](demo/search.png)
+
+* **Images**: resizing, text wrap layouts, and a gallery viewer with zoom and pan
+* **Mermaid diagrams**: insert from the toolbar, edit the source with live syntax checks, render as theme-aware images
+* **Todo lists and regular lists**, including nested subtasks — and an experimental «Dependent sub-tasks» mode where checking a parent checks its children (off by default, enable it in settings)
+* **Links and automatic URL/email linking**
+* **Attachments**: link vault files in place or copy them into the note
+* **Code blocks with syntax highlighting**, with switchable highlighting themes
+* **Undo and redo buttons** in the mobile toolbar — on a phone you can take an edit back with a tap
+* **Guard rails**: changes made to the file you are editing outside the app — a git sync, another editor — are noticed and never silently overwritten
+* **Follows your theme**: selection menus and task colors pick up your Obsidian accent color
 * Works on desktop, phones and tablets
 
 ## Local-first
@@ -87,85 +110,10 @@ the Standard plan, so the plugin folder is **not synced** there: on your other
 devices, install or update Inscriptum yourself (community list or a manual
 copy). Everything else in the vault syncs as usual.
 
-## Development
+## Contributing
 
-Clone the repository and install dependencies:
-
-```bash
-git clone https://github.com/inscriptum/obsidian-plugin.git
-cd obsidian-plugin
-npm ci
-```
-
-Start the development build:
-
-```bash
-npm run dev
-```
-
-The development build runs in watch mode and automatically deploys the plugin to:
-
-```text
-.obsidian/plugins/inscriptum/
-```
-
-Create a production build:
-
-```bash
-npm run build
-```
-
-Run tests:
-
-```bash
-npm test
-```
-
-### E2E tests
-
-Browser tests run the real editor (ProseMirror + extensions) in Chromium via
-Playwright, against a harness page with a shimmed `obsidian` module
-(`src/browser-harness/`). Install the browser once, then run:
-
-```bash
-npx playwright install chromium
-npm run test:e2e
-```
-
-Useful variants: `npm run test:e2e:headed` (visible browser) and
-`npm run test:e2e:ui` (Playwright UI mode). CI runs the same suite on every
-push (see `.github/workflows/ci.yml`).
-
-Type-check the codebase (`vite build` does not check types; CI runs this on
-every push, so keep it clean):
-
-```bash
-npm run typecheck
-```
-
-For a continuous check while refactoring:
-
-```bash
-npm run typecheck:watch
-```
-
-## Release
-
-Releases are built automatically by GitHub Actions.
-
-Create a new version and push the tag:
-
-```bash
-npm version patch
-git push --follow-tags
-```
-
-The workflow builds the plugin, takes the release notes for the new version
-from [CHANGELOG.md](CHANGELOG.md), and publishes the release automatically.
-
-Before pushing the tag, add a `## [x.y.z]` section to CHANGELOG.md describing
-the changes — the release will be created only if that section exists.
+Development setup, tests and the release process are described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT © 2026 sumbad
+MIT © 2026
