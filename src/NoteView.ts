@@ -19,6 +19,13 @@ import {
   logDiagEvent,
 } from "./storage/noteStorage";
 import { FileChangedModal } from "./ui/FileChangedModal";
+import {
+  detectNodeLockHost,
+  EditorLease,
+  isInsumSidecarPath,
+  resolveUmLockGate,
+  type LockGateDecision,
+} from "./storage/umLock";
 import { NOTE_ICON_NAME } from "./components/icons/iconSprite";
 import { BUILD_TAG, TAG_VERSION } from "./tags";
 import { getDesiredFileName } from "./storage/fileNaming";
@@ -159,6 +166,22 @@ export class NoteView extends FileView {
   private externalChangeTimer: number | null = null;
   /** True while the conflict dialog is up; further external events wait. */
   private conflictModalOpen = false;
+  /** Dirty lease of the lock protocol (issues/um-lock-lease) — created on
+   *  the first unsaved change, released on a successful save and on close;
+   *  lazy: the deps read this view's live state. */
+  private leaseValue: EditorLease | null = null;
+  private get lease(): EditorLease {
+    if (this.leaseValue == null) {
+      this.leaseValue = new EditorLease({
+        vault: this.app.vault,
+        filePath: () => this.file?.path ?? null,
+        hasUnsavedChanges: () => this.dirty,
+        host: detectNodeLockHost(),
+        onDiag: (msg) => this.logDiag(msg),
+      });
+    }
+    return this.leaseValue;
+  }
   /** True while replacing the editor doc from disk, so the autosave path
    *  doesn't immediately write it back. */
   private applyingRemoteChange = false;
@@ -259,6 +282,7 @@ export class NoteView extends FileView {
     // event time, so it survives renames handled by renameToTitleIfNeeded.
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
+        if (isInsumSidecarPath(file.path)) return;
         if (file === this.file) this.onFileMaybeExternallyChanged();
       }),
     );
@@ -891,6 +915,7 @@ export class NoteView extends FileView {
     this.mobileScrollCleanup = null;
     this.destroySearchBar();
     await this.flushSave("unload-file");
+    await this.lease.releaseForClose();
     this.destroyEditor();
     this.contentEl.empty();
   }
@@ -905,6 +930,7 @@ export class NoteView extends FileView {
     this.scrollShadowCleanup?.();
     this.scrollShadowCleanup = null;
     await this.flushSave("close");
+    await this.lease.releaseForClose();
     this.destroyEditor();
     this.contentEl.empty();
   }
@@ -1049,6 +1075,9 @@ export class NoteView extends FileView {
     saveTimer = window.setTimeout(() => {
       void this.flushSave();
     }, AUTOSAVE_DELAY);
+    // The lease must exist while unsaved changes exist (protocol §9.2):
+    // every edit path lands here, so this is the single create chokepoint.
+    void this.lease.sync();
   }
 
   /** Device-local fold persistence for this note, created lazily. The scope
@@ -1086,11 +1115,55 @@ export class NoteView extends FileView {
       const json = this.editor.getJSON();
       const raw = JSON.stringify(json, null, 2);
       if (await this.blockEmptyOverwrite(json, trigger)) return;
+      // Lock-protocol gate (issues/um-lock-lease, spec §9.2): a save must
+      // not overwrite a live foreign commit lock (defer, retried on the
+      // regular schedule) or another editor's dirty lease (that IS the
+      // conflict — the same FileChangedModal resolves it). A stale sidecar
+      // is broken here per the recovery rules.
+      const file = this.file;
+      const teardownFlush = trigger === "unload-file" || trigger === "close";
+      let lockGate = await resolveUmLockGate(
+        this.app.vault,
+        file.path,
+        detectNodeLockHost(),
+        this.lease.currentOpId(),
+      );
+      if (teardownFlush && lockGate.action !== "proceed") {
+        // Closing view: no scheduled retry and no dialog can survive the
+        // teardown. A commit lock holds for milliseconds — wait it out
+        // briefly; anything longer (a live foreign lease) goes to the
+        // recovery branch below: rescue the dirty content to a temp copy
+        // and report it. Nothing is overwritten, nothing is silently
+        // dropped (spec §9.1).
+        lockGate = await this.settleGateForTeardown(file, lockGate);
+      }
+      if (lockGate.action === "defer") {
+        if (!teardownFlush && this.file === file) this.scheduleSave();
+        this.logDiag(
+          `save deferred path=${file.path} reason=${lockGate.reason} trigger=${trigger}`,
+        );
+        return;
+      }
+      if (lockGate.action === "conflict") {
+        if (teardownFlush) {
+          await this.rescueUnsavedToTemp(file, raw);
+          this.logDiag(`unsaved content rescued to temp path=${file.path} trigger=${trigger}`);
+          return;
+        }
+        if (this.file === file) {
+          this.openConflictModalWith(async () => this.app.vault.read(file));
+        }
+        this.logDiag(`save blocked by foreign lease path=${file.path} trigger=${trigger}`);
+        return;
+      }
       await writeNote(this.file, this.app.vault, json, trigger);
       // Remember exactly what we wrote: the vault "modify" event fired by
       // our own save must not be treated as an external change.
       this.syncedRaw = raw;
       this.dirty = false;
+      // The save succeeded: the dirty lease (if any) is released together
+      // with the dirty state it guarded (protocol: released on save).
+      await this.lease.release();
       await this.renameToTitleIfNeeded(json);
     } catch (err) {
       new Notice(`Failed to save note: ${String(err)}`);
@@ -1134,22 +1207,32 @@ export class NoteView extends FileView {
     }
 
     if (this.dirty) {
-      this.conflictModalOpen = true;
-      new FileChangedModal(this.app, {
-        onKeepLocal: () => {
-          void this.overwriteFileFromEditor();
-        },
-        onTakeDisk: () => {
-          void this.applyExternalContent(raw);
-        },
-        onClose: () => {
-          this.conflictModalOpen = false;
-        },
-      }).open();
+      this.openConflictModalWith(async () => raw);
       return;
     }
 
     await this.applyExternalContent(raw);
+  }
+
+  /** The shared conflict dialog chokepoint (the external-change watcher
+   *  and the lock-protocol gate): one dialog at a time; "take disk" loads
+   *  the disk version through `loadRaw` at resolution time. */
+  private openConflictModalWith(loadRaw: () => Promise<string>): void {
+    if (this.conflictModalOpen) return;
+    this.conflictModalOpen = true;
+    new FileChangedModal(this.app, {
+      onKeepLocal: () => {
+        void this.overwriteFileFromEditor();
+      },
+      onTakeDisk: () => {
+        void loadRaw()
+          .then((raw) => this.applyExternalContent(raw))
+          .catch((err) => console.error("Failed to reload note from disk:", err));
+      },
+      onClose: () => {
+        this.conflictModalOpen = false;
+      },
+    }).open();
   }
 
   /** Conflict resolution: the user chose the local version — write the
@@ -1199,16 +1282,76 @@ export class NoteView extends FileView {
 
   private async overwriteFileFromEditor(): Promise<void> {
     if (!this.editor || !this.file || this.editor.isDestroyed) return;
+    const file = this.file;
     try {
+      // The lock gate is never bypassed, not even by an explicit keep-local
+      // choice: "keep my changes" is a decision against the DISK version,
+      // while a live foreign lease means ANOTHER editor holds unsaved state
+      // this write would silently destroy (spec §9.2).
+      const lockGate = await resolveUmLockGate(
+        this.app.vault,
+        file.path,
+        detectNodeLockHost(),
+        this.lease.currentOpId(),
+      );
+      if (lockGate.action === "defer") {
+        this.scheduleSave();
+        this.logDiag(`keep-local deferred path=${file.path} reason=${lockGate.reason}`);
+        return;
+      }
+      if (lockGate.action === "conflict") {
+        this.openConflictModalWith(async () => this.app.vault.read(file));
+        this.logDiag(`keep-local blocked by foreign lease path=${file.path}`);
+        return;
+      }
       this.fixDuplicateBlockIds("conflict-keep-local");
       const json = this.editor.getJSON();
       const raw = JSON.stringify(json, null, 2);
       if (await this.blockEmptyOverwrite(json, "conflict-keep-local")) return;
-      await writeNote(this.file, this.app.vault, json, "conflict-keep-local");
+      await writeNote(file, this.app.vault, json, "conflict-keep-local");
       this.syncedRaw = raw;
       this.dirty = false;
+      await this.lease.release();
     } catch (err) {
       new Notice(`Failed to overwrite note: ${String(err)}`);
+    }
+  }
+
+  /** A blocked flush on a closing view can neither schedule a retry nor
+   *  raise a dialog: wait out a millisecond-scale commit lock briefly;
+   *  a longer blocker is reported back for the recovery rescue. */
+  private async settleGateForTeardown(
+    file: TFile,
+    gate: LockGateDecision,
+  ): Promise<LockGateDecision> {
+    for (let i = 0; i < 4 && gate.action !== "proceed"; i++) {
+      await new Promise((resolve) => window.setTimeout(resolve, 400));
+      gate = await resolveUmLockGate(
+        this.app.vault,
+        file.path,
+        detectNodeLockHost(),
+        this.lease.currentOpId(),
+      );
+    }
+    return gate;
+  }
+
+  /** Teardown rescue (spec §9.1 recovery direction): the view is dying
+   *  while a foreign holder blocks the write — park the dirty content in
+   *  a temp copy next to the file (same policy as the write path: never
+   *  delete the only good copy) and tell the user where it is. */
+  private async rescueUnsavedToTemp(file: TFile, raw: string): Promise<void> {
+    try {
+      const slash = file.path.lastIndexOf("/");
+      const dir = slash === -1 ? "" : file.path.slice(0, slash + 1);
+      const unique = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      const tmpPath = `${dir}.${file.name}.${unique}.tmp`;
+      await this.app.vault.adapter.write(tmpPath, raw);
+      new Notice(
+        `Unsaved changes were rescued to ${tmpPath} — the file was locked by another editor.`,
+      );
+    } catch (err) {
+      new Notice(`Failed to rescue unsaved changes: ${String(err)}`);
     }
   }
 

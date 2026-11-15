@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Editing a note now guards it against concurrent writers: the insum CLI refuses to touch a file you have unsaved edits in, and your own saves give way to a CLI commit instead of clobbering it. If a note closes while another editor holds the file, your unsaved changes are parked in a recovery copy next to it instead of being lost.
 - Search now finds matches hidden inside folded sections: jumping to such a match unfolds just that section, so the hit is on screen and highlighted. What the search unfolded stays unfolded — fold it back whenever you want.
 
 ### Changed
