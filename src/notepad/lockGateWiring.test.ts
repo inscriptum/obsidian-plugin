@@ -173,6 +173,27 @@ describe("writePendingChanges wiring of the lock gate", () => {
     expect(h.writeBinary).not.toHaveBeenCalled();
   });
 
+  it("mobile (no node host): the gate never runs — no sidecar IO, plain save", async () => {
+    // Strip the desktop shims: without window.require/window.process the
+    // view detects the NULL host (mobile) and skips the whole protocol.
+    const win = window as unknown as { require?: unknown; process?: unknown };
+    const savedRequire = win.require;
+    const savedProcess = win.process;
+    win.require = undefined;
+    win.process = undefined;
+    try {
+      const h = build({ [LEASE_PATH]: sidecarJson(LIVE_HOLDER, "lease") });
+      await h.view.writePendingChanges("autosave");
+      // The sidecar that WOULD block a desktop save was never even read.
+      expect(h.read).not.toHaveBeenCalled();
+      expect(h.remove).not.toHaveBeenCalled();
+      expect(h.writeBinary).toHaveBeenCalledTimes(1);
+    } finally {
+      win.require = savedRequire;
+      win.process = savedProcess;
+    }
+  });
+
   it("writes when both sidecars are absent (the plain autosave path)", async () => {
     const h = build();
     await h.view.writePendingChanges("autosave");
