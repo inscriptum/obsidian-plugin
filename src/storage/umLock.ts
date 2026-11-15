@@ -249,8 +249,8 @@ export function sidecarVerdict(
     staleAfterMs?: number;
     host: LockHost;
     /** op_id of THIS editor's live lease (when known): a sidecar recording
-     *  it is our own file even where the pid/host cannot be probed (mobile,
-     *  NULL host) — the op_id is unguessable and only its owner knows it. */
+     *  it is our own file even where the pid/host cannot be probed — the
+     *  op_id is unguessable and only its owner knows it. */
     ownOpId?: string | null;
   },
 ): SidecarVerdict {
@@ -562,9 +562,13 @@ export class EditorLease {
 
   /** Create the lease when the document is dirty; release it when a sync
    *  finds the document clean (covers the acquire-finishes-after-save
-   *  race without stranding a lease on a clean document). */
+   *  race without stranding a lease on a clean document). No-op without a
+   *  node host (mobile, issues/lock-protocol-mobile-scope): no second
+   *  local writer exists there, and synced sidecars are foreign noise —
+   *  the protocol runs only where the desktop CLI can race the editor. */
   sync(): Promise<void> {
     const run = this.chain.then(async () => {
+      if (this.deps.host == null) return;
       const path = this.deps.filePath();
       if (!path) return;
       if (this.opId != null) return;
@@ -615,8 +619,8 @@ export class EditorLease {
   }
 
   /** op_id of the lease this editor currently holds (null when none): the
-   *  save gate matches it to recognize our own sidecar where pid/host
-   *  probing is unavailable (mobile). */
+   *  desktop save gate matches it to recognize our own sidecar without
+   *  relying on pid/host probing alone. */
   currentOpId(): string | null {
     return this.opId;
   }

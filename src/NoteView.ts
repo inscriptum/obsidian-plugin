@@ -1122,39 +1122,46 @@ export class NoteView extends FileView {
       // is broken here per the recovery rules.
       const file = this.file;
       const teardownFlush = trigger === "unload-file" || trigger === "close";
-      let lockGate = await resolveUmLockGate(
-        this.app.vault,
-        file.path,
-        detectNodeLockHost(),
-        this.lease.currentOpId(),
-      );
-      if (teardownFlush && lockGate.action !== "proceed") {
-        // Closing view: no scheduled retry and no dialog can survive the
-        // teardown. A commit lock holds for milliseconds — wait it out
-        // briefly; anything longer (a live foreign lease) goes to the
-        // recovery branch below: rescue the dirty content to a temp copy
-        // and report it. Nothing is overwritten, nothing is silently
-        // dropped (spec §9.1).
-        lockGate = await this.settleGateForTeardown(file, lockGate);
-      }
-      if (lockGate.action === "defer") {
-        if (!teardownFlush && this.file === file) this.scheduleSave();
-        this.logDiag(
-          `save deferred path=${file.path} reason=${lockGate.reason} trigger=${trigger}`,
+      // The lock protocol runs where a second local writer can exist — the
+      // desktop CLI. On mobile (no node host) there is no CLI, and sidecars
+      // synced from a desktop are foreign noise: skip the gate entirely
+      // (issues/lock-protocol-mobile-scope). Cross-device conflicts stay on
+      // the external-change-watch path below.
+      if (detectNodeLockHost() != null) {
+        let lockGate = await resolveUmLockGate(
+          this.app.vault,
+          file.path,
+          detectNodeLockHost(),
+          this.lease.currentOpId(),
         );
-        return;
-      }
-      if (lockGate.action === "conflict") {
-        if (teardownFlush) {
-          await this.rescueUnsavedToTemp(file, raw);
-          this.logDiag(`unsaved content rescued to temp path=${file.path} trigger=${trigger}`);
+        if (teardownFlush && lockGate.action !== "proceed") {
+          // Closing view: no scheduled retry and no dialog can survive the
+          // teardown. A commit lock holds for milliseconds — wait it out
+          // briefly; anything longer (a live foreign lease) goes to the
+          // recovery branch below: rescue the dirty content to a temp copy
+          // and report it. Nothing is overwritten, nothing is silently
+          // dropped (spec §9.1).
+          lockGate = await this.settleGateForTeardown(file, lockGate);
+        }
+        if (lockGate.action === "defer") {
+          if (!teardownFlush && this.file === file) this.scheduleSave();
+          this.logDiag(
+            `save deferred path=${file.path} reason=${lockGate.reason} trigger=${trigger}`,
+          );
           return;
         }
-        if (this.file === file) {
-          this.openConflictModalWith(async () => this.app.vault.read(file));
+        if (lockGate.action === "conflict") {
+          if (teardownFlush) {
+            await this.rescueUnsavedToTemp(file, raw);
+            this.logDiag(`unsaved content rescued to temp path=${file.path} trigger=${trigger}`);
+            return;
+          }
+          if (this.file === file) {
+            this.openConflictModalWith(async () => this.app.vault.read(file));
+          }
+          this.logDiag(`save blocked by foreign lease path=${file.path} trigger=${trigger}`);
+          return;
         }
-        this.logDiag(`save blocked by foreign lease path=${file.path} trigger=${trigger}`);
-        return;
       }
       await writeNote(this.file, this.app.vault, json, trigger);
       // Remember exactly what we wrote: the vault "modify" event fired by
@@ -1287,22 +1294,25 @@ export class NoteView extends FileView {
       // The lock gate is never bypassed, not even by an explicit keep-local
       // choice: "keep my changes" is a decision against the DISK version,
       // while a live foreign lease means ANOTHER editor holds unsaved state
-      // this write would silently destroy (spec §9.2).
-      const lockGate = await resolveUmLockGate(
-        this.app.vault,
-        file.path,
-        detectNodeLockHost(),
-        this.lease.currentOpId(),
-      );
-      if (lockGate.action === "defer") {
-        this.scheduleSave();
-        this.logDiag(`keep-local deferred path=${file.path} reason=${lockGate.reason}`);
-        return;
-      }
-      if (lockGate.action === "conflict") {
-        this.openConflictModalWith(async () => this.app.vault.read(file));
-        this.logDiag(`keep-local blocked by foreign lease path=${file.path}`);
-        return;
+      // this write would silently destroy (spec §9.2). Desktop only —
+      // issues/lock-protocol-mobile-scope.
+      if (detectNodeLockHost() != null) {
+        const lockGate = await resolveUmLockGate(
+          this.app.vault,
+          file.path,
+          detectNodeLockHost(),
+          this.lease.currentOpId(),
+        );
+        if (lockGate.action === "defer") {
+          this.scheduleSave();
+          this.logDiag(`keep-local deferred path=${file.path} reason=${lockGate.reason}`);
+          return;
+        }
+        if (lockGate.action === "conflict") {
+          this.openConflictModalWith(async () => this.app.vault.read(file));
+          this.logDiag(`keep-local blocked by foreign lease path=${file.path}`);
+          return;
+        }
       }
       this.fixDuplicateBlockIds("conflict-keep-local");
       const json = this.editor.getJSON();

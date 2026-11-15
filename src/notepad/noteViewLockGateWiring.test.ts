@@ -117,6 +117,47 @@ describe("NoteView flushSave wiring of the lock gate", () => {
     expect(h.view.dirty).toBe(false);
   });
 
+  it("mobile (no node host): the gate never runs — no sidecar IO, plain save", async () => {
+    const win = window as unknown as { require?: unknown; process?: unknown };
+    const savedRequire = win.require;
+    const savedProcess = win.process;
+    win.require = undefined;
+    win.process = undefined;
+    try {
+      const h = build({ [LEASE_PATH]: sidecarJson(LIVE_HOLDER, "lease") });
+      await h.view.flushSave("autosave");
+      expect(h.read).not.toHaveBeenCalled();
+      expect(h.remove).not.toHaveBeenCalled();
+      expect(h.writeNote).toHaveBeenCalledTimes(1);
+      expect(h.view.dirty).toBe(false);
+    } finally {
+      win.require = savedRequire;
+      win.process = savedProcess;
+    }
+  });
+
+  it("mobile (no node host): keep-local writes without touching sidecars", async () => {
+    const win = window as unknown as { require?: unknown; process?: unknown };
+    const savedRequire = win.require;
+    const savedProcess = win.process;
+    win.require = undefined;
+    win.process = undefined;
+    try {
+      const h = build({ [LEASE_PATH]: sidecarJson(LIVE_HOLDER, "lease") });
+      await h.view.overwriteFileFromEditor();
+      // Desktop keep-local would hit the conflict dialog; on mobile there
+      // is no gate at all — the write goes through, sidecars untouched.
+      expect(h.writeNote).toHaveBeenCalledTimes(1);
+      expect(h.read).not.toHaveBeenCalled();
+      expect(h.remove).not.toHaveBeenCalled();
+      expect(h.openModal).not.toHaveBeenCalled();
+      expect(h.view.dirty).toBe(false);
+    } finally {
+      win.require = savedRequire;
+      win.process = savedProcess;
+    }
+  });
+
   it("rescues dirty content to a temp copy on a teardown flush blocked by a live lease", async () => {
     const h = build({ [LEASE_PATH]: sidecarJson(LIVE_HOLDER, "lease") });
     await h.view.flushSave("close");

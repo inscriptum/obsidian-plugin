@@ -3815,42 +3815,49 @@ export class NotepadView extends FileView {
     // is a choice against the disk version, not against a live foreign
     // editor holding unsaved state.
     const teardownFlush = trigger === "unload-file" || trigger === "close";
-    let lockGate = await resolveUmLockGate(
-      this.app.vault,
-      file.path,
-      detectNodeLockHost(),
-      this.lease.currentOpId(),
-    );
-    if (teardownFlush && lockGate.action !== "proceed") {
-      // Closing view: no scheduled retry and no dialog can survive the
-      // teardown — wait out a millisecond-scale commit lock briefly; a
-      // longer blocker falls through to the conflict branch, which
-      // rescues the dirty pages (spec §9.1 recovery direction).
-      lockGate = await this.settleGateForTeardown(file, lockGate);
-    }
-    if (lockGate.action === "defer") {
-      if (!teardownFlush && this.file === file) this.scheduleSave();
-      await logDiagEvent(
+    // The lock protocol runs where a second local writer can exist — the
+    // desktop CLI. On mobile (no node host) there is no CLI, and sidecars
+    // synced from a desktop are foreign noise that would only delay the
+    // autosave: skip the gate entirely (issues/lock-protocol-mobile-scope).
+    // Cross-device conflicts stay on the external-change-watch path below.
+    if (detectNodeLockHost() != null) {
+      let lockGate = await resolveUmLockGate(
         this.app.vault,
-        `um-save deferred path=${file.path} reason=${lockGate.reason} trigger=${trigger}`,
+        file.path,
+        detectNodeLockHost(),
+        this.lease.currentOpId(),
       );
-      return;
-    }
-    if (lockGate.action === "conflict") {
-      if (teardownFlush) {
-        await this.rescueUnsavedToTemp(file, notepad.serialize());
+      if (teardownFlush && lockGate.action !== "proceed") {
+        // Closing view: no scheduled retry and no dialog can survive the
+        // teardown — wait out a millisecond-scale commit lock briefly; a
+        // longer blocker falls through to the conflict branch, which
+        // rescues the dirty pages (spec §9.1 recovery direction).
+        lockGate = await this.settleGateForTeardown(file, lockGate);
+      }
+      if (lockGate.action === "defer") {
+        if (!teardownFlush && this.file === file) this.scheduleSave();
         await logDiagEvent(
           this.app.vault,
-          `um-unsaved rescued to temp path=${file.path} trigger=${trigger}`,
+          `um-save deferred path=${file.path} reason=${lockGate.reason} trigger=${trigger}`,
         );
         return;
       }
-      if (this.file === file) this.openConflictModal();
-      await logDiagEvent(
-        this.app.vault,
-        `um-save blocked by foreign lease path=${file.path} trigger=${trigger}`,
-      );
-      return;
+      if (lockGate.action === "conflict") {
+        if (teardownFlush) {
+          await this.rescueUnsavedToTemp(file, notepad.serialize());
+          await logDiagEvent(
+            this.app.vault,
+            `um-unsaved rescued to temp path=${file.path} trigger=${trigger}`,
+          );
+          return;
+        }
+        if (this.file === file) this.openConflictModal();
+        await logDiagEvent(
+          this.app.vault,
+          `um-save blocked by foreign lease path=${file.path} trigger=${trigger}`,
+        );
+        return;
+      }
     }
 
     // Pre-write gate (issues/um-external-change-watch): a flush trigger can

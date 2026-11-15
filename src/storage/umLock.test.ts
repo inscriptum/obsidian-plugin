@@ -432,3 +432,20 @@ describe("detectNodeLockHost (real node host, pid guard)", () => {
     expect(host.pidAlive(process.pid)).toBe(true);
   });
 });
+
+describe("EditorLease without a node host (mobile scope)", () => {
+  it("sync is a no-op: no lease file is ever created or read", async () => {
+    const { adapter, files, reads } = fakeAdapter();
+    const lease = new EditorLease({
+      vault: leaseVault(adapter),
+      filePath: () => FILE,
+      hasUnsavedChanges: () => true,
+      host: null,
+    });
+    await lease.sync();
+    await lease.release();
+    expect(files.size).toBe(0);
+    expect(reads.count).toBe(0);
+    expect(lease.currentOpId()).toBe(null);
+  });
+});
