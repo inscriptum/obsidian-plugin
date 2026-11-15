@@ -381,6 +381,14 @@ export const Image = Node.create<ImageOptions>({
   addNodeView() {
     const element = new ImageElement();
     element.addClass("texto-extension-image-host");
+    // Mobile drawer-swipe opt-out (issues/image-resize-edge-swipe): the
+    // resize handles sit at the image's edges — near the screen edges on a
+    // full-width image — and a drag starting on a handle (or the body)
+    // was swallowed by Obsidian's shell swipe. The attribute walks up the
+    // touch-target chain from BOTH the handles and the image body, so the
+    // whole node area opts out — the same width as the tables' accepted
+    // side effect (tableView.ts).
+    element.setAttribute("data-ignore-swipe", "true");
 
     return ({ node, getPos, editor }) => {
       if (!isFunction(getPos)) {

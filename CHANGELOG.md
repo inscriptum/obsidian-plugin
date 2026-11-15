@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Android: resizing an image no longer opens the app's side panel — the drag on its resize handles is no longer mistaken for a shell swipe, and the width commits as before.
 - Tabs for .um notepad files now show an icon — the same notebook-pen as regular notes. The app had been asking Obsidian for an icon name that doesn't exist, so the tab stayed blank.
 
 ## [0.14.1] - 2026-11-06
