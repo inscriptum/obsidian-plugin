@@ -21,10 +21,37 @@ vi.mock("../storage/noteStorage", async (importOriginal) => {
 
 const { NoteView } = await import("../NoteView");
 const { writeNote } = await import("../storage/noteStorage");
+import { UmNotepad } from "../storage/um/umNotepad";
 
 const req = createRequire(import.meta.url);
+const shimStore = new Map<string, string>();
+let fdSeq = 1;
+const openFds = new Map<number, { path: string }>();
+const fsShim = {
+  renameSync: () => {},
+  openSync: (path: string, _flags: string) => {
+    if (shimStore.has(path)) {
+      const err = new Error("EEXIST") as Error & { code?: string };
+      err.code = "EEXIST";
+      throw err;
+    }
+    const fd = fdSeq++;
+    openFds.set(fd, { path });
+    return fd;
+  },
+  writeSync: (fd: number, data: string) => {
+    const entry = openFds.get(fd);
+    if (entry != null) shimStore.set(entry.path, data);
+    return data.length;
+  },
+  closeSync: (fd: number) => {
+    openFds.delete(fd);
+  },
+  chmodSync: () => {},
+};
+
 (window as unknown as { require?: (id: string) => unknown }).require = (id: string) => {
-  if (id === "fs") return { renameSync: () => {} };
+  if (id === "fs") return fsShim;
   return req(id);
 };
 (window as unknown as { process?: unknown }).process = process;
@@ -48,29 +75,45 @@ const LOCK_PATH = `local/.y.note${LOCK_SUFFIX}`;
 const LEASE_PATH = `local/.y.note${LEASE_SUFFIX}`;
 
 function build(sidecars: Record<string, string> = {}) {
+  // The adapter and the fs shim share one store, so the lease lifecycle
+  // (acquire via fs O_EXCL, release/remove) observes real file effects.
+  shimStore.clear();
+  for (const [k, v] of Object.entries(sidecars)) shimStore.set(k, v);
   const stat = vi.fn(async (path: string) => {
-    if (path in sidecars) return { mtime: Date.now() - 500, size: sidecars[path].length };
     if (path === FILE) return { mtime: 100, size: 10 };
+    if (shimStore.has(path)) return { mtime: Date.now() - 500, size: (shimStore.get(path) as string).length };
     return null;
   });
   const read = vi.fn(async (path: string) => {
-    if (path in sidecars) return sidecars[path];
+    if (shimStore.has(path)) return shimStore.get(path) as string;
     throw new Error("missing");
   });
-  const remove = vi.fn(async () => {});
-  const write = vi.fn(async (_path: string, _data: string) => {});
+  const remove = vi.fn(async (path: string) => {
+    shimStore.delete(path);
+  });
+  const write = vi.fn(async (path: string, data: string) => {
+    shimStore.set(path, data);
+  });
+  const readBinary = vi.fn(async () => UmNotepad.empty().serialize().slice().buffer);
   const openModal = vi.fn();
   const scheduleSave = vi.fn();
   const view = Object.create(NoteView.prototype) as Record<string, unknown> & {
     flushSave: (trigger?: string) => Promise<void>;
     overwriteFileFromEditor: () => Promise<void>;
+    applyExternalContent: (raw: string) => Promise<void>;
+    lease: { sync(): Promise<void>; release(): Promise<void>; currentOpId(): string | null };
   };
   Object.assign(view, {
-    editor: { getJSON: () => ({ type: "doc" }), isDestroyed: false },
+    editor: {
+      getJSON: () => ({ type: "doc" }),
+      isDestroyed: false,
+      commands: { setContent: () => {} },
+    },
     file: { path: FILE, name: "y.note", stat: { size: 10 } },
     app: {
       vault: {
-        adapter: { stat, read, remove, write },
+        adapter: { stat, read, remove, write, getFullPath: (p: string) => p },
+        readBinary,
         read: async () => "",
       },
     },
@@ -88,7 +131,7 @@ function build(sidecars: Record<string, string> = {}) {
   // The writeNote mock is module-level and shared across tests — reset its
   // call history per build so the per-test counts stay independent.
   (writeNote as ReturnType<typeof vi.fn>).mockClear();
-  return { view, stat, read, remove, write, openModal, scheduleSave, writeNote: writeNote as ReturnType<typeof vi.fn> };
+  return { view, stat, read, remove, write, files: shimStore, openModal, scheduleSave, writeNote: writeNote as ReturnType<typeof vi.fn> };
 }
 
 describe("NoteView flushSave wiring of the lock gate", () => {
@@ -114,6 +157,47 @@ describe("NoteView flushSave wiring of the lock gate", () => {
     await h.view.flushSave("autosave");
     expect(h.remove).toHaveBeenCalledWith(LEASE_PATH);
     expect(h.writeNote).toHaveBeenCalledTimes(1);
+    expect(h.view.dirty).toBe(false);
+  });
+
+  it("teardown flush rescues on defer too (fresh cross-host blocker)", async () => {
+    const crossHost = { kind: "cli", pid: 424242, hostname: "other.machine" };
+    const h = build({ [LOCK_PATH]: sidecarJson(crossHost, "lock") });
+    await h.view.flushSave("close");
+    // A fresh cross-host sidecar outlives the bounded teardown wait — the
+    // rescue branch must fire for defer as well, not only conflict.
+    expect(h.write).toHaveBeenCalledTimes(1);
+    expect(h.write.mock.calls[0][0]).toMatch(/^local\/\.y\.note\..*\.tmp$/);
+    expect(h.writeNote).not.toHaveBeenCalled();
+    expect(h.openModal).not.toHaveBeenCalled();
+    expect(h.scheduleSave).not.toHaveBeenCalled();
+  }, 10_000);
+
+  it("an edit landing during the write keeps the lease; a clean save releases it", async () => {
+    const h = build();
+    h.view.dirty = true;
+    await h.view.lease.sync();
+    expect(h.files.has(LEASE_PATH)).toBe(true);
+    (h.writeNote as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+      h.view.dirty = true; // onUpdate fired while the disk write was in flight
+    });
+    await h.view.flushSave("autosave");
+    // The newer edits are unsaved — releasing here would leave them
+    // unprotected until the next keystroke.
+    expect(h.files.has(LEASE_PATH)).toBe(true);
+    await h.view.flushSave("autosave"); // the follow-up flush, clean
+    expect(h.files.has(LEASE_PATH)).toBe(false);
+  });
+
+  it("loading the disk version releases the dirty lease", async () => {
+    const h = build();
+    h.view.dirty = true;
+    await h.view.lease.sync();
+    expect(h.files.has(LEASE_PATH)).toBe(true);
+    await h.view.applyExternalContent(JSON.stringify({ type: "doc", content: [] }));
+    // The editor now mirrors the disk — a live holder for a clean doc
+    // would make the CLI refuse writes forever.
+    expect(h.files.has(LEASE_PATH)).toBe(false);
     expect(h.view.dirty).toBe(false);
   });
 

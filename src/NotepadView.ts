@@ -674,6 +674,13 @@ export class NotepadView extends FileView {
         if (file === this.file) this.onFileMaybeExternallyChanged();
       }),
     );
+    // A rename with unsaved changes must move the dirty lease to the new
+    // name right away (the CLI writes the renamed path — PR #26 review).
+    this.registerEvent(
+      this.app.vault.on("rename", (file) => {
+        if (file === this.file) void this.lease.sync();
+      }),
+    );
 
     this.registerEvent(
       this.app.workspace.on("active-leaf-change", async (leaf) => {
@@ -3801,8 +3808,9 @@ export class NotepadView extends FileView {
     if (!force && notepad.dirtyNotes.size === 0 && !notepad.structureChanged) {
       this.dirty = false;
       // Clean document: a lease must not outlive the dirty state (the
-      // sync-finished-after-save race is closed here too).
-      void this.lease.release();
+      // sync-finished-after-save race is closed here too). Awaited so a
+      // teardown flush and its callers see the sidecar actually gone.
+      await this.lease.release();
       return;
     }
 
@@ -3829,13 +3837,23 @@ export class NotepadView extends FileView {
       );
       if (teardownFlush && lockGate.action !== "proceed") {
         // Closing view: no scheduled retry and no dialog can survive the
-        // teardown — wait out a millisecond-scale commit lock briefly; a
-        // longer blocker falls through to the conflict branch, which
-        // rescues the dirty pages (spec §9.1 recovery direction).
+        // teardown — wait out a millisecond-scale commit lock briefly;
+        // anything longer (a fresh cross-host sidecar, an unreadable one,
+        // a live foreign lease) gets the recovery rescue below. Every
+        // blocked close-time result rescues — dropping the dirty pages
+        // silently is not an option (spec §9.1, PR #26 review).
         lockGate = await this.settleGateForTeardown(file, lockGate);
       }
+      if (teardownFlush && lockGate.action !== "proceed") {
+        await this.rescueUnsavedToTemp(file, notepad.serialize());
+        await logDiagEvent(
+          this.app.vault,
+          `um-unsaved rescued to temp path=${file.path} trigger=${trigger}`,
+        );
+        return;
+      }
       if (lockGate.action === "defer") {
-        if (!teardownFlush && this.file === file) this.scheduleSave();
+        if (this.file === file) this.scheduleSave();
         await logDiagEvent(
           this.app.vault,
           `um-save deferred path=${file.path} reason=${lockGate.reason} trigger=${trigger}`,
@@ -3843,14 +3861,6 @@ export class NotepadView extends FileView {
         return;
       }
       if (lockGate.action === "conflict") {
-        if (teardownFlush) {
-          await this.rescueUnsavedToTemp(file, notepad.serialize());
-          await logDiagEvent(
-            this.app.vault,
-            `um-unsaved rescued to temp path=${file.path} trigger=${trigger}`,
-          );
-          return;
-        }
         if (this.file === file) this.openConflictModal();
         await logDiagEvent(
           this.app.vault,
@@ -3905,9 +3915,14 @@ export class NotepadView extends FileView {
       new Notice(`Failed to save notepad: ${String(err)}`);
       return;
     }
-    // The flush succeeded: the dirty lease (if any) is released together
-    // with the dirty state it guarded (protocol: released on save).
-    await this.lease.release();
+    // The flush succeeded: release the lease only when the document came
+    // out clean — an edit landing during the disk wait re-marked dirty
+    // (its scheduleSave found the lease held and no-op'ed), and releasing
+    // would leave those newer edits unprotected until the next keystroke
+    // (PR #26 review).
+    const stillDirty =
+      notepad.dirtyNotes.size > 0 || notepad.structureChanged || this.dirty;
+    if (!stillDirty) await this.lease.release();
     // The flushed pages may have changed anchor presence (text deleted or
     // undone) or the page set (deletion) — the open panel must follow.
     this.refreshCommentsModels();
@@ -4045,6 +4060,10 @@ export class NotepadView extends FileView {
       // The panel (if open) must drop the pre-reload cards — the fresh
       // notepad's threads replace them.
       this.refreshCommentsUI();
+      // The editor now mirrors the disk (clean): a lease held from the
+      // pre-reload dirty state must go, or the CLI keeps seeing a live
+      // holder for a document with no unsaved changes (PR #26 review).
+      await this.lease.release();
     } catch (err) {
       console.error("Failed to reload notepad from disk:", err);
     }

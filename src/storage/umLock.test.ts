@@ -7,6 +7,7 @@ import {
   isInsumSidecarPath,
   parseSidecarText,
   readSidecar,
+  resolveUmLockGate,
   sidecarAgeMs,
   sidecarNameFits,
   sidecarPaths,
@@ -328,7 +329,7 @@ describe("EditorLease", () => {
     expect(files.has(LEASE_PATH)).toBe(true);
   });
 
-  it("does not acquire over a live foreign lease; adopts its own stale-process file", async () => {
+  it("does not acquire over a live foreign or same-process lease", async () => {
     const foreign = sidecar({
       holder: { kind: "plugin", pid: 7, hostname: "other.host" },
       created_at: Date.now() - 1_000, // fresh: cross-host, still conservative-live
@@ -337,15 +338,65 @@ describe("EditorLease", () => {
     const lease = new EditorLease(deps(adapter, { dirty: () => true }));
     await lease.sync();
     expect(files.get(LEASE_PATH)).toBe(JSON.stringify(foreign)); // untouched
+    expect(lease.currentOpId()).toBe(null);
 
-    const ownStale = sidecar({ holder: { kind: "plugin", pid: 4242, hostname: "mac.local" } });
+    // Same pid + host: that is another PANE of this very process editing
+    // the same file — adopting (and later releasing) its lease would strip
+    // the sibling pane's protection (PR #26 review). Never adopted.
+    const sibling = sidecar({ holder: { kind: "plugin", pid: 4242, hostname: "mac.local" } });
     const { adapter: adapter2, files: files2 } = fakeAdapter({
-      [LEASE_PATH]: JSON.stringify(ownStale),
+      [LEASE_PATH]: JSON.stringify(sibling),
     });
     const lease2 = new EditorLease(deps(adapter2, { dirty: () => true }));
     await lease2.sync();
-    const body = JSON.parse(files2.get(LEASE_PATH) as string);
-    expect(body.op_id).toBe(ownStale.op_id); // adopted, not duplicated
+    expect(files2.get(LEASE_PATH)).toBe(JSON.stringify(sibling)); // untouched
+    expect(lease2.currentOpId()).toBe(null);
+  });
+
+  it("a failed removal keeps the op_id — the next release retries", async () => {
+    const { adapter, files } = fakeAdapter();
+    let failRemove = true;
+    const failing = {
+      ...adapter,
+      remove: async (path: string) => {
+        if (failRemove) throw new Error("EBUSY");
+        files.delete(path);
+      },
+    };
+    const lease = new EditorLease(deps(failing, { dirty: () => true }));
+    await lease.sync();
+    expect(files.has(LEASE_PATH)).toBe(true);
+    await lease.release();
+    // Removal failed: the sidecar stays and its owner is NOT forgotten —
+    // a forgotten op_id would orphan the file with nobody able to release.
+    expect(files.has(LEASE_PATH)).toBe(true);
+    expect(lease.currentOpId()).not.toBe(null);
+    failRemove = false;
+    await lease.release(); // retried on the next save/close
+    expect(files.has(LEASE_PATH)).toBe(false);
+    expect(lease.currentOpId()).toBe(null);
+  });
+
+  it("sync moves the lease when the file is renamed while dirty", async () => {
+    const { adapter, files } = fakeAdapter();
+    const live = { path: FILE };
+    const lease = new EditorLease({
+      vault: leaseVault(adapter),
+      filePath: () => live.path,
+      hasUnsavedChanges: () => true,
+      host: SAME_HOST,
+    });
+    await lease.sync();
+    expect(files.has(LEASE_PATH)).toBe(true);
+    const oldOpId = lease.currentOpId();
+    live.path = "local/renamed.um"; // user rename while the doc is dirty
+    await lease.sync();
+    expect(files.has(LEASE_PATH)).toBe(false); // old sidecar released
+    expect(files.has("local/.renamed.um.insum-lease")).toBe(true); // moved
+    expect(lease.currentOpId()).not.toBe(null);
+    expect(lease.currentOpId()).not.toBe(oldOpId); // fresh acquire
+    await lease.release();
+    expect(files.has("local/.renamed.um.insum-lease")).toBe(false);
   });
 
   it("cleans up when the save lands while the acquire is in flight", async () => {
@@ -447,5 +498,48 @@ describe("EditorLease without a node host (mobile scope)", () => {
     expect(files.size).toBe(0);
     expect(reads.count).toBe(0);
     expect(lease.currentOpId()).toBe(null);
+  });
+});
+
+describe("resolveUmLockGate: fresh corrupt sidecars are not deleted (PR #26 review)", () => {
+  const DOC = "local/z.um";
+  const LOCK = "local/.z.um.insum-lock";
+  const LEASE = "local/.z.um.insum-lease";
+
+  function corruptVault(sidecarMtimes: Record<string, number>) {
+    const removed: string[] = [];
+    const adapter = {
+      stat: async (p: string) =>
+        sidecarMtimes[p] != null
+          ? { mtime: sidecarMtimes[p], size: 7 }
+          : p === DOC
+            ? { mtime: 1, size: 1 }
+            : null,
+      read: async () => "corrupted and not json {{{",
+      remove: async (p: string) => {
+        removed.push(p);
+      },
+    };
+    return { vault: { adapter } as never, removed };
+  }
+
+  it("fresh corrupt blocks conservatively and survives the cleanup", async () => {
+    const { vault, removed } = corruptVault({
+      [LEASE]: Date.now() - 500,
+      [LOCK]: Date.now() - 500,
+    });
+    const decision = await resolveUmLockGate(vault, DOC, SAME_HOST);
+    expect(decision.action).toBe("defer");
+    expect(removed).toEqual([]); // an active writer's mid-write file stands
+  });
+
+  it("aged corrupt is broken and the write proceeds", async () => {
+    const { vault, removed } = corruptVault({
+      [LEASE]: Date.now() - 120_000,
+      [LOCK]: Date.now() - 120_000,
+    });
+    const decision = await resolveUmLockGate(vault, DOC, SAME_HOST);
+    expect(decision.action).toBe("proceed");
+    expect(removed.sort()).toEqual([LOCK, LEASE].sort());
   });
 });

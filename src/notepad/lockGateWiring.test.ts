@@ -3,6 +3,7 @@ import os from "node:os";
 import { describe, expect, it, vi } from "vitest";
 import { NotepadView } from "../NotepadView";
 import { LEASE_SUFFIX, LOCK_SUFFIX } from "../storage/umLock";
+import { UmNotepad } from "../storage/um/umNotepad";
 
 /**
  * Wiring of the lock-protocol gate (issues/um-lock-lease) into the
@@ -17,8 +18,34 @@ import { LEASE_SUFFIX, LOCK_SUFFIX } from "../storage/umLock";
  */
 
 const req = createRequire(import.meta.url);
+const shimStore = new Map<string, string>();
+let fdSeq = 1;
+const openFds = new Map<number, { path: string }>();
+const fsShim = {
+  renameSync: () => {},
+  openSync: (path: string, _flags: string) => {
+    if (shimStore.has(path)) {
+      const err = new Error("EEXIST") as Error & { code?: string };
+      err.code = "EEXIST";
+      throw err;
+    }
+    const fd = fdSeq++;
+    openFds.set(fd, { path });
+    return fd;
+  },
+  writeSync: (fd: number, data: string) => {
+    const entry = openFds.get(fd);
+    if (entry != null) shimStore.set(entry.path, data);
+    return data.length;
+  },
+  closeSync: (fd: number) => {
+    openFds.delete(fd);
+  },
+  chmodSync: () => {},
+};
+
 (window as unknown as { require?: (id: string) => unknown }).require = (id: string) => {
-  if (id === "fs") return { renameSync: () => {} }; // never reached: the fake adapter has no getFullPath
+  if (id === "fs") return fsShim;
   return req(id);
 };
 // Desktop reality: with node integration the renderer exposes process on
@@ -45,6 +72,8 @@ type AnyView = Record<string, unknown> & {
     force?: boolean,
     bypassExternalCheck?: boolean,
   ) => Promise<void>;
+  reloadFromDisk: () => Promise<void>;
+  lease: { sync(): Promise<void>; release(): Promise<void>; currentOpId(): string | null };
 };
 
 interface Harness {
@@ -54,25 +83,32 @@ interface Harness {
   remove: ReturnType<typeof vi.fn>;
   writeBinary: ReturnType<typeof vi.fn>;
   rename: ReturnType<typeof vi.fn>;
+  files: Map<string, string>;
   openModal: ReturnType<typeof vi.fn>;
   scheduleSave: ReturnType<typeof vi.fn>;
   notepad: { dirtyNotes: Set<string>; structureChanged: boolean; savedFingerprint: string | null };
 }
 
 function build(sidecars: Record<string, string> = {}): Harness {
+  // The adapter and the fs shim share one store, so the lease lifecycle
+  // (acquire via fs O_EXCL, release/remove) observes real file effects.
+  shimStore.clear();
+  for (const [k, v] of Object.entries(sidecars)) shimStore.set(k, v);
   const stat = vi.fn(async (path: string) => {
-    if (path in sidecars) return { mtime: Date.now() - 500, size: sidecars[path].length };
+    if (shimStore.has(path)) return { mtime: Date.now() - 500, size: (shimStore.get(path) as string).length };
     // Real-adapter shape: only the document stats to something; any other
     // path (an absent sidecar) is null → the gate reads it as absent.
     if (path === FILE) return { mtime: 100, size: 10 } as { mtime: number; size: number };
     return null;
   });
   const read = vi.fn(async (path: string) => {
-    if (path in sidecars) return sidecars[path];
+    if (shimStore.has(path)) return shimStore.get(path) as string;
     throw new Error("missing");
   });
-  const remove = vi.fn(async (path: string) => {});
-  const writeBinary = vi.fn(async () => {});
+  const remove = vi.fn(async (path: string) => {
+    shimStore.delete(path);
+  });
+  const writeBinary = vi.fn(async (_path: string, _data: ArrayBuffer) => {});
   const rename = vi.fn(async () => {});
   const openModal = vi.fn();
   const scheduleSave = vi.fn();
@@ -84,12 +120,18 @@ function build(sidecars: Record<string, string> = {}): Harness {
     notes: () => [{ id: "p1" }],
     isNoteOpenable: () => false,
     noteContent: () => null,
+    destroy: () => {},
   };
   const view = Object.create(NotepadView.prototype) as AnyView;
   Object.assign(view, {
     notepad,
     file: { path: "local/x.um", name: "x.um", stat: { size: 10 } },
-    app: { vault: { adapter: { stat, read, remove, writeBinary, rename } } },
+    app: {
+      vault: {
+        adapter: { stat, read, remove, writeBinary, rename, getFullPath: (p: string) => p },
+        readBinary: async () => UmNotepad.empty().serialize().slice().buffer,
+      },
+    },
     saveChain: Promise.resolve(),
     saveTimer: null,
     dirty: true,
@@ -97,6 +139,10 @@ function build(sidecars: Record<string, string> = {}): Harness {
     sections: new Map(),
     syncNavTitles: () => {},
     refreshCommentsModels: () => {},
+    refreshCommentsUI: () => {},
+    destroyAllSections: () => {},
+    render: () => {},
+    restoreNotepadUiState: async () => {},
     openConflictModal: openModal,
     scheduleSave,
   });
@@ -107,6 +153,7 @@ function build(sidecars: Record<string, string> = {}): Harness {
     remove,
     writeBinary,
     rename,
+    files: shimStore,
     openModal,
     scheduleSave,
     notepad: notepad as Harness["notepad"],
@@ -171,6 +218,42 @@ describe("writePendingChanges wiring of the lock gate", () => {
     await h.view.writePendingChanges("autosave");
     expect(h.read).not.toHaveBeenCalled();
     expect(h.writeBinary).not.toHaveBeenCalled();
+  });
+
+  it("teardown flush rescues on defer too (fresh cross-host blocker)", async () => {
+    const crossHost = { kind: "cli", pid: 424242, hostname: "other.machine" };
+    const h = build({ [LOCK_PATH]: sidecarJson(crossHost, "lock") });
+    await h.view.writePendingChanges("close");
+    // A fresh cross-host sidecar outlives the bounded teardown wait — the
+    // rescue must fire for defer as well, not only for conflict.
+    expect(h.writeBinary).toHaveBeenCalledTimes(1);
+    expect(h.writeBinary.mock.calls[0][0]).toMatch(/^local\/\.x\.um\..*\.tmp$/);
+    expect(h.rename).not.toHaveBeenCalled();
+    expect(h.openModal).not.toHaveBeenCalled();
+    expect(h.scheduleSave).not.toHaveBeenCalled();
+  }, 10_000);
+
+  it("an edit landing during the write keeps the lease; a clean flush releases it", async () => {
+    const h = build();
+    await h.view.lease.sync();
+    expect(h.files.has(LEASE_PATH)).toBe(true);
+    h.writeBinary.mockImplementationOnce(async () => {
+      h.notepad.dirtyNotes.add("p2"); // an edit lands during the disk wait
+    });
+    await h.view.writePendingChanges("autosave");
+    // The newer edits are unsaved — the lease must stay.
+    expect(h.files.has(LEASE_PATH)).toBe(true);
+    h.notepad.dirtyNotes.clear();
+    await h.view.writePendingChanges("autosave"); // the follow-up flush, clean
+    expect(h.files.has(LEASE_PATH)).toBe(false);
+  });
+
+  it("reloadFromDisk releases the dirty lease (clean notepad must not stay locked)", async () => {
+    const h = build();
+    await h.view.lease.sync();
+    expect(h.files.has(LEASE_PATH)).toBe(true);
+    await h.view.reloadFromDisk();
+    expect(h.files.has(LEASE_PATH)).toBe(false);
   });
 
   it("mobile (no node host): the gate never runs — no sidecar IO, plain save", async () => {

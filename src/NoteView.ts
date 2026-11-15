@@ -286,6 +286,13 @@ export class NoteView extends FileView {
         if (file === this.file) this.onFileMaybeExternallyChanged();
       }),
     );
+    // A rename with unsaved changes must move the dirty lease to the new
+    // name right away (the CLI writes the renamed path — PR #26 review).
+    this.registerEvent(
+      this.app.vault.on("rename", (file) => {
+        if (file === this.file) void this.lease.sync();
+      }),
+    );
   }
 
   /** Mirror Obsidian's mobile navigation behavior for our inner scroll area.
@@ -1137,25 +1144,26 @@ export class NoteView extends FileView {
         if (teardownFlush && lockGate.action !== "proceed") {
           // Closing view: no scheduled retry and no dialog can survive the
           // teardown. A commit lock holds for milliseconds — wait it out
-          // briefly; anything longer (a live foreign lease) goes to the
-          // recovery branch below: rescue the dirty content to a temp copy
-          // and report it. Nothing is overwritten, nothing is silently
-          // dropped (spec §9.1).
+          // briefly; anything longer (a fresh cross-host sidecar, an
+          // unreadable one, a live foreign lease) gets the recovery
+          // branch: rescue the dirty content to a temp copy and report it.
+          // Every blocked close-time result rescues — dropping the edits
+          // silently is not an option (spec §9.1, PR #26 review).
           lockGate = await this.settleGateForTeardown(file, lockGate);
         }
+        if (teardownFlush && lockGate.action !== "proceed") {
+          await this.rescueUnsavedToTemp(file, raw);
+          this.logDiag(`unsaved content rescued to temp path=${file.path} trigger=${trigger}`);
+          return;
+        }
         if (lockGate.action === "defer") {
-          if (!teardownFlush && this.file === file) this.scheduleSave();
+          if (this.file === file) this.scheduleSave();
           this.logDiag(
             `save deferred path=${file.path} reason=${lockGate.reason} trigger=${trigger}`,
           );
           return;
         }
         if (lockGate.action === "conflict") {
-          if (teardownFlush) {
-            await this.rescueUnsavedToTemp(file, raw);
-            this.logDiag(`unsaved content rescued to temp path=${file.path} trigger=${trigger}`);
-            return;
-          }
           if (this.file === file) {
             this.openConflictModalWith(async () => this.app.vault.read(file));
           }
@@ -1167,10 +1175,13 @@ export class NoteView extends FileView {
       // Remember exactly what we wrote: the vault "modify" event fired by
       // our own save must not be treated as an external change.
       this.syncedRaw = raw;
+      // An edit landing during the disk wait re-marked dirty and its
+      // scheduleSave found the lease still held (sync no-ops then) —
+      // releasing here would leave those newer edits unprotected until
+      // the next keystroke (PR #26 review). Release only a clean doc.
+      const editedDuringWrite = this.dirty;
       this.dirty = false;
-      // The save succeeded: the dirty lease (if any) is released together
-      // with the dirty state it guarded (protocol: released on save).
-      await this.lease.release();
+      if (!editedDuringWrite) await this.lease.release();
       await this.renameToTitleIfNeeded(json);
     } catch (err) {
       new Notice(`Failed to save note: ${String(err)}`);
@@ -1388,6 +1399,10 @@ export class NoteView extends FileView {
         this.applyingRemoteChange = false;
       }
       this.syncedRaw = raw;
+      // The editor now mirrors the disk (clean): a lease held from the
+      // pre-reload dirty state must go, or the CLI keeps seeing a live
+      // holder for a document with no unsaved changes (PR #26 review).
+      await this.lease.release();
       this.dirty = false;
     } catch (err) {
       console.error("Failed to apply external note content:", err);

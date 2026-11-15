@@ -318,7 +318,11 @@ export async function resolveUmLockGate(
   const read = async (path: string) => {
     const r = await readSidecar(vault.adapter, path);
     let mtime: number | null = null;
-    if (r.state === "supported" || r.state === "foreign") {
+    // corrupt too: creation is a two-step (create, then write the body), so
+    // a fresh sidecar can briefly expose empty/partial JSON — without the
+    // mtime its age is infinite and the cleanup below would delete an
+    // active writer's protection mid-commit (PR #26 review).
+    if (r.state !== "absent" && r.state !== "unreadable") {
       try {
         mtime = (await vault.adapter.stat(path))?.mtime ?? null;
       } catch {
@@ -394,11 +398,6 @@ export async function acquireUmLease(
       mtimeMs: await statMtime(vault, lease),
       host: effectiveHost,
     });
-    if (verdict === "own" && existing.state === "supported") {
-      // A previous lease of this very process (e.g. a failed release) —
-      // adopt it so release can still match it.
-      return { ok: true, opId: existing.sidecar.op_id };
-    }
     if (verdict === "stale") {
       try {
         await vault.adapter.remove(lease);
@@ -407,6 +406,12 @@ export async function acquireUmLease(
         // foreign file and report it.
       }
     } else {
+      // "own" included: a same-pid holder can be ANOTHER pane of this very
+      // process editing the same file — adopting (and later releasing) its
+      // lease would strip the sibling pane's protection mid-edit (PR #26
+      // review). A forgotten lease of this view cannot happen: release
+      // keeps its op_id until the removal is confirmed, and sync moves the
+      // lease across renames instead of re-acquiring blind.
       return { ok: false, foreign: true };
     }
   }
@@ -571,7 +576,19 @@ export class EditorLease {
       if (this.deps.host == null) return;
       const path = this.deps.filePath();
       if (!path) return;
-      if (this.opId != null) return;
+      if (this.opId != null) {
+        if (this.opPath === path) return;
+        // The document was renamed while dirty (user rename command): the
+        // sidecar beside the old name protects nothing and the new name
+        // goes to the CLI unprotected. Move it: release pins to the old
+        // sidecar (we hold its op_id), then re-acquire beside the new name.
+        const opId = this.opId;
+        const oldPath = this.opPath;
+        this.opId = null;
+        this.opPath = null;
+        if (oldPath != null) await releaseUmLease(this.deps.vault, oldPath, opId);
+        if (!this.deps.hasUnsavedChanges()) return;
+      }
       if (!this.deps.hasUnsavedChanges()) return;
       const result = await acquireUmLease(this.deps.vault, path, this.deps.host);
       if (result.ok && result.opId != null) {
@@ -597,16 +614,24 @@ export class EditorLease {
     return run;
   }
 
-  /** Release after a successful save (no-op when we hold no lease). */
+  /** Release after a successful save (no-op when we hold no lease). The
+   *  op_id is kept until the removal is confirmed: a failed removal must
+   *  not orphan the sidecar with no owner able to release it — the next
+   *  release retries. */
   release(): Promise<void> {
     const run = this.chain.then(async () => {
       const opId = this.opId;
       if (opId == null) return;
       const path = this.opPath;
-      this.opId = null;
-      this.opPath = null;
-      if (!path) return;
-      await releaseUmLease(this.deps.vault, path, opId);
+      if (!path) {
+        this.opId = null;
+        return;
+      }
+      const removed = await releaseUmLease(this.deps.vault, path, opId);
+      if (removed) {
+        this.opId = null;
+        this.opPath = null;
+      }
     });
     this.chain = run.catch(() => {});
     return run;
