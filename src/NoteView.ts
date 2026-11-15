@@ -1117,9 +1117,10 @@ export class NoteView extends FileView {
     if (!this.editor || !this.file) {
       return;
     }
+    const editor = this.editor;
     try {
       this.fixDuplicateBlockIds("save");
-      const json = this.editor.getJSON();
+      const json = editor.getJSON();
       const raw = JSON.stringify(json, null, 2);
       if (await this.blockEmptyOverwrite(json, trigger)) return;
       // Lock-protocol gate (issues/um-lock-lease, spec §9.2): a save must
@@ -1175,12 +1176,18 @@ export class NoteView extends FileView {
       // Remember exactly what we wrote: the vault "modify" event fired by
       // our own save must not be treated as an external change.
       this.syncedRaw = raw;
+      // A concurrent close-time save may have destroyed the editor while
+      // this flush awaited the disk (blur racing close): reading the doc
+      // now would throw and show a false "Failed to save note" for a
+      // write that landed fine (PR #26 round 3). Skip the post-save work
+      // — the close path owns the final lease release.
+      if (this.editor !== editor || editor.isDestroyed) return;
       // An edit landing during the disk wait means newer, unsaved content
       // — the lease must stay (its scheduleSave no-oped while the lease
       // was held). The dirty flag cannot tell: the triggering edit set it
       // and nothing resets it before the write (PR #26 round 2). Compare
       // the editor doc against the snapshot we just wrote instead.
-      const rawNow = JSON.stringify(this.editor.getJSON(), null, 2);
+      const rawNow = JSON.stringify(editor.getJSON(), null, 2);
       const editedDuringWrite = rawNow !== raw;
       this.dirty = editedDuringWrite;
       if (!editedDuringWrite) await this.lease.release();

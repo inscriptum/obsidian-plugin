@@ -106,7 +106,7 @@ function build(sidecars: Record<string, string> = {}) {
       getJSON: ReturnType<typeof vi.fn>;
       isDestroyed: boolean;
       commands: { setContent: () => void };
-    };
+    } | null;
   };
   Object.assign(view, {
     editor: {
@@ -188,12 +188,31 @@ describe("NoteView flushSave wiring of the lock gate", () => {
     // snapshot compare must see the changed editor doc.
     (h.writeNote as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
       h.view.dirty = true;
-      h.view.editor.getJSON.mockReturnValueOnce({ type: "doc", changed: true });
+      h.view.editor?.getJSON.mockReturnValueOnce({ type: "doc", changed: true });
     });
     await h.view.flushSave("autosave");
     expect(h.files.has(LEASE_PATH)).toBe(true);
     await h.view.flushSave("autosave"); // the follow-up flush, doc back to base
     expect(h.files.has(LEASE_PATH)).toBe(false);
+  });
+
+  it("a close-time destroy during the write skips the post-save compare without a false error", async () => {
+    const h = build();
+    h.view.dirty = true;
+    await h.view.lease.sync();
+    expect(h.files.has(LEASE_PATH)).toBe(true);
+    const editorObj = h.view.editor;
+    // The close flow destroys the editor while this blur flush awaits the
+    // disk — reading the doc then would throw and surface "Failed to save
+    // note" for a write that landed fine.
+    (h.writeNote as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+      h.view.editor = null; // destroyEditor ran during the disk wait
+    });
+    await h.view.flushSave("blur"); // must not throw
+    // The write landed; the post-save compare/release was skipped — the
+    // close path owns the final lease release.
+    h.view.editor = editorObj;
+    expect(h.files.has(LEASE_PATH)).toBe(true);
   });
 
   it("an ordinary successful autosave releases the lease (saved note must not stay locked)", async () => {
