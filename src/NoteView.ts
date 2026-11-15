@@ -19,6 +19,13 @@ import {
   logDiagEvent,
 } from "./storage/noteStorage";
 import { FileChangedModal } from "./ui/FileChangedModal";
+import {
+  detectNodeLockHost,
+  EditorLease,
+  isInsumSidecarPath,
+  resolveUmLockGate,
+  type LockGateDecision,
+} from "./storage/umLock";
 import { NOTE_ICON_NAME } from "./components/icons/iconSprite";
 import { BUILD_TAG, TAG_VERSION } from "./tags";
 import { getDesiredFileName } from "./storage/fileNaming";
@@ -159,6 +166,22 @@ export class NoteView extends FileView {
   private externalChangeTimer: number | null = null;
   /** True while the conflict dialog is up; further external events wait. */
   private conflictModalOpen = false;
+  /** Dirty lease of the lock protocol (issues/um-lock-lease) — created on
+   *  the first unsaved change, released on a successful save and on close;
+   *  lazy: the deps read this view's live state. */
+  private leaseValue: EditorLease | null = null;
+  private get lease(): EditorLease {
+    if (this.leaseValue == null) {
+      this.leaseValue = new EditorLease({
+        vault: this.app.vault,
+        filePath: () => this.file?.path ?? null,
+        hasUnsavedChanges: () => this.dirty,
+        host: detectNodeLockHost(),
+        onDiag: (msg) => this.logDiag(msg),
+      });
+    }
+    return this.leaseValue;
+  }
   /** True while replacing the editor doc from disk, so the autosave path
    *  doesn't immediately write it back. */
   private applyingRemoteChange = false;
@@ -259,7 +282,15 @@ export class NoteView extends FileView {
     // event time, so it survives renames handled by renameToTitleIfNeeded.
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
+        if (isInsumSidecarPath(file.path)) return;
         if (file === this.file) this.onFileMaybeExternallyChanged();
+      }),
+    );
+    // A rename with unsaved changes must move the dirty lease to the new
+    // name right away (the CLI writes the renamed path — PR #26 review).
+    this.registerEvent(
+      this.app.vault.on("rename", (file) => {
+        if (file === this.file) void this.lease.sync();
       }),
     );
   }
@@ -891,6 +922,7 @@ export class NoteView extends FileView {
     this.mobileScrollCleanup = null;
     this.destroySearchBar();
     await this.flushSave("unload-file");
+    await this.lease.releaseForClose();
     this.destroyEditor();
     this.contentEl.empty();
   }
@@ -905,6 +937,7 @@ export class NoteView extends FileView {
     this.scrollShadowCleanup?.();
     this.scrollShadowCleanup = null;
     await this.flushSave("close");
+    await this.lease.releaseForClose();
     this.destroyEditor();
     this.contentEl.empty();
   }
@@ -1049,6 +1082,9 @@ export class NoteView extends FileView {
     saveTimer = window.setTimeout(() => {
       void this.flushSave();
     }, AUTOSAVE_DELAY);
+    // The lease must exist while unsaved changes exist (protocol §9.2):
+    // every edit path lands here, so this is the single create chokepoint.
+    void this.lease.sync();
   }
 
   /** Device-local fold persistence for this note, created lazily. The scope
@@ -1081,16 +1117,80 @@ export class NoteView extends FileView {
     if (!this.editor || !this.file) {
       return;
     }
+    const editor = this.editor;
     try {
       this.fixDuplicateBlockIds("save");
-      const json = this.editor.getJSON();
+      const json = editor.getJSON();
       const raw = JSON.stringify(json, null, 2);
       if (await this.blockEmptyOverwrite(json, trigger)) return;
+      // Lock-protocol gate (issues/um-lock-lease, spec §9.2): a save must
+      // not overwrite a live foreign commit lock (defer, retried on the
+      // regular schedule) or another editor's dirty lease (that IS the
+      // conflict — the same FileChangedModal resolves it). A stale sidecar
+      // is broken here per the recovery rules.
+      const file = this.file;
+      const teardownFlush = trigger === "unload-file" || trigger === "close";
+      // The lock protocol runs where a second local writer can exist — the
+      // desktop CLI. On mobile (no node host) there is no CLI, and sidecars
+      // synced from a desktop are foreign noise: skip the gate entirely
+      // (issues/lock-protocol-mobile-scope). Cross-device conflicts stay on
+      // the external-change-watch path below.
+      if (detectNodeLockHost() != null) {
+        let lockGate = await resolveUmLockGate(
+          this.app.vault,
+          file.path,
+          detectNodeLockHost(),
+          this.lease.currentOpId(),
+        );
+        if (teardownFlush && lockGate.action !== "proceed") {
+          // Closing view: no scheduled retry and no dialog can survive the
+          // teardown. A commit lock holds for milliseconds — wait it out
+          // briefly; anything longer (a fresh cross-host sidecar, an
+          // unreadable one, a live foreign lease) gets the recovery
+          // branch: rescue the dirty content to a temp copy and report it.
+          // Every blocked close-time result rescues — dropping the edits
+          // silently is not an option (spec §9.1, PR #26 review).
+          lockGate = await this.settleGateForTeardown(file, lockGate);
+        }
+        if (teardownFlush && lockGate.action !== "proceed") {
+          await this.rescueUnsavedToTemp(file, raw);
+          this.logDiag(`unsaved content rescued to temp path=${file.path} trigger=${trigger}`);
+          return;
+        }
+        if (lockGate.action === "defer") {
+          if (this.file === file) this.scheduleSave();
+          this.logDiag(
+            `save deferred path=${file.path} reason=${lockGate.reason} trigger=${trigger}`,
+          );
+          return;
+        }
+        if (lockGate.action === "conflict") {
+          if (this.file === file) {
+            this.openConflictModalWith(async () => this.app.vault.read(file));
+          }
+          this.logDiag(`save blocked by foreign lease path=${file.path} trigger=${trigger}`);
+          return;
+        }
+      }
       await writeNote(this.file, this.app.vault, json, trigger);
       // Remember exactly what we wrote: the vault "modify" event fired by
       // our own save must not be treated as an external change.
       this.syncedRaw = raw;
-      this.dirty = false;
+      // A concurrent close-time save may have destroyed the editor while
+      // this flush awaited the disk (blur racing close): reading the doc
+      // now would throw and show a false "Failed to save note" for a
+      // write that landed fine (PR #26 round 3). Skip the post-save work
+      // — the close path owns the final lease release.
+      if (this.editor !== editor || editor.isDestroyed) return;
+      // An edit landing during the disk wait means newer, unsaved content
+      // — the lease must stay (its scheduleSave no-oped while the lease
+      // was held). The dirty flag cannot tell: the triggering edit set it
+      // and nothing resets it before the write (PR #26 round 2). Compare
+      // the editor doc against the snapshot we just wrote instead.
+      const rawNow = JSON.stringify(editor.getJSON(), null, 2);
+      const editedDuringWrite = rawNow !== raw;
+      this.dirty = editedDuringWrite;
+      if (!editedDuringWrite) await this.lease.release();
       await this.renameToTitleIfNeeded(json);
     } catch (err) {
       new Notice(`Failed to save note: ${String(err)}`);
@@ -1134,22 +1234,32 @@ export class NoteView extends FileView {
     }
 
     if (this.dirty) {
-      this.conflictModalOpen = true;
-      new FileChangedModal(this.app, {
-        onKeepLocal: () => {
-          void this.overwriteFileFromEditor();
-        },
-        onTakeDisk: () => {
-          void this.applyExternalContent(raw);
-        },
-        onClose: () => {
-          this.conflictModalOpen = false;
-        },
-      }).open();
+      this.openConflictModalWith(async () => raw);
       return;
     }
 
     await this.applyExternalContent(raw);
+  }
+
+  /** The shared conflict dialog chokepoint (the external-change watcher
+   *  and the lock-protocol gate): one dialog at a time; "take disk" loads
+   *  the disk version through `loadRaw` at resolution time. */
+  private openConflictModalWith(loadRaw: () => Promise<string>): void {
+    if (this.conflictModalOpen) return;
+    this.conflictModalOpen = true;
+    new FileChangedModal(this.app, {
+      onKeepLocal: () => {
+        void this.overwriteFileFromEditor();
+      },
+      onTakeDisk: () => {
+        void loadRaw()
+          .then((raw) => this.applyExternalContent(raw))
+          .catch((err) => console.error("Failed to reload note from disk:", err));
+      },
+      onClose: () => {
+        this.conflictModalOpen = false;
+      },
+    }).open();
   }
 
   /** Conflict resolution: the user chose the local version — write the
@@ -1199,16 +1309,79 @@ export class NoteView extends FileView {
 
   private async overwriteFileFromEditor(): Promise<void> {
     if (!this.editor || !this.file || this.editor.isDestroyed) return;
+    const file = this.file;
     try {
+      // The lock gate is never bypassed, not even by an explicit keep-local
+      // choice: "keep my changes" is a decision against the DISK version,
+      // while a live foreign lease means ANOTHER editor holds unsaved state
+      // this write would silently destroy (spec §9.2). Desktop only —
+      // issues/lock-protocol-mobile-scope.
+      if (detectNodeLockHost() != null) {
+        const lockGate = await resolveUmLockGate(
+          this.app.vault,
+          file.path,
+          detectNodeLockHost(),
+          this.lease.currentOpId(),
+        );
+        if (lockGate.action === "defer") {
+          this.scheduleSave();
+          this.logDiag(`keep-local deferred path=${file.path} reason=${lockGate.reason}`);
+          return;
+        }
+        if (lockGate.action === "conflict") {
+          this.openConflictModalWith(async () => this.app.vault.read(file));
+          this.logDiag(`keep-local blocked by foreign lease path=${file.path}`);
+          return;
+        }
+      }
       this.fixDuplicateBlockIds("conflict-keep-local");
       const json = this.editor.getJSON();
       const raw = JSON.stringify(json, null, 2);
       if (await this.blockEmptyOverwrite(json, "conflict-keep-local")) return;
-      await writeNote(this.file, this.app.vault, json, "conflict-keep-local");
+      await writeNote(file, this.app.vault, json, "conflict-keep-local");
       this.syncedRaw = raw;
       this.dirty = false;
+      await this.lease.release();
     } catch (err) {
       new Notice(`Failed to overwrite note: ${String(err)}`);
+    }
+  }
+
+  /** A blocked flush on a closing view can neither schedule a retry nor
+   *  raise a dialog: wait out a millisecond-scale commit lock briefly;
+   *  a longer blocker is reported back for the recovery rescue. */
+  private async settleGateForTeardown(
+    file: TFile,
+    gate: LockGateDecision,
+  ): Promise<LockGateDecision> {
+    for (let i = 0; i < 4 && gate.action !== "proceed"; i++) {
+      await new Promise((resolve) => window.setTimeout(resolve, 400));
+      gate = await resolveUmLockGate(
+        this.app.vault,
+        file.path,
+        detectNodeLockHost(),
+        this.lease.currentOpId(),
+      );
+    }
+    return gate;
+  }
+
+  /** Teardown rescue (spec §9.1 recovery direction): the view is dying
+   *  while a foreign holder blocks the write — park the dirty content in
+   *  a temp copy next to the file (same policy as the write path: never
+   *  delete the only good copy) and tell the user where it is. */
+  private async rescueUnsavedToTemp(file: TFile, raw: string): Promise<void> {
+    try {
+      const slash = file.path.lastIndexOf("/");
+      const dir = slash === -1 ? "" : file.path.slice(0, slash + 1);
+      const unique = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      const tmpPath = `${dir}.${file.name}.${unique}.tmp`;
+      await this.app.vault.adapter.write(tmpPath, raw);
+      new Notice(
+        `Unsaved changes were rescued to ${tmpPath} — the file was locked by another editor.`,
+      );
+    } catch (err) {
+      new Notice(`Failed to rescue unsaved changes: ${String(err)}`);
     }
   }
 
@@ -1235,6 +1408,10 @@ export class NoteView extends FileView {
         this.applyingRemoteChange = false;
       }
       this.syncedRaw = raw;
+      // The editor now mirrors the disk (clean): a lease held from the
+      // pre-reload dirty state must go, or the CLI keeps seeing a live
+      // holder for a document with no unsaved changes (PR #26 review).
+      await this.lease.release();
       this.dirty = false;
     } catch (err) {
       console.error("Failed to apply external note content:", err);

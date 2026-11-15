@@ -9,15 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Editing a note now guards it against concurrent writers: the insum CLI refuses to touch a file you have unsaved edits in, and your own saves give way to a CLI commit instead of clobbering it. If a note closes while another editor holds the file, your unsaved changes are parked in a recovery copy next to it instead of being lost.
 - Search now finds matches hidden inside folded sections: jumping to such a match unfolds just that section, so the hit is on screen and highlighted. What the search unfolded stays unfolded — fold it back whenever you want.
 
 ### Changed
 
 - Documents read calmer: headings step through a clearer scale (34/24/20/17) and keep their own text close, paragraphs, lists, quotes and dividers share one 12px rhythm, so block spacing no longer jumps around the page. A horizontal rule is one quiet pause instead of a wall of empty space.
+- Selection menus and drag indicators now follow your Obsidian accent color instead of a fixed violet: change the accent in the theme settings and highlights, active states and drop markers all pick it up.
 - The little arrow under the floating menus (text, media, table, cells) is gone — it claimed to point at your selection but always landed somewhere else, and the menus sit cleaner without it. Arrows that point to their own buttons in sub-panels are untouched.
 
 ### Fixed
 
+- Android: resizing an image no longer opens the app's side panel — the drag on its resize handles is no longer mistaken for a shell swipe, and the width commits as before.
 - Tabs for .um notepad files now show an icon — the same notebook-pen as regular notes. The app had been asking Obsidian for an icon name that doesn't exist, so the tab stayed blank.
 
 ## [0.14.1] - 2026-11-06
