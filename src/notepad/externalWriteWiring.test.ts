@@ -36,8 +36,12 @@ interface Harness {
  *  the real view needs a leaf/app; the wiring under test only touches the
  *  save path and the gate. */
 function build(harness?: Partial<Harness>): Harness {
-  const stat = vi.fn(
-    async () => ({ mtime: 100, size: 10 }) as { mtime: number; size: number },
+  // Path-aware: only the document exists; unknown paths (the lock-protocol
+  // sidecars, absent here) stat to null — the gate reads them as absent.
+  const stat = vi.fn(async (path: string) =>
+    path === "local/x.um"
+      ? ({ mtime: 100, size: 10 } as { mtime: number; size: number })
+      : null,
   );
   const writeBinary = vi.fn(async () => {});
   const rename = vi.fn(async () => {});
@@ -88,7 +92,11 @@ describe("writePendingChanges wiring of the external-write gate", () => {
 
   it("blocks the write on an unobserved external change with a dialog open", async () => {
     const h = build();
-    h.stat.mockResolvedValue({ mtime: 999, size: 99 }); // disk drifted
+    // Disk drifted — but only for the document: absent sidecars must stay
+    // null (the lock gate runs before the external check).
+    h.stat.mockImplementation(async (path: string) =>
+      path === "local/x.um" ? { mtime: 999, size: 99 } : null,
+    );
     (h.view.conflictModalOpen as boolean) = true;
     await h.view.writePendingChanges("autosave");
     expect(h.writeBinary).not.toHaveBeenCalled();
@@ -99,7 +107,9 @@ describe("writePendingChanges wiring of the external-write gate", () => {
 
   it("raises the conflict dialog on an unobserved external change", async () => {
     const h = build();
-    h.stat.mockResolvedValue({ mtime: 999, size: 99 });
+    h.stat.mockImplementation(async (path: string) =>
+      path === "local/x.um" ? { mtime: 999, size: 99 } : null,
+    );
     await h.view.writePendingChanges("autosave");
     expect(h.openModal).toHaveBeenCalledTimes(1);
     expect(h.writeBinary).not.toHaveBeenCalled();
@@ -108,7 +118,9 @@ describe("writePendingChanges wiring of the external-write gate", () => {
 
   it("never raises UI from a teardown flush — it just skips the write", async () => {
     const h = build();
-    h.stat.mockResolvedValue({ mtime: 999, size: 99 });
+    h.stat.mockImplementation(async (path: string) =>
+      path === "local/x.um" ? { mtime: 999, size: 99 } : null,
+    );
     await h.view.writePendingChanges("close");
     expect(h.writeBinary).not.toHaveBeenCalled();
     expect(h.openModal).not.toHaveBeenCalled();
@@ -117,7 +129,9 @@ describe("writePendingChanges wiring of the external-write gate", () => {
 
   it("writes through the drifted disk only with the explicit keep-local bypass", async () => {
     const h = build();
-    h.stat.mockResolvedValue({ mtime: 999, size: 99 });
+    h.stat.mockImplementation(async (path: string) =>
+      path === "local/x.um" ? { mtime: 999, size: 99 } : null,
+    );
     await h.view.writePendingChanges("conflict-keep-local", true, true);
     expect(h.writeBinary).toHaveBeenCalledTimes(1);
     expect(h.openModal).not.toHaveBeenCalled();

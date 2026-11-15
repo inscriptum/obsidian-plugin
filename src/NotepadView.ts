@@ -54,6 +54,14 @@ import {
   imageOnSetViewPropsContainer,
 } from "./notepad/imageTools";
 import { resolveExternalWrite } from "./notepad/externalWrite";
+import {
+  detectNodeLockHost,
+  EditorLease,
+  isInsumSidecarPath,
+  resolveUmLockGate,
+  type LockGateDecision,
+} from "./storage/umLock";
+import { logDiagEvent } from "./storage/noteStorage";
 import type { ImageToolContext } from "./tools/image";
 import { collectGalleryItems } from "./ui/imageLightbox";
 import { createKeyboardTracking } from "./tools/keyboardTracking";
@@ -418,6 +426,25 @@ export class NotepadView extends FileView {
   private externalChangeTimer: number | null = null;
   private conflictModalOpen = false;
 
+  /** Dirty lease of the lock protocol (issues/um-lock-lease) — created on
+   *  the first unsaved change, released on a successful save and on close;
+   *  lazy: the deps read this view's live state. */
+  private leaseValue: EditorLease | null = null;
+  private get lease(): EditorLease {
+    if (this.leaseValue == null) {
+      this.leaseValue = new EditorLease({
+        vault: this.app.vault,
+        filePath: () => this.file?.path ?? null,
+        hasUnsavedChanges: () =>
+          this.notepad != null &&
+          (this.notepad.dirtyNotes.size > 0 || this.notepad.structureChanged || this.dirty),
+        host: detectNodeLockHost(),
+        onDiag: (msg) => void logDiagEvent(this.app.vault, msg),
+      });
+    }
+    return this.leaseValue;
+  }
+
   /** The page editor the user last focused; hotkey routing and command
    *  patching target it (see main.ts routeToNoteView). */
   get focusedEditor(): Editor | null {
@@ -638,9 +665,12 @@ export class NotepadView extends FileView {
     this.updateNavMode();
 
     // Watch for external modifications (git sync etc.) — same contract as
-    // NoteView, with a fingerprint instead of a raw string diff.
+    // NoteView, with a fingerprint instead of a raw string diff. The lock
+    // protocol's own sidecar files are plugin service files, never foreign
+    // document writes.
     this.registerEvent(
       this.app.vault.on("modify", (file) => {
+        if (isInsumSidecarPath(file.path)) return;
         if (file === this.file) this.onFileMaybeExternallyChanged();
       }),
     );
@@ -680,6 +710,7 @@ export class NotepadView extends FileView {
     // that is never written again — a phantom highlight left on disk.
     this.closeCommentsPanel();
     await this.flushSave("unload-file");
+    await this.lease.releaseForClose();
     this.destroyAllSections();
   }
 
@@ -688,6 +719,7 @@ export class NotepadView extends FileView {
     // the last save, not a scheduled autosave that can no longer fire.
     this.closeCommentsPanel();
     await this.flushSave("close");
+    await this.lease.releaseForClose();
     this.navResize?.disconnect();
     this.navResize = null;
     this.keyboardTracking?.dispose();
@@ -3728,6 +3760,9 @@ export class NotepadView extends FileView {
       this.saveTimer = null;
       void this.flushSave();
     }, AUTOSAVE_DELAY);
+    // The lease must exist while unsaved changes exist (protocol §9.2):
+    // every edit path lands here, so this is the single create chokepoint.
+    void this.lease.sync();
   }
 
   private async flushSave(
@@ -3765,6 +3800,56 @@ export class NotepadView extends FileView {
     this.syncNavTitles();
     if (!force && notepad.dirtyNotes.size === 0 && !notepad.structureChanged) {
       this.dirty = false;
+      // Clean document: a lease must not outlive the dirty state (the
+      // sync-finished-after-save race is closed here too).
+      void this.lease.release();
+      return;
+    }
+
+    // Lock-protocol gate (issues/um-lock-lease, spec §9.2): an autosave
+    // must not overwrite a live foreign commit lock (defer, retried on the
+    // regular schedule) or another editor's dirty lease (that IS the
+    // conflict — the same FileChangedModal resolves it). A stale sidecar
+    // is broken here per the recovery rules. This gate is never bypassed,
+    // not even by the keep-local external-check bypass: "keep my changes"
+    // is a choice against the disk version, not against a live foreign
+    // editor holding unsaved state.
+    const teardownFlush = trigger === "unload-file" || trigger === "close";
+    let lockGate = await resolveUmLockGate(
+      this.app.vault,
+      file.path,
+      detectNodeLockHost(),
+      this.lease.currentOpId(),
+    );
+    if (teardownFlush && lockGate.action !== "proceed") {
+      // Closing view: no scheduled retry and no dialog can survive the
+      // teardown — wait out a millisecond-scale commit lock briefly; a
+      // longer blocker falls through to the conflict branch, which
+      // rescues the dirty pages (spec §9.1 recovery direction).
+      lockGate = await this.settleGateForTeardown(file, lockGate);
+    }
+    if (lockGate.action === "defer") {
+      if (!teardownFlush && this.file === file) this.scheduleSave();
+      await logDiagEvent(
+        this.app.vault,
+        `um-save deferred path=${file.path} reason=${lockGate.reason} trigger=${trigger}`,
+      );
+      return;
+    }
+    if (lockGate.action === "conflict") {
+      if (teardownFlush) {
+        await this.rescueUnsavedToTemp(file, notepad.serialize());
+        await logDiagEvent(
+          this.app.vault,
+          `um-unsaved rescued to temp path=${file.path} trigger=${trigger}`,
+        );
+        return;
+      }
+      if (this.file === file) this.openConflictModal();
+      await logDiagEvent(
+        this.app.vault,
+        `um-save blocked by foreign lease path=${file.path} trigger=${trigger}`,
+      );
       return;
     }
 
@@ -3813,9 +3898,50 @@ export class NotepadView extends FileView {
       new Notice(`Failed to save notepad: ${String(err)}`);
       return;
     }
+    // The flush succeeded: the dirty lease (if any) is released together
+    // with the dirty state it guarded (protocol: released on save).
+    await this.lease.release();
     // The flushed pages may have changed anchor presence (text deleted or
     // undone) or the page set (deletion) — the open panel must follow.
     this.refreshCommentsModels();
+  }
+
+  /** A blocked flush on a closing view can neither schedule a retry nor
+   *  raise a dialog: wait out a millisecond-scale commit lock briefly;
+   *  a longer blocker is reported back for the recovery rescue. */
+  private async settleGateForTeardown(
+    file: TFile,
+    gate: LockGateDecision,
+  ): Promise<LockGateDecision> {
+    for (let i = 0; i < 4 && gate.action !== "proceed"; i++) {
+      await new Promise((resolve) => window.setTimeout(resolve, 400));
+      gate = await resolveUmLockGate(
+        this.app.vault,
+        file.path,
+        detectNodeLockHost(),
+        this.lease.currentOpId(),
+      );
+    }
+    return gate;
+  }
+
+  /** Teardown rescue (spec §9.1 recovery direction): the view is dying
+   *  while a foreign holder blocks the write — park the serialized
+   *  notepad in a temp copy next to the file (same policy as the write
+   *  path: never delete the only good copy) and tell the user. */
+  private async rescueUnsavedToTemp(file: TFile, bytes: Uint8Array): Promise<void> {
+    try {
+      const slash = file.path.lastIndexOf("/");
+      const dir = slash === -1 ? "" : file.path.slice(0, slash + 1);
+      const unique = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      const tmpPath = `${dir}.${file.name}.${unique}.tmp`;
+      await this.app.vault.adapter.writeBinary(tmpPath, bytes.slice().buffer);
+      new Notice(
+        `Unsaved changes were rescued to ${tmpPath} — the file was locked by another editor.`,
+      );
+    } catch (err) {
+      new Notice(`Failed to rescue unsaved changes: ${String(err)}`);
+    }
   }
 
   // ── External changes ──
