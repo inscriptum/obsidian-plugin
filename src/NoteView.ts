@@ -1175,12 +1175,14 @@ export class NoteView extends FileView {
       // Remember exactly what we wrote: the vault "modify" event fired by
       // our own save must not be treated as an external change.
       this.syncedRaw = raw;
-      // An edit landing during the disk wait re-marked dirty and its
-      // scheduleSave found the lease still held (sync no-ops then) —
-      // releasing here would leave those newer edits unprotected until
-      // the next keystroke (PR #26 review). Release only a clean doc.
-      const editedDuringWrite = this.dirty;
-      this.dirty = false;
+      // An edit landing during the disk wait means newer, unsaved content
+      // — the lease must stay (its scheduleSave no-oped while the lease
+      // was held). The dirty flag cannot tell: the triggering edit set it
+      // and nothing resets it before the write (PR #26 round 2). Compare
+      // the editor doc against the snapshot we just wrote instead.
+      const rawNow = JSON.stringify(this.editor.getJSON(), null, 2);
+      const editedDuringWrite = rawNow !== raw;
+      this.dirty = editedDuringWrite;
       if (!editedDuringWrite) await this.lease.release();
       await this.renameToTitleIfNeeded(json);
     } catch (err) {

@@ -102,10 +102,15 @@ function build(sidecars: Record<string, string> = {}) {
     overwriteFileFromEditor: () => Promise<void>;
     applyExternalContent: (raw: string) => Promise<void>;
     lease: { sync(): Promise<void>; release(): Promise<void>; currentOpId(): string | null };
+    editor: {
+      getJSON: ReturnType<typeof vi.fn>;
+      isDestroyed: boolean;
+      commands: { setContent: () => void };
+    };
   };
   Object.assign(view, {
     editor: {
-      getJSON: () => ({ type: "doc" }),
+      getJSON: vi.fn(() => ({ type: "doc" })),
       isDestroyed: false,
       commands: { setContent: () => {} },
     },
@@ -178,15 +183,30 @@ describe("NoteView flushSave wiring of the lock gate", () => {
     h.view.dirty = true;
     await h.view.lease.sync();
     expect(h.files.has(LEASE_PATH)).toBe(true);
+    // onUpdate during the disk wait: the doc changed and the flag re-set —
+    // the flag alone cannot tell (the triggering edit set it too), so the
+    // snapshot compare must see the changed editor doc.
     (h.writeNote as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
-      h.view.dirty = true; // onUpdate fired while the disk write was in flight
+      h.view.dirty = true;
+      h.view.editor.getJSON.mockReturnValueOnce({ type: "doc", changed: true });
     });
     await h.view.flushSave("autosave");
-    // The newer edits are unsaved — releasing here would leave them
-    // unprotected until the next keystroke.
     expect(h.files.has(LEASE_PATH)).toBe(true);
-    await h.view.flushSave("autosave"); // the follow-up flush, clean
+    await h.view.flushSave("autosave"); // the follow-up flush, doc back to base
     expect(h.files.has(LEASE_PATH)).toBe(false);
+  });
+
+  it("an ordinary successful autosave releases the lease (saved note must not stay locked)", async () => {
+    const h = build();
+    h.view.dirty = true; // the triggering edit's flag — never reset before the write
+    await h.view.lease.sync();
+    expect(h.files.has(LEASE_PATH)).toBe(true);
+    await h.view.flushSave("autosave"); // no mid-write edit
+    // Regression pin (PR #26 round 2): the save that ordinary-autosaves a
+    // fully written doc must release the lease — the CLI kept refusing
+    // writes to a saved note when the release read the stale flag.
+    expect(h.files.has(LEASE_PATH)).toBe(false);
+    expect(h.view.dirty).toBe(false);
   });
 
   it("loading the disk version releases the dirty lease", async () => {

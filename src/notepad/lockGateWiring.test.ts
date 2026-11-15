@@ -248,6 +248,14 @@ describe("writePendingChanges wiring of the lock gate", () => {
     expect(h.files.has(LEASE_PATH)).toBe(false);
   });
 
+  it("an ordinary successful autosave releases the lease (saved notepad must not stay locked)", async () => {
+    const h = build();
+    await h.view.lease.sync();
+    expect(h.files.has(LEASE_PATH)).toBe(true);
+    await h.view.writePendingChanges("autosave");
+    expect(h.files.has(LEASE_PATH)).toBe(false);
+  });
+
   it("reloadFromDisk releases the dirty lease (clean notepad must not stay locked)", async () => {
     const h = build();
     await h.view.lease.sync();
