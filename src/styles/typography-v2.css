@@ -1,7 +1,9 @@
 /* ═══════════════════════════════════════════════════════════════
    Typography v2 — main layout and typography
    ──────────────────────────────────────────────────────────────
-   Medium:  high-contrast scale, reading column, rhythm, microtypography
+   Medium:  high-contrast scale, rhythm, microtypography
+   Width:   text fills the editor column; the single width is the
+            ProseMirror column (editor.css), no ch caps on text blocks
    Notion:  calm headings, subtle dividers, quiet tables
    ──────────────────────────────────────────────────────────────
    Color policy: every color is an Obsidian theme token (or a color-mix
@@ -50,7 +52,6 @@
   color: var(--text-muted);
   line-height: 1.65;
   margin: 0 0 34px;
-  max-width: 60ch;
 }
 
 .note h2 {
@@ -84,7 +85,6 @@
   line-height: inherit;
   color: inherit;
   margin: 0 0 12px;
-  max-width: 68ch;
   text-wrap: pretty;
   overflow-wrap: break-word;
 }
@@ -191,7 +191,6 @@
   font-size: inherit;
   line-height: inherit;
   margin: 0 0 12px;
-  max-width: 68ch;
 }
 
 .note ul li {
@@ -202,7 +201,6 @@
   font-size: inherit;
   line-height: inherit;
   margin: 0 0 12px;
-  max-width: 68ch;
 }
 
 .note ol li {
@@ -253,7 +251,6 @@
   color: var(--text-muted);
   font-size: inherit;
   line-height: 1.7;
-  max-width: 62ch;
 }
 
 .note blockquote p {

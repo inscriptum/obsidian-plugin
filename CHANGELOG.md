@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Paragraphs, lists and quotes now fill the editor column all the way to its right edge — the leftover 60–68-character line caps are gone, so long text no longer leaves an empty gap beside itself in notes and notepad pages.
+
 ## [0.15.0] - 2026-11-15
 
 ### Added
