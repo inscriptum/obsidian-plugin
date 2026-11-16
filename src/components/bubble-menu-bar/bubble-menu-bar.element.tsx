@@ -11,10 +11,10 @@ import {
 } from "./bubbleMenuState";
 import {
   getTableMenuState,
-  isHexColor,
   pickerHexValue,
 } from "./tableMenuState";
 import { bubbleIconNodes } from "./icons.svgnode";
+import { customColorRow } from "./customColorRow";
 
 type OpenLayer = "styles" | "link" | null;
 
@@ -603,33 +603,11 @@ export const BubbleMenuBarElement = litView.element({
               ))}
             </div>
             <div class="bb-layer-sep"></div>
-            <div class="bb-dd-custom">
-              <input
-                type="color"
-                value={pickerHexValue(state.color)}
-                title="Custom color"
-                onmousedown={(e: MouseEvent) => e.stopPropagation()}
-                onchange={(e: Event) =>
-                  applyColor((e.target as HTMLInputElement).value)
-                }
-              ></input>
-              <input
-                type="text"
-                class="bb-dd-hex"
-                placeholder="#rrggbb"
-                maxlength={7}
-                spellcheck={false}
-                aria-label="Custom text color hex"
-                onmousedown={(e: MouseEvent) => e.stopPropagation()}
-                onkeydown={(e: KeyboardEvent) => {
-                  if (e.key !== "Enter") return;
-                  const input = e.target as HTMLInputElement;
-                  if (isHexColor(input.value)) {
-                    applyColor(input.value.trim().toLowerCase());
-                  }
-                }}
-              ></input>
-            </div>
+            {customColorRow({
+              value: pickerHexValue(state.color),
+              hexLabel: "Custom text color hex",
+              onApply: applyColor,
+            })}
           </div>
 
           {/* "Link" layer — expands below the menu */}

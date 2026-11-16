@@ -10,12 +10,12 @@ import {
   BORDER_COLORS,
   BORDER_STYLES,
   BORDER_WIDTHS,
-  isHexColor,
   pickerHexValue,
   TABLE_BG_RGBA,
   type TableMenuState,
 } from "./tableMenuState";
 import { TEXT_COLORS } from "./bubbleMenuState";
+import { customColorRow } from "./customColorRow";
 import type {
   BorderPen,
   BorderSideName,
@@ -573,33 +573,11 @@ export const TableBubbleMenuElement = litView.element({
               ))}
             </div>
             <div class="bb-layer-sep"></div>
-            <div class="bb-dd-custom">
-              <input
-                type="color"
-                value={pickerHexValue(fillHexForPicker(tableState.bg))}
-                title="Custom color"
-                onmousedown={(e: MouseEvent) => e.stopPropagation()}
-                onchange={(e: Event) =>
-                  applyCellBg((e.target as HTMLInputElement).value)
-                }
-              ></input>
-              <input
-                type="text"
-                class="bb-dd-hex"
-                placeholder="#rrggbb"
-                maxlength={7}
-                spellcheck={false}
-                aria-label="Custom cell fill hex"
-                onmousedown={(e: MouseEvent) => e.stopPropagation()}
-                onkeydown={(e: KeyboardEvent) => {
-                  if (e.key !== "Enter") return;
-                  const input = e.target as HTMLInputElement;
-                  if (isHexColor(input.value)) {
-                    applyCellBg(input.value.trim().toLowerCase());
-                  }
-                }}
-              ></input>
-            </div>
+            {customColorRow({
+              value: pickerHexValue(fillHexForPicker(tableState.bg)),
+              hexLabel: "Custom cell fill hex",
+              onApply: applyCellBg,
+            })}
           </div>
 
           <div
@@ -776,36 +754,11 @@ export const TableBubbleMenuElement = litView.element({
                       ))}
                     </div>
                     <div class="bb-layer-sep"></div>
-                    <div class="bb-dd-custom">
-                      <input
-                        type="color"
-                        value={pickerHexValue(pen.color)}
-                        title="Custom color"
-                        onmousedown={(e: MouseEvent) => e.stopPropagation()}
-                        onchange={(e: Event) =>
-                          choosePen({
-                            color: (e.target as HTMLInputElement).value,
-                          })
-                        }
-                      ></input>
-                      <input
-                        type="text"
-                        class="bb-dd-hex"
-                        placeholder="#rrggbb"
-                        maxlength={7}
-                        spellcheck={false}
-                        onmousedown={(e: MouseEvent) => e.stopPropagation()}
-                        onkeydown={(e: KeyboardEvent) => {
-                          if (e.key !== "Enter") return;
-                          const input = e.target as HTMLInputElement;
-                          if (isHexColor(input.value)) {
-                            choosePen({
-                              color: input.value.trim().toLowerCase(),
-                            });
-                          }
-                        }}
-                      ></input>
-                    </div>
+                    {customColorRow({
+                      value: pickerHexValue(pen.color),
+                      hexLabel: "Custom pen color hex",
+                      onApply: (hex) => choosePen({ color: hex }),
+                    })}
                   </div>
                 ) : null}
               </span>
