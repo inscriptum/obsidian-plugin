@@ -262,6 +262,17 @@ never keep the menu invisible. */
   top: calc(100% + 9px);
   transform: translateY(5px);
 }
+/* Fits neither side: placeLayerDirection caps the layer to the available
+   space (inline max-height) — inner scroll keeps every pixel inside the
+   toolbar/window boundaries (bubble-layer-visibility, strategy B). */
+.bubble-menu-layer.layer-capped {
+  overflow-y: auto;
+}
+/* overflow-y:auto clips the decorative caret protruding 5px past the panel
+   and adds a phantom horizontal scroll for it */
+.bubble-menu-layer.layer-capped .bb-layer-caret {
+  display: none;
+}
 .bubble-menu-layer.show {
   opacity: 1;
   pointer-events: auto;
