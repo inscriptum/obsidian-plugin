@@ -5,6 +5,7 @@ import type { EditorView } from "prosemirror-view";
 import tippy, { Instance, Props } from "tippy.js";
 
 import { shouldShowDefault } from "./helpers/shouldShow";
+import { freeVerticalSpace } from "./toolbarBoundary";
 import { AnyFnVoid } from "../../../texto/core/@types";
 
 function debounce<T extends AnyFnVoid>(fn: T, wait: number) {
@@ -205,6 +206,45 @@ export class BubbleMenuView implements PluginView {
     }
   }
 
+  /**
+   * bubble-layer-visibility, owner strategy B: the bar never covers the
+   * view's own toolbar. tippy's flip only knows the window edges, so a
+   * selection in the first row leaves room "above" that is actually the
+   * toolbar — the bar lands right on top of it. When the toolbar-bounded
+   * space above is too tight, open below the selection (Notion behavior);
+   * flip stays enabled — it only reacts to real overflow, and a flip back
+   * to top above a bottom-of-screen selection cannot reach the toolbar.
+   * Hide the bar only when it fits neither side (extremely small window) —
+   * the owner-approved last resort.
+   *
+   * Returns false when the bar was hidden; updateHandler must not show()
+   * it back in the same tick.
+   */
+  applyToolbarAwarePlacement(view: EditorView, from: number, to: number): boolean {
+    if (!this.tippy) return true;
+    const ref = posToDOMRect(view, from, to);
+    const { above, below } = freeVerticalSpace(this.editor, ref.top, ref.bottom);
+    // every menu registration overrides tippy's offset to [0, 8]
+    const GAP = 8;
+    const barHeight = this.element.offsetHeight || 44;
+    const fitsAbove = above >= barHeight + GAP;
+    const fitsBelow = below >= barHeight + GAP;
+    if (fitsAbove) {
+      if (this.tippy.props.placement !== "top") {
+        this.tippy.setProps({ placement: "top" });
+      }
+      return true;
+    }
+    if (fitsBelow) {
+      if (this.tippy.props.placement !== "bottom") {
+        this.tippy.setProps({ placement: "bottom" });
+      }
+      return true;
+    }
+    this.hide();
+    return false;
+  }
+
   updateHandler = (view: EditorView, oldState?: EditorState) => {
     const { state, composing } = view;
     const { doc, selection } = state;
@@ -233,6 +273,10 @@ export class BubbleMenuView implements PluginView {
       this.hide();
 
       return;
+    }
+
+    if (!this.applyToolbarAwarePlacement(view, from, to)) {
+      return; // hidden as the last resort — keep it hidden
     }
 
     this.tippy?.setProps({

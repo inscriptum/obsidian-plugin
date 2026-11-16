@@ -15,6 +15,7 @@ import {
 } from "./tableMenuState";
 import { bubbleIconNodes } from "./icons.svgnode";
 import { customColorRow } from "./customColorRow";
+import { freeVerticalSpace } from "../../texto/extensions/bubble-menu/toolbarBoundary";
 
 type OpenLayer = "styles" | "link" | null;
 
@@ -125,19 +126,41 @@ export const BubbleMenuBarElement = litView.element({
         layer.style.removeProperty("max-height");
         return;
       }
+      // Reset any cap left by a previous opening BEFORE measuring: a stale
+      // max-height shrinks offsetHeight and poisons the fit checks below.
+      layer.style.removeProperty("max-height");
+      layer.classList.remove("layer-capped");
       const barRect = bar.getBoundingClientRect();
       const layerHeight = layer.offsetHeight;
       const gap = 9; // calc(100% + 9px)
-      const spaceAbove = barRect.top;
-      const spaceBelow = window.innerHeight - barRect.bottom;
+      // Measure from the toolbar bottom, not the window top: the view's own
+      // toolbar is an obstacle tippy knows nothing about (strategy B,
+      // bubble-layer-visibility).
+      const { above: spaceAbove, below: spaceBelow } = freeVerticalSpace(
+        props.editor,
+        barRect.top,
+        barRect.bottom,
+      );
       let openUp: boolean;
       if (spaceAbove >= layerHeight + gap) {
         openUp = true;
       } else if (spaceBelow >= layerHeight + gap) {
         openUp = false;
       } else {
+        // Fits neither side: open toward the larger side and cap the layer
+        // height with an inner scroll (owner-approved backstop) — no pixel
+        // escapes past the toolbar or the window edge.
         openUp = spaceAbove >= spaceBelow;
+        // 4px buffer absorbs the border/rounding between the analytic space
+        // and the layer's rendered position
+        const cap = Math.max(0, Math.max(spaceAbove, spaceBelow) - gap - 4);
+        layer.style.maxHeight = `${cap}px`;
+        layer.classList.add("layer-capped");
+        bar.classList.toggle("layer-open-down", !openUp);
+        return;
       }
+      layer.style.removeProperty("max-height");
+      layer.classList.remove("layer-capped");
       bar.classList.toggle("layer-open-down", !openUp);
     });
   };
@@ -361,6 +384,26 @@ export const BubbleMenuBarElement = litView.element({
   props.editor.on("selectionUpdate", refreshState);
   props.editor.on("update", refreshState);
   document.addEventListener("keydown", onKeydown);
+
+  // While the styles layer is open the bar follows the selection across
+  // scroll/resize (popper event listeners) — recompute direction+cap so the
+  // layer never rides out of the boundaries with a stale geometry.
+  let recomputeScheduled = false;
+  const recomputeOpenLayer = () => {
+    recomputeScheduled = false;
+    if (openLayer !== "styles") return;
+    placeLayerDirection(".bubble-menu-layer--styles");
+  };
+  const scheduleRecompute = () => {
+    if (recomputeScheduled) return;
+    recomputeScheduled = true;
+    window.requestAnimationFrame(recomputeOpenLayer);
+  };
+  window.addEventListener("resize", scheduleRecompute, { passive: true });
+  document.addEventListener("scroll", scheduleRecompute, {
+    capture: true,
+    passive: true,
+  });
 
   try {
     while (true) {
@@ -674,5 +717,7 @@ export const BubbleMenuBarElement = litView.element({
     props.editor.off("selectionUpdate", refreshState);
     props.editor.off("update", refreshState);
     document.removeEventListener("keydown", onKeydown);
+    window.removeEventListener("resize", scheduleRecompute);
+    document.removeEventListener("scroll", scheduleRecompute, { capture: true });
   }
 })(elTag("bubble-menu-bar"));
