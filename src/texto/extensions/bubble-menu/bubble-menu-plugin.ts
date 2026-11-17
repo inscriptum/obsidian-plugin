@@ -71,6 +71,20 @@ export class BubbleMenuView implements PluginView {
 
   public shouldShow: BubbleMenuPluginProps["shouldShow"];
 
+  private placementFrame = 0;
+
+  private refreshPlacement = () => {
+    if (!this.tippy?.state.isVisible || this.placementFrame) return;
+    this.placementFrame = window.requestAnimationFrame(() => {
+      this.placementFrame = 0;
+      if (!this.tippy?.state.isVisible || this.editor.isDestroyed) return;
+      const { from, to } = getFirstFromAndLastToPos(this.view.state.selection.ranges);
+      if (this.applyToolbarAwarePlacement(this.view, from, to)) {
+        void this.tippy.popperInstance?.update();
+      }
+    });
+  };
+
   constructor({
     pluginKey,
     editor,
@@ -110,6 +124,8 @@ export class BubbleMenuView implements PluginView {
     this.view.dom.addEventListener("dragstart", this.dragstartHandler);
     this.editor.on("focus", this.focusHandler);
     this.editor.on("blur", this.blurHandler);
+    window.addEventListener("scroll", this.refreshPlacement, true);
+    window.addEventListener("resize", this.refreshPlacement);
     this.tippyOptions = tippyOptions;
     // Detaches menu content from its current parent
     this.element.remove();
@@ -312,6 +328,9 @@ export class BubbleMenuView implements PluginView {
   }
 
   destroy() {
+    window.removeEventListener("scroll", this.refreshPlacement, true);
+    window.removeEventListener("resize", this.refreshPlacement);
+    window.cancelAnimationFrame(this.placementFrame);
     if (this.tippy?.popper.firstChild) {
       (this.tippy.popper.firstChild as HTMLElement).removeEventListener(
         "blur",

@@ -65,7 +65,7 @@ export const BubbleMenuBarElement = litView.element({
   // without the kbd footer. Detected once: the host does not move between
   // mobile and desktop containers during a view's lifetime.
   const isMobileContext =
-    root.closest(".note-view-container.is-mobile, .mobile-navbar") != null;
+    root.closest(".note-view-container.is-mobile, .notepad-view-container.is-mobile, .mobile-navbar") != null;
 
   /** Plugin instances expose a private `key` field holding the PluginKey name. */
   type KeyedPlugin = { key?: { key?: string } };

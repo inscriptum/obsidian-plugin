@@ -228,8 +228,9 @@ try {
 }
 
 // ── F: stale-cap blocker repro — cap once, then reopen at several places ──
+{
+const cdp = await page.context().newCDPSession(page);
 try {
-  const cdp = await page.context().newCDPSession(page);
   const before = await page.evaluate('({ w: innerWidth, h: innerHeight })');
   await cdp.send('Emulation.setDeviceMetricsOverride', { width: before.w, height: 480, deviceScaleFactor: 0, mobile: false });
   await sleep(900);
@@ -265,17 +266,19 @@ try {
     await closeLayer();
   }
   step('F.staleCap', results);
-  await cdp.send('Emulation.clearDeviceMetricsOverride');
-  await sleep(600);
 } catch (e) {
   step('F.error', String(e).slice(0, 140));
   await page.evaluate('(() => { const c = app.workspace.activeLeaf?.view?.contentEl; if (c) { const b = c.querySelector(\'.bubble-menu-bar button[data-tip="Styles & color"]\'); if (b?.classList.contains(\'is-active\')) b.click(); } return null; })()').catch(() => {});
-  await page.emulateMedia?.({}).catch?.(() => {});
+} finally {
+  await cdp.send('Emulation.clearDeviceMetricsOverride');
+  await cdp.detach();
+}
 }
 
 // ── G: hide as the last resort — degenerate viewport where neither side fits ──
+{
+const cdp = await page.context().newCDPSession(page);
 try {
-  const cdp = await page.context().newCDPSession(page);
   const before = await page.evaluate('({ w: innerWidth, h: innerHeight })');
   await cdp.send('Emulation.setDeviceMetricsOverride', { width: before.w, height: 150, deviceScaleFactor: 0, mobile: false });
   await sleep(900);
@@ -284,12 +287,14 @@ try {
   await sleep(900);
   const st = await page.evaluate(barState, undefined, { timeout: 15000 });
   step('G.hideLastResort', { visible: st.visible, bar: st.bar, innerH: st.innerH, toolbar: st.toolbar });
-  await cdp.send('Emulation.clearDeviceMetricsOverride');
-  await sleep(600);
   await hideBar();
 } catch (e) {
   step('G.error', String(e).slice(0, 140));
   await page.evaluate('(() => { const c = app.workspace.activeLeaf?.view?.contentEl; if (c) { const b = c.querySelector(\'.bubble-menu-bar button[data-tip="Styles & color"]\'); if (b?.classList.contains(\'is-active\')) b.click(); } return null; })()').catch(() => {});
+} finally {
+  await cdp.send('Emulation.clearDeviceMetricsOverride');
+  await cdp.detach();
+}
 }
 
 // ── E: link layer regression (always below the bar) ──

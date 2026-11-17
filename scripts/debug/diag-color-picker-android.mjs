@@ -35,6 +35,7 @@ const setup = `(async () => {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const vault = app.vault;
   const vaultName = vault.getName();
+  if (vaultName !== 'TestVault') return { error: 'wrong vault: ' + vaultName };
   const plugin = !!app.plugins.getPlugin('inscriptum');
   const NOTE = 'local/color-picker-diag.note';
   const mk = (n) => 'diag' + (n++).toString(36).padStart(7, '0');
