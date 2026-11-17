@@ -215,7 +215,10 @@ export const TableBubbleMenuElement = litView.element({
       (e) => {
         if (!openSelect) return;
         const layer = root.querySelector(".bubble-menu-layer--table-borders");
-        if (layer && e.target instanceof Node && layer.contains(e.target)) {
+        if (
+          e.target instanceof Element &&
+          (layer?.contains(e.target) || e.target.closest(".bb-dd-popup"))
+        ) {
           window.requestAnimationFrame(closeSelectOnOutsideClick);
           return;
         }

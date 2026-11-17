@@ -5,7 +5,7 @@ import type { EditorView } from "prosemirror-view";
 import tippy, { Instance, Props } from "tippy.js";
 
 import { shouldShowDefault } from "./helpers/shouldShow";
-import { freeVerticalSpace } from "./toolbarBoundary";
+import { freeVerticalSpace, toolbarBottomY } from "./toolbarBoundary";
 import { AnyFnVoid } from "../../../texto/core/@types";
 
 function debounce<T extends AnyFnVoid>(fn: T, wait: number) {
@@ -206,38 +206,41 @@ export class BubbleMenuView implements PluginView {
     }
   }
 
-  /**
-   * bubble-layer-visibility, owner strategy B: the bar never covers the
-   * view's own toolbar. tippy's flip only knows the window edges, so a
-   * selection in the first row leaves room "above" that is actually the
-   * toolbar — the bar lands right on top of it. When the toolbar-bounded
-   * space above is too tight, open below the selection (Notion behavior);
-   * flip stays enabled — it only reacts to real overflow, and a flip back
-   * to top above a bottom-of-screen selection cannot reach the toolbar.
-   * Hide the bar only when it fits neither side (extremely small window) —
-   * the owner-approved last resort.
-   *
-   * Returns false when the bar was hidden; updateHandler must not show()
-   * it back in the same tick.
-   */
-  applyToolbarAwarePlacement(view: EditorView, from: number, to: number): boolean {
+  // WHY: tall selections need an anchor inside the selection; lack of room
+  // outside the selection does not imply lack of room in the viewport.
+  toolbarAwareReference(
+    rect: DOMRect,
+  ): { rect: DOMRect; placement: "top" | "bottom" } | null {
+    const { above, below } = freeVerticalSpace(
+      this.editor,
+      rect.top,
+      rect.bottom,
+    );
+    const required = (this.element.offsetHeight || 44) + 8;
+    if (above >= required) return { rect, placement: "top" };
+    if (below >= required) return { rect, placement: "bottom" };
+    const top = Math.max(0, toolbarBottomY(this.editor));
+    if (window.innerHeight - top < required) return null;
+    const anchorY = Math.min(
+      window.innerHeight,
+      Math.max(rect.top, top + required),
+    );
+    return {
+      rect: new DOMRect(rect.left, anchorY, rect.width, 0),
+      placement: "top",
+    };
+  }
+
+  applyToolbarAwarePlacement(
+    view: EditorView,
+    from: number,
+    to: number,
+  ): boolean {
     if (!this.tippy) return true;
-    const ref = posToDOMRect(view, from, to);
-    const { above, below } = freeVerticalSpace(this.editor, ref.top, ref.bottom);
-    // every menu registration overrides tippy's offset to [0, 8]
-    const GAP = 8;
-    const barHeight = this.element.offsetHeight || 44;
-    const fitsAbove = above >= barHeight + GAP;
-    const fitsBelow = below >= barHeight + GAP;
-    if (fitsAbove) {
-      if (this.tippy.props.placement !== "top") {
-        this.tippy.setProps({ placement: "top" });
-      }
-      return true;
-    }
-    if (fitsBelow) {
-      if (this.tippy.props.placement !== "bottom") {
-        this.tippy.setProps({ placement: "bottom" });
+    const reference = this.toolbarAwareReference(posToDOMRect(view, from, to));
+    if (reference) {
+      if (this.tippy.props.placement !== reference.placement) {
+        this.tippy.setProps({ placement: reference.placement });
       }
       return true;
     }
@@ -280,19 +283,21 @@ export class BubbleMenuView implements PluginView {
     }
 
     this.tippy?.setProps({
-      getReferenceClientRect:
-        this.tippyOptions?.getReferenceClientRect?.bind(this) ||
-        (() => {
-          if (isNodeSelection(state.selection)) {
-            const node = view.nodeDOM(from) as HTMLElement;
+      getReferenceClientRect: () => {
+        const custom = this.tippyOptions?.getReferenceClientRect?.call(this);
+        if (custom) return this.toolbarAwareReference(custom)?.rect ?? custom;
+        if (isNodeSelection(state.selection)) {
+          const node = view.nodeDOM(from) as HTMLElement;
 
-            if (node) {
-              return node.getBoundingClientRect();
-            }
+          if (node) {
+            const rect = node.getBoundingClientRect();
+            return this.toolbarAwareReference(rect)?.rect ?? rect;
           }
+        }
 
-          return posToDOMRect(view, from, to);
-        }),
+        const rect = posToDOMRect(view, from, to);
+        return this.toolbarAwareReference(rect)?.rect ?? rect;
+      },
     });
 
     this.show();

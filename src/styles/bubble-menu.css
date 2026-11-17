@@ -664,12 +664,8 @@ never keep the menu invisible. */
   outline: 1px solid color-mix(in srgb, var(--interactive-accent, #7c6af7) 80%, transparent);
 }
 
-/* Coarse-pointer custom picker (customColorRow.tsx): the native
-   input[type=color] is replaced by a plain button + an in-DOM popup — the
-   native dialog cannot survive a mobile tap (keyboard hide → toolbar host
-   hidden, WebView dismisses pickers on keyboard hide). The popup is
-   position:fixed with coordinates set at open time: the docked mobile layer
-   is a scroll container and would clip an anchored popup. */
+/* TRAP: the coarse picker is portaled to body; its styles cannot depend
+   on the toolbar's ancestors or it loses them outside the menu. */
 .bubble-menu-bar .bb-dd-custom .bb-dd-open {
   appearance: none;
   -webkit-appearance: none;
@@ -685,10 +681,13 @@ never keep the menu invisible. */
   outline-offset: 2px;
 }
 
-.bubble-menu-bar .bb-dd-custom .bb-dd-popup {
+.bb-dd-popup {
   position: fixed;
   display: none;
-  z-index: 20;
+  z-index: 10000;
+  box-sizing: border-box;
+  overflow: auto;
+  overscroll-behavior: contain;
   grid-template-columns: repeat(10, 22px);
   gap: 4px;
   padding: 8px;
@@ -698,13 +697,30 @@ never keep the menu invisible. */
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
 }
 
-.bubble-menu-bar .bb-dd-custom .bb-dd-popup.show {
+.bb-dd-popup.show {
   display: grid;
 }
 
-.bubble-menu-bar .bb-dd-custom .bb-dd-popup .bb-sw {
+.bb-dd-popup .bb-sw {
+  appearance: none;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 50%;
+  box-shadow: none;
+  cursor: pointer;
   width: 22px;
   height: 22px;
+}
+
+.bb-dd-popup--mobile {
+  grid-template-columns: repeat(5, 32px);
+  gap: 5px;
+}
+
+.bb-dd-popup--mobile .bb-sw {
+  width: 32px;
+  height: 32px;
 }
 
 .bubble-menu-bar .bb-dd-it {

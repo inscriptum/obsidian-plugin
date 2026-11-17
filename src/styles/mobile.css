@@ -971,11 +971,6 @@
   width: 28px;
   height: 28px;
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-dd-popup,
-.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-dd-popup {
-  grid-template-columns: repeat(5, 32px);
-  gap: 5px;
-}
 .note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-hex,
 .notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-hex {
   height: 38px;

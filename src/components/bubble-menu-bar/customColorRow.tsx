@@ -1,46 +1,22 @@
 import { BORDER_COLORS, isHexColor } from "./tableMenuState";
 
-/**
- * The custom-color row shared by all four color layers (text styles, table
- * fill, table border pen, table cells text): the native `input[type=color]`
- * + hex field on fine pointers, an in-DOM color popup on coarse pointers.
- *
- * Why the native picker is replaced on mobile (task mobile-color-picker-closes,
- * diagnosed on the Android emulator, scripts/debug/diag-color-picker-android.mjs):
- * tapping `input[type=color]` moves focus off the editable → the soft keyboard
- * hides → NoteView removes `.is-keyboard-open` → mobile.css hides the whole
- * `.note-toolbar-host` (phones: toolbar visible only while the keyboard is
- * up) → the bar, the layer and the just-opened dialog die together. The
- * WebView also dismisses native pickers on keyboard hide (same mechanism as
- * codeBlockSelectLang) and `showPicker()` is a silent no-op there — so the
- * native dialog is unrecoverable, and the tap never even reaches the input
- * (Obsidian's shell-level `mobile-tap` interception). The in-DOM popup keeps
- * every control a plain button or an editable input: buttons never steal
- * focus (the toolbar host preventDefaults them), the hex field keeps the
- * keyboard open — so the host, layer and popup all survive the interaction.
- *
- * The popup is position:fixed and coordinates are computed at open time: the
- * docked mobile layer is a scroll container (overflow-y: auto) and would
- * clip an absolutely-positioned popup anchored to the row.
- *
- * Popup visibility is toggled by class (same pattern as codeBlockSelectLang),
- * not by re-render. Swatch colors are hex computed in JS — stored values stay
- * plain hex (unlike color-mix strings).
- */
-
-/** Shades for the popup grid, derived from the unified palette (one source
- *  of truth, BORDER_COLORS): light → base → dark per column. */
+// TRAP: native color dialogs dismiss the mobile keyboard and its toolbar.
+// The coarse popup is portaled to body to escape clipping and Tippy transforms.
 const BASE_COLORS = BORDER_COLORS.filter((c) => c.color != null) as Array<{
   label: string;
   color: string;
 }>;
 
-function mixHex(hex: string, target: [number, number, number], amount: number): string {
+function mixHex(
+  hex: string,
+  target: [number, number, number],
+  amount: number,
+): string {
   const m = /^#([0-9a-f]{6})$/i.exec(hex);
   if (!m) return hex;
   const v = parseInt(m[1], 16);
-  const parts = [(v >> 16) & 255, (v >> 8) & 255, v & 255].map(
-    (c, i) => Math.round(c + (target[i] - c) * amount),
+  const parts = [(v >> 16) & 255, (v >> 8) & 255, v & 255].map((c, i) =>
+    Math.round(c + (target[i] - c) * amount),
   );
   return `#${parts.map((c) => c.toString(16).padStart(2, "0")).join("")}`;
 }
@@ -48,42 +24,140 @@ function mixHex(hex: string, target: [number, number, number], amount: number): 
 const WHITE: [number, number, number] = [255, 255, 255];
 const BLACK: [number, number, number] = [0, 0, 0];
 
-/** The unified palette's 11 colors × three shades each, column-major:
- *  light → base → dark stay together per color. The desktop CSS grid is
- *  unreachable (fine pointers render the native branch); on the mobile
- *  5-column grid each color keeps its three shades side by side. */
-const PICKER_GRID: Array<{ color: string; label: string }> = BASE_COLORS.flatMap((c) => [
-  { color: mixHex(c.color, WHITE, 0.45), label: `${c.label} light` },
-  { color: c.color, label: c.label },
-  { color: mixHex(c.color, BLACK, 0.35), label: `${c.label} dark` },
-]);
+const PICKER_GRID: Array<{ color: string; label: string }> =
+  BASE_COLORS.flatMap((c) => [
+    { color: mixHex(c.color, WHITE, 0.45), label: `${c.label} light` },
+    { color: c.color, label: c.label },
+    { color: mixHex(c.color, BLACK, 0.35), label: `${c.label} dark` },
+  ]);
 
 const stopBubbling = (e: Event) => e.stopPropagation();
 
-// One shared capture-phase listener closes any open popup on a tap outside
-// the custom row; taps inside a row are handled by that row's own controls.
-let outsideCloseWired = false;
-function wireOutsideClose(): void {
-  if (outsideCloseWired) return;
-  outsideCloseWired = true;
-  document.addEventListener(
-    "pointerdown",
-    (e) => {
-      const t = e.target;
-      if (t instanceof Element && t.closest(".bb-dd-custom")) return;
-      for (const p of document.querySelectorAll<HTMLElement>(".bb-dd-popup.show")) {
-        p.classList.remove("show");
-      }
-    },
-    true,
-  );
-}
+let closeActivePopup: (() => void) | null = null;
+let activeButton: HTMLElement | null = null;
+const closePopups = (): void => closeActivePopup?.();
 
-const closePopups = (): void => {
-  for (const p of document.querySelectorAll<HTMLElement>(".bb-dd-popup.show")) {
-    p.classList.remove("show");
+function openPopup(button: HTMLElement, popup: HTMLElement): void {
+  const row = button.parentElement;
+  if (!row) return;
+  const doc = button.ownerDocument;
+  const win = doc.defaultView;
+  if (!win) return;
+  popup.classList.toggle(
+    "bb-dd-popup--mobile",
+    !!row.closest(".mobile-sel-bar"),
+  );
+  popup.setAttribute("data-ignore-swipe", "true");
+  doc.body.appendChild(popup);
+  popup.classList.add("show");
+  activeButton = button;
+
+  const place = () => {
+    if (!button.isConnected || button.getClientRects().length === 0) {
+      closePopups();
+      return;
+    }
+    const viewport = win.visualViewport;
+    const left = (viewport?.offsetLeft ?? 0) + 8;
+    const top = (viewport?.offsetTop ?? 0) + 8;
+    const width = (viewport?.width ?? win.innerWidth) - 16;
+    const height = (viewport?.height ?? win.innerHeight) - 16;
+    const maxWidth = `${Math.max(0, width)}px`;
+    const maxHeight = `${Math.max(0, height)}px`;
+    if (popup.style.maxWidth !== maxWidth) popup.style.maxWidth = maxWidth;
+    if (popup.style.maxHeight !== maxHeight) popup.style.maxHeight = maxHeight;
+    const rect = button.getBoundingClientRect();
+    const x = `${Math.max(left, Math.min(rect.left, left + width - popup.offsetWidth))}px`;
+    const y = `${Math.max(top, Math.min(rect.top - popup.offsetHeight - 8, top + height - popup.offsetHeight))}px`;
+    if (popup.style.left !== x) popup.style.left = x;
+    if (popup.style.top !== y) popup.style.top = y;
+  };
+  // TRAP: Tippy can move during a CSS transition without scroll/resize.
+  let frame = 0;
+  let isOpen = true;
+  let trackUntil = 0;
+  const trackAnchor = (now: number) => {
+    frame = 0;
+    place();
+    if (isOpen && now < trackUntil)
+      frame = win.requestAnimationFrame(trackAnchor);
+  };
+  const scheduleTracking = () => {
+    if (!isOpen) return;
+    trackUntil = win.performance.now() + 300;
+    if (!frame) frame = win.requestAnimationFrame(trackAnchor);
+  };
+  const onOutside = (event: Event) => {
+    if (
+      event.target instanceof Node &&
+      (row.contains(event.target) || popup.contains(event.target))
+    )
+      return;
+    closePopups();
+  };
+  const onKey = (event: KeyboardEvent) => {
+    if (event.key === "Escape") closePopups();
+  };
+  const onScroll = (event: Event) => {
+    if (event.target instanceof Node && popup.contains(event.target)) return;
+    place();
+  };
+  const anchor =
+    row.closest(
+      ".bubble-menu-popper, .note-toolbar-host, .notepad-toolbar-host",
+    ) ?? row;
+  const observer = new MutationObserver(() => {
+    if (!button.isConnected || button.getClientRects().length === 0)
+      closePopups();
+    else scheduleTracking();
+  });
+  const lifecycle = new MutationObserver(() => {
+    if (!button.isConnected) closePopups();
+  });
+  closeActivePopup = () => {
+    isOpen = false;
+    closeActivePopup = null;
+    activeButton = null;
+    observer.disconnect();
+    lifecycle.disconnect();
+    win.cancelAnimationFrame(frame);
+    anchor.removeEventListener("transitionrun", scheduleTracking);
+    doc.removeEventListener("pointerdown", onOutside, true);
+    doc.removeEventListener("keydown", onKey, true);
+    doc.removeEventListener("scroll", onScroll, true);
+    win.removeEventListener("resize", place);
+    win.visualViewport?.removeEventListener("resize", place);
+    win.visualViewport?.removeEventListener("scroll", place);
+    popup.classList.remove("show");
+    if (button.isConnected) row.appendChild(popup);
+    else popup.remove();
+  };
+  doc.addEventListener("pointerdown", onOutside, true);
+  doc.addEventListener("keydown", onKey, true);
+  doc.addEventListener("scroll", onScroll, true);
+  win.addEventListener("resize", place);
+  win.visualViewport?.addEventListener("resize", place);
+  win.visualViewport?.addEventListener("scroll", place);
+  observer.observe(anchor, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+  });
+  for (
+    let parent = anchor.parentElement;
+    parent;
+    parent = parent.parentElement
+  ) {
+    observer.observe(parent, {
+      attributes: true,
+      attributeFilter: ["class", "style"],
+    });
   }
-};
+  lifecycle.observe(doc.body, { childList: true, subtree: true });
+  anchor.addEventListener("transitionrun", scheduleTracking);
+  place();
+  scheduleTracking();
+}
 
 function hexField(label: string, onApply: (hex: string) => void) {
   return (
@@ -113,8 +187,6 @@ export function customColorRow(opts: {
   hexLabel: string;
   onApply: (hex: string) => void;
 }) {
-  // Detected at render: the host does not move between mobile and desktop
-  // contexts during a view's lifetime (same pattern as codeBlockSelectLang).
   const coarse = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
 
   if (!coarse) {
@@ -134,10 +206,6 @@ export function customColorRow(opts: {
     );
   }
 
-  // The popup only exists on coarse pointers, so the outside-close listener
-  // is wired there and never on desktop.
-  wireOutsideClose();
-
   return (
     <div class="bb-dd-custom bb-dd-custom--coarse">
       <button
@@ -147,24 +215,24 @@ export function customColorRow(opts: {
         data-tip="Custom color"
         onclick={(e: Event) => {
           const btn = e.currentTarget as HTMLElement;
-          const popup = btn.parentElement?.querySelector<HTMLElement>(
-            ".bb-dd-popup",
-          );
+          if (activeButton === btn) {
+            closePopups();
+            return;
+          }
+          const popup =
+            btn.parentElement?.querySelector<HTMLElement>(".bb-dd-popup");
           if (!popup) return;
           const willOpen = !popup.classList.contains("show");
           closePopups();
           if (!willOpen) return;
-          popup.classList.add("show");
-          // Fixed placement above the button, clamped to the viewport; the
-          // toolbar sits at the screen bottom on mobile, so up is the room.
-          const r = btn.getBoundingClientRect();
-          const pw = popup.offsetWidth;
-          const ph = popup.offsetHeight;
-          popup.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - pw - 8))}px`;
-          popup.style.top = `${Math.max(8, r.top - ph - 8)}px`;
+          openPopup(btn, popup);
         }}
       ></button>
-      <div class="bb-dd-popup">
+      <div
+        class="bb-dd-popup"
+        onpointerdown={(event: Event) => event.preventDefault()}
+        onmousedown={(event: Event) => event.preventDefault()}
+      >
         {PICKER_GRID.map((sw) => (
           <button
             class="bb-sw"
