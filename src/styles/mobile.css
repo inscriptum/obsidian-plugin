@@ -421,11 +421,11 @@
 .note-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al),
+  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al, .bb-dd-open),
 .notepad-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al) {
+  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al, .bb-dd-open) {
   width: 44px;
   height: 44px;
   flex: 0 0 auto;
@@ -436,22 +436,22 @@
 .note-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al):hover,
+  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al, .bb-dd-open):hover,
 .notepad-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al):hover {
+  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al, .bb-dd-open):hover {
   background: transparent;
   color: var(--text-normal);
 }
 .note-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al).is-active,
+  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al, .bb-dd-open).is-active,
 .notepad-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al).is-active {
+  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al, .bb-dd-open).is-active {
   background: transparent;
   box-shadow: none;
   color: var(--interactive-accent);
@@ -459,12 +459,12 @@
 .note-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al)
+  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al, .bb-dd-open)
   svg,
 .notepad-view-container.is-mobile
   .mobile-sel-bar
   .bubble-menu-bar
-  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al)
+  button:not(.bb-sw, .bb-go, .bb-mi, .bb-al, .bb-dd-open)
   svg {
   width: 24px;
   height: 24px;
@@ -961,8 +961,13 @@
   width: 32px;
   height: 32px;
 }
-.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-custom input[type="color"],
-.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bubble-menu-layer--table-borders .bb-dd-custom input[type="color"] {
+/* Custom color row (customColorRow.tsx): on coarse pointers the native
+   input[type=color] is replaced by the .bb-dd-open button + popup, so the
+   former borders-layer input sizing now targets the button, and the popup
+   grid drops to 5 columns of 32px touch targets (10 columns would overflow
+   the 360–400px phone width). */
+.note-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-dd-open,
+.notepad-view-container.is-mobile .mobile-sel-bar .bubble-menu-bar .bb-dd-open {
   width: 28px;
   height: 28px;
 }

@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Custom colors now work on phones and tablets: tapping the color circle in any palette opens an in-panel grid of shades instead of the system dialog that used to vanish instantly, and hex codes keep working everywhere.
+- Paragraphs, lists and quotes now fill the editor column all the way to its right edge — the leftover 60–68-character line caps are gone, so long text no longer leaves an empty gap beside itself in notes and notepad pages.
+
+### Fixed
+
+- Long selections keep their formatting menu, right-aligned text stays clear of page controls, and custom color palettes remain usable on touch screens and short windows.
+- The selection menus now stay clear of the note toolbar: a selection in the first row opens the menu below itself instead of covering the toolbar, and panels that don't fit on screen scroll inside instead of spilling past the window edge.
+
 ## [0.15.0] - 2026-11-15
 
 ### Added

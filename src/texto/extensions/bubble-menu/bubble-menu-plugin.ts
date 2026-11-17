@@ -5,6 +5,7 @@ import type { EditorView } from "prosemirror-view";
 import tippy, { Instance, Props } from "tippy.js";
 
 import { shouldShowDefault } from "./helpers/shouldShow";
+import { freeVerticalSpace, toolbarBottomY } from "./toolbarBoundary";
 import { AnyFnVoid } from "../../../texto/core/@types";
 
 function debounce<T extends AnyFnVoid>(fn: T, wait: number) {
@@ -70,6 +71,20 @@ export class BubbleMenuView implements PluginView {
 
   public shouldShow: BubbleMenuPluginProps["shouldShow"];
 
+  private placementFrame = 0;
+
+  private refreshPlacement = () => {
+    if (!this.tippy?.state.isVisible || this.placementFrame) return;
+    this.placementFrame = window.requestAnimationFrame(() => {
+      this.placementFrame = 0;
+      if (!this.tippy?.state.isVisible || this.editor.isDestroyed) return;
+      const { from, to } = getFirstFromAndLastToPos(this.view.state.selection.ranges);
+      if (this.applyToolbarAwarePlacement(this.view, from, to)) {
+        void this.tippy.popperInstance?.update();
+      }
+    });
+  };
+
   constructor({
     pluginKey,
     editor,
@@ -109,6 +124,8 @@ export class BubbleMenuView implements PluginView {
     this.view.dom.addEventListener("dragstart", this.dragstartHandler);
     this.editor.on("focus", this.focusHandler);
     this.editor.on("blur", this.blurHandler);
+    window.addEventListener("scroll", this.refreshPlacement, true);
+    window.addEventListener("resize", this.refreshPlacement);
     this.tippyOptions = tippyOptions;
     // Detaches menu content from its current parent
     this.element.remove();
@@ -205,6 +222,48 @@ export class BubbleMenuView implements PluginView {
     }
   }
 
+  // WHY: tall selections need an anchor inside the selection; lack of room
+  // outside the selection does not imply lack of room in the viewport.
+  toolbarAwareReference(
+    rect: DOMRect,
+  ): { rect: DOMRect; placement: "top" | "bottom" } | null {
+    const { above, below } = freeVerticalSpace(
+      this.editor,
+      rect.top,
+      rect.bottom,
+    );
+    const required = (this.element.offsetHeight || 44) + 8;
+    if (above >= required) return { rect, placement: "top" };
+    if (below >= required) return { rect, placement: "bottom" };
+    const top = Math.max(0, toolbarBottomY(this.editor));
+    if (window.innerHeight - top < required) return null;
+    const anchorY = Math.min(
+      window.innerHeight,
+      Math.max(rect.top, top + required),
+    );
+    return {
+      rect: new DOMRect(rect.left, anchorY, rect.width, 0),
+      placement: "top",
+    };
+  }
+
+  applyToolbarAwarePlacement(
+    view: EditorView,
+    from: number,
+    to: number,
+  ): boolean {
+    if (!this.tippy) return true;
+    const reference = this.toolbarAwareReference(posToDOMRect(view, from, to));
+    if (reference) {
+      if (this.tippy.props.placement !== reference.placement) {
+        this.tippy.setProps({ placement: reference.placement });
+      }
+      return true;
+    }
+    this.hide();
+    return false;
+  }
+
   updateHandler = (view: EditorView, oldState?: EditorState) => {
     const { state, composing } = view;
     const { doc, selection } = state;
@@ -235,20 +294,26 @@ export class BubbleMenuView implements PluginView {
       return;
     }
 
+    if (!this.applyToolbarAwarePlacement(view, from, to)) {
+      return; // hidden as the last resort — keep it hidden
+    }
+
     this.tippy?.setProps({
-      getReferenceClientRect:
-        this.tippyOptions?.getReferenceClientRect?.bind(this) ||
-        (() => {
-          if (isNodeSelection(state.selection)) {
-            const node = view.nodeDOM(from) as HTMLElement;
+      getReferenceClientRect: () => {
+        const custom = this.tippyOptions?.getReferenceClientRect?.call(this);
+        if (custom) return this.toolbarAwareReference(custom)?.rect ?? custom;
+        if (isNodeSelection(state.selection)) {
+          const node = view.nodeDOM(from) as HTMLElement;
 
-            if (node) {
-              return node.getBoundingClientRect();
-            }
+          if (node) {
+            const rect = node.getBoundingClientRect();
+            return this.toolbarAwareReference(rect)?.rect ?? rect;
           }
+        }
 
-          return posToDOMRect(view, from, to);
-        }),
+        const rect = posToDOMRect(view, from, to);
+        return this.toolbarAwareReference(rect)?.rect ?? rect;
+      },
     });
 
     this.show();
@@ -263,6 +328,9 @@ export class BubbleMenuView implements PluginView {
   }
 
   destroy() {
+    window.removeEventListener("scroll", this.refreshPlacement, true);
+    window.removeEventListener("resize", this.refreshPlacement);
+    window.cancelAnimationFrame(this.placementFrame);
     if (this.tippy?.popper.firstChild) {
       (this.tippy.popper.firstChild as HTMLElement).removeEventListener(
         "blur",

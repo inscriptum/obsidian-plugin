@@ -262,6 +262,17 @@ never keep the menu invisible. */
   top: calc(100% + 9px);
   transform: translateY(5px);
 }
+/* Fits neither side: placeLayerDirection caps the layer to the available
+   space (inline max-height) — inner scroll keeps every pixel inside the
+   toolbar/window boundaries (bubble-layer-visibility, strategy B). */
+.bubble-menu-layer.layer-capped {
+  overflow-y: auto;
+}
+/* overflow-y:auto clips the decorative caret protruding 5px past the panel
+   and adds a phantom horizontal scroll for it */
+.bubble-menu-layer.layer-capped .bb-layer-caret {
+  display: none;
+}
 .bubble-menu-layer.show {
   opacity: 1;
   pointer-events: auto;
@@ -651,6 +662,65 @@ never keep the menu invisible. */
 
 .bubble-menu-bar .bb-dd-hex:focus {
   outline: 1px solid color-mix(in srgb, var(--interactive-accent, #7c6af7) 80%, transparent);
+}
+
+/* TRAP: the coarse picker is portaled to body; its styles cannot depend
+   on the toolbar's ancestors or it loses them outside the menu. */
+.bubble-menu-bar .bb-dd-custom .bb-dd-open {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  margin: 0;
+  flex: none;
+  border: 1px solid #30303a;
+  border-radius: 50%;
+  cursor: pointer;
+  outline: 1px solid transparent;
+  outline-offset: 2px;
+}
+
+.bb-dd-popup {
+  position: fixed;
+  display: none;
+  z-index: 10000;
+  box-sizing: border-box;
+  overflow: auto;
+  overscroll-behavior: contain;
+  grid-template-columns: repeat(10, 22px);
+  gap: 4px;
+  padding: 8px;
+  background: #19191e;
+  border: 1px solid #30303a;
+  border-radius: 9px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.bb-dd-popup.show {
+  display: grid;
+}
+
+.bb-dd-popup .bb-sw {
+  appearance: none;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 50%;
+  box-shadow: none;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+}
+
+.bb-dd-popup--mobile {
+  grid-template-columns: repeat(5, 32px);
+  gap: 5px;
+}
+
+.bb-dd-popup--mobile .bb-sw {
+  width: 32px;
+  height: 32px;
 }
 
 .bubble-menu-bar .bb-dd-it {

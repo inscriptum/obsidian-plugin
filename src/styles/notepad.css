@@ -773,6 +773,12 @@ button.notepad-section-gutter:hover {
   overflow-y: visible;
 }
 
+/* WHY: the top-right page actions must not cover the first text line,
+   including short paragraphs aligned to the right. */
+.notepad-view-container:not(.is-phone) .notepad-section.is-expanded:not(.is-title) .texto-editor {
+  padding-top: 48px;
+}
+
 /* ── Page-scoped image layouts ──
    The image extension expresses "full width" in cqw units and floats
    wrap-layout images (see texto/extensions/image/style.css). Both must be
