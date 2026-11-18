@@ -16,9 +16,42 @@ async function openGroup(page: Page, label: string): Promise<void> {
   await page.locator(`${dock} .menu-dock__group`, { hasText: label }).click();
 }
 
-/** Click an action row inside the open panel by its visible label. */
+/** Click an action row inside the open panel by its accessible name —
+ *  compact panels render icon-only buttons with labels in aria-label. */
 async function clickAction(page: Page, label: string): Promise<void> {
-  await page.locator(`${panel} .menu-dock__action`, { hasText: label }).click();
+  await page.locator(panel).getByRole("button", { name: label }).click();
+}
+
+/** Select the given text range via the editor API. */
+async function selectText(
+  page: Page,
+  text: string,
+): Promise<{ from: number; to: number }> {
+  const range = await textRange(page, text);
+  await page.evaluate(({ from, to }) => {
+    const ed = window.__e2e.editor!;
+    ed.view.focus();
+    ed.commands.setTextSelection({ from, to });
+  }, range);
+  return range;
+}
+
+/** Select from the start of firstText to the end of lastText — spans
+ *  several text nodes (marked runs) as one selection. */
+async function selectSpan(
+  page: Page,
+  firstText: string,
+  lastText: string,
+): Promise<void> {
+  const [from, to] = await Promise.all([
+    textRange(page, firstText),
+    textRange(page, lastText),
+  ]);
+  await page.evaluate(({ from, to }) => {
+    const ed = window.__e2e.editor!;
+    ed.view.focus();
+    ed.commands.setTextSelection({ from, to });
+  }, { from: from.from, to: to.to });
 }
 
 async function clickInside(page: Page, text: string): Promise<void> {
@@ -172,39 +205,202 @@ test.describe("mobile menu dock", () => {
     expect(first.attrs?.level).toBe(1);
   });
 
-  test("text selection switches the context; Format toggles bold", async ({
+  test("text selection: the main row carries Bold, Italic, Link, Style, More", async ({
     page,
   }) => {
     await openHarness(page);
     await mountToolbar(page, noteDoc(p("alpha bravo charlie")));
-    const range = await textRange(page, "alpha bravo charlie");
-    await page.evaluate(({ from, to }) => {
-      const ed = window.__e2e.editor!;
-      ed.view.focus();
-      ed.commands.setTextSelection({ from, to });
-    }, range);
+    await selectText(page, "alpha bravo charlie");
 
+    const groups = page.locator(`${dock} .menu-dock__group`);
+    await expect(groups).toHaveCount(5);
+    await expect(page.getByRole("button", { name: "Bold" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Italic" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Link", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Styles and color" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "More actions" })).toBeVisible();
+    // No Format group anymore: the frequent marks are direct.
+    await expect(page.locator(dock)).not.toContainText("Format");
+  });
 
-    await openGroup(page, "Format");
-    await expect(page.locator(`${panel} .menu-dock__action`)).toHaveCount(6);
+  test("Bold toggles straight from the group row", async ({ page }) => {
+    await openHarness(page);
+    await mountToolbar(page, noteDoc(p("alpha bravo charlie")));
+    await selectText(page, "alpha bravo charlie");
 
-    await expect(page.locator(`${panel} .menu-dock__action`, { hasText: "Bold" })).toHaveAttribute("aria-pressed", "false");
-    await clickAction(page, "Bold");
-    await expect(page.locator(`${panel} .menu-dock__action`, { hasText: "Bold" })).toHaveAttribute("aria-pressed", "true");
-    const json = await docJson(page);
-    const text = findText(json, "alpha");
-    expect(text?.marks?.some((m) => m.type === "bold")).toBe(true);
-    // The active state stays visible after the re-render.
-    await expect(
-      page.locator(`${panel} .menu-dock__action`, { hasText: "Bold" }),
-    ).toHaveClass(/is-active/);
+    const bold = page.getByRole("button", { name: "Bold" });
+    await expect(bold).toHaveAttribute("aria-pressed", "false");
+    await bold.click();
+    await expect(bold).toHaveAttribute("aria-pressed", "true");
+    await expect(bold).toHaveClass(/is-active/);
+    let json = await docJson(page);
+    expect(findText(json, "alpha bravo charlie")?.marks?.some((m) => m.type === "bold")).toBe(true);
 
-    await clickAction(page, "Bold");
-    const after = await docJson(page);
+    await bold.click();
+    await expect(bold).toHaveAttribute("aria-pressed", "false");
+    json = await docJson(page);
     expect(
-      findText(after, "alpha")?.marks?.some((m) => m.type === "bold"),
+      findText(json, "alpha bravo charlie")?.marks?.some((m) => m.type === "bold"),
     ).not.toBe(true);
   });
+
+  test("Italic toggles straight from the group row", async ({ page }) => {
+    await openHarness(page);
+    await mountToolbar(page, noteDoc(p("alpha bravo charlie")));
+    await selectText(page, "alpha bravo charlie");
+
+    const italic = page.getByRole("button", { name: "Italic" });
+    await expect(italic).toHaveAttribute("aria-pressed", "false");
+    await italic.click();
+    await expect(italic).toHaveAttribute("aria-pressed", "true");
+    const json = await docJson(page);
+    expect(findText(json, "alpha bravo charlie")?.marks?.some((m) => m.type === "italic")).toBe(true);
+  });
+
+  test("a partly formatted selection reports mixed and paints the whole range", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await mountToolbar(
+      page,
+      noteDoc({
+        type: "paragraph",
+        content: [
+          { type: "text", text: "alpha", marks: [{ type: "bold" }] },
+          { type: "text", text: " bravo" },
+        ],
+      }),
+    );
+    await selectSpan(page, "alpha", " bravo");
+
+    const bold = page.getByRole("button", { name: "Bold" });
+    // Tri-state toggle: a mixed selection is neither on nor off (EO 3).
+    await expect(bold).toHaveAttribute("aria-pressed", "mixed");
+    await expect(bold).toHaveClass(/is-mixed/);
+
+    // One tap resolves the mixed state across the whole selection.
+    await bold.click();
+    await expect(bold).toHaveAttribute("aria-pressed", "true");
+    const json = await docJson(page);
+    expect(findText(json, "alpha")?.marks?.some((m) => m.type === "bold")).toBe(true);
+    expect(findText(json, "bravo")?.marks?.some((m) => m.type === "bold")).toBe(true);
+  });
+
+  test("More collects the remaining format actions and Clear formatting", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await mountToolbar(page, noteDoc(p("alpha bravo charlie")));
+    await selectText(page, "alpha bravo charlie");
+
+    await openGroup(page, "More");
+    for (const name of ["Underline", "Strikethrough", "Inline code", "Highlight", "Clear formatting"]) {
+      await expect(page.locator(panel).getByRole("button", { name })).toBeVisible();
+    }
+  });
+
+  test("a mixed color selection is not reported as one color", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await mountToolbar(
+      page,
+      noteDoc({
+        type: "paragraph",
+        content: [
+          {
+            type: "text",
+            text: "alpha",
+            marks: [{ type: "textStyle", attrs: { color: "#b3a3f7" } }],
+          },
+          { type: "text", text: " bravo" },
+        ],
+      }),
+    );
+    await selectSpan(page, "alpha", " bravo");
+    await openGroup(page, "Style");
+
+    // No swatch counts as active: the selection holds two distinct colors.
+    await expect(page.locator(`${panel} .menu-dock__swatch.is-active`)).toHaveCount(0);
+    await expect(page.locator(`${panel} .bb-dd-hex`)).toHaveValue("");
+  });
+
+  test("table panels are compact: half the viewport, scroll reaches the last row", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await page.setViewportSize({ width: 360, height: 740 });
+    await mountToolbar(
+      page,
+      noteDoc(p("before"), table([["alpha", "bravo"], ["charlie", "delta"]])),
+    );
+    // Phone viewport wrapper: the cap formula reads the container height.
+    await page.locator(".note-toolbar-host").evaluate((host) => {
+      const container = document.createElement("div");
+      container.className = "note-view-container is-mobile is-phone";
+      container.style.cssText =
+        "position:fixed;inset:0;display:flex;flex-direction:column;height:100%;pointer-events:none";
+      host.replaceWith(container);
+      const spacer = document.createElement("div");
+      spacer.style.cssText = "flex:1;min-height:0;pointer-events:none";
+      host.style.pointerEvents = "auto";
+      container.append(spacer, host);
+      window.visualViewport?.dispatchEvent(new Event("resize"));
+    });
+    await clickCell(page, "alpha");
+    await openGroup(page, "Actions");
+
+    const container = await page.locator(".note-view-container").boundingBox();
+    const panelBox = await page.locator(panel).boundingBox();
+    expect(container).not.toBeNull();
+    expect(panelBox).not.toBeNull();
+    // EO 2: the open panel keeps roughly half of the container for the doc.
+    expect(panelBox!.height).toBeLessThanOrEqual(container!.height * 0.5);
+
+    // Every command stays reachable: scrolling brings the last row into view.
+    const deleteTable = page.locator(panel).getByRole("button", { name: "Delete table" });
+    await deleteTable.scrollIntoViewIfNeeded();
+    await expect(deleteTable).toBeVisible();
+    await expect(deleteTable).toHaveAttribute("aria-label", /Delete table/);
+
+    // 44dp touch targets even in the icon grid (EO 2).
+    const sizes = await page.locator(`${panel} .menu-dock__action--icon`).evaluateAll((els) =>
+      els.map((el) => {
+        const r = el.getBoundingClientRect();
+        return { w: r.width, h: r.height };
+      }),
+    );
+    expect(sizes.length).toBeGreaterThan(0);
+    for (const s of sizes) {
+      expect(s.w).toBeGreaterThanOrEqual(43.9);
+      expect(s.h).toBeGreaterThanOrEqual(43.9);
+    }
+  });
+
+  test("danger commands sit at the bottom of the table panel", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await mountToolbar(
+      page,
+      noteDoc(p("before"), table([["alpha", "bravo"], ["charlie", "delta"]])),
+    );
+    await clickCell(page, "alpha");
+    await openGroup(page, "Actions");
+
+    const tops = await page.locator(`${panel} .menu-dock__action`).evaluateAll((els) =>
+      els.map((el) => ({
+        name: el.getAttribute("aria-label") ?? "",
+        y: el.getBoundingClientRect().y,
+      })),
+    );
+    const firstDanger = tops.findIndex((t) => t.name.startsWith("Delete"));
+    expect(firstDanger).toBeGreaterThan(0);
+    for (let i = 0; i < firstDanger; i += 1) {
+      expect(tops[i].y).toBeLessThan(tops[firstDanger].y);
+    }
+  });
+
 
   test("Style panel paints a palette color and offers the custom row", async ({
     page,
@@ -270,8 +466,7 @@ test.describe("mobile menu dock", () => {
       .toBe("rgba(179, 163, 247, .16)");
 
     await openGroup(page, "Actions");
-    const merge = page
-      .locator(`${panel} .menu-dock__action`, { hasText: "Merge cells" });
+    const merge = page.locator(panel).getByRole("button", { name: "Merge cells" });
     // Review F37: the unavailable command stays in the DOM and explains
     // itself, instead of a silent native disabled.
     await expect(merge).toHaveAttribute("aria-disabled", "true");
@@ -281,7 +476,7 @@ test.describe("mobile menu dock", () => {
     );
     // Split is off for a non-merged cell.
     await expect(
-      page.locator(`${panel} .menu-dock__action`, { hasText: "Split cell" }),
+      page.locator(panel).getByRole("button", { name: "Split cell" }),
     ).toHaveAttribute("aria-disabled", "true");
     // Header works from the same panel: the fixture row is a header row, so
     // the toggle flips its cells to regular cells.
@@ -319,6 +514,123 @@ test.describe("mobile menu dock", () => {
     await expect(page.locator(panel)).toHaveCount(0);
 
   });
+
+  test("merge then split work straight from the Actions panel", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await mountToolbar(
+      page,
+      noteDoc(p("before"), table([["alpha", "bravo"], ["charlie", "delta"]])),
+    );
+    // Cell selection over the two header cells → the context is table.
+    await page.evaluate(() => {
+      const ed = window.__e2e.editor!;
+      const positions: number[] = [];
+      ed.state.doc.descendants((node, pos) => {
+        if (node.type.name === "tableHeader" || node.type.name === "tableCell")
+          positions.push(pos);
+        return true;
+      });
+      ed.view.focus();
+      ed.chain().setCellSelection({ anchorCell: positions[0], headCell: positions[1] }).run();
+    });
+    await openGroup(page, "Actions");
+
+    const merge = page.locator(panel).getByRole("button", { name: "Merge cells" });
+    await expect(merge).not.toHaveAttribute("aria-disabled", "true");
+    await merge.click();
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const ed = window.__e2e.editor!;
+          let merged = false;
+          ed.state.doc.descendants((node) => {
+            if (node.type.name === "tableHeader" && node.attrs.colspan === 2)
+              merged = true;
+            return true;
+          });
+          return merged;
+        }),
+      )
+      .toBe(true);
+
+    // Split is enabled on the merged cell and undoes the merge.
+    const split = page.locator(panel).getByRole("button", { name: "Split cell" });
+    await expect(split).not.toHaveAttribute("aria-disabled", "true");
+    await split.click();
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const ed = window.__e2e.editor!;
+          let colspan = 0;
+          ed.state.doc.descendants((node) => {
+            if (node.type.name === "tableHeader")
+              colspan = Math.max(colspan, node.attrs.colspan ?? 1);
+            return true;
+          });
+          return colspan;
+        }),
+      )
+      .toBe(1);
+  });
+
+  test("tapping the document closes the panel in every context", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await mountToolbar(
+      page,
+      noteDoc(p("before"), table([["alpha", "bravo"]]), p("after")),
+    );
+
+    // Text context: More open → tap in the doc → back to editing.
+    const range = await textRange(page, "before");
+    await page.evaluate(({ from, to }) => {
+      const ed = window.__e2e.editor!;
+      ed.view.focus();
+      ed.chain().setTextSelection({ from, to }).run();
+    }, range);
+    await expect(page.getByRole("button", { name: "More actions" })).toBeVisible();
+    await openGroup(page, "More");
+    await expect(page.locator(panel)).toBeVisible();
+    await page.locator(".texto-editor p", { hasText: "after" }).click();
+    await expect(page.locator(panel)).toHaveCount(0);
+
+    // Table context: same contract.
+    await clickCell(page, "alpha");
+    await openGroup(page, "Actions");
+    await expect(page.locator(panel)).toBeVisible();
+    await page.locator(".texto-editor p", { hasText: "after" }).click();
+    await expect(page.locator(panel)).toHaveCount(0);
+  });
+
+  test("re-tapping the open group closes the panel in table and text contexts", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await mountToolbar(
+      page,
+      noteDoc(p("before"), table([["alpha", "bravo"]])),
+    );
+    await clickCell(page, "alpha");
+    await openGroup(page, "Actions");
+    await expect(page.locator(panel)).toBeVisible();
+    await openGroup(page, "Actions");
+    await expect(page.locator(panel)).toHaveCount(0);
+
+    const range = await textRange(page, "alpha");
+    await page.evaluate(({ from, to }) => {
+      const ed = window.__e2e.editor!;
+      ed.view.focus();
+      ed.chain().setTextSelection({ from, to }).run();
+    }, range);
+    await openGroup(page, "Style");
+    await expect(page.locator(panel)).toBeVisible();
+    await openGroup(page, "Style");
+    await expect(page.locator(panel)).toHaveCount(0);
+  });
+
 
   test.describe("coarse custom colors", () => {
     test.use({ hasTouch: true, viewport: { width: 1000, height: 800 } });

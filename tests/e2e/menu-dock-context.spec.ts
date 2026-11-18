@@ -21,7 +21,7 @@ test("opening a panel preserves the selected text", async ({ page }) => {
     editor.view.focus();
     editor.commands.setTextSelection({ from, to });
   }, range);
-  await page.locator(".menu-dock__group").first().click();
+  await page.getByRole("button", { name: "Styles and color" }).click();
   await expect(page.locator(".menu-dock__panel")).toBeVisible();
   expect(await page.evaluate(() => {
     const { from, to } = window.__e2e.editor!.state.selection;

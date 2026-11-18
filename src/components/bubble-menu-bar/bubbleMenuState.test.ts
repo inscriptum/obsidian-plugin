@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import type { Editor } from "../../texto/core";
-import { getBubbleMenuState, TEXT_COLORS } from "./bubbleMenuState";
+import { EditorState, NodeSelection, TextSelection } from "prosemirror-state";
+import { buildSchema } from "../../../tests/helpers/buildSchema";
+import { getBubbleMenuState, getSelectionMarkSpreads, TEXT_COLORS } from "./bubbleMenuState";
+
+const schema = buildSchema();
 
 function makeEditor(
   active: Record<string, boolean>,
@@ -141,5 +145,101 @@ describe("TEXT_COLORS", () => {
     const hexes = TEXT_COLORS.slice(1).map((c) => c.color);
     expect(new Set(hexes).size).toBe(hexes.length);
     for (const hex of hexes) expect(hex).toMatch(/^#[0-9a-f]{6}$/);
+  });
+});
+
+describe("getSelectionMarkSpreads", () => {
+  const para = (text: string, marks?: unknown[]) =>
+    schema.nodes.paragraph.create(null, [schema.text(text, marks)]);
+
+  const boldMark = () => schema.marks.bold.create();
+  const italicMark = () => schema.marks.italic.create();
+  const colorMark = (color: string) =>
+    schema.marks.textStyle.create({ color });
+
+  function stateOf(doc: Parameters<typeof EditorState.create>[0]["doc"], sel: { from: number; to?: number }) {
+    return EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, sel.from, sel.to ?? sel.from),
+    });
+  }
+
+  it("caret reports stored marks as all/none, never mixed", () => {
+    const doc = schema.nodes.noteDoc.create(null, [para("alpha", [boldMark()])]);
+    const before = stateOf(doc, { from: 1 });
+    expect(before.selection.empty).toBe(true);
+    expect(getSelectionMarkSpreads(before).bold).toBe("all");
+    expect(getSelectionMarkSpreads(before).italic).toBe("none");
+
+    const after = stateOf(doc, { from: 7 });
+    expect(getSelectionMarkSpreads(after).bold).toBe("none");
+  });
+
+  it("uniform selection reports all", () => {
+    const doc = schema.nodes.noteDoc.create(null, [para("alpha", [boldMark()])]);
+    const state = stateOf(doc, { from: 1, to: 6 });
+    expect(getSelectionMarkSpreads(state).bold).toBe("all");
+    expect(getSelectionMarkSpreads(state).italic).toBe("none");
+  });
+
+  it("partly formatted selection reports mixed", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      schema.nodes.paragraph.create(null, [
+        schema.text("alpha", [boldMark()]),
+        schema.text(" bold"),
+      ]),
+    ]);
+    // "alpha bold" — the marked part plus the unmarked " bold".
+    const state = stateOf(doc, { from: 1, to: 11 });
+    expect(getSelectionMarkSpreads(state).bold).toBe("mixed");
+    expect(getSelectionMarkSpreads(state).italic).toBe("none");
+  });
+
+  it("mixed colors are reported as mixed, not as a single color", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      schema.nodes.paragraph.create(null, [
+        schema.text("alpha", [colorMark("#ff0000")]),
+        schema.text(" bravo", [colorMark("#00ff00")]),
+      ]),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 11 });
+    const spreads = getSelectionMarkSpreads(state);
+    expect(spreads.color).toBeNull();
+    expect(spreads.colorMixed).toBe(true);
+  });
+
+  it("uniform color survives a multi-block selection", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      para("alpha", [colorMark("#123456")]),
+      para("bravo", [colorMark("#123456")]),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 12 });
+    const spreads = getSelectionMarkSpreads(state);
+    expect(spreads.color).toBe("#123456");
+    expect(spreads.colorMixed).toBe(false);
+  });
+
+  it("a selection without text nodes reports no color and no marks", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      para("alpha"),
+      schema.nodes.image.create({
+        key: "img",
+        state: "done",
+        data: { id: "x.png", size: 3, source: "vault" },
+      }),
+    ]);
+    let imagePos = 0;
+    doc.descendants((node, pos) => {
+      if (node.type.name === "image") imagePos = pos;
+      return true;
+    });
+    const state = EditorState.create({
+      doc,
+      selection: NodeSelection.create(doc, imagePos),
+    });
+    const spreads = getSelectionMarkSpreads(state);
+    expect(spreads.bold).toBe("none");
+    expect(spreads.color).toBeNull();
+    expect(spreads.colorMixed).toBe(false);
   });
 });

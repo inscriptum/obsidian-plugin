@@ -1,3 +1,4 @@
+import type { EditorState } from "prosemirror-state";
 import type { Editor } from "../../texto/core";
 import { BORDER_COLORS } from "./tableMenuState";
 
@@ -76,5 +77,94 @@ export function getBubbleMenuState(
     taskList: editor.isActive("taskList"),
     align,
     color: typeof textStyle?.color === "string" ? textStyle.color : null,
+  };
+}
+
+/** Mark presence across the whole selection: "all" — every text node carries
+ *  the mark, "none" — none does, "mixed" — the selection straddles the mark
+ *  boundary. */
+export type MarkSpread = "all" | "none" | "mixed";
+
+export interface SelectionMarkSpreads {
+  bold: MarkSpread;
+  italic: MarkSpread;
+  underline: MarkSpread;
+  strike: MarkSpread;
+  code: MarkSpread;
+  mark: MarkSpread;
+  /** Single text color of the selection; null when absent or MIXED. */
+  color: string | null;
+  /** True when the selection holds several distinct text colors. */
+  colorMixed: boolean;
+}
+
+const SPREAD_MARKS: Array<{ name: string; key: keyof Omit<SelectionMarkSpreads, "color" | "colorMixed"> }> = [
+  { name: "bold", key: "bold" },
+  { name: "italic", key: "italic" },
+  { name: "underline", key: "underline" },
+  { name: "strike", key: "strike" },
+  { name: "code", key: "code" },
+  { name: "highlight", key: "mark" },
+];
+
+/**
+ * Per-mark presence across the current selection — pure function of
+ * EditorState, so a partly formatted selection is distinguishable from a
+ * fully formatted one (the dock's direct Bold/Italic buttons report the
+ * tri-state via aria-pressed). An empty selection reports the stored marks
+ * at the caret, which is also what getBubbleMenuState sees.
+ */
+export function getSelectionMarkSpreads(
+  state: EditorState,
+): SelectionMarkSpreads {
+  const counters = new Map<string, { has: boolean; hasNot: boolean }>();
+  for (const { name } of SPREAD_MARKS) counters.set(name, { has: false, hasNot: false });
+  const colors = new Set<string | null>();
+  const { from, to, empty, $from } = state.selection;
+
+  if (empty) {
+    const marks = $from.marks();
+    for (const { name } of SPREAD_MARKS) {
+      const c = counters.get(name)!;
+      const type = state.schema.marks[name];
+      if (type && type.isInSet(marks)) c.has = true;
+      else c.hasNot = true;
+    }
+    const textStyle = marks.find((m) => m.type.name === "textStyle");
+    colors.add(
+      typeof textStyle?.attrs.color === "string" ? textStyle.attrs.color : null,
+    );
+  } else {
+    state.doc.nodesBetween(from, to, (node) => {
+      if (!node.isText) return true;
+      for (const { name } of SPREAD_MARKS) {
+        const c = counters.get(name)!;
+        const type = state.schema.marks[name];
+        if (type && type.isInSet(node.marks)) c.has = true;
+        else c.hasNot = true;
+      }
+      const textStyle = node.marks.find((m) => m.type.name === "textStyle");
+      colors.add(
+        typeof textStyle?.attrs.color === "string" ? textStyle.attrs.color : null,
+      );
+      return true;
+    });
+  }
+
+  const spread = (name: string): MarkSpread => {
+    const c = counters.get(name)!;
+    if (c.has && c.hasNot) return "mixed";
+    return c.has ? "all" : "none";
+  };
+  const singleColor = colors.size === 1 ? [...colors][0]! : null;
+  return {
+    bold: spread("bold"),
+    italic: spread("italic"),
+    underline: spread("underline"),
+    strike: spread("strike"),
+    code: spread("code"),
+    mark: spread("highlight"),
+    color: singleColor,
+    colorMixed: colors.size > 1,
   };
 }
