@@ -119,6 +119,11 @@ const SPREAD_MARKS: Array<{
  * aria-pressed on a toggle button). An empty selection reports the stored
  * marks at the caret (state.storedMarks, falling back to $from.marks()) —
  * the same marks getBubbleMenuState sees via isActive.
+ *
+ * Coverage follows the toggle decision rule (isMarkActive): text where the
+ * mark CANNOT apply — an existing mark excludes it, e.g. inline code
+ * (excludes: "_") — counts as covered, not uncovered, so the displayed
+ * state always predicts what a toggle will do.
  */
 export function getSelectionMarkSpreads(
   state: EditorState,
@@ -143,13 +148,30 @@ export function getSelectionMarkSpreads(
       typeof textStyle?.attrs.color === "string" ? textStyle.attrs.color : null,
     );
   } else {
-    state.doc.nodesBetween(from, to, (node) => {
-      if (!node.isText) return true;
+    // Exact parity with isMarkActive's toggle-decision arithmetic: text
+    // where the mark cannot apply (an existing mark excludes it, e.g.
+    // inline code with excludes: "_") counts as covered, not uncovered, so
+    // the displayed state always predicts what a toggle will do.
+    let selectionRange = 0;
+    const matched = new Map<string, number>();
+    const excluded = new Map<string, number>();
+    for (const { name } of SPREAD_MARKS) {
+      matched.set(name, 0);
+      excluded.set(name, 0);
+    }
+    state.doc.nodesBetween(from, to, (node, pos) => {
+      if (!node.isText && !node.marks.length) return;
+      const relFrom = Math.max(from, pos);
+      const relTo = Math.min(to, pos + node.nodeSize);
+      const range = relTo - relFrom;
+      selectionRange += range;
       for (const { name } of SPREAD_MARKS) {
-        const c = counters.get(name)!;
         const type = state.schema.marks[name];
-        if (type && type.isInSet(node.marks)) c.has = true;
-        else c.hasNot = true;
+        if (!type) continue;
+        if (type.isInSet(node.marks))
+          matched.set(name, matched.get(name)! + range);
+        else if (node.marks.some((mark) => mark.type.excludes(type)))
+          excluded.set(name, excluded.get(name)! + range);
       }
       const textStyle = node.marks.find((m) => m.type.name === "textStyle");
       colors.add(
@@ -159,6 +181,18 @@ export function getSelectionMarkSpreads(
       );
       return true;
     });
+    for (const { name } of SPREAD_MARKS) {
+      const c = counters.get(name)!;
+      const m = matched.get(name)!;
+      const e = excluded.get(name)!;
+      if (m > 0 && m + e >= selectionRange) c.has = true;
+      else if (m > 0) {
+        c.has = true;
+        c.hasNot = true;
+      }
+      // matched === 0: nothing carries the mark — stays "none" (a toggle
+      // cannot touch excluded-only text either).
+    }
   }
 
   const spread = (name: string): MarkSpread => {

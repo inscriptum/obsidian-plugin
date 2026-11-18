@@ -289,6 +289,41 @@ test.describe("mobile menu dock", () => {
     ).not.toBe(true);
   });
 
+  test("bold next to inline code shows the toggle direction, not mixed", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await mountToolbar(
+      page,
+      noteDoc({
+        type: "paragraph",
+        content: [
+          { type: "text", text: "alpha", marks: [{ type: "bold" }] },
+          { type: "text", text: " bravo", marks: [{ type: "code" }] },
+        ],
+      }),
+    );
+    await selectSpan(page, "alpha", " bravo");
+
+    // Inline code cannot carry bold, so the toggle counts that run as
+    // covered: the button reads pressed and one tap REMOVES the mark.
+    const bold = page.getByRole("button", { name: "Bold" });
+    await expect(bold).toHaveAttribute("aria-pressed", "true");
+    await expect(bold).toHaveClass(/is-active/);
+    await expect(bold).not.toHaveClass(/is-mixed/);
+
+    await bold.click();
+    await expect(bold).toHaveAttribute("aria-pressed", "false");
+    const json = await docJson(page);
+    expect(
+      findText(json, "alpha")?.marks?.some((m) => m.type === "bold"),
+    ).not.toBe(true);
+    // The exclusive code mark survives the toggle untouched.
+    expect(findText(json, "bravo")?.marks?.some((m) => m.type === "code")).toBe(
+      true,
+    );
+  });
+
   test("Italic toggles straight from the group row", async ({ page }) => {
     await openHarness(page);
     await mountToolbar(page, noteDoc(p("alpha bravo charlie")));
