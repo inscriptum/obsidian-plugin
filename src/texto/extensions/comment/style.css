@@ -11,7 +11,7 @@
 .inscriptum-comment-anchor {
   background-color: var(
     --highlight-background,
-    var(--text-highlight-bg, #fde68a)
+    var(--text-highlight-bg, #fde68a8c)
   );
   border-radius: 2px;
   cursor: pointer;

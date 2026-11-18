@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Comment highlights now follow your theme: in dark themes the anchor stays a readable translucent amber instead of a pale yellow patch under white text, and community themes color it their own way.
-
 - On phones, Bold, Italic and Link now sit right in the editor menu bar — one tap instead of opening a panel first — and the button shows when a mixed selection is only partly formatted.
 - Phone menu panels are about a third shorter with the same commands: table actions, borders and styles now fit above the lower half of the screen, so the document stays visible while you work.
 - On phones, the editor now groups text, table and media actions in a context-aware bottom menu. Undo and redo are available in the note’s more-options menu.
