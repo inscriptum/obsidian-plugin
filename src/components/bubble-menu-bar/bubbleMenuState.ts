@@ -92,38 +92,46 @@ export interface SelectionMarkSpreads {
   strike: MarkSpread;
   code: MarkSpread;
   mark: MarkSpread;
+  link: MarkSpread;
   /** Single text color of the selection; null when absent or MIXED. */
   color: string | null;
   /** True when the selection holds several distinct text colors. */
   colorMixed: boolean;
 }
 
-const SPREAD_MARKS: Array<{ name: string; key: keyof Omit<SelectionMarkSpreads, "color" | "colorMixed"> }> = [
+const SPREAD_MARKS: Array<{
+  name: string;
+  key: keyof Omit<SelectionMarkSpreads, "color" | "colorMixed">;
+}> = [
   { name: "bold", key: "bold" },
   { name: "italic", key: "italic" },
   { name: "underline", key: "underline" },
   { name: "strike", key: "strike" },
   { name: "code", key: "code" },
   { name: "highlight", key: "mark" },
+  { name: "link", key: "link" },
 ];
 
 /**
  * Per-mark presence across the current selection — pure function of
  * EditorState, so a partly formatted selection is distinguishable from a
- * fully formatted one (the dock's direct Bold/Italic buttons report the
- * tri-state via aria-pressed). An empty selection reports the stored marks
- * at the caret, which is also what getBubbleMenuState sees.
+ * fully formatted one (consumers can report the tri-state, e.g. via
+ * aria-pressed on a toggle button). An empty selection reports the stored
+ * marks at the caret (state.storedMarks, falling back to $from.marks()) —
+ * the same marks getBubbleMenuState sees via isActive.
  */
 export function getSelectionMarkSpreads(
   state: EditorState,
 ): SelectionMarkSpreads {
   const counters = new Map<string, { has: boolean; hasNot: boolean }>();
-  for (const { name } of SPREAD_MARKS) counters.set(name, { has: false, hasNot: false });
+  for (const { name } of SPREAD_MARKS)
+    counters.set(name, { has: false, hasNot: false });
   const colors = new Set<string | null>();
   const { from, to, empty, $from } = state.selection;
 
   if (empty) {
-    const marks = $from.marks();
+    // Parity with isMarkActive: typed-ahead marks at the caret count in.
+    const marks = state.storedMarks ?? $from.marks();
     for (const { name } of SPREAD_MARKS) {
       const c = counters.get(name)!;
       const type = state.schema.marks[name];
@@ -145,7 +153,9 @@ export function getSelectionMarkSpreads(
       }
       const textStyle = node.marks.find((m) => m.type.name === "textStyle");
       colors.add(
-        typeof textStyle?.attrs.color === "string" ? textStyle.attrs.color : null,
+        typeof textStyle?.attrs.color === "string"
+          ? textStyle.attrs.color
+          : null,
       );
       return true;
     });
@@ -164,6 +174,7 @@ export function getSelectionMarkSpreads(
     strike: spread("strike"),
     code: spread("code"),
     mark: spread("highlight"),
+    link: spread("link"),
     color: singleColor,
     colorMixed: colors.size > 1,
   };

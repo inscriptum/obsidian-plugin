@@ -2,7 +2,7 @@ import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
 import type { App } from "obsidian";
 import { ConfirmModal } from "../../ui/ConfirmModal";
-import { Plugin, PluginKey, TextSelection, type Selection, type Transaction } from "prosemirror-state";
+import { Plugin, PluginKey, TextSelection, type EditorState, type Selection, type Transaction } from "prosemirror-state";
 import { Decoration, DecorationSet } from "prosemirror-view";
 import { Editor } from "../../texto/core";
 import { elTag } from "../../tags";
@@ -138,7 +138,18 @@ export const MenuDockElement = litView.element({
   let mode: DockMode = "none";
   let contextDismissed = false;
   let bubbleState: BubbleMenuState = getBubbleMenuState(props.editor);
-  let spreads: SelectionMarkSpreads = getSelectionMarkSpreads(props.editor.state);
+  // EditorState is immutable, so identity is the memo key: the render loop
+  // re-reads spreads every pass, but only a new state recomputes them.
+  let spreadsState: EditorState = props.editor.state;
+  let spreadsCache: SelectionMarkSpreads = getSelectionMarkSpreads(spreadsState);
+  const spreadsFor = (state: EditorState): SelectionMarkSpreads => {
+    if (state !== spreadsState) {
+      spreadsState = state;
+      spreadsCache = getSelectionMarkSpreads(state);
+    }
+    return spreadsCache;
+  };
+  let spreads: SelectionMarkSpreads = spreadsFor(props.editor.state);
   let tableState: TableMenuState = getTableMenuState(props.editor.state);
   let openPanel: Panel | null = null;
   let heldSelection: Selection | null = null;
@@ -188,7 +199,7 @@ export const MenuDockElement = litView.element({
       mode = next;
     }
     bubbleState = getBubbleMenuState(props.editor);
-    spreads = getSelectionMarkSpreads(props.editor.state);
+    spreads = spreadsFor(props.editor.state);
     tableState = getTableMenuState(props.editor.state);
     void this.next();
   };
@@ -539,6 +550,9 @@ export const MenuDockElement = litView.element({
     /** Steady highlight while the underlying mark is on the selection
      *  (the Link row button), independent of the panel open state. */
     active?: boolean;
+    /** Tri-state mark report for a panel opener that also toggles a mark
+     *  (Link): the dashed mixed indicator shows only while closed. */
+    pressed?: "true" | "false" | "mixed";
   }) => {
     const open = openPanel === opts.id;
     return (
@@ -547,9 +561,11 @@ export const MenuDockElement = litView.element({
           "menu-dock__group",
           open && "is-open",
           !open && opts.active && "is-active",
+          !open && opts.pressed === "mixed" && "is-mixed",
         )}
         aria-label={opts.aria}
         aria-expanded={open ? "true" : "false"}
+        aria-pressed={opts.pressed}
         onclick={() => togglePanel(opts.id)}
       >
         {opts.text ? (
@@ -706,7 +722,7 @@ export const MenuDockElement = litView.element({
       if (!props.editor.isDestroyed) {
         if (!heldSelection && !heldSelectionInvalid) mode = contextDismissed ? "none" : computeDockMode(props.editor);
         bubbleState = getBubbleMenuState(props.editor);
-        spreads = getSelectionMarkSpreads(props.editor.state);
+        spreads = spreadsFor(props.editor.state);
         tableState = getTableMenuState(props.editor.state);
       }
       const media = getMediaMenuState(props.editor.state);
@@ -1075,7 +1091,14 @@ export const MenuDockElement = litView.element({
               <>
                 {markBtn({ mark: "bold", label: "Bold", icon: bubbleIconNodes.bold })}
                 {markBtn({ mark: "italic", label: "Italic", icon: bubbleIconNodes.italic })}
-                {groupBtn({ id: "link", label: "Link", aria: "Link", icon: bubbleIconNodes.link, active: bubbleState.link })}
+                {groupBtn({
+                  id: "link",
+                  label: "Link",
+                  aria: "Link",
+                  icon: bubbleIconNodes.link,
+                  active: spreads.link === "all",
+                  pressed: spreads.link === "mixed" ? "mixed" : spreads.link === "all" ? "true" : "false",
+                })}
                 {groupBtn({ id: "styles", label: "Style", aria: "Styles and color", text: "Aa" })}
                 {groupBtn({ id: "more", label: "More", aria: "More actions", icon: toolbarIconNodes.dots })}
               </>

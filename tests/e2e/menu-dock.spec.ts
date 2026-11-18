@@ -286,6 +286,40 @@ test.describe("mobile menu dock", () => {
     expect(findText(json, "bravo")?.marks?.some((m) => m.type === "bold")).toBe(true);
   });
 
+  test("Link reports the mark tri-state while keeping its panel expansion", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await mountToolbar(
+      page,
+      noteDoc({
+        type: "paragraph",
+        content: [
+          {
+            type: "text",
+            text: "alpha",
+            marks: [{ type: "link", attrs: { href: "https://example.com" } }],
+          },
+          { type: "text", text: " bravo" },
+        ],
+      }),
+    );
+
+    const link = page.getByRole("button", { name: "Link", exact: true });
+    // A partly linked selection is neither on nor off, but the button still
+    // opens the link panel (aria-expanded stays).
+    await selectSpan(page, "alpha", " bravo");
+    await expect(link).toHaveAttribute("aria-pressed", "mixed");
+    await expect(link).toHaveClass(/is-mixed/);
+    await expect(link).toHaveAttribute("aria-expanded", "false");
+
+    // Fully linked selection: steady on-state.
+    await selectText(page, "alpha");
+    await expect(link).toHaveAttribute("aria-pressed", "true");
+    await expect(link).toHaveClass(/is-active/);
+    await expect(link).not.toHaveClass(/is-mixed/);
+  });
+
   test("More collects the remaining format actions and Clear formatting", async ({
     page,
   }) => {
@@ -297,6 +331,35 @@ test.describe("mobile menu dock", () => {
     for (const name of ["Underline", "Strikethrough", "Inline code", "Highlight", "Clear formatting"]) {
       await expect(page.locator(panel).getByRole("button", { name })).toBeVisible();
     }
+  });
+
+  test("a More panel toggle resolves a mixed mark across the whole range", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await mountToolbar(
+      page,
+      noteDoc({
+        type: "paragraph",
+        content: [
+          { type: "text", text: "alpha", marks: [{ type: "underline" }] },
+          { type: "text", text: " bravo" },
+        ],
+      }),
+    );
+    await selectSpan(page, "alpha", " bravo");
+    await openGroup(page, "More");
+
+    const underline = page.locator(panel).getByRole("button", { name: "Underline" });
+    await expect(underline).toHaveAttribute("aria-pressed", "mixed");
+    await expect(underline).toHaveClass(/is-mixed/);
+
+    // One tap paints the whole held selection.
+    await underline.click();
+    await expect(underline).toHaveAttribute("aria-pressed", "true");
+    const json = await docJson(page);
+    expect(findText(json, "alpha")?.marks?.some((m) => m.type === "underline")).toBe(true);
+    expect(findText(json, "bravo")?.marks?.some((m) => m.type === "underline")).toBe(true);
   });
 
   test("a mixed color selection is not reported as one color", async ({
@@ -325,21 +388,121 @@ test.describe("mobile menu dock", () => {
     await expect(page.locator(`${panel} .bb-dd-hex`)).toHaveValue("");
   });
 
-  test("table panels are compact: half the viewport, scroll reaches the last row", async ({
-    page,
-  }) => {
+  for (const [width, height] of [
+    [360, 740],
+    [390, 740],
+    [430, 740],
+    [320, 568],
+  ] as const) {
+    test(`table panels are compact: half the viewport, scroll reaches the last row (${width}x${height})`, async ({
+      page,
+    }) => {
+      await openHarness(page);
+      await page.setViewportSize({ width, height });
+      await mountToolbar(
+        page,
+        noteDoc(p("before"), table([["alpha", "bravo"], ["charlie", "delta"]])),
+      );
+      // Phone viewport wrapper: the cap formula reads the container height.
+      await page.locator(".note-toolbar-host").evaluate((host) => {
+        const container = document.createElement("div");
+        container.className = "note-view-container is-mobile is-phone";
+        container.style.cssText =
+          "position:fixed;inset:0;display:flex;flex-direction:column;height:100%;pointer-events:none";
+        host.replaceWith(container);
+        const spacer = document.createElement("div");
+        spacer.style.cssText = "flex:1;min-height:0;pointer-events:none";
+        host.style.pointerEvents = "auto";
+        container.append(spacer, host);
+        window.visualViewport?.dispatchEvent(new Event("resize"));
+      });
+      await clickCell(page, "alpha");
+      await openGroup(page, "Actions");
+
+      const container = await page.locator(".note-view-container").boundingBox();
+      const panelBox = await page.locator(panel).boundingBox();
+      expect(container).not.toBeNull();
+      expect(panelBox).not.toBeNull();
+      // EO 2: the open panel keeps roughly half of the container for the doc.
+      expect(panelBox!.height).toBeLessThanOrEqual(container!.height * 0.5);
+
+      // Every command stays reachable: scrolling brings the last row into view.
+      const deleteTable = page.locator(panel).getByRole("button", { name: "Delete table" });
+      await deleteTable.scrollIntoViewIfNeeded();
+      await expect(deleteTable).toBeVisible();
+      await expect(deleteTable).toHaveAttribute("aria-label", /Delete table/);
+
+      // 44dp touch targets even in the icon grid (EO 2), incl. the 320px phone.
+      const sizes = await page.locator(`${panel} .menu-dock__action--icon`).evaluateAll((els) =>
+        els.map((el) => {
+          const r = el.getBoundingClientRect();
+          return { w: r.width, h: r.height };
+        }),
+      );
+      expect(sizes.length).toBeGreaterThan(0);
+      for (const s of sizes) {
+        expect(s.w).toBeGreaterThanOrEqual(43.9);
+        expect(s.h).toBeGreaterThanOrEqual(43.9);
+      }
+
+      // The cap really binds when the content exceeds it: the Borders panel
+      // (pen row + palette + 9 border commands) is taller than 45% of the
+      // container, so it is clamped to the cap and still scrolls to its
+      // last row.
+      await openGroup(page, "Borders");
+      const clamped = await page.locator(panel).evaluate((el) => {
+        const cs = getComputedStyle(el);
+        const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+        const border = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+        // clientHeight includes padding, excludes borders; the cap applies
+        // to the content box (content-box) or the border box (border-box).
+        const expected = cs.boxSizing === "border-box"
+          ? parseFloat(cs.maxHeight) - border
+          : parseFloat(cs.maxHeight) + pad;
+        return {
+          scrollHeight: el.scrollHeight,
+          clientHeight: el.clientHeight,
+          expected,
+        };
+      });
+      expect(clamped.scrollHeight).toBeGreaterThan(clamped.clientHeight);
+      expect(Math.abs(clamped.clientHeight - clamped.expected)).toBeLessThanOrEqual(1);
+
+      const leftBorder = page.locator(panel).getByRole("button", { name: "Left border" });
+      await leftBorder.scrollIntoViewIfNeeded();
+      await expect(leftBorder).toBeVisible();
+      const reachable = await leftBorder.evaluate((el) => {
+        const panelRect = el.closest(".menu-dock__panel")!.getBoundingClientRect();
+        const box = el.getBoundingClientRect();
+        return (
+          box.top >= panelRect.top &&
+          box.bottom <= panelRect.bottom &&
+          box.left >= panelRect.left &&
+          box.right <= panelRect.right
+        );
+      });
+      expect(reachable).toBe(true);
+
+      // Leave no panel open.
+      await openGroup(page, "Borders");
+      await expect(page.locator(panel)).toHaveCount(0);
+    });
+  }
+
+  test("the 200px floor binds the panel on a short container", async ({ page }) => {
     await openHarness(page);
     await page.setViewportSize({ width: 360, height: 740 });
     await mountToolbar(
       page,
       noteDoc(p("before"), table([["alpha", "bravo"], ["charlie", "delta"]])),
     );
-    // Phone viewport wrapper: the cap formula reads the container height.
+    // Same wrapper, but the container is short: 0.45 × 420 = 189 falls under
+    // the 200px floor, and the absolute cap (420 − 132 = 288) stays above it.
     await page.locator(".note-toolbar-host").evaluate((host) => {
       const container = document.createElement("div");
       container.className = "note-view-container is-mobile is-phone";
       container.style.cssText =
-        "position:fixed;inset:0;display:flex;flex-direction:column;height:100%;pointer-events:none";
+        "position:fixed;top:0;left:0;right:0;height:420px;display:flex;flex-direction:column;pointer-events:none";
       host.replaceWith(container);
       const spacer = document.createElement("div");
       spacer.style.cssText = "flex:1;min-height:0;pointer-events:none";
@@ -350,31 +513,24 @@ test.describe("mobile menu dock", () => {
     await clickCell(page, "alpha");
     await openGroup(page, "Actions");
 
-    const container = await page.locator(".note-view-container").boundingBox();
-    const panelBox = await page.locator(panel).boundingBox();
-    expect(container).not.toBeNull();
-    expect(panelBox).not.toBeNull();
-    // EO 2: the open panel keeps roughly half of the container for the doc.
-    expect(panelBox!.height).toBeLessThanOrEqual(container!.height * 0.5);
+    const floorBox = await page.locator(panel).evaluate((el) => {
+      const cs = getComputedStyle(el);
+      const pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      const border = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth);
+      // Used height in the box model the cap formula applies to.
+      const used = cs.boxSizing === "border-box"
+        ? el.clientHeight + border
+        : el.clientHeight - pad;
+      return { used, clientHeight: el.clientHeight, scrollHeight: el.scrollHeight };
+    });
+    // The floor binds: the panel sits at ~200px (not 189) and the Actions
+    // content still scrolls inside it.
+    expect(Math.abs(floorBox.used - 200)).toBeLessThanOrEqual(2);
+    expect(floorBox.scrollHeight).toBeGreaterThan(floorBox.clientHeight);
 
-    // Every command stays reachable: scrolling brings the last row into view.
-    const deleteTable = page.locator(panel).getByRole("button", { name: "Delete table" });
-    await deleteTable.scrollIntoViewIfNeeded();
-    await expect(deleteTable).toBeVisible();
-    await expect(deleteTable).toHaveAttribute("aria-label", /Delete table/);
-
-    // 44dp touch targets even in the icon grid (EO 2).
-    const sizes = await page.locator(`${panel} .menu-dock__action--icon`).evaluateAll((els) =>
-      els.map((el) => {
-        const r = el.getBoundingClientRect();
-        return { w: r.width, h: r.height };
-      }),
-    );
-    expect(sizes.length).toBeGreaterThan(0);
-    for (const s of sizes) {
-      expect(s.w).toBeGreaterThanOrEqual(43.9);
-      expect(s.h).toBeGreaterThanOrEqual(43.9);
-    }
+    // Leave no panel open.
+    await openGroup(page, "Actions");
+    await expect(page.locator(panel)).toHaveCount(0);
   });
 
   test("danger commands sit at the bottom of the table panel", async ({
@@ -391,6 +547,7 @@ test.describe("mobile menu dock", () => {
     const tops = await page.locator(`${panel} .menu-dock__action`).evaluateAll((els) =>
       els.map((el) => ({
         name: el.getAttribute("aria-label") ?? "",
+        danger: el.classList.contains("is-danger"),
         y: el.getBoundingClientRect().y,
       })),
     );
@@ -399,6 +556,10 @@ test.describe("mobile menu dock", () => {
     for (let i = 0; i < firstDanger; i += 1) {
       expect(tops[i].y).toBeLessThan(tops[firstDanger].y);
     }
+    // Symmetry: the bottom-most command is itself a danger one.
+    const bottom = tops.reduce((a, b) => (b.y >= a.y ? b : a));
+    expect(bottom.name.startsWith("Delete")).toBe(true);
+    expect(bottom.danger).toBe(true);
   });
 
 
@@ -596,6 +757,8 @@ test.describe("mobile menu dock", () => {
     await expect(page.locator(panel)).toBeVisible();
     await page.locator(".texto-editor p", { hasText: "after" }).click();
     await expect(page.locator(panel)).toHaveCount(0);
+    // Back to editing, not just a closed panel: the main row is back.
+    await expect(page.locator(`${dock} .menu-dock__group`)).toHaveCount(5);
 
     // Table context: same contract.
     await clickCell(page, "alpha");
@@ -603,6 +766,7 @@ test.describe("mobile menu dock", () => {
     await expect(page.locator(panel)).toBeVisible();
     await page.locator(".texto-editor p", { hasText: "after" }).click();
     await expect(page.locator(panel)).toHaveCount(0);
+    await expect(page.locator(`${dock} .menu-dock__group`)).toHaveCount(5);
   });
 
   test("re-tapping the open group closes the panel in table and text contexts", async ({

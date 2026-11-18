@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
+import type { Mark, Node } from "prosemirror-model";
 import type { Editor } from "../../texto/core";
 import { EditorState, NodeSelection, TextSelection } from "prosemirror-state";
+import { CellSelection } from "prosemirror-tables";
 import { buildSchema } from "../../../tests/helpers/buildSchema";
+import { createTable } from "../../texto/extensions/table/helpers/createTable";
 import { getBubbleMenuState, getSelectionMarkSpreads, TEXT_COLORS } from "./bubbleMenuState";
 
 const schema = buildSchema();
@@ -149,7 +152,7 @@ describe("TEXT_COLORS", () => {
 });
 
 describe("getSelectionMarkSpreads", () => {
-  const para = (text: string, marks?: unknown[]) =>
+  const para = (text: string, marks?: readonly Mark[]) =>
     schema.nodes.paragraph.create(null, [schema.text(text, marks)]);
 
   const boldMark = () => schema.marks.bold.create();
@@ -157,7 +160,7 @@ describe("getSelectionMarkSpreads", () => {
   const colorMark = (color: string) =>
     schema.marks.textStyle.create({ color });
 
-  function stateOf(doc: Parameters<typeof EditorState.create>[0]["doc"], sel: { from: number; to?: number }) {
+  function stateOf(doc: Node, sel: { from: number; to?: number }) {
     return EditorState.create({
       doc,
       selection: TextSelection.create(doc, sel.from, sel.to ?? sel.from),
@@ -239,6 +242,40 @@ describe("getSelectionMarkSpreads", () => {
     });
     const spreads = getSelectionMarkSpreads(state);
     expect(spreads.bold).toBe("none");
+    expect(spreads.color).toBeNull();
+    expect(spreads.colorMixed).toBe(false);
+  });
+
+  it("a colorless textStyle mark is not reported as a color", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      schema.nodes.paragraph.create(null, [
+        schema.text("alpha", [schema.marks.textStyle.create({})]),
+        schema.text(" bravo"),
+      ]),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 11 });
+    const spreads = getSelectionMarkSpreads(state);
+    expect(spreads.color).toBeNull();
+    expect(spreads.colorMixed).toBe(false);
+  });
+
+  it("a cell selection reads the marks across the cell text", () => {
+    const cellContent = schema.nodes.paragraph.create(null, schema.text("alpha"));
+    const table = createTable(schema, 2, 2, false, cellContent);
+    const positions: number[] = [];
+    table.descendants((node, pos) => {
+      if (node.type.name === "tableCell") positions.push(pos);
+      return true;
+    });
+    const state = EditorState.create({
+      doc: table,
+      selection: CellSelection.create(table, positions[0], positions[positions.length - 1]),
+    });
+    expect(state.selection.empty).toBe(false);
+    const spreads = getSelectionMarkSpreads(state);
+    expect(spreads.bold).toBe("none");
+    expect(spreads.underline).toBe("none");
+    expect(spreads.link).toBe("none");
     expect(spreads.color).toBeNull();
     expect(spreads.colorMixed).toBe(false);
   });
