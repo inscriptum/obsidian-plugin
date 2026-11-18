@@ -1,14 +1,17 @@
 /* Comment anchors (comments extension) — the visual highlight is a plugin
    decoration over the neutral span[data-comment-id] the mark renders, so
-   stored JSON and the website export (no plugin) stay plain. Colors derive
-   from the host theme tokens; the .um hosts define --ins-* on their view
-   containers, the fallbacks keep the rules self-sufficient in isolation. */
+   stored JSON and the website export (no plugin) stay plain. The anchor
+   background is the theme's native highlight token — --highlight-background
+   on desktop Obsidian ≥1.14, --text-highlight-bg on older/mobile builds:
+   the yellow "there is a comment here" cue follows the active theme instead
+   of a baked light yellow that turns unreadable on dark themes. Accent
+   rules use the --ins-* tokens the .um hosts define on their view
+   containers; the fallbacks keep the rules self-sufficient in isolation. */
 
 .inscriptum-comment-anchor {
-  background-color: color-mix(
-    in srgb,
-    #fde68a 55%,
-    transparent
+  background-color: var(
+    --highlight-background,
+    var(--text-highlight-bg, #fde68a)
   );
   border-radius: 2px;
   cursor: pointer;
