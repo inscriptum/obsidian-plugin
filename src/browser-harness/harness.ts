@@ -15,7 +15,7 @@ import { UmNotepad } from "../storage/um/umNotepad";
 import { exportNotepadAsWebsite } from "../export/exportNotepadWebsite";
 import type { UmContainerData, UmNoteDescriptor } from "../storage/um/umTypes";
 import type { WorkspaceLeaf } from "obsidian";
-import { TFile } from "obsidian";
+import { Platform, TFile } from "obsidian";
 import {
   UM_FORMAT,
   UM_SCHEMA_PLAIN,
@@ -510,8 +510,12 @@ function noteParagraphs(prefix: string, count: number): JSONContent[] {
 
 function mountNotepad(
   pages: NotepadPageSpec[],
-  opts?: { titleExpanded?: boolean; titleDoc?: JSONContent[] },
+  opts?: { titleExpanded?: boolean; titleDoc?: JSONContent[]; phone?: boolean },
 ): string {
+  if (opts?.phone) {
+    Object.assign(Platform, { isMobile: true, isMobileApp: true, isPhone: true });
+    document.body.classList.add("is-mobile", "is-phone");
+  }
   const notes = new Map<string, JSONContent>();
   const descriptors: UmNoteDescriptor[] = [
     {

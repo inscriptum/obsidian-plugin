@@ -94,6 +94,7 @@ import { isMediaNodeSelection } from "./components/bubble-menu-bar/mediaMenuStat
 import { selectionInProperty, sanitizePropertyValues } from "./texto/extensions/note-property";
 import { selectionInWikiContext } from "./texto/extensions/wikilink";
 import { selectionInCodeBlock } from "./texto/extensions/code-block-hljs";
+import { MERMAID_TOUCH_SELECT_EVENT } from "./texto/extensions/mermaid/mermaid";
 import { getTableMenuState } from "./components/bubble-menu-bar/tableMenuState";
 import { moveTargetIndex } from "./notepad/moveTargetIndex";
 import {
@@ -1669,6 +1670,14 @@ export class NotepadView extends FileView {
       this.ensureToolbar(editor);
       this.updateNavActive();
     });
+
+    if (Platform.isPhone) {
+      editor.view.dom.addEventListener(MERMAID_TOUCH_SELECT_EVENT, () => {
+        this.focusedEditorValue = editor;
+        this.ensureToolbar(editor, handle);
+        this.updateNavActive();
+      });
+    }
 
     editor.registerPlugin(createDocumentSearchPlugin());
     // Non-Latin keyboard layouts: resolve Cmd/Ctrl+letter combos by physical

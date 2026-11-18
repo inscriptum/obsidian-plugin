@@ -138,6 +138,7 @@ export const MenuDockElement = litView.element({
   let openPanel: Panel | null = null;
   let heldSelection: Selection | null = null;
   let heldSelectionInvalid = false;
+  let applyingBlockStyle = false;
   let linkDraft = "";
   const colorDrafts = { text: "", fill: "", border: "" };
   let pen: BorderPen = { style: "solid", width: "1pt", color: null };
@@ -200,7 +201,7 @@ export const MenuDockElement = litView.element({
       map.forEach((start, end) => {
         if (from === to ? start <= from && end >= from : start < to && end > from || start === end && start > from && start < to) touched = true;
       });
-      if (touched) {
+      if (touched && !applyingBlockStyle) {
         heldSelection = null;
         heldSelectionInvalid = true;
         return;
@@ -382,24 +383,35 @@ export const MenuDockElement = litView.element({
 
   const applyBlock = (block: BlockAction) => {
     const e = props.editor;
-    switch (block) {
-      case "paragraph":
-        e.chain().clearNodes().run();
-        break;
-      case "h1":
-      case "h2":
-      case "h3":
-        e.chain().toggleHeading({ level: HEADING_LEVEL[block] }).run();
-        break;
-      case "quote":
-        e.chain().toggleBlockquote().run();
-        break;
-      case "list":
-        e.chain().toggleBulletList().run();
-        break;
-      case "taskList":
-        e.chain().toggleTaskList().run();
-        break;
+    const retainSelection = heldSelection != null && !heldSelectionInvalid;
+    applyingBlockStyle = true;
+    try {
+      switch (block) {
+        case "paragraph":
+          e.chain().clearNodes().run();
+          break;
+        case "h1":
+        case "h2":
+        case "h3":
+          e.chain().toggleHeading({ level: HEADING_LEVEL[block] }).run();
+          break;
+        case "quote":
+          e.chain().toggleBlockquote().run();
+          break;
+        case "list":
+          e.chain().toggleBulletList().run();
+          break;
+        case "taskList":
+          e.chain().toggleTaskList().run();
+          break;
+      }
+    } finally {
+      applyingBlockStyle = false;
+      if (retainSelection && !e.isDestroyed) {
+        heldSelection = e.state.selection;
+        heldSelectionInvalid = false;
+        void this.next();
+      }
     }
   };
 

@@ -41,6 +41,7 @@ export type MermaidElementPublicProps = Omit<
 /** DOM event the media bubble menu dispatches on the host element to open
  *  the inline source editor (see editMermaidDiagram in tools/media). */
 export const MERMAID_EDIT_EVENT = "texto-mermaid-edit";
+export const MERMAID_TOUCH_SELECT_EVENT = "texto-mermaid-touch-select";
 
 /** Visual layout of a diagram block (same set as ImageLayout). */
 export type MermaidLayout =
@@ -415,6 +416,7 @@ export const Mermaid = Node.create<MermaidOptions>({
         if (element.classList.contains("ProseMirror-selectednode")) {
           const svg = mermaidLightboxTarget(element, event.target);
           event.preventDefault();
+          element.dispatchEvent(new CustomEvent(MERMAID_TOUCH_SELECT_EVENT, { bubbles: true }));
           if (svg) openSvgLightbox(svg);
           return;
         }
@@ -422,6 +424,7 @@ export const Mermaid = Node.create<MermaidOptions>({
         if (typeof pos !== "number" || editor.isDestroyed) return;
         event.preventDefault();
         editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, pos)));
+        element.dispatchEvent(new CustomEvent(MERMAID_TOUCH_SELECT_EVENT, { bubbles: true }));
         if (editor.view.hasFocus()) editor.commands.blur();
       };
       element.addEventListener("touchstart", onTouchStart, { passive: true });

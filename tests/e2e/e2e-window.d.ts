@@ -29,7 +29,7 @@ declare global {
           doc?: unknown[];
           expanded?: boolean;
         }[],
-        opts?: { titleExpanded?: boolean; titleDoc?: unknown[] },
+        opts?: { titleExpanded?: boolean; titleDoc?: unknown[]; phone?: boolean },
       ): string;
       /** Live editors of all mounted sections. */
       editors(): Editor[];

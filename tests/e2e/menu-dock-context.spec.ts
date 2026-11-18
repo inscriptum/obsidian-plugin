@@ -30,6 +30,19 @@ test("opening a panel preserves the selected text", async ({ page }) => {
   await expect(page.locator(".ProseMirror .menu-dock-selection")).toHaveText("alpha bravo");
 });
 
+test("block styles preserve a multi-paragraph selection for subsequent formatting", async ({ page }) => {
+  await openHarness(page);
+  await mountToolbar(page, noteDoc(p("alpha"), p("bravo")));
+  const from = await textRange(page, "alpha");
+  const to = await textRange(page, "bravo");
+  await page.evaluate(({ start, end }) => window.__e2e.editor!.commands.setTextSelection({ from: start, to: end }), { start: from.from, end: to.to });
+  await page.getByRole("button", { name: "Styles and color" }).click();
+  await page.getByRole("button", { name: "Heading 1", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveCount(0);
+  await page.locator('.menu-dock__swatch[title="Purple"]').click();
+  await expect(page.locator('.ProseMirror h1 span[style*="color"]')).toHaveCount(2);
+});
+
 test("blurred caret remains visible while a block panel is open", async ({ page }) => {
   await openHarness(page);
   await mountToolbar(page, noteDoc(p("alpha bravo")));
