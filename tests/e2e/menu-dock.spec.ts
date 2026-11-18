@@ -139,6 +139,23 @@ test.describe("mobile menu dock", () => {
     await expect(page.locator(`${dock} .menu-dock__group`, { hasText: "Text" })).toHaveAttribute("aria-expanded", "false");
   });
 
+  test("hide keyboard blurs a focused link field", async ({ page }) => {
+    await openHarness(page);
+    await mountToolbar(page, noteDoc(p("plain")));
+    await openGroup(page, "Insert");
+    await clickAction(page, "Link");
+    const input = page.getByRole("textbox", { name: "Link URL" });
+    await input.focus();
+    await page.evaluate(() => {
+      document.body.classList.add("is-mobile");
+      document.documentElement.style.setProperty("--keyboard-height", "300px");
+    });
+    const hide = page.getByRole("button", { name: "Hide keyboard" });
+    await expect(hide).toHaveAttribute("aria-disabled", "false");
+    await hide.click();
+    await expect(input).not.toBeFocused();
+  });
+
   test("block style applies to the current block without any selection", async ({
     page,
   }) => {

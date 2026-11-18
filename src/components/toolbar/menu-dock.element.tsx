@@ -955,7 +955,14 @@ export const MenuDockElement = litView.element({
                 {groupBtn({ id: "lists", label: "Lists", aria: "Lists", icon: bubbleIconNodes.list })}
                 {groupBtn({ id: "objects", label: "Insert", aria: "Blocks and tables", toolbarIcon: "table" })}
                 {groupBtn({ id: "media", label: "Media", aria: "Media and files", toolbarIcon: "image" })}
-                <button class="menu-dock__group" aria-label="Hide keyboard" aria-disabled={keyboardOpen ? "false" : "true"} onclick={() => { if (keyboardOpen) props.editor.commands.blur(); }}>
+                <button class="menu-dock__group" aria-label="Hide keyboard" aria-disabled={keyboardOpen ? "false" : "true"} onclick={() => {
+                  if (!keyboardOpen) return;
+                  const active = root.ownerDocument.activeElement;
+                  if (active instanceof HTMLElement && root.contains(active)) active.blur();
+                  props.editor.commands.blur();
+                  const keyboard = (window as unknown as { Capacitor?: { Plugins?: { Keyboard?: { hide?: () => Promise<void> } } } }).Capacitor?.Plugins?.Keyboard;
+                  void keyboard?.hide?.().catch(() => {});
+                }}>
                   <span class="menu-dock__icon">{toolbarIconNodes.keyboardHide({})}</span>
                   <span class="menu-dock__group-label">Keyboard</span>
                 </button>
