@@ -130,3 +130,83 @@ test.describe("mermaid click-to-zoom", () => {
     await expect(overlay).toHaveCount(0);
   });
 });
+
+test("phone diagram edit opens without focusing the source field", async ({ page }) => {
+  await openHarness(page);
+  await page.evaluate(() => document.body.classList.add("is-mobile", "is-phone"));
+  await mount(page, noteDoc({
+    type: "mermaid",
+    attrs: { code: "flowchart TD\n  A[Start] --> B[End]" },
+  }));
+  const host = page.locator(".texto-extension-mermaid-host");
+  await expect(host).toBeVisible();
+  await host.evaluate((element) => element.dispatchEvent(new CustomEvent("texto-mermaid-edit")));
+  await expect(host).toHaveClass(/is-editing/);
+  const input = host.locator(".mermaid-editor__input");
+  await expect(input).toBeVisible();
+  await expect(input).not.toBeFocused();
+  await input.click();
+  await expect(input).toBeFocused();
+});
+
+test.describe("phone diagram touch", () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+
+  test("multitouch and cancelled touches do not select or open a diagram", async ({ page }) => {
+    await openHarness(page);
+    await page.evaluate(() => document.body.classList.add("is-mobile", "is-phone"));
+    await mount(page, noteDoc(p("before"), {
+      type: "mermaid",
+      attrs: { code: "flowchart TD\n  A[Start] --> B[End]" },
+    }));
+    const svg = await renderedSvg(page);
+    const host = page.locator(".texto-extension-mermaid-host");
+    const outcomes = await svg.evaluate((target) => {
+      const touch = (id: number) => new Touch({ identifier: id, target, clientX: 20 + id, clientY: 30 });
+      const send = (type: string, touches: Touch[], changedTouches: Touch[]) => target.dispatchEvent(
+        new TouchEvent(type, { bubbles: true, cancelable: true, touches, changedTouches }),
+      );
+      const first = touch(1), second = touch(2);
+      send("touchstart", [first], [first]);
+      send("touchstart", [first, second], [second]);
+      send("touchend", [second], [first]);
+      const multiEnd = send("touchend", [], [second]);
+      send("touchstart", [first], [first]);
+      send("touchcancel", [], [first]);
+      const cancelledEnd = send("touchend", [], [first]);
+      send("touchstart", [first], [first]);
+      const outside = new Touch({ identifier: 3, target: document.body, clientX: 1, clientY: 1 });
+      document.body.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true, touches: [first, outside], changedTouches: [outside] }));
+      document.body.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true, touches: [first], changedTouches: [outside] }));
+      const outsideEnd = send("touchend", [], [first]);
+      return { multiEnd, cancelledEnd, outsideEnd };
+    });
+    expect(outcomes).toEqual({ multiEnd: true, cancelledEnd: true, outsideEnd: true });
+    await expect(host).not.toHaveClass(/ProseMirror-selectednode/);
+    await expect(page.locator(".inscriptum-image-lightbox")).toHaveCount(0);
+  });
+
+  test("tap selects without focusing the editor and the next tap opens the viewer", async ({ page }) => {
+    await openHarness(page);
+    await page.evaluate(() => document.body.classList.add("is-mobile", "is-phone"));
+    await mount(page, noteDoc(p("before"), {
+      type: "mermaid",
+      attrs: { code: "flowchart TD\n  A[Start] --> B[End]" },
+    }));
+    const svg = await renderedSvg(page);
+    await page.evaluate(() => window.__e2e.editor!.view.dom.blur());
+    const swipeWasAllowed = await svg.evaluate((target) => {
+      const touch = (y: number) => new Touch({ identifier: 7, target, clientX: 20, clientY: y });
+      target.dispatchEvent(new TouchEvent("touchstart", { bubbles: true, cancelable: true, touches: [touch(20)] }));
+      return target.dispatchEvent(new TouchEvent("touchend", { bubbles: true, cancelable: true, changedTouches: [touch(80)] }));
+    });
+    expect(swipeWasAllowed).toBe(true);
+    await expect(page.locator(".texto-extension-mermaid-host")).not.toHaveClass(/ProseMirror-selectednode/);
+    await svg.tap();
+    await expect(page.locator(".texto-extension-mermaid-host")).toHaveClass(/ProseMirror-selectednode/);
+    await expect(page.locator(".ProseMirror")).not.toBeFocused();
+    await expect(page.locator(".inscriptum-image-lightbox")).toHaveCount(0);
+    await svg.tap();
+    await expect(page.locator(".inscriptum-image-lightbox")).toBeVisible();
+  });
+});

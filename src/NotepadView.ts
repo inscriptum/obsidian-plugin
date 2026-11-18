@@ -72,6 +72,7 @@ import { setupScrollShadows, syncScrollShadow } from "./components/toolbar/scrol
 import { elTag } from "./tags";
 import { NoteElement } from "./components/note/note.element";
 import { ToolbarElement } from "./components/toolbar/toolbar.element";
+import { MenuDockElement } from "./components/toolbar/menu-dock.element";
 import { BubbleMenuBarElement } from "./components/bubble-menu-bar/bubble-menu-bar.element";
 import { CommentsPanelElement } from "./components/comments/comments-panel.element";
 import {
@@ -93,6 +94,7 @@ import { isMediaNodeSelection } from "./components/bubble-menu-bar/mediaMenuStat
 import { selectionInProperty, sanitizePropertyValues } from "./texto/extensions/note-property";
 import { selectionInWikiContext } from "./texto/extensions/wikilink";
 import { selectionInCodeBlock } from "./texto/extensions/code-block-hljs";
+import { MERMAID_TOUCH_SELECT_EVENT } from "./texto/extensions/mermaid/mermaid";
 import { getTableMenuState } from "./components/bubble-menu-bar/tableMenuState";
 import { moveTargetIndex } from "./notepad/moveTargetIndex";
 import {
@@ -168,6 +170,8 @@ const makeToolbarElement = () =>
     "note-toolbar",
     () => new ToolbarElement(),
   );
+const makeMenuDockElement = () =>
+  createCustomElement<MenuDockElement>("menu-dock", () => new MenuDockElement());
 const makeBubbleMenuBarElement = () =>
   createCustomElement("bubble-menu-bar", () => new BubbleMenuBarElement());
 const makeCommentsPanelElement = () =>
@@ -277,13 +281,11 @@ interface SectionHandle {
   /** The table controls bar docked into the toolbar while the focus is in
    *  this section's table (mirrors NoteView); null until the editor exists. */
   tableBubbleEl: HTMLElement | null;
-  /** Phone only: the (former) bubble menus handed to the bottom toolbar as
-   *  selection bars — text / table / media (see ToolbarElement props). */
-  mobileBars: {
-    text: HTMLElement;
-    table: HTMLElement;
-    media: HTMLElement;
-  } | null;
+  /** Phone only: the menu dock handed to the bottom toolbar — context group
+   *  rows + panels replacing the former text/table/media selection bars
+   *  (see ToolbarElement props, design «Удобство мобильного редактора»). */
+  mobileDock: HTMLElement | null;
+  mobileBars: { text: HTMLElement; table: HTMLElement; media: HTMLElement } | null;
   /** Device-local persistence of this page's in-document fold state
    *  (headings + task items), created lazily — see foldPersistence.ts. */
   folds: FoldPersistence | null;
@@ -474,6 +476,27 @@ export class NotepadView extends FileView {
 
   onPaneMenu(menu: Menu, source: string): void {
     super.onPaneMenu(menu, source);
+    // Undo/redo for the section editor currently bound to the bottom toolbar
+    // (owner decision in the mobile-editor-menu-dock design, IMPLEMENTATION.md
+    // :20 — moved here from the mobile toolbar row). The menu is built at
+    // open time, so canUndo/canRedo are always fresh.
+    const editor = this.toolbarEl?.props.editor;
+    if (Platform.isPhone && editor && !editor.isDestroyed) {
+      menu.addItem((item) =>
+        item
+          .setTitle("Undo")
+          .setIcon("undo")
+          .setDisabled(!editor.can().undo())
+          .onClick(() => editor.chain().focus().undo().run()),
+      );
+      menu.addItem((item) =>
+        item
+          .setTitle("Redo")
+          .setIcon("redo")
+          .setDisabled(!editor.can().redo())
+          .onClick(() => editor.chain().focus().redo().run()),
+      );
+    }
     menu.addItem((item) =>
       item
         .setTitle("Find in notepad")
@@ -927,6 +950,7 @@ export class NotepadView extends FileView {
       editorRef: { current: null },
       bubbleEls: [],
       tableBubbleEl: null,
+      mobileDock: null,
       mobileBars: null,
       folds: null,
       morphAnim: null,
@@ -1647,6 +1671,14 @@ export class NotepadView extends FileView {
       this.updateNavActive();
     });
 
+    if (Platform.isPhone) {
+      editor.view.dom.addEventListener(MERMAID_TOUCH_SELECT_EVENT, () => {
+        this.focusedEditorValue = editor;
+        this.ensureToolbar(editor, handle);
+        this.updateNavActive();
+      });
+    }
+
     editor.registerPlugin(createDocumentSearchPlugin());
     // Non-Latin keyboard layouts: resolve Cmd/Ctrl+letter combos by physical
     // key code and route them through the view (see tools/isPressedCommand).
@@ -1657,10 +1689,12 @@ export class NotepadView extends FileView {
       }),
     );
 
-    if (isMobile) {
-      // Phone/tablet: the (former) bubble menus render inside the bottom
-      // toolbar and swap in on selection (see ToolbarElement) — no floating
-      // tippy popups, no desktop fold restore (folding is desktop-only).
+    if (Platform.isPhone) {
+      // Phone: the menu dock renders inside the bottom toolbar
+      // (ToolbarElement menuDock prop) — no floating tippy popups, no
+      // desktop fold restore (folding is desktop-only).
+      this.createMobileMenuDock(editor, handle);
+    } else if (isMobile) {
       this.createMobileBubbleBars(editor, handle);
     } else {
       // Bubble menus first: the toolbar build below docks this section's
@@ -1691,14 +1725,26 @@ export class NotepadView extends FileView {
     return editor;
   }
 
-  /** Phone/tablet selection bars: the text, table and media menus become
-   *  toolbar props (rendered inside .mobile-sel-bar containers, see
-   *  ToolbarElement). No bubbleMenuPlugin is registered — visibility is the
-   *  toolbar's own mode computation. Mirrors NoteView's mobile wiring. */
-  private createMobileBubbleBars(
+  /** Phone/tablet menu dock: the context group rows + panels handed to the
+   *  bottom toolbar (ToolbarElement menuDock prop). No bubbleMenuPlugin is
+   *  registered — visibility is the toolbar's own mode computation.
+   *  Mirrors NoteView's mobile wiring. */
+  private createMobileMenuDock(
     editor: Editor,
     handle: SectionHandle,
   ): void {
+    const dock = makeMenuDockElement();
+    dock.addClass("menu-dock-host");
+    handle.bubbleEls = [dock];
+    handle.mobileDock = dock;
+    dock.props.editor = editor;
+    // The dock's media "Open" action routes through the app; without it the
+    // element's generator never starts (required prop wiring, same as the
+    // former media bar).
+    dock.props.app = this.app;
+  }
+
+  private createMobileBubbleBars(editor: Editor, handle: SectionHandle): void {
     const textBar = makeBubbleMenuBarElement();
     const tableBar = makeTableBubbleMenuElement();
     const mediaBar = makeMediaBubbleMenuElement();
@@ -1711,13 +1757,7 @@ export class NotepadView extends FileView {
     textBar.props.editor = editor;
     tableBar.props.editor = editor;
     mediaBar.props.editor = editor;
-    // Required prop of the media menu (open/delete actions route through
-    // the app); without it the element's generator never starts.
     mediaBar.props.app = this.app;
-    // The media menu element's own editor-event subscription can go stale
-    // across toolbar re-renders, leaving the bar frozen on its initial
-    // state. Pulse it on every selection update: the generator re-reads
-    // the editor state on each render pass (same as NoteView).
     editor.on("selectionUpdate", () => mediaBar.next());
     editor.on("update", () => mediaBar.next());
   }
@@ -1843,20 +1883,22 @@ export class NotepadView extends FileView {
     toolbarEl.addClass("notepad-toolbar");
     toolbarEl.setAttribute("data-ignore-swipe", "true");
     toolbarEl.props.editor = editor;
-    // The section owning this editor provides the selection bars docked into
-    // the toolbar. Mobile: the text/table/media selection bars swap the
-    // toolbar row (ToolbarElement mode). Desktop: only the table controls
-    // dock while the focus is inside a table. At mount time handle.editor is
-    // not yet assigned (it lands in expandSection after
+    // The section owning this editor provides the mobile menu dock / the
+    // desktop table controls docked into the toolbar. Mobile: the dock
+    // replaces the toolbar row (ToolbarElement menuDock prop). Desktop: only
+    // the table controls dock while the focus is inside a table. At mount
+    // time handle.editor is not yet assigned (it lands in expandSection after
     // createEditorForSection returns), so the owner is passed explicitly;
     // later callers resolve it by editor.
     const ownerHandle =
       owner ?? [...this.sections.values()].find((h) => h.editor === editor);
-    const bars = ownerHandle?.mobileBars;
-    if (bars) {
-      toolbarEl.props.selectionBar = bars.text;
-      toolbarEl.props.tableSelectionBar = bars.table;
-      toolbarEl.props.mediaSelectionBar = bars.media;
+    const mobileDock = ownerHandle?.mobileDock;
+    if (mobileDock) {
+      toolbarEl.props.menuDock = mobileDock;
+    } else if (ownerHandle?.mobileBars) {
+      toolbarEl.props.selectionBar = ownerHandle.mobileBars.text;
+      toolbarEl.props.tableSelectionBar = ownerHandle.mobileBars.table;
+      toolbarEl.props.mediaSelectionBar = ownerHandle.mobileBars.media;
     } else {
       toolbarEl.props.tableBar = ownerHandle?.tableBubbleEl ?? undefined;
     }

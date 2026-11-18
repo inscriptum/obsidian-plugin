@@ -1,6 +1,7 @@
 import { isFunction, mergeAttributes, Node } from "../../core";
 import { elTag } from "../../../tags";
 import { openSvgLightbox } from "../../../ui/imageLightbox";
+import { NodeSelection } from "prosemirror-state";
 import type { ElementComponentProps } from "@web-companions/gfc/@types";
 
 import { addCommands } from "./commands";
@@ -40,6 +41,7 @@ export type MermaidElementPublicProps = Omit<
 /** DOM event the media bubble menu dispatches on the host element to open
  *  the inline source editor (see editMermaidDiagram in tools/media). */
 export const MERMAID_EDIT_EVENT = "texto-mermaid-edit";
+export const MERMAID_TOUCH_SELECT_EVENT = "texto-mermaid-touch-select";
 
 /** Visual layout of a diagram block (same set as ImageLayout). */
 export type MermaidLayout =
@@ -284,10 +286,10 @@ export const Mermaid = Node.create<MermaidOptions>({
             // The element's input handler mirrors the draft into the code
             // block backdrop rows.
             input.dispatchEvent(new Event("input", { bubbles: true }));
-            input.focus();
+            if (!document.body.classList.contains("is-phone")) input.focus();
           }
         } else if (editor.isEditable) {
-          editor.view.focus();
+          if (!document.body.classList.contains("is-phone")) editor.view.focus();
           maybeRender();
         }
       };
@@ -397,6 +399,41 @@ export const Mermaid = Node.create<MermaidOptions>({
       element.addEventListener("mousedown", onViewMousedown, true);
       element.addEventListener("click", onViewClick);
 
+      let touchStart: { id: number; x: number; y: number; time: number } | null = null;
+      const onTouchStart = (event: TouchEvent) => {
+        const target = event.target;
+        if (event.touches.length !== 1) { touchStart = null; return; }
+        if (!document.body.classList.contains("is-phone") || !(target instanceof Element) || !target.closest(".mermaid-view")) return;
+        const touch = event.touches[0];
+        touchStart = { id: touch.identifier, x: touch.clientX, y: touch.clientY, time: Date.now() };
+      };
+      const onTouchEnd = (event: TouchEvent) => {
+        const start = touchStart;
+        touchStart = null;
+        const touch = Array.from(event.changedTouches).find((item) => item.identifier === start?.id);
+        if (event.touches.length !== 0) return;
+        if (!start || !touch || Date.now() - start.time >= 600 || Math.hypot(touch.clientX - start.x, touch.clientY - start.y) >= 12) return;
+        if (element.classList.contains("ProseMirror-selectednode")) {
+          const svg = mermaidLightboxTarget(element, event.target);
+          event.preventDefault();
+          element.dispatchEvent(new CustomEvent(MERMAID_TOUCH_SELECT_EVENT, { bubbles: true }));
+          if (svg) openSvgLightbox(svg);
+          return;
+        }
+        const pos = getPos();
+        if (typeof pos !== "number" || editor.isDestroyed) return;
+        event.preventDefault();
+        editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(editor.state.doc, pos)));
+        element.dispatchEvent(new CustomEvent(MERMAID_TOUCH_SELECT_EVENT, { bubbles: true }));
+        if (editor.view.hasFocus()) editor.commands.blur();
+      };
+      element.addEventListener("touchstart", onTouchStart, { passive: true });
+      element.addEventListener("touchend", onTouchEnd, { passive: false });
+      const onTouchCancel = () => { touchStart = null; };
+      const onDocumentTouchStart = (event: TouchEvent) => { if (event.touches.length > 1) touchStart = null; };
+      element.ownerDocument.addEventListener("touchstart", onDocumentTouchStart, { passive: true, capture: true });
+      element.addEventListener("touchcancel", onTouchCancel);
+
       return {
         dom: element,
 
@@ -438,6 +475,10 @@ export const Mermaid = Node.create<MermaidOptions>({
           element.removeEventListener(MERMAID_EDIT_EVENT, onEditEvent);
           element.removeEventListener("mousedown", onViewMousedown, true);
           element.removeEventListener("click", onViewClick);
+          element.removeEventListener("touchstart", onTouchStart);
+          element.removeEventListener("touchend", onTouchEnd);
+          element.removeEventListener("touchcancel", onTouchCancel);
+          element.ownerDocument.removeEventListener("touchstart", onDocumentTouchStart, true);
           intersection?.disconnect();
           detachTheme?.();
         },

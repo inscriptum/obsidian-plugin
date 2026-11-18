@@ -59,6 +59,7 @@ import "./components/toolbar/toolbar.element";
 import "./components/search/search.element";
 import { NoteElement } from "./components/note/note.element";
 import { ToolbarElement } from "./components/toolbar/toolbar.element";
+import { MenuDockElement } from "./components/toolbar/menu-dock.element";
 import { SearchElement } from "./components/search/search.element";
 import { setupScrollShadows } from "./components/toolbar/scrollShadow";
 import {
@@ -207,9 +208,29 @@ export class NoteView extends FileView {
   }
 
   /** Populate the view's "More options" (three-dot) menu. Keeps the default
-      FileView items and adds a shortcut to the in-document search. */
+      FileView items and adds a shortcut to the in-document search. Undo/redo
+      moved here from the mobile toolbar row (owner decision in the
+      mobile-editor-menu-dock design, IMPLEMENTATION.md:20): the menu is built
+      at open time, so canUndo/canRedo are always fresh. */
   onPaneMenu(menu: Menu, source: string): void {
     super.onPaneMenu(menu, source);
+    const editor = this.editor;
+    if (Platform.isPhone && editor && !editor.isDestroyed) {
+      menu.addItem((item) =>
+        item
+          .setTitle("Undo")
+          .setIcon("undo")
+          .setDisabled(!editor.can().undo())
+          .onClick(() => editor.chain().focus().undo().run()),
+      );
+      menu.addItem((item) =>
+        item
+          .setTitle("Redo")
+          .setIcon("redo")
+          .setDisabled(!editor.can().redo())
+          .onClick(() => editor.chain().focus().redo().run()),
+      );
+    }
     menu.addItem((item) =>
       item
         .setTitle("Find in note")
@@ -465,6 +486,10 @@ export class NoteView extends FileView {
     tableCellsBubbleMenuEl.addClass("bubble-menu-bar-host");
     const mediaBubbleMenuEl = new MediaBubbleMenuElement();
     mediaBubbleMenuEl.addClass("bubble-menu-bar-host");
+    // Mobile only: the context menu dock (replaces the selection bars in the
+    // bottom toolbar — see the isMobile branch in initEditor below).
+    const menuDockEl = new MenuDockElement();
+    menuDockEl.addClass("menu-dock-host");
 
     // The custom element may not have rendered its container by the time the
     // view opens — retry on a timer instead of a single rAF check. A timer
@@ -598,7 +623,9 @@ export class NoteView extends FileView {
                   (event).clientY - start.y,
                 ) < 12 &&
                 Date.now() - start.t < 600;
-              if (isTap && !editor.view.hasFocus()) {
+              const target = event.target;
+              const onDiagram = Platform.isPhone && target instanceof Element && target.closest(".texto-extension-mermaid-host");
+              if (isTap && !onDiagram && !editor.view.hasFocus()) {
                 editor.view.focus();
               }
             });
@@ -628,16 +655,18 @@ export class NoteView extends FileView {
 
           // Attach menus to the DOM AFTER setting props.editor: for the required prop,
           // connectedCallback starts the generator only when editor is already set.
-          if (isMobile) {
-            // Mobile: bubble menus render inside the bottom toolbar and swap in
-            // on selection (see ToolbarElement). No floating tippy popup.
+          if (Platform.isPhone) {
+            // Mobile: the menu dock (context group rows + panels) replaces the
+            // docked selection bars and the toolbar row — design «Удобство
+            // мобильного редактора» (menu-dock.element.tsx). No floating tippy
+            // popup, no flat selection rows.
+            menuDockEl.props.editor = this.editor;
+            menuDockEl.props.app = this.app;
+            toolbarEl.props.menuDock = menuDockEl;
+          } else if (isMobile) {
             toolbarEl.props.selectionBar = bubbleMenuBarEl;
             toolbarEl.props.tableSelectionBar = tableBubbleMenuEl;
             toolbarEl.props.mediaSelectionBar = mediaBubbleMenuEl;
-            // The media menu element's own editor-event subscription can go stale
-            // across toolbar re-renders, leaving the bar frozen on its initial
-            // state. Pulse it on every selection update: the generator re-reads
-            // the editor state on each render pass.
             this.editor.on("selectionUpdate", () => mediaBubbleMenuEl.next());
             this.editor.on("update", () => mediaBubbleMenuEl.next());
           } else {

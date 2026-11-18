@@ -45,7 +45,7 @@ function openPopup(button: HTMLElement, popup: HTMLElement): void {
   if (!win) return;
   popup.classList.toggle(
     "bb-dd-popup--mobile",
-    !!row.closest(".mobile-sel-bar"),
+    !!row.closest(".mobile-sel-bar, .menu-dock"),
   );
   popup.setAttribute("data-ignore-swipe", "true");
   doc.body.appendChild(popup);
@@ -159,7 +159,7 @@ function openPopup(button: HTMLElement, popup: HTMLElement): void {
   scheduleTracking();
 }
 
-function hexField(label: string, onApply: (hex: string) => void) {
+function hexField(label: string, onApply: (hex: string) => void, draft?: string, onDraft?: (value: string) => void) {
   return (
     <input
       type="text"
@@ -168,6 +168,8 @@ function hexField(label: string, onApply: (hex: string) => void) {
       maxlength={7}
       spellcheck={false}
       aria-label={label}
+      value={draft}
+      oninput={(e: Event) => onDraft?.((e.target as HTMLInputElement).value)}
       onmousedown={stopBubbling}
       onkeydown={(e: KeyboardEvent) => {
         if (e.key !== "Enter") return;
@@ -186,6 +188,8 @@ export function customColorRow(opts: {
   /** aria-label for the hex field (the native input keeps title="Custom color"). */
   hexLabel: string;
   onApply: (hex: string) => void;
+  draft?: string;
+  onDraft?: (value: string) => void;
 }) {
   const coarse = window.matchMedia?.("(pointer: coarse)")?.matches ?? false;
 
@@ -201,7 +205,7 @@ export function customColorRow(opts: {
             opts.onApply((e.target as HTMLInputElement).value)
           }
         ></input>
-        {hexField(opts.hexLabel, opts.onApply)}
+        {hexField(opts.hexLabel, opts.onApply, opts.draft, opts.onDraft)}
       </div>
     );
   }
@@ -246,7 +250,7 @@ export function customColorRow(opts: {
           ></button>
         ))}
       </div>
-      {hexField(opts.hexLabel, opts.onApply)}
+      {hexField(opts.hexLabel, opts.onApply, opts.draft, opts.onDraft)}
     </div>
   );
 }

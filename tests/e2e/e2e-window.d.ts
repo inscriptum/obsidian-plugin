@@ -7,7 +7,7 @@ declare global {
   interface Window {
     __e2e: {
       mount(doc: unknown): string;
-      mountToolbar(doc: unknown, opts?: { mobile?: boolean }): string;
+      mountToolbar(doc: unknown, opts?: { mobile?: boolean; tablet?: boolean }): string;
       readonly editor: Editor | null;
       docJson(): unknown;
       positions(): number[];
@@ -29,7 +29,7 @@ declare global {
           doc?: unknown[];
           expanded?: boolean;
         }[],
-        opts?: { titleExpanded?: boolean; titleDoc?: unknown[] },
+        opts?: { titleExpanded?: boolean; titleDoc?: unknown[]; phone?: boolean },
       ): string;
       /** Live editors of all mounted sections. */
       editors(): Editor[];

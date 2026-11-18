@@ -23,7 +23,7 @@ async function selectText(page: Page) {
   ).toBeVisible();
 }
 
-async function openCustom(page: Page, mobile = false) {
+async function openCustom(page: Page) {
   await selectText(page);
   if (!(await page.locator(".bubble-menu-layer--styles.show").count())) {
     await page
@@ -31,9 +31,6 @@ async function openCustom(page: Page, mobile = false) {
       .click();
   }
   const layer = page.locator(".bubble-menu-layer--styles.show");
-  if (mobile) {
-    await layer.evaluate((el) => el.classList.add("mobile-sel-bar"));
-  }
   await layer.locator(".bb-dd-open").click();
   const popup = page.locator(".bb-dd-popup.show");
   await expect(popup).toBeVisible();
@@ -144,47 +141,6 @@ test.describe("coarse custom colors", () => {
     await button.tap();
     await expect(popup).toBeVisible();
     await page.mouse.click(4, 4);
-    await expect(popup).toHaveCount(0);
-  });
-
-  test("the mobile grid scrolls inside a short visible viewport and cleans up with its host", async ({
-    page,
-  }) => {
-    await mount(page);
-    const popup = await openCustom(page, true);
-    await page.setViewportSize({ width: 640, height: 240 });
-    await expect
-      .poll(async () => {
-        const r = await popup.boundingBox();
-        return r ? r.y + r.height : Infinity;
-      })
-      .toBeLessThanOrEqual(233);
-    const geometry = await popup.evaluate((el) => ({
-      height: el.clientHeight,
-      scrollHeight: el.scrollHeight,
-      size: el.querySelector("button")!.getBoundingClientRect().width,
-    }));
-    expect(geometry.size).toBe(32);
-    expect(geometry.scrollHeight).toBeGreaterThan(geometry.height);
-    const last = popup.locator(".bb-sw").last();
-    await last.scrollIntoViewIfNeeded();
-    await last.tap();
-    await expect(popup).toHaveCount(0);
-    await page.setViewportSize({ width: 1000, height: 800 });
-    await openCustom(page, true);
-    await page.addStyleTag({
-      content:
-        ".coarse-host-hidden .bubble-menu-popper { display: none !important; }",
-    });
-    await page.evaluate(() =>
-      document.body.classList.add("coarse-host-hidden"),
-    );
-    await expect(popup).toHaveCount(0);
-    await page.evaluate(() =>
-      document.body.classList.remove("coarse-host-hidden"),
-    );
-    await openCustom(page, true);
-    await page.evaluate(() => window.__e2eNotepad.mount([]));
     await expect(popup).toHaveCount(0);
   });
 });

@@ -10,11 +10,12 @@ import { taskFoldingKey } from "../texto/extensions/task-item-folding/taskFoldin
 import { NotepadView } from "../NotepadView";
 import { installIconSprite } from "../components/icons/iconSprite";
 import { ToolbarElement } from "../components/toolbar/toolbar.element";
+import { MenuDockElement } from "../components/toolbar/menu-dock.element";
 import { UmNotepad } from "../storage/um/umNotepad";
 import { exportNotepadAsWebsite } from "../export/exportNotepadWebsite";
 import type { UmContainerData, UmNoteDescriptor } from "../storage/um/umTypes";
 import type { WorkspaceLeaf } from "obsidian";
-import { TFile } from "obsidian";
+import { Platform, TFile } from "obsidian";
 import {
   UM_FORMAT,
   UM_SCHEMA_PLAIN,
@@ -320,7 +321,7 @@ interface E2EApi {
    *  selectionBar is passed, so the toolbar renders the mobile row with the
    *  undo/redo buttons); opts.mobile=false mounts the desktop branch —
    *  for toolbar interaction tests. */
-  mountToolbar: (doc: unknown, opts?: { mobile?: boolean }) => string;
+  mountToolbar: (doc: unknown, opts?: { mobile?: boolean; tablet?: boolean }) => string;
   /** The editor mounted last (null before the first mount). */
   readonly editor: Editor | null;
   /** Doc JSON of the current editor. */
@@ -403,22 +404,36 @@ function mountEditor(doc: unknown): string {
   return "editor";
 }
 
+let lastMountedToolbar: HTMLElement | null = null;
+
 const e2eApi: E2EApi = {
   mount: mountEditor,
-  mountToolbar: (doc: unknown, opts?: { mobile?: boolean }): string => {
+  mountToolbar: (doc: unknown, opts?: { mobile?: boolean; tablet?: boolean }): string => {
     const mobile = opts?.mobile ?? true;
     mountEditor(doc);
     installIconSprite();
     const editor = currentEditor;
     if (editor == null) return "editor";
+    // One view = one toolbar: drop the previous mount so stale docks (with
+    // their last-rendered panels) never linger in the DOM for locators.
+    lastMountedToolbar?.remove();
+    lastMountedToolbar = null;
     const toolbar = new ToolbarElement();
     toolbar.addClass("note-toolbar-host");
     toolbar.props.editor = editor;
-    // A fake selection bar switches the toolbar into its mobile branch —
-    // the only place the undo/redo buttons render (mobile-only feature).
-    if (mobile) toolbar.props.selectionBar = createDiv("fake-selection-bar");
+    if (mobile && opts?.tablet) {
+      toolbar.props.selectionBar = document.createElement("div");
+    } else if (mobile) {
+      // The menu dock replaces the toolbar row on mobile (design «Удобство
+      // мобильного редактора») — the e2e suite drives it through groups.
+      const dock = new MenuDockElement();
+      dock.addClass("menu-dock-host");
+      dock.props.editor = editor;
+      toolbar.props.menuDock = dock;
+    }
     appContainer().appendChild(toolbar);
-    return mobile ? "editor+toolbar(mobile)" : "editor+toolbar(desktop)";
+    lastMountedToolbar = toolbar;
+    return mobile ? "editor+toolbar(mobile+dock)" : "editor+toolbar(desktop)";
   },
   get editor() {
     return currentEditor;
@@ -495,8 +510,12 @@ function noteParagraphs(prefix: string, count: number): JSONContent[] {
 
 function mountNotepad(
   pages: NotepadPageSpec[],
-  opts?: { titleExpanded?: boolean; titleDoc?: JSONContent[] },
+  opts?: { titleExpanded?: boolean; titleDoc?: JSONContent[]; phone?: boolean },
 ): string {
+  if (opts?.phone) {
+    Object.assign(Platform, { isMobile: true, isMobileApp: true, isPhone: true });
+    document.body.classList.add("is-mobile", "is-phone");
+  }
   const notes = new Map<string, JSONContent>();
   const descriptors: UmNoteDescriptor[] = [
     {
