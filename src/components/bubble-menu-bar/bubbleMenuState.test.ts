@@ -143,7 +143,7 @@ describe("getBubbleMenuState", () => {
   });
 
   it("reads highlight color from the mark attrs", () => {
-    const color = HIGHLIGHT_COLORS[0].color!;
+    const color = HIGHLIGHT_COLORS[0].color;
     const s = getBubbleMenuState(
       makeEditor({ highlight: true }, { highlight: { color } }),
     );
@@ -208,11 +208,11 @@ describe("HIGHLIGHT_COLORS", () => {
 
   it("swatches are translucent rgba — inherited text stays readable", () => {
     for (const c of HIGHLIGHT_COLORS) {
-      const m = c.color!.match(
+      const m = c.color.match(
         /^rgba\(\d{1,3}, \d{1,3}, \d{1,3}, 0\.3\)$/,
       );
       expect(m).not.toBe(null);
-      const [r, g, b, a] = c.color!
+      const [r, g, b, a] = c.color
         .slice(5, -1)
         .split(", ")
         .map(Number) as [number, number, number, number];
@@ -225,7 +225,7 @@ describe("HIGHLIGHT_COLORS", () => {
   });
 
   it("a stored attrs.color maps back to exactly one swatch", () => {
-    const color = HIGHLIGHT_COLORS[2].color!; // green
+    const color = HIGHLIGHT_COLORS[2].color; // green
     const swatch = HIGHLIGHT_COLORS.find((c) => c.color === color);
     expect(swatch?.id).toBe("green");
     // A foreign color (old documents, custom values) maps to no swatch.

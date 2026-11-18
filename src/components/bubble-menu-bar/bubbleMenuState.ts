@@ -45,14 +45,10 @@ export const TEXT_COLORS: TextColorSwatch[] = [
   ...BORDER_COLORS.filter((c) => c.color != null),
 ];
 
-/** "Highlight" palette — a fixed set of six translucent swatches, one per
- *  gamma of Obsidian's own highlight palette (red/orange/yellow/green/
- *  blue/purple). Colors ride in the mark attrs (texto does not know
- *  palettes), so they are opaque strings here — same pattern as
- *  TEXT_COLORS; the reverse mapping for the active swatch is by string.
- *  No "default" entry: the theme's default highlight is what a colorless
- *  mark renders, and the way back from a colored mark is clicking the
- *  active swatch again (the mark is unset) or the Highlight toggle. */
+/** "Highlight" palette — six translucent swatches, one per gamma of
+ *  Obsidian's highlight palette. Colors ride in the mark attrs (texto
+ *  does not know palettes), so the reverse mapping for the active
+ *  swatch is by string; there is no "default" entry. */
 export const HIGHLIGHT_COLORS: Array<TextColorSwatch & { color: string }> = [
   { id: "yellow", label: "Yellow highlight", css: "yellow", color: "rgba(224, 172, 0, 0.3)" },
   { id: "orange", label: "Orange highlight", css: "orange", color: "rgba(236, 117, 0, 0.3)" },
