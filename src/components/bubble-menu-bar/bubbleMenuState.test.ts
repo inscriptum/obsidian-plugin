@@ -460,9 +460,9 @@ describe("getSelectionMarkSpreads — parity with the toggle decision", () => {
       const state = mkState(s.runs, s.to);
       const active = isMarkActive(state, "bold");
       const spread = getSelectionMarkSpreads(state).bold;
-      // "all" ⇔ the toggle removes; "mixed"/"none" ⇔ it adds (or no-ops).
+      // "all" ⇔ the toggle removes; "mixed" ⇔ it paints; "none" ⇔ the
+      // mark is absent (the toggle only ever adds).
       expect(spread === "all").toBe(active);
-      expect(spread === "mixed").not.toBe(active);
     });
   }
 });
