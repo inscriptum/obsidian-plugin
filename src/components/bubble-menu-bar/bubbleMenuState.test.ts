@@ -1,6 +1,18 @@
 import { describe, it, expect } from "vitest";
+import type { Mark, Node } from "prosemirror-model";
 import type { Editor } from "../../texto/core";
-import { getBubbleMenuState, TEXT_COLORS } from "./bubbleMenuState";
+import { EditorState, NodeSelection, TextSelection } from "prosemirror-state";
+import { CellSelection } from "prosemirror-tables";
+import { buildSchema } from "../../../tests/helpers/buildSchema";
+import { createTable } from "../../texto/extensions/table/helpers/createTable";
+import { isMarkActive } from "../../texto/core/helpers/isMarkActive";
+import {
+  getBubbleMenuState,
+  getSelectionMarkSpreads,
+  TEXT_COLORS,
+} from "./bubbleMenuState";
+
+const schema = buildSchema();
 
 function makeEditor(
   active: Record<string, boolean>,
@@ -57,13 +69,21 @@ describe("getBubbleMenuState", () => {
 
   it("reports the paragraph alignment (left is the absence)", () => {
     expect(
-      getBubbleMenuState(makeEditor({ paragraph: true }, { paragraph: { align: "center" } })).align,
+      getBubbleMenuState(
+        makeEditor({ paragraph: true }, { paragraph: { align: "center" } }),
+      ).align,
     ).toBe("center");
     expect(
-      getBubbleMenuState(makeEditor({ paragraph: true }, { paragraph: {} })).align,
+      getBubbleMenuState(makeEditor({ paragraph: true }, { paragraph: {} }))
+        .align,
     ).toBe("left");
     expect(
-      getBubbleMenuState(makeEditor({ heading: true, heading1: true }, { heading: { align: "right" } })).align,
+      getBubbleMenuState(
+        makeEditor(
+          { heading: true, heading1: true },
+          { heading: { align: "right" } },
+        ),
+      ).align,
     ).toBe("right");
   });
 
@@ -142,4 +162,307 @@ describe("TEXT_COLORS", () => {
     expect(new Set(hexes).size).toBe(hexes.length);
     for (const hex of hexes) expect(hex).toMatch(/^#[0-9a-f]{6}$/);
   });
+});
+
+describe("getSelectionMarkSpreads", () => {
+  const para = (text: string, marks?: readonly Mark[]) =>
+    schema.nodes.paragraph.create(null, [schema.text(text, marks)]);
+
+  const boldMark = () => schema.marks.bold.create();
+  const italicMark = () => schema.marks.italic.create();
+  const colorMark = (color: string) => schema.marks.textStyle.create({ color });
+
+  function stateOf(doc: Node, sel: { from: number; to?: number }) {
+    return EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, sel.from, sel.to ?? sel.from),
+    });
+  }
+
+  it("caret reports stored marks as all/none, never mixed", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      para("alpha", [boldMark()]),
+    ]);
+    const before = stateOf(doc, { from: 1 });
+    expect(before.selection.empty).toBe(true);
+    expect(getSelectionMarkSpreads(before).bold).toBe("all");
+    expect(getSelectionMarkSpreads(before).italic).toBe("none");
+
+    const after = stateOf(doc, { from: 7 });
+    expect(getSelectionMarkSpreads(after).bold).toBe("none");
+  });
+
+  it("uniform selection reports all", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      para("alpha", [boldMark()]),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 6 });
+    expect(getSelectionMarkSpreads(state).bold).toBe("all");
+    expect(getSelectionMarkSpreads(state).italic).toBe("none");
+  });
+
+  it("partly formatted selection reports mixed", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      schema.nodes.paragraph.create(null, [
+        schema.text("alpha", [boldMark()]),
+        schema.text(" bold"),
+      ]),
+    ]);
+    // "alpha bold" — the marked part plus the unmarked " bold".
+    const state = stateOf(doc, { from: 1, to: 11 });
+    expect(getSelectionMarkSpreads(state).bold).toBe("mixed");
+    expect(getSelectionMarkSpreads(state).italic).toBe("none");
+  });
+
+  it("mixed colors are reported as mixed, not as a single color", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      schema.nodes.paragraph.create(null, [
+        schema.text("alpha", [colorMark("#ff0000")]),
+        schema.text(" bravo", [colorMark("#00ff00")]),
+      ]),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 11 });
+    const spreads = getSelectionMarkSpreads(state);
+    expect(spreads.color).toBeNull();
+    expect(spreads.colorMixed).toBe(true);
+  });
+
+  it("uniform color survives a multi-block selection", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      para("alpha", [colorMark("#123456")]),
+      para("bravo", [colorMark("#123456")]),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 12 });
+    const spreads = getSelectionMarkSpreads(state);
+    expect(spreads.color).toBe("#123456");
+    expect(spreads.colorMixed).toBe(false);
+  });
+
+  it("a selection without text nodes reports no color and no marks", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      para("alpha"),
+      schema.nodes.image.create({
+        key: "img",
+        state: "done",
+        data: { id: "x.png", size: 3, source: "vault" },
+      }),
+    ]);
+    let imagePos = 0;
+    doc.descendants((node, pos) => {
+      if (node.type.name === "image") imagePos = pos;
+      return true;
+    });
+    const state = EditorState.create({
+      doc,
+      selection: NodeSelection.create(doc, imagePos),
+    });
+    const spreads = getSelectionMarkSpreads(state);
+    expect(spreads.bold).toBe("none");
+    expect(spreads.color).toBeNull();
+    expect(spreads.colorMixed).toBe(false);
+  });
+
+  it("a colorless textStyle mark is not reported as a color", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      schema.nodes.paragraph.create(null, [
+        schema.text("alpha", [schema.marks.textStyle.create({})]),
+        schema.text(" bravo"),
+      ]),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 11 });
+    const spreads = getSelectionMarkSpreads(state);
+    expect(spreads.color).toBeNull();
+    expect(spreads.colorMixed).toBe(false);
+  });
+
+  it("a cell selection reads the marks across the cell text", () => {
+    const cellContent = schema.nodes.paragraph.create(
+      null,
+      schema.text("alpha"),
+    );
+    const table = createTable(schema, 2, 2, false, cellContent);
+    const positions: number[] = [];
+    table.descendants((node, pos) => {
+      if (node.type.name === "tableCell") positions.push(pos);
+      return true;
+    });
+    const state = EditorState.create({
+      doc: table,
+      selection: CellSelection.create(
+        table,
+        positions[0],
+        positions[positions.length - 1],
+      ),
+    });
+    expect(state.selection.empty).toBe(false);
+    const spreads = getSelectionMarkSpreads(state);
+    expect(spreads.bold).toBe("none");
+    expect(spreads.underline).toBe("none");
+    expect(spreads.link).toBe("none");
+    expect(spreads.color).toBeNull();
+    expect(spreads.colorMixed).toBe(false);
+  });
+});
+
+describe("getSelectionMarkSpreads — exclusive-mark neutrality", () => {
+  // Inline code excludes every other mark (excludes: "_"), so text inside
+  // code cannot carry bold/italic/etc. isMarkActive counts that text as
+  // covered when part is matched — the spreads must predict the toggle.
+  const boldMark = () => schema.marks.bold.create();
+  const codeMark = () => schema.marks.code.create();
+  const para = (...runs: ReturnType<typeof schema.text>[]) =>
+    schema.nodes.paragraph.create(null, runs);
+  const stateOf = (doc: Node, sel: { from: number; to?: number }) =>
+    EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, sel.from, sel.to ?? sel.from),
+    });
+
+  it("[bold][code] reports bold all — the toggle will remove it", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      para(
+        schema.text("alpha", [boldMark()]),
+        schema.text(" bravo", [codeMark()]),
+      ),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 11 });
+    const spreads = getSelectionMarkSpreads(state);
+    expect(spreads.bold).toBe("all");
+    // Code itself is partly present: toggling code would paint the plain
+    // run (replacing its bold) — "mixed" predicts that.
+    expect(spreads.code).toBe("mixed");
+  });
+
+  it("[plain][code] reports bold none — the toggle will add it", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      para(schema.text("alpha"), schema.text(" bravo", [codeMark()])),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 11 });
+    expect(getSelectionMarkSpreads(state).bold).toBe("none");
+  });
+
+  it("[bold][code][bold] reports bold all", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      para(
+        schema.text("a", [boldMark()]),
+        schema.text(" b ", [codeMark()]),
+        schema.text("c", [boldMark()]),
+      ),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 6 });
+    expect(getSelectionMarkSpreads(state).bold).toBe("all");
+  });
+
+  it("[plain][code][bold] reports bold mixed — partly coverable", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      para(
+        schema.text("a"),
+        schema.text(" b ", [codeMark()]),
+        schema.text("c", [boldMark()]),
+      ),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 6 });
+    expect(getSelectionMarkSpreads(state).bold).toBe("mixed");
+  });
+
+  it("a selection entirely inside code reports bold none (toggle is a no-op there)", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      para(schema.text(" bravo", [codeMark()])),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 7 });
+    expect(getSelectionMarkSpreads(state).bold).toBe("none");
+    expect(getSelectionMarkSpreads(state).code).toBe("all");
+  });
+
+  it("[linked][code] reports link all — same coverage rule", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      para(
+        schema.text("alpha", [
+          schema.marks.link.create({ href: "https://example.com" }),
+        ]),
+        schema.text(" bravo", [codeMark()]),
+      ),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 11 });
+    expect(getSelectionMarkSpreads(state).link).toBe("all");
+  });
+});
+
+describe("getSelectionMarkSpreads — parity with the toggle decision", () => {
+  // The dock displays spreads; toggleMark decides via isMarkActive. For
+  // every mixed code/bold selection the displayed state must predict the
+  // toggle: "all" ⇔ isMarkActive true (tap removes), otherwise the toggle
+  // adds (tap paints).
+  const boldMark = () => schema.marks.bold.create();
+  const codeMark = () => schema.marks.code.create();
+  const mkState = (
+    runs: Array<{ text: string; marks?: Mark[] }>,
+    to: number,
+  ) => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      schema.nodes.paragraph.create(
+        null,
+        runs.map((r) => schema.text(r.text, r.marks)),
+      ),
+    ]);
+    return EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, 1, to),
+    });
+  };
+
+  const scenarios = [
+    {
+      name: "[bold][code]",
+      runs: [
+        { text: "alpha", marks: [boldMark()] },
+        { text: " bravo", marks: [codeMark()] },
+      ],
+      to: 11,
+    },
+    {
+      name: "[plain][code]",
+      runs: [{ text: "alpha" }, { text: " bravo", marks: [codeMark()] }],
+      to: 11,
+    },
+    {
+      name: "[bold][plain]",
+      runs: [{ text: "alpha", marks: [boldMark()] }, { text: " bravo" }],
+      to: 11,
+    },
+    {
+      name: "[bold][code][bold]",
+      runs: [
+        { text: "a", marks: [boldMark()] },
+        { text: " b ", marks: [codeMark()] },
+        { text: "c", marks: [boldMark()] },
+      ],
+      to: 6,
+    },
+    {
+      name: "[plain][code][bold]",
+      runs: [
+        { text: "a" },
+        { text: " b ", marks: [codeMark()] },
+        { text: "c", marks: [boldMark()] },
+      ],
+      to: 6,
+    },
+    {
+      name: "[code only]",
+      runs: [{ text: " bravo", marks: [codeMark()] }],
+      to: 7,
+    },
+  ];
+
+  for (const s of scenarios) {
+    it(`${s.name}: displayed bold state predicts the toggle`, () => {
+      const state = mkState(s.runs, s.to);
+      const active = isMarkActive(state, "bold");
+      const spread = getSelectionMarkSpreads(state).bold;
+      // "all" ⇔ the toggle removes; "mixed" ⇔ it paints; "none" ⇔ the
+      // mark is absent (the toggle only ever adds).
+      expect(spread === "all").toBe(active);
+    });
+  }
 });

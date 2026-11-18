@@ -2,15 +2,18 @@ import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
 import type { App } from "obsidian";
 import { ConfirmModal } from "../../ui/ConfirmModal";
-import { Plugin, PluginKey, TextSelection, type Selection, type Transaction } from "prosemirror-state";
+import { Plugin, PluginKey, TextSelection, type EditorState, type Selection, type Transaction } from "prosemirror-state";
 import { Decoration, DecorationSet } from "prosemirror-view";
 import { Editor } from "../../texto/core";
 import { elTag } from "../../tags";
 import { computeDockMode, type DockMode } from "./dockMode";
 import {
   getBubbleMenuState,
+  getSelectionMarkSpreads,
   TEXT_COLORS,
   type BubbleMenuState,
+  type MarkSpread,
+  type SelectionMarkSpreads,
 } from "../bubble-menu-bar/bubbleMenuState";
 import {
   bgHexToAttr,
@@ -63,7 +66,7 @@ const BORDER_STYLE_LABELS: Record<string, string> = {
   solid: "Solid", double: "Double", dotted: "Dotted", dashed: "Dashed",
 };
 
-type TextPanel = "format" | "styles" | "link" | "more";
+type TextPanel = "styles" | "link" | "more";
 type MainPanel = "blocks" | "lists" | "objects" | "media";
 type TablePanel = "actions" | "fill" | "borders";
 type MediaPanel = "object" | "layout";
@@ -116,9 +119,10 @@ function fillHexForPicker(bg: string | null): string | null {
  * time (full-width, docked ABOVE the rows — never a floating popup).
  *
  * Contexts follow computeDockMode: no selection (insert groups applying
- * block styles to the CURRENT block), text selection (format / styles /
- * link / more), table (actions / fill / borders), media (object / layout).
- * Undo/redo live in the app «⋯» menu (owner decision, IMPLEMENTATION.md:20).
+ * block styles to the CURRENT block), text selection (direct Bold / Italic /
+ * Link + Style / More), table (actions / fill / borders), media (object /
+ * layout). Undo/redo live in the app «⋯» menu (owner decision,
+ * IMPLEMENTATION.md:20).
  */
 export const MenuDockElement = litView.element({
   props: {
@@ -134,6 +138,18 @@ export const MenuDockElement = litView.element({
   let mode: DockMode = "none";
   let contextDismissed = false;
   let bubbleState: BubbleMenuState = getBubbleMenuState(props.editor);
+  // EditorState is immutable, so identity is the memo key: the render loop
+  // re-reads spreads every pass, but only a new state recomputes them.
+  let spreadsState: EditorState = props.editor.state;
+  let spreadsCache: SelectionMarkSpreads = getSelectionMarkSpreads(spreadsState);
+  const spreadsFor = (state: EditorState): SelectionMarkSpreads => {
+    if (state !== spreadsState) {
+      spreadsState = state;
+      spreadsCache = getSelectionMarkSpreads(state);
+    }
+    return spreadsCache;
+  };
+  let spreads: SelectionMarkSpreads = spreadsFor(props.editor.state);
   let tableState: TableMenuState = getTableMenuState(props.editor.state);
   let openPanel: Panel | null = null;
   let heldSelection: Selection | null = null;
@@ -183,6 +199,7 @@ export const MenuDockElement = litView.element({
       mode = next;
     }
     bubbleState = getBubbleMenuState(props.editor);
+    spreads = spreadsFor(props.editor.state);
     tableState = getTableMenuState(props.editor.state);
     void this.next();
   };
@@ -267,7 +284,7 @@ export const MenuDockElement = litView.element({
   root.addEventListener("pointerdown", preserveEditorSelection);
   const prepareHeldSelection = (event: Event) => {
     const target = event.target as Element;
-    if (event.type === "click" && !target.closest(".menu-dock__action, .menu-dock__swatch, .menu-dock__link-go, .bb-sw")) return;
+    if (event.type === "click" && !target.closest(".menu-dock__action, .menu-dock__swatch, .menu-dock__link-go, .menu-dock__direct, .bb-sw")) return;
     if (event.type === "keydown" && (!(event instanceof KeyboardEvent) || event.key !== "Enter" || !target.matches(".bb-dd-hex, .menu-dock__link-input"))) return;
     if (heldSelectionInvalid) {
       event.preventDefault();
@@ -530,13 +547,25 @@ export const MenuDockElement = litView.element({
     icon?: IconRenderer;
     toolbarIcon?: ToolbarIconName;
     text?: string;
+    /** Steady highlight while the underlying mark is on the selection
+     *  (the Link row button), independent of the panel open state. */
+    active?: boolean;
+    /** Tri-state mark report for a panel opener that also toggles a mark
+     *  (Link): the dashed mixed indicator shows only while closed. */
+    pressed?: "true" | "false" | "mixed";
   }) => {
-    const active = openPanel === opts.id;
+    const open = openPanel === opts.id;
     return (
       <button
-        class={cls("menu-dock__group", active && "is-open")}
+        class={cls(
+          "menu-dock__group",
+          open && "is-open",
+          !open && opts.active && "is-active",
+          !open && opts.pressed === "mixed" && "is-mixed",
+        )}
         aria-label={opts.aria}
-        aria-expanded={active ? "true" : "false"}
+        aria-expanded={open ? "true" : "false"}
+        aria-pressed={opts.pressed}
         onclick={() => togglePanel(opts.id)}
       >
         {opts.text ? (
@@ -562,27 +591,62 @@ export const MenuDockElement = litView.element({
     </button>
   );
 
+  /** Direct toggle command in the group row (Bold, Italic): tri-state
+   *  aria-pressed — "mixed" for a partly formatted selection. */
+  const markBtn = (opts: {
+    mark: "bold" | "italic";
+    label: string;
+    icon: IconRenderer;
+  }) => {
+    const spread: MarkSpread = spreads[opts.mark];
+    const pressed = spread === "mixed" ? "mixed" : spread === "all" ? "true" : "false";
+    return (
+      <button
+        class={cls(
+          "menu-dock__group",
+          "menu-dock__direct",
+          spread === "all" && "is-active",
+          spread === "mixed" && "is-mixed",
+        )}
+        aria-label={opts.label}
+        aria-pressed={pressed}
+        onclick={() => applyMark(opts.mark)}
+      >
+        <span class="menu-dock__icon">{opts.icon()}</span>
+        <span class="menu-dock__group-label">{opts.label}</span>
+      </button>
+    );
+  };
+
   const actionBtn = (opts: {
     label: string;
     icon: IconRenderer;
     onclick: () => void;
     danger?: boolean;
     active?: boolean;
+    /** Tri-state for mark toggles: shows the dashed mixed indicator. */
+    mixed?: boolean;
+    /** Icon-only compact button: the label lives in aria-label + title. */
+    iconOnly?: boolean;
     /** Reason string when the command can't apply: the button stays in the
      *  DOM (tab order, screen reader) and explains itself (review F37). */
     disabled?: string;
   }) => {
     const disabled = opts.disabled ?? (opts.danger && !props.app ? "Confirmation unavailable" : undefined);
+    const pressed = opts.mixed ? "mixed" : opts.active === undefined ? undefined : String(opts.active);
     return <button
       class={cls(
         "menu-dock__action",
+        opts.iconOnly && "menu-dock__action--icon",
         opts.danger && "is-danger",
         opts.active && "is-active",
+        opts.mixed && "is-mixed",
         disabled && "is-disabled",
       )}
       aria-label={disabled ? `${opts.label} — ${disabled}` : opts.label}
+      title={opts.iconOnly ? opts.label : undefined}
       aria-disabled={disabled ? "true" : undefined}
-      aria-pressed={opts.active === undefined ? undefined : String(opts.active)}
+      aria-pressed={pressed}
       data-tip={disabled || undefined}
       onclick={() => {
         if (disabled) return;
@@ -606,12 +670,30 @@ export const MenuDockElement = litView.element({
       }}
     >
       <span class="menu-dock__icon">{opts.icon()}</span>
-      <span>{opts.label}</span>
+      {opts.iconOnly ? null : <span>{opts.label}</span>}
     </button>;
   };
 
+  /** Mark toggle inside a panel: active / mixed states from the spreads. */
+  const markActionBtn = (opts: {
+    label: string;
+    icon: IconRenderer;
+    spread: MarkSpread;
+    onclick: () => void;
+  }) =>
+    actionBtn({
+      label: opts.label,
+      icon: opts.icon,
+      iconOnly: true,
+      mixed: opts.spread === "mixed",
+      active: opts.spread === "all",
+      onclick: opts.onclick,
+    });
+
   const colorSwatches = (
-    current: string | null,
+    /** The selection's single color; undefined when MIXED — nothing counts
+     *  as active, the mixed selection is not reported as one color. */
+    current: string | null | undefined,
     onPick: (color: string | null) => void,
     noneLabel: string,
   ) => (
@@ -640,6 +722,7 @@ export const MenuDockElement = litView.element({
       if (!props.editor.isDestroyed) {
         if (!heldSelection && !heldSelectionInvalid) mode = contextDismissed ? "none" : computeDockMode(props.editor);
         bubbleState = getBubbleMenuState(props.editor);
+        spreads = spreadsFor(props.editor.state);
         tableState = getTableMenuState(props.editor.state);
       }
       const media = getMediaMenuState(props.editor.state);
@@ -649,7 +732,7 @@ export const MenuDockElement = litView.element({
         (isMermaid || (media.nodeType === "image" && media.hasFile));
       const keyboardOpen = !!root.closest(".note-view-container, .notepad-view-container")?.classList.contains("is-keyboard-open") || isMobileKeyboardOpen();
       const dockCols =
-        mode === "none" ? 5 : mode === "text" ? 4 : mode === "table" ? 4 : showLayout ? 3 : 2;
+        mode === "none" ? 5 : mode === "text" ? 5 : mode === "table" ? 4 : showLayout ? 3 : 2;
 
       props = yield (
         <div class="menu-dock" style={`--dock-cols: ${dockCols}`}>
@@ -657,74 +740,62 @@ export const MenuDockElement = litView.element({
           {/* ── Panel (docked above the rows; one at a time) ── */}
           {openPanel === "blocks" ? (
             <div class="menu-dock__panel" role="group" aria-label="Text blocks">
-              <div class="menu-dock__grid">
-                {actionBtn({ label: "Text", icon: bubbleIconNodes.paragraph, active: bubbleState.paragraph, onclick: () => applyBlock("paragraph") })}
-                {actionBtn({ label: "Heading 1", icon: bubbleIconNodes.h1, active: bubbleState.h1, onclick: () => applyBlock("h1") })}
-                {actionBtn({ label: "Heading 2", icon: bubbleIconNodes.h2, active: bubbleState.h2, onclick: () => applyBlock("h2") })}
-                {actionBtn({ label: "Heading 3", icon: bubbleIconNodes.h3, active: bubbleState.h3, onclick: () => applyBlock("h3") })}
-                {actionBtn({ label: "Quote", icon: bubbleIconNodes.blockquote, active: bubbleState.quote, onclick: () => applyBlock("quote") })}
+              <div class="menu-dock__grid menu-dock__grid--icons">
+                {actionBtn({ label: "Text", icon: bubbleIconNodes.paragraph, iconOnly: true, active: bubbleState.paragraph, onclick: () => applyBlock("paragraph") })}
+                {actionBtn({ label: "Heading 1", icon: bubbleIconNodes.h1, iconOnly: true, active: bubbleState.h1, onclick: () => applyBlock("h1") })}
+                {actionBtn({ label: "Heading 2", icon: bubbleIconNodes.h2, iconOnly: true, active: bubbleState.h2, onclick: () => applyBlock("h2") })}
+                {actionBtn({ label: "Heading 3", icon: bubbleIconNodes.h3, iconOnly: true, active: bubbleState.h3, onclick: () => applyBlock("h3") })}
+                {actionBtn({ label: "Quote", icon: bubbleIconNodes.blockquote, iconOnly: true, active: bubbleState.quote, onclick: () => applyBlock("quote") })}
               </div>
             </div>
           ) : null}
           {openPanel === "lists" ? (
             <div class="menu-dock__panel" role="group" aria-label="Lists">
-              <div class="menu-dock__grid">
-                {actionBtn({ label: "Task list", icon: bubbleIconNodes.taskList, active: bubbleState.taskList, onclick: () => applyBlock("taskList") })}
-                {actionBtn({ label: "Bullet list", icon: bubbleIconNodes.list, active: bubbleState.list, onclick: () => applyBlock("list") })}
-                {actionBtn({ label: "Numbered list", icon: toolbarIconNodes.orderedList, active: props.editor.isActive("orderedList"), onclick: () => props.editor.chain().toggleOrderedList().run() })}
+              <div class="menu-dock__grid menu-dock__grid--icons">
+                {actionBtn({ label: "Task list", icon: bubbleIconNodes.taskList, iconOnly: true, active: bubbleState.taskList, onclick: () => applyBlock("taskList") })}
+                {actionBtn({ label: "Bullet list", icon: bubbleIconNodes.list, iconOnly: true, active: bubbleState.list, onclick: () => applyBlock("list") })}
+                {actionBtn({ label: "Numbered list", icon: toolbarIconNodes.orderedList, iconOnly: true, active: props.editor.isActive("orderedList"), onclick: () => props.editor.chain().toggleOrderedList().run() })}
               </div>
             </div>
           ) : null}
           {openPanel === "objects" ? (
             <div class="menu-dock__panel" role="group" aria-label="Insert blocks">
-              <div class="menu-dock__grid">
-                {actionBtn({ label: "Table", icon: toolbarIconNodes.table, onclick: () => props.editor.chain().insertTable().run() })}
-                {actionBtn({ label: "Code block", icon: bubbleIconNodes.code, onclick: () => props.editor.chain().toggleHljsCodeBlock().run() })}
-                {actionBtn({ label: "Link", icon: bubbleIconNodes.link, onclick: () => togglePanel("link") })}
+              <div class="menu-dock__grid menu-dock__grid--icons">
+                {actionBtn({ label: "Table", icon: toolbarIconNodes.table, iconOnly: true, onclick: () => props.editor.chain().insertTable().run() })}
+                {actionBtn({ label: "Code block", icon: bubbleIconNodes.code, iconOnly: true, onclick: () => props.editor.chain().toggleHljsCodeBlock().run() })}
+                {actionBtn({ label: "Link", icon: bubbleIconNodes.link, iconOnly: true, onclick: () => togglePanel("link") })}
               </div>
             </div>
           ) : null}
           {openPanel === "media" ? (
             <div class="menu-dock__panel" role="group" aria-label="Insert media">
-              <div class="menu-dock__grid">
-                {actionBtn({ label: "Image", icon: toolbarIconNodes.image, onclick: () => props.editor.chain().selectImageFile().run() })}
-                {actionBtn({ label: "Diagram", icon: toolbarIconNodes.diagram, onclick: () => props.editor.chain().insertMermaid().run() })}
-                {actionBtn({ label: "Attachment", icon: toolbarIconNodes.paperclip, onclick: () => props.editor.chain().setAttachment(true).run() })}
-              </div>
-            </div>
-          ) : null}
-          {openPanel === "format" ? (
-            <div class="menu-dock__panel" role="group" aria-label="Text formatting">
-              <div class="menu-dock__grid">
-                {actionBtn({ label: "Bold", icon: bubbleIconNodes.bold, active: bubbleState.bold, onclick: () => applyMark("bold") })}
-                {actionBtn({ label: "Italic", icon: bubbleIconNodes.italic, active: bubbleState.italic, onclick: () => applyMark("italic") })}
-                {actionBtn({ label: "Underline", icon: bubbleIconNodes.underline, active: bubbleState.underline, onclick: () => applyMark("underline") })}
-                {actionBtn({ label: "Strikethrough", icon: bubbleIconNodes.strike, active: bubbleState.strike, onclick: () => applyMark("strike") })}
-                {actionBtn({ label: "Inline code", icon: bubbleIconNodes.code, active: bubbleState.code, onclick: () => applyMark("code") })}
-                {actionBtn({ label: "Highlight", icon: bubbleIconNodes.mark, active: bubbleState.mark, onclick: () => applyMark("mark") })}
+              <div class="menu-dock__grid menu-dock__grid--icons">
+                {actionBtn({ label: "Image", icon: toolbarIconNodes.image, iconOnly: true, onclick: () => props.editor.chain().selectImageFile().run() })}
+                {actionBtn({ label: "Diagram", icon: toolbarIconNodes.diagram, iconOnly: true, onclick: () => props.editor.chain().insertMermaid().run() })}
+                {actionBtn({ label: "Attachment", icon: toolbarIconNodes.paperclip, iconOnly: true, onclick: () => props.editor.chain().setAttachment(true).run() })}
               </div>
             </div>
           ) : null}
           {openPanel === "styles" ? (
             <div class="menu-dock__panel" role="group" aria-label="Styles and color">
               <div class="menu-dock__section-label">Block</div>
-              <div class="menu-dock__grid">
-                {actionBtn({ label: "Text", icon: bubbleIconNodes.paragraph, active: bubbleState.paragraph, onclick: () => applyBlock("paragraph") })}
-                {actionBtn({ label: "Heading 1", icon: bubbleIconNodes.h1, active: bubbleState.h1, onclick: () => applyBlock("h1") })}
-                {actionBtn({ label: "Heading 2", icon: bubbleIconNodes.h2, active: bubbleState.h2, onclick: () => applyBlock("h2") })}
-                {actionBtn({ label: "Heading 3", icon: bubbleIconNodes.h3, active: bubbleState.h3, onclick: () => applyBlock("h3") })}
-                {actionBtn({ label: "Quote", icon: bubbleIconNodes.blockquote, active: bubbleState.quote, onclick: () => applyBlock("quote") })}
+              <div class="menu-dock__grid menu-dock__grid--icons">
+                {actionBtn({ label: "Text", icon: bubbleIconNodes.paragraph, iconOnly: true, active: bubbleState.paragraph, onclick: () => applyBlock("paragraph") })}
+                {actionBtn({ label: "Heading 1", icon: bubbleIconNodes.h1, iconOnly: true, active: bubbleState.h1, onclick: () => applyBlock("h1") })}
+                {actionBtn({ label: "Heading 2", icon: bubbleIconNodes.h2, iconOnly: true, active: bubbleState.h2, onclick: () => applyBlock("h2") })}
+                {actionBtn({ label: "Heading 3", icon: bubbleIconNodes.h3, iconOnly: true, active: bubbleState.h3, onclick: () => applyBlock("h3") })}
+                {actionBtn({ label: "Quote", icon: bubbleIconNodes.blockquote, iconOnly: true, active: bubbleState.quote, onclick: () => applyBlock("quote") })}
               </div>
               <div class="menu-dock__section-label">Alignment</div>
-              <div class="menu-dock__grid">
-                {actionBtn({ label: "Left", icon: bubbleIconNodes.alignLeft, active: bubbleState.align === "left", onclick: () => applyAlign("left") })}
-                {actionBtn({ label: "Center", icon: bubbleIconNodes.alignCenter, active: bubbleState.align === "center", onclick: () => applyAlign("center") })}
-                {actionBtn({ label: "Right", icon: bubbleIconNodes.alignRight, active: bubbleState.align === "right", onclick: () => applyAlign("right") })}
+              <div class="menu-dock__grid menu-dock__grid--icons">
+                {actionBtn({ label: "Left", icon: bubbleIconNodes.alignLeft, iconOnly: true, active: bubbleState.align === "left", onclick: () => applyAlign("left") })}
+                {actionBtn({ label: "Center", icon: bubbleIconNodes.alignCenter, iconOnly: true, active: bubbleState.align === "center", onclick: () => applyAlign("center") })}
+                {actionBtn({ label: "Right", icon: bubbleIconNodes.alignRight, iconOnly: true, active: bubbleState.align === "right", onclick: () => applyAlign("right") })}
               </div>
               <div class="menu-dock__section-label">Text color</div>
-              {colorSwatches(bubbleState.color, applyColor, "Default color")}
+              {colorSwatches(spreads.colorMixed ? undefined : spreads.color, applyColor, "Default color")}
               {customColorRow({
-                value: pickerHexValue(bubbleState.color),
+                value: pickerHexValue(spreads.colorMixed ? null : spreads.color),
                 hexLabel: "Text color HEX",
                 draft: colorDrafts.text,
                 onDraft: (value) => { colorDrafts.text = value; },
@@ -734,12 +805,17 @@ export const MenuDockElement = litView.element({
           ) : null}
           {openPanel === "more" ? (
             <div class="menu-dock__panel" role="group" aria-label="More actions">
-              <div class="menu-dock__grid">
-                {actionBtn({ label: "Clear formatting", icon: bubbleIconNodes.clear, onclick: () => props.editor.chain().unsetAllMarks().run() })}
+              <div class="menu-dock__grid menu-dock__grid--icons">
+                {markActionBtn({ label: "Underline", icon: bubbleIconNodes.underline, spread: spreads.underline, onclick: () => applyMark("underline") })}
+                {markActionBtn({ label: "Strikethrough", icon: bubbleIconNodes.strike, spread: spreads.strike, onclick: () => applyMark("strike") })}
+                {markActionBtn({ label: "Inline code", icon: bubbleIconNodes.code, spread: spreads.code, onclick: () => applyMark("code") })}
+                {markActionBtn({ label: "Highlight", icon: bubbleIconNodes.mark, spread: spreads.mark, onclick: () => applyMark("mark") })}
+                {actionBtn({ label: "Clear formatting", icon: bubbleIconNodes.clear, iconOnly: true, onclick: () => props.editor.chain().unsetAllMarks().run() })}
                 {schemaHasComments
                   ? actionBtn({
                       label: "Comment",
                       icon: bubbleIconNodes.comment,
+                      iconOnly: true,
                       onclick: () =>
                         root.dispatchEvent(
                           new CustomEvent("inscriptum-request-comment", {
@@ -802,24 +878,18 @@ export const MenuDockElement = litView.element({
           {openPanel === "actions" ? (
             <div class="menu-dock__panel" role="group" aria-label="Table actions">
               <div class="menu-dock__section-label">Rows and columns</div>
-              <div class="menu-dock__grid">
-                {actionBtn({ label: "Row above", icon: bubbleIconNodes.rowAbove, onclick: () => applyTableAction("rowAbove") })}
-                {actionBtn({ label: "Row below", icon: bubbleIconNodes.rowBelow, onclick: () => applyTableAction("rowBelow") })}
-                {actionBtn({ label: "Column left", icon: bubbleIconNodes.colLeft, onclick: () => applyTableAction("colLeft") })}
-                {actionBtn({ label: "Column right", icon: bubbleIconNodes.colRight, onclick: () => applyTableAction("colRight") })}
-                {actionBtn({ label: "Duplicate row", icon: bubbleIconNodes.dupRow, onclick: () => applyTableAction("dupRow") })}
-                {actionBtn({ label: "Duplicate column", icon: bubbleIconNodes.dupCol, onclick: () => applyTableAction("dupCol") })}
+              <div class="menu-dock__grid menu-dock__grid--icons">
+                {actionBtn({ label: "Row above", icon: bubbleIconNodes.rowAbove, iconOnly: true, onclick: () => applyTableAction("rowAbove") })}
+                {actionBtn({ label: "Row below", icon: bubbleIconNodes.rowBelow, iconOnly: true, onclick: () => applyTableAction("rowBelow") })}
+                {actionBtn({ label: "Column left", icon: bubbleIconNodes.colLeft, iconOnly: true, onclick: () => applyTableAction("colLeft") })}
+                {actionBtn({ label: "Column right", icon: bubbleIconNodes.colRight, iconOnly: true, onclick: () => applyTableAction("colRight") })}
               </div>
               <div class="menu-dock__section-label">Cells</div>
-              <div class="menu-dock__grid">
-                {actionBtn({ label: "Copy cells", icon: bubbleIconNodes.copy, onclick: () => copyTableSelection(props.editor.view) })}
-                {actionBtn({ label: "Cut cells", icon: bubbleIconNodes.cut, onclick: () => void cutTableSelection(props.editor.view).catch(() => {}) })}
-                {canReadClipboard
-                  ? actionBtn({ label: "Paste cells", icon: bubbleIconNodes.paste, onclick: () => void pasteFromSystemClipboard(props.editor.view).catch(() => {}) })
-                  : null}
+              <div class="menu-dock__grid menu-dock__grid--icons">
                 {actionBtn({
                   label: "Merge cells",
                   icon: bubbleIconNodes.merge,
+                  iconOnly: true,
                   onclick: () => applyTableAction("merge"),
                   disabled: tableState.multiCell && props.editor.can().mergeCells()
                     ? undefined
@@ -828,18 +898,29 @@ export const MenuDockElement = litView.element({
                 {actionBtn({
                   label: "Split cell",
                   icon: bubbleIconNodes.split,
+                  iconOnly: true,
                   onclick: () => applyTableAction("split"),
                   disabled: tableState.mergedCell
                     ? undefined
                     : "Select a merged cell",
                 })}
+                {actionBtn({ label: "Copy cells", icon: bubbleIconNodes.copy, iconOnly: true, onclick: () => copyTableSelection(props.editor.view) })}
+                {actionBtn({ label: "Cut cells", icon: bubbleIconNodes.cut, iconOnly: true, onclick: () => void cutTableSelection(props.editor.view).catch(() => {}) })}
+                {canReadClipboard
+                  ? actionBtn({ label: "Paste cells", icon: bubbleIconNodes.paste, iconOnly: true, onclick: () => void pasteFromSystemClipboard(props.editor.view).catch(() => {}) })
+                  : null}
               </div>
-              <div class="menu-dock__section-label">Rows and table</div>
-              <div class="menu-dock__grid">
-                {actionBtn({ label: "Table header", icon: bubbleIconNodes.header, active: tableState.headerRow, onclick: () => applyTableAction("header") })}
-                {actionBtn({ label: "Delete row", icon: bubbleIconNodes.delRow, danger: true, onclick: () => applyTableAction("delRow") })}
-                {actionBtn({ label: "Delete column", icon: bubbleIconNodes.delCol, danger: true, onclick: () => applyTableAction("delCol") })}
-                {actionBtn({ label: "Delete table", icon: bubbleIconNodes.delTable, danger: true, onclick: () => applyTableAction("delTable") })}
+              <div class="menu-dock__section-label">Table</div>
+              <div class="menu-dock__grid menu-dock__grid--icons">
+                {actionBtn({ label: "Table header", icon: bubbleIconNodes.header, iconOnly: true, active: tableState.headerRow, onclick: () => applyTableAction("header") })}
+                {actionBtn({ label: "Duplicate row", icon: bubbleIconNodes.dupRow, iconOnly: true, onclick: () => applyTableAction("dupRow") })}
+                {actionBtn({ label: "Duplicate column", icon: bubbleIconNodes.dupCol, iconOnly: true, onclick: () => applyTableAction("dupCol") })}
+              </div>
+              <div class="menu-dock__section-label">Delete</div>
+              <div class="menu-dock__grid menu-dock__grid--icons">
+                {actionBtn({ label: "Delete row", icon: bubbleIconNodes.delRow, iconOnly: true, danger: true, onclick: () => applyTableAction("delRow") })}
+                {actionBtn({ label: "Delete column", icon: bubbleIconNodes.delCol, iconOnly: true, danger: true, onclick: () => applyTableAction("delCol") })}
+                {actionBtn({ label: "Delete table", icon: bubbleIconNodes.delTable, iconOnly: true, danger: true, onclick: () => applyTableAction("delTable") })}
               </div>
             </div>
           ) : null}
@@ -935,47 +1016,49 @@ export const MenuDockElement = litView.element({
                 },
               })}
               <div class="menu-dock__section-label">Apply borders</div>
-              <div class="menu-dock__grid">
-                {actionBtn({ label: "No borders", icon: bubbleIconNodes.bdNone, onclick: () => applyBorderPreset("none") })}
-                {actionBtn({ label: "All borders", icon: bubbleIconNodes.bdAll, onclick: () => applyBorderPreset("all") })}
-                {actionBtn({ label: "Outer border", icon: bubbleIconNodes.bdBox, onclick: () => applyBorderPreset("box") })}
-                {actionBtn({ label: "Inside horizontal", icon: bubbleIconNodes.bdInsideH, onclick: () => applyBorderPreset("insideH") })}
-                {actionBtn({ label: "Inside vertical", icon: bubbleIconNodes.bdInsideV, onclick: () => applyBorderPreset("insideV") })}
-                {actionBtn({ label: "Top border", icon: bubbleIconNodes.bdTop, onclick: () => applyBorderSide("top") })}
-                {actionBtn({ label: "Right border", icon: bubbleIconNodes.bdRight, onclick: () => applyBorderSide("right") })}
-                {actionBtn({ label: "Bottom border", icon: bubbleIconNodes.bdBottom, onclick: () => applyBorderSide("bottom") })}
-                {actionBtn({ label: "Left border", icon: bubbleIconNodes.bdLeft, onclick: () => applyBorderSide("left") })}
+              <div class="menu-dock__grid menu-dock__grid--icons">
+                {actionBtn({ label: "No borders", icon: bubbleIconNodes.bdNone, iconOnly: true, onclick: () => applyBorderPreset("none") })}
+                {actionBtn({ label: "All borders", icon: bubbleIconNodes.bdAll, iconOnly: true, onclick: () => applyBorderPreset("all") })}
+                {actionBtn({ label: "Outer border", icon: bubbleIconNodes.bdBox, iconOnly: true, onclick: () => applyBorderPreset("box") })}
+                {actionBtn({ label: "Inside horizontal", icon: bubbleIconNodes.bdInsideH, iconOnly: true, onclick: () => applyBorderPreset("insideH") })}
+                {actionBtn({ label: "Inside vertical", icon: bubbleIconNodes.bdInsideV, iconOnly: true, onclick: () => applyBorderPreset("insideV") })}
+                {actionBtn({ label: "Top border", icon: bubbleIconNodes.bdTop, iconOnly: true, onclick: () => applyBorderSide("top") })}
+                {actionBtn({ label: "Right border", icon: bubbleIconNodes.bdRight, iconOnly: true, onclick: () => applyBorderSide("right") })}
+                {actionBtn({ label: "Bottom border", icon: bubbleIconNodes.bdBottom, iconOnly: true, onclick: () => applyBorderSide("bottom") })}
+                {actionBtn({ label: "Left border", icon: bubbleIconNodes.bdLeft, iconOnly: true, onclick: () => applyBorderSide("left") })}
               </div>
             </div>
           ) : null}
           {openPanel === "object" ? (
             <div class="menu-dock__panel" role="group" aria-label="Object actions">
-              <div class="menu-dock__grid">
+              <div class="menu-dock__grid menu-dock__grid--icons">
                 {isMermaid
                   ? [
-                      actionBtn({ label: "Edit diagram", icon: bubbleIconNodes.pencil, onclick: doEditDiagram }),
-                      actionBtn({ label: "Delete", icon: bubbleIconNodes.trash, danger: true, onclick: doDelete }),
+                      actionBtn({ label: "Edit diagram", icon: bubbleIconNodes.pencil, iconOnly: true, onclick: doEditDiagram }),
+                      actionBtn({ label: "Delete", icon: bubbleIconNodes.trash, iconOnly: true, danger: true, onclick: doDelete }),
                     ]
                   : [
                       actionBtn({
                         label: "Open",
                         icon: bubbleIconNodes.file,
+                        iconOnly: true,
                         disabled: media.hasFile ? undefined : "No file yet",
                         onclick: doOpen,
                       }),
-                      actionBtn({ label: "Replace", icon: bubbleIconNodes.replace, onclick: doReplace }),
-                      actionBtn({ label: "Delete", icon: bubbleIconNodes.trash, danger: true, onclick: doDelete }),
+                      actionBtn({ label: "Replace", icon: bubbleIconNodes.replace, iconOnly: true, onclick: doReplace }),
+                      actionBtn({ label: "Delete", icon: bubbleIconNodes.trash, iconOnly: true, danger: true, onclick: doDelete }),
                     ]}
               </div>
             </div>
           ) : null}
           {openPanel === "layout" ? (
             <div class="menu-dock__panel" role="group" aria-label="Layout">
-              <div class="menu-dock__grid">
+              <div class="menu-dock__grid menu-dock__grid--icons">
                 {MEDIA_LAYOUTS.map((l) =>
                   actionBtn({
                     label: l.label,
                     icon: l.icon,
+                    iconOnly: true,
                     active: media.align === l.align,
                     onclick: () => doSetLayout(l.align),
                   }),
@@ -1006,9 +1089,17 @@ export const MenuDockElement = litView.element({
               </>
             ) : mode === "text" ? (
               <>
-                {groupBtn({ id: "format", label: "Format", aria: "Formatting", icon: bubbleIconNodes.bold })}
+                {markBtn({ mark: "bold", label: "Bold", icon: bubbleIconNodes.bold })}
+                {markBtn({ mark: "italic", label: "Italic", icon: bubbleIconNodes.italic })}
+                {groupBtn({
+                  id: "link",
+                  label: "Link",
+                  aria: "Link",
+                  icon: bubbleIconNodes.link,
+                  active: spreads.link === "all",
+                  pressed: spreads.link === "mixed" ? "mixed" : spreads.link === "all" ? "true" : "false",
+                })}
                 {groupBtn({ id: "styles", label: "Style", aria: "Styles and color", text: "Aa" })}
-                {groupBtn({ id: "link", label: "Link", aria: "Link", icon: bubbleIconNodes.link })}
                 {groupBtn({ id: "more", label: "More", aria: "More actions", icon: toolbarIconNodes.dots })}
               </>
             ) : mode === "table" ? (

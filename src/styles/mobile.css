@@ -306,13 +306,19 @@ body:has(.mobile-navbar.mod-raised) .notepad-view-container.is-mobile.is-phone:n
 
 /* The open panel: full-width row above the context/group rows, capped by
    the space that is really available — the keyboard offset is subtracted
-   because Android draws the keyboard as an overlay (vh never shrinks). */
+   because Android draws the keyboard as an overlay (vh never shrinks).
+   Two caps: the old absolute reserve (panel never grows past "everything
+   above the rows") and 45% of the available height with a 200px floor, so
+   the document around the selection stays visible on phone viewports. */
 .menu-dock__panel {
   order: -1;
   width: 100%;
   padding: 6px 10px 8px;
   border-top: 1px solid var(--background-modifier-border);
-  max-height: max(0px, calc(min(100vh - var(--keyboard-offset, 0px), var(--dock-viewport-height, 100vh), var(--dock-container-height, 100vh)) - 132px - var(--dock-navbar-clearance, 0px)));
+  max-height: min(
+    max(0px, calc(min(100vh - var(--keyboard-offset, 0px), var(--dock-viewport-height, 100vh), var(--dock-container-height, 100vh)) - 132px - var(--dock-navbar-clearance, 0px))),
+    max(200px, calc(min(100vh - var(--keyboard-offset, 0px), var(--dock-viewport-height, 100vh), var(--dock-container-height, 100vh)) * 0.45))
+  );
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
@@ -351,6 +357,19 @@ body:has(.mobile-navbar.mod-raised) .notepad-view-container.is-mobile.is-phone:n
   color: var(--interactive-accent);
   box-shadow: inset 0 -2px 0 var(--interactive-accent);
 }
+/* Direct row commands (Bold/Italic) and Link: on state when the mark covers
+   the selection — accent color + the same fill the action buttons use. */
+.menu-dock__group.is-active {
+  color: var(--interactive-accent);
+  background: var(--background-modifier-active);
+}
+/* Mixed selection (part of it carries the mark/color): a distinguishable
+   intermediate — no fill, dashed accent underline, normal text color. */
+.menu-dock__group.is-mixed {
+  color: var(--text-normal);
+  box-shadow: inset 0 -2px 0 transparent;
+  border-bottom: 2px dashed var(--interactive-accent);
+}
 .menu-dock__group[aria-disabled="true"] {
   opacity: 0.45;
 }
@@ -377,6 +396,13 @@ body:has(.mobile-navbar.mod-raised) .notepad-view-container.is-mobile.is-phone:n
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: stretch;
   gap: 4px 6px;
+}
+/* Compact icon-only variant (labels live in aria-label + title): five
+   44dp squares per row keep big panels (table actions, borders) inside
+   roughly half the viewport while every command stays reachable. */
+.menu-dock__grid--icons {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
 }
 .menu-dock__action {
   display: flex;
@@ -411,6 +437,19 @@ body:has(.mobile-navbar.mod-raised) .notepad-view-container.is-mobile.is-phone:n
 }
 .menu-dock__action.is-danger {
   color: var(--text-error);
+}
+/* Icon-only compact action: centered glyph, full 44dp square target. */
+.menu-dock__action--icon {
+  justify-content: center;
+  gap: 0;
+  padding: 4px 0;
+}
+/* Mixed selection inside panels: the dashed accent underline, same language
+   as the direct row buttons. */
+.menu-dock__action.is-mixed {
+  color: var(--text-normal);
+  background: transparent;
+  border-bottom: 2px dashed var(--interactive-accent);
 }
 /* Unavailable command: kept in the DOM with the reason in the label
    (review F37) — dimmed, still focusable, click is a no-op. */

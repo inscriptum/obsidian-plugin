@@ -1,3 +1,4 @@
+import type { EditorState } from "prosemirror-state";
 import type { Editor } from "../../texto/core";
 import { BORDER_COLORS } from "./tableMenuState";
 
@@ -76,5 +77,139 @@ export function getBubbleMenuState(
     taskList: editor.isActive("taskList"),
     align,
     color: typeof textStyle?.color === "string" ? textStyle.color : null,
+  };
+}
+
+/** Mark presence across the whole selection: "all" — every text node carries
+ *  the mark, "none" — none does, "mixed" — the selection straddles the mark
+ *  boundary. */
+export type MarkSpread = "all" | "none" | "mixed";
+
+export interface SelectionMarkSpreads {
+  bold: MarkSpread;
+  italic: MarkSpread;
+  underline: MarkSpread;
+  strike: MarkSpread;
+  code: MarkSpread;
+  mark: MarkSpread;
+  link: MarkSpread;
+  /** Single text color of the selection; null when absent or MIXED. */
+  color: string | null;
+  /** True when the selection holds several distinct text colors. */
+  colorMixed: boolean;
+}
+
+const SPREAD_MARKS: Array<{
+  name: string;
+  key: keyof Omit<SelectionMarkSpreads, "color" | "colorMixed">;
+}> = [
+  { name: "bold", key: "bold" },
+  { name: "italic", key: "italic" },
+  { name: "underline", key: "underline" },
+  { name: "strike", key: "strike" },
+  { name: "code", key: "code" },
+  { name: "highlight", key: "mark" },
+  { name: "link", key: "link" },
+];
+
+/**
+ * Per-mark presence across the current selection — pure function of
+ * EditorState, so a partly formatted selection is distinguishable from a
+ * fully formatted one (consumers can report the tri-state, e.g. via
+ * aria-pressed on a toggle button). An empty selection reports the stored
+ * marks at the caret (state.storedMarks, falling back to $from.marks()) —
+ * the same marks getBubbleMenuState sees via isActive.
+ *
+ * Coverage follows the toggle decision rule (isMarkActive): text where the
+ * mark CANNOT apply — an existing mark excludes it, e.g. inline code
+ * (excludes: "_") — counts as covered, not uncovered, so the displayed
+ * state always predicts what a toggle will do.
+ */
+export function getSelectionMarkSpreads(
+  state: EditorState,
+): SelectionMarkSpreads {
+  const counters = new Map<string, { has: boolean; hasNot: boolean }>();
+  for (const { name } of SPREAD_MARKS)
+    counters.set(name, { has: false, hasNot: false });
+  const colors = new Set<string | null>();
+  const { from, to, empty, $from } = state.selection;
+
+  if (empty) {
+    // Parity with isMarkActive: typed-ahead marks at the caret count in.
+    const marks = state.storedMarks ?? $from.marks();
+    for (const { name } of SPREAD_MARKS) {
+      const c = counters.get(name)!;
+      const type = state.schema.marks[name];
+      if (type && type.isInSet(marks)) c.has = true;
+      else c.hasNot = true;
+    }
+    const textStyle = marks.find((m) => m.type.name === "textStyle");
+    colors.add(
+      typeof textStyle?.attrs.color === "string" ? textStyle.attrs.color : null,
+    );
+  } else {
+    // Exact parity with isMarkActive's toggle-decision arithmetic: text
+    // where the mark cannot apply (an existing mark excludes it, e.g.
+    // inline code with excludes: "_") counts as covered, not uncovered, so
+    // the displayed state always predicts what a toggle will do.
+    let selectionRange = 0;
+    const matched = new Map<string, number>();
+    const excluded = new Map<string, number>();
+    for (const { name } of SPREAD_MARKS) {
+      matched.set(name, 0);
+      excluded.set(name, 0);
+    }
+    state.doc.nodesBetween(from, to, (node, pos) => {
+      if (!node.isText && !node.marks.length) return;
+      const relFrom = Math.max(from, pos);
+      const relTo = Math.min(to, pos + node.nodeSize);
+      const range = relTo - relFrom;
+      selectionRange += range;
+      for (const { name } of SPREAD_MARKS) {
+        const type = state.schema.marks[name];
+        if (!type) continue;
+        if (type.isInSet(node.marks))
+          matched.set(name, matched.get(name)! + range);
+        else if (node.marks.some((mark) => mark.type.excludes(type)))
+          excluded.set(name, excluded.get(name)! + range);
+      }
+      const textStyle = node.marks.find((m) => m.type.name === "textStyle");
+      colors.add(
+        typeof textStyle?.attrs.color === "string"
+          ? textStyle.attrs.color
+          : null,
+      );
+      return true;
+    });
+    for (const { name } of SPREAD_MARKS) {
+      const c = counters.get(name)!;
+      const m = matched.get(name)!;
+      const e = excluded.get(name)!;
+      if (m > 0 && m + e >= selectionRange) c.has = true;
+      else if (m > 0) {
+        c.has = true;
+        c.hasNot = true;
+      }
+      // matched === 0: nothing carries the mark — stays "none" (a toggle
+      // cannot touch excluded-only text either).
+    }
+  }
+
+  const spread = (name: string): MarkSpread => {
+    const c = counters.get(name)!;
+    if (c.has && c.hasNot) return "mixed";
+    return c.has ? "all" : "none";
+  };
+  const singleColor = colors.size === 1 ? [...colors][0]! : null;
+  return {
+    bold: spread("bold"),
+    italic: spread("italic"),
+    underline: spread("underline"),
+    strike: spread("strike"),
+    code: spread("code"),
+    mark: spread("highlight"),
+    link: spread("link"),
+    color: singleColor,
+    colorMixed: colors.size > 1,
   };
 }
