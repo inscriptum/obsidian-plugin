@@ -177,8 +177,16 @@
   cursor: default;
 }
 
+/* Highlight default (a mark without attrs.color) is the theme's native
+   highlight token — desktop Obsidian ≥1.14 carries --highlight-background,
+   older/mobile builds --text-highlight-bg; the amber literal is only the
+   final fallback for non-Obsidian contexts. Colored marks carry their
+   background inline (highlight.ts) and win over this rule. */
 .note mark {
-  background: rgba(245, 158, 11, 0.28);
+  background: var(
+    --highlight-background,
+    var(--text-highlight-bg, rgba(245, 158, 11, 0.28))
+  );
   color: inherit;
   border-radius: 3px;
   padding: 0 2px;
@@ -368,9 +376,6 @@
    Everything structural is token-based above; only the code block
    surface flips (its syntax palette is tuned per theme).
    ═══════════════════════════════════════════════════════════════ */
-.theme-light .note mark {
-  background: rgba(245, 158, 11, 0.22);
-}
 
 /* ── Code block ── */
 .theme-light .note .code-wrap {

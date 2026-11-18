@@ -6,6 +6,7 @@ import { elTag } from "../../tags";
 import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
 import {
   getBubbleMenuState,
+  HIGHLIGHT_COLORS,
   TEXT_COLORS,
   type BubbleMenuState,
 } from "./bubbleMenuState";
@@ -287,6 +288,17 @@ export const BubbleMenuBarElement = litView.element({
 
   const applyAlign = (align: "left" | "center" | "right") => {
     props.editor.chain().focus().setTextAlign(align).run();
+  };
+
+  // Highlight swatch: a fresh color re-colors the mark, the active color
+  // removes the mark entirely — back to the theme's default highlight.
+  const applyHighlight = (color: string) => {
+    const e = props.editor;
+    if (e.isActive("highlight") && e.getAttributes("highlight").color === color) {
+      e.chain().focus().unsetHighlight().run();
+    } else {
+      e.chain().focus().setHighlight({ color }).run();
+    }
   };
 
   const applyColor = (color: string | null) => {
@@ -651,6 +663,24 @@ export const BubbleMenuBarElement = litView.element({
               hexLabel: "Custom text color hex",
               onApply: applyColor,
             })}
+            <div class="bb-layer-sep"></div>
+            <div class="bb-layer-label">Highlight</div>
+            {/* Fixed translucent palette (HIGHLIGHT_COLORS); the default
+               highlight is a colorless mark from the theme token, so the way
+               back is the active swatch (unsets the mark), not a swatch. */}
+            <div class="bb-dd-swatches">
+              {HIGHLIGHT_COLORS.map((sw) => (
+                <button
+                  class={cls("bb-sw", state.markColor === sw.color && "is-active")}
+                  style={`background: ${sw.color}`}
+                  aria-label={sw.label}
+                  title={sw.label}
+                  aria-pressed={String(state.markColor === sw.color)}
+                  onmousedown={(e: MouseEvent) => e.preventDefault()}
+                  onclick={() => applyHighlight(sw.color)}
+                ></button>
+              ))}
+            </div>
           </div>
 
           {/* "Link" layer — expands below the menu */}

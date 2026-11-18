@@ -24,6 +24,9 @@ export interface BubbleMenuState {
   align: "left" | "center" | "right";
   /** Text color (textStyle.color attribute) */
   color: string | null;
+  /** Highlight color (highlight.color attribute): null when the mark is
+   *  absent or colorless — a colorless mark renders the theme's default. */
+  markColor: string | null;
 }
 
 export interface TextColorSwatch {
@@ -42,6 +45,23 @@ export const TEXT_COLORS: TextColorSwatch[] = [
   ...BORDER_COLORS.filter((c) => c.color != null),
 ];
 
+/** "Highlight" palette — a fixed set of six translucent swatches, one per
+ *  gamma of Obsidian's own highlight palette (red/orange/yellow/green/
+ *  blue/purple). Colors ride in the mark attrs (texto does not know
+ *  palettes), so they are opaque strings here — same pattern as
+ *  TEXT_COLORS; the reverse mapping for the active swatch is by string.
+ *  No "default" entry: the theme's default highlight is what a colorless
+ *  mark renders, and the way back from a colored mark is clicking the
+ *  active swatch again (the mark is unset) or the Highlight toggle. */
+export const HIGHLIGHT_COLORS: Array<TextColorSwatch & { color: string }> = [
+  { id: "yellow", label: "Yellow highlight", css: "yellow", color: "rgba(224, 172, 0, 0.3)" },
+  { id: "orange", label: "Orange highlight", css: "orange", color: "rgba(236, 117, 0, 0.3)" },
+  { id: "green", label: "Green highlight", css: "green", color: "rgba(8, 185, 78, 0.3)" },
+  { id: "blue", label: "Blue highlight", css: "blue", color: "rgba(8, 109, 221, 0.3)" },
+  { id: "purple", label: "Purple highlight", css: "purple", color: "rgba(120, 82, 238, 0.3)" },
+  { id: "red", label: "Red highlight", css: "red", color: "rgba(233, 49, 71, 0.3)" },
+];
+
 /**
  * Active state of bubble menu buttons based on the current editor selection.
  * Pure function of editor.isActive / editor.getAttributes — easy to test.
@@ -50,6 +70,9 @@ export function getBubbleMenuState(
   editor: Pick<Editor, "isActive" | "getAttributes">,
 ): BubbleMenuState {
   const textStyle = editor.getAttributes("textStyle");
+  const highlightAttrs = editor.isActive("highlight")
+    ? editor.getAttributes("highlight")
+    : null;
   // The current text block is a paragraph or a heading (lists and cells hold
   // paragraphs); whichever type is active carries the attrs.align value.
   const blockAttrs = editor.isActive("heading")
@@ -77,6 +100,8 @@ export function getBubbleMenuState(
     taskList: editor.isActive("taskList"),
     align,
     color: typeof textStyle?.color === "string" ? textStyle.color : null,
+    markColor:
+      typeof highlightAttrs?.color === "string" ? highlightAttrs.color : null,
   };
 }
 

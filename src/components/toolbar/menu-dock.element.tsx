@@ -10,6 +10,7 @@ import { computeDockMode, type DockMode } from "./dockMode";
 import {
   getBubbleMenuState,
   getSelectionMarkSpreads,
+  HIGHLIGHT_COLORS,
   TEXT_COLORS,
   type BubbleMenuState,
   type MarkSpread,
@@ -445,6 +446,17 @@ export const MenuDockElement = litView.element({
     }
   };
 
+  // Highlight swatch: a fresh color re-colors the mark, the active color
+  // removes the mark entirely — back to the theme's default highlight.
+  const applyHighlight = (color: string) => {
+    const e = props.editor;
+    if (e.isActive("highlight") && e.getAttributes("highlight").color === color) {
+      e.chain().unsetHighlight().run();
+    } else {
+      e.chain().setHighlight({ color }).run();
+    }
+  };
+
   const applyTableAction = (action: string) => {
     const e = props.editor;
     switch (action) {
@@ -801,6 +813,23 @@ export const MenuDockElement = litView.element({
                 onDraft: (value) => { colorDrafts.text = value; },
                 onApply: (hex) => { colorDrafts.text = ""; applyColor(hex); },
               })}
+              <div class="menu-dock__section-label">Highlight</div>
+              {/* Fixed translucent palette (HIGHLIGHT_COLORS); the default
+                 highlight is a colorless mark from the theme token, so the
+                 way back is the active swatch (unsets the mark) or the
+                 Highlight toggle in More. */}
+              <div class="menu-dock__swatches">
+                {HIGHLIGHT_COLORS.map((sw) => (
+                  <button
+                    class={cls("menu-dock__swatch", bubbleState.markColor === sw.color && "is-active")}
+                    aria-pressed={String(bubbleState.markColor === sw.color)}
+                    style={`background: ${sw.color}`}
+                    aria-label={sw.label}
+                    title={sw.label}
+                    onclick={() => applyHighlight(sw.color)}
+                  ></button>
+                ))}
+              </div>
             </div>
           ) : null}
           {openPanel === "more" ? (
