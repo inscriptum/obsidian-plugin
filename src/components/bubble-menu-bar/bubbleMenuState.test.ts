@@ -9,6 +9,7 @@ import { isMarkActive } from "../../texto/core/helpers/isMarkActive";
 import {
   getBubbleMenuState,
   getSelectionMarkSpreads,
+  HIGHLIGHT_COLORS,
   TEXT_COLORS,
 } from "./bubbleMenuState";
 
@@ -64,6 +65,7 @@ describe("getBubbleMenuState", () => {
       taskList: false,
       align: "left",
       color: null,
+      markColor: null,
     });
   });
 
@@ -139,6 +141,29 @@ describe("getBubbleMenuState", () => {
   it("returns null color when textStyle absent", () => {
     expect(getBubbleMenuState(makeEditor({})).color).toBe(null);
   });
+
+  it("reads highlight color from the mark attrs", () => {
+    const color = HIGHLIGHT_COLORS[0].color;
+    const s = getBubbleMenuState(
+      makeEditor({ highlight: true }, { highlight: { color } }),
+    );
+    expect(s.mark).toBe(true);
+    expect(s.markColor).toBe(color);
+  });
+
+  it("a colorless highlight mark reports null markColor — the theme default", () => {
+    const s = getBubbleMenuState(
+      makeEditor({ highlight: true }, { highlight: { color: null } }),
+    );
+    expect(s.mark).toBe(true);
+    expect(s.markColor).toBe(null);
+  });
+
+  it("no highlight mark reports null markColor", () => {
+    expect(
+      getBubbleMenuState(makeEditor({ highlight: false })).markColor,
+    ).toBe(null);
+  });
 });
 
 describe("TEXT_COLORS", () => {
@@ -161,6 +186,52 @@ describe("TEXT_COLORS", () => {
     const hexes = TEXT_COLORS.slice(1).map((c) => c.color);
     expect(new Set(hexes).size).toBe(hexes.length);
     for (const hex of hexes) expect(hex).toMatch(/^#[0-9a-f]{6}$/);
+  });
+});
+
+describe("HIGHLIGHT_COLORS", () => {
+  it("fixed set: one swatch per gamma, no default entry, no dups", () => {
+    expect(HIGHLIGHT_COLORS.map((c) => c.id)).toEqual([
+      "yellow",
+      "orange",
+      "green",
+      "blue",
+      "purple",
+      "red",
+    ]);
+    // No "default" swatch: a colorless mark IS the theme default, and the
+    // way back from a colored mark is the active swatch or the toggle.
+    expect(HIGHLIGHT_COLORS.every((c) => c.color != null)).toBe(true);
+    const colors = HIGHLIGHT_COLORS.map((c) => c.color);
+    expect(new Set(colors).size).toBe(colors.length);
+  });
+
+  it("swatches are translucent rgba — inherited text stays readable", () => {
+    for (const c of HIGHLIGHT_COLORS) {
+      const m = c.color.match(
+        /^rgba\(\d{1,3}, \d{1,3}, \d{1,3}, 0\.3\)$/,
+      );
+      expect(m).not.toBe(null);
+      const [r, g, b, a] = c.color
+        .slice(5, -1)
+        .split(", ")
+        .map(Number) as [number, number, number, number];
+      expect(r).toBeLessThanOrEqual(255);
+      expect(g).toBeLessThanOrEqual(255);
+      expect(b).toBeLessThanOrEqual(255);
+      expect(a).toBeGreaterThan(0);
+      expect(a).toBeLessThan(1);
+    }
+  });
+
+  it("a stored attrs.color maps back to exactly one swatch", () => {
+    const color = HIGHLIGHT_COLORS[2].color; // green
+    const swatch = HIGHLIGHT_COLORS.find((c) => c.color === color);
+    expect(swatch?.id).toBe("green");
+    // A foreign color (old documents, custom values) maps to no swatch.
+    expect(HIGHLIGHT_COLORS.find((c) => c.color === "#123456")).toBe(
+      undefined,
+    );
   });
 });
 
