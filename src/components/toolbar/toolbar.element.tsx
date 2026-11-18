@@ -1,13 +1,11 @@
 import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
-import { Editor, isTextSelection } from "../../texto/core";
-import { selectionInCodeBlock } from "../../texto/extensions/code-block-hljs";
-import { CellSelection, isInTable } from "prosemirror-tables";
-import { isMediaNodeSelection } from "../bubble-menu-bar/mediaMenuState";
+import { Editor } from "../../texto/core";
 import { elTag, BUILD_TAG, TAG_VERSION } from "../../tags";
 import { getToolbarState, type ToolbarState } from "./toolbarState";
+import { computeDockMode } from "./dockMode";
 import { toolbarIconNodes } from "./icon.svgnode";
-import { normalizeLinkUrl } from "./linkUrl";
+import { applyLinkUrl, removeLinkMark } from "./linkActions";
 import type { ToolbarIconName } from "../icons/iconSprite";
 import { isMobileKeyboardOpen } from "../../tools/isMobileKeyboardOpen";
 
@@ -138,6 +136,10 @@ export const ToolbarElement = litView.element({
     tableSelectionBar: p.opt<HTMLElement>(),
     /** Mobile only: the media (image/attachment) bubble menu bar. */
     mediaSelectionBar: p.opt<HTMLElement>(),
+    /** Mobile only: the menu dock (context group rows + panels) — replaces
+     *  the toolbar row and the three selection bars when set
+     *  (design «Удобство мобильного редактора»). */
+    menuDock: p.opt<HTMLElement>(),
     /** Desktop: the table controls bar docked into the toolbar row while the
      *  focus is inside a table (the floating table bubble menu is gone). */
     tableBar: p.opt<HTMLElement>(),
@@ -174,22 +176,8 @@ export const ToolbarElement = litView.element({
     }, 600);
   };
 
-  const computeMode = (): "none" | "text" | "table" | "media" => {
-    const { selection } = props.editor.state;
-    if (isMediaNodeSelection(props.editor.state)) return "media";
-    if (isInTable(props.editor.state)) {
-      if (selection.empty || selection instanceof CellSelection) return "table";
-    }
-    // Code blocks accept no marks — no selection bar inside one (a selection
-    // crossing the block boundary keeps the bar for the surrounding text).
-    if (
-      !selection.empty &&
-      isTextSelection(selection) &&
-      !selectionInCodeBlock(props.editor.state)
-    )
-      return "text";
-    return "none";
-  };
+  const computeMode = (): "none" | "text" | "table" | "media" =>
+    computeDockMode(props.editor);
 
   const refreshState = () => {
     state = getToolbarState(props.editor);
@@ -241,49 +229,12 @@ export const ToolbarElement = litView.element({
   };
 
   const applyToolbarLink = () => {
-    const url = normalizeLinkUrl(linkDraft);
-    const editor = props.editor;
-    const { selection } = editor.state;
-    if (url) {
-      if (selection.empty && editor.isActive("link")) {
-        // Bare caret on a link: rewrite that link's href, keep its text.
-        editor
-          .chain()
-          .focus()
-          .extendMarkRange("link")
-          .setMark("link", { href: url })
-          .setMeta("preventAutolink", true)
-          .run();
-      } else if (selection.empty) {
-        // No selection: the URL becomes the link's own text.
-        editor
-          .chain()
-          .focus()
-          .insertContent({
-            type: "text",
-            text: url,
-            marks: [{ type: "link", attrs: { href: url } }],
-          })
-          .setMeta("preventAutolink", true)
-          .run();
-      } else {
-        editor
-          .chain()
-          .focus()
-          .setMark("link", { href: url })
-          .setMeta("preventAutolink", true)
-          .run();
-      }
-    }
+    applyLinkUrl(props.editor, linkDraft);
     closeLinkLayer();
   };
 
   const removeToolbarLink = () => {
-    props.editor
-      .chain()
-      .focus()
-      .unsetMark("link", { extendEmptyMarkRange: true })
-      .run();
+    removeLinkMark(props.editor);
     closeLinkLayer();
   };
 
@@ -304,7 +255,11 @@ export const ToolbarElement = litView.element({
 
   try {
     while (true) {
-      const isMobileSwap = !!props.selectionBar;
+      const isMobileSwap = !!props.selectionBar || !!props.menuDock;
+      // The menu dock (design «Удобство мобильного редактора») replaces the
+      // whole mobile toolbar: context line + group rows + panels. Without it
+      // the legacy mobile path swaps the selection bars in .mobile-sel-bar.
+      const dockActive = isMobileSwap && !!props.menuDock;
       // Desktop: while the focus is inside a table the toolbar's button groups
       // are replaced by the table controls (mobile swaps the whole row in
       // .mobile-sel-bar instead — see the mobile branch below).
@@ -312,6 +267,9 @@ export const ToolbarElement = litView.element({
         !isMobileSwap && !!props.tableBar && mode === "table";
       props = yield (
         <>
+          {dockActive ? (
+            <div class="mobile-menu-dock">{props.menuDock}</div>
+          ) : (
           <div
             class={`note-toolbar${isMobileSwap && mode !== "none" ? " is-hidden" : ""}`}
           >
@@ -396,6 +354,7 @@ export const ToolbarElement = litView.element({
               </button>
             ) : null}
           </div>
+          )}
           {linkLayerOpen ? (
             <div class="tb-link-layer">
               <input
@@ -436,21 +395,21 @@ export const ToolbarElement = litView.element({
               </button>
             </div>
           ) : null}
-          {isMobileSwap && props.selectionBar ? (
+          {!dockActive && isMobileSwap && props.selectionBar ? (
             <div
               class={`mobile-sel-bar mobile-sel-bar--text${mode === "text" ? " is-active" : ""}`}
             >
               {props.selectionBar}
             </div>
           ) : null}
-          {isMobileSwap && props.tableSelectionBar ? (
+          {!dockActive && isMobileSwap && props.tableSelectionBar ? (
             <div
               class={`mobile-sel-bar mobile-sel-bar--table${mode === "table" ? " is-active" : ""}`}
             >
               {props.tableSelectionBar}
             </div>
           ) : null}
-          {isMobileSwap && props.mediaSelectionBar ? (
+          {!dockActive && isMobileSwap && props.mediaSelectionBar ? (
             <div
               class={`mobile-sel-bar mobile-sel-bar--media${mode === "media" ? " is-active" : ""}`}
             >

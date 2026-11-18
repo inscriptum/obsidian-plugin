@@ -7,7 +7,7 @@ declare global {
   interface Window {
     __e2e: {
       mount(doc: unknown): string;
-      mountToolbar(doc: unknown, opts?: { mobile?: boolean }): string;
+      mountToolbar(doc: unknown, opts?: { mobile?: boolean; tablet?: boolean }): string;
       readonly editor: Editor | null;
       docJson(): unknown;
       positions(): number[];

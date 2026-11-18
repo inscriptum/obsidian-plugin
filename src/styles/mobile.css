@@ -141,6 +141,15 @@
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 
+/* Obsidian's floating phone navigation pill overlays the view while raised.
+   Reserve its height and margins only while it is present and the keyboard is
+   hidden; the editor's flex area shrinks along with the toolbar host. */
+body:has(.mobile-navbar.mod-raised) .note-view-container.is-mobile.is-phone:not(.is-keyboard-open) .note-toolbar-host,
+body:has(.mobile-navbar.mod-raised) .notepad-view-container.is-mobile.is-phone:not(.is-keyboard-open) .notepad-toolbar-host {
+  --dock-navbar-clearance: 80px;
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--dock-navbar-clearance));
+}
+
 /* While the keyboard is open, Obsidian resizes the webview down to the
    keyboard top, which puts the home-indicator area behind the keyboard —
    but iOS keeps reporting the same inset, so the padding would render as
@@ -258,6 +267,306 @@
 .notepad-view-container.is-mobile .note-toolbar__spacer,
 .notepad-view-container.is-mobile .note-toolbar__meta {
   display: none;
+}
+
+/* ─── 3.0.1 Menu dock (design «Удобство мобильного редактора») ───
+   One bottom dock replaces the toolbar row and the selection bars on
+   mobile: a context line, a narrow group row (icon + label, 44dp targets),
+   and one open panel at a time docked ABOVE the rows (static, full width,
+   inner scroll — never a floating popup). The dock lives inside the toolbar
+   host, so the host's safe-area and keyboard padding keep applying.
+   Buttons use their own .menu-dock__* classes: neither the toolbar button
+   overrides nor the bubble-menu generic flattener (rule-bubble-menu-buttons)
+   can touch them. */
+.note-view-container.is-mobile .mobile-menu-dock,
+.notepad-view-container.is-mobile .mobile-menu-dock {
+  width: 100%;
+  background: transparent;
+}
+
+.menu-dock {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+/* The open panel: full-width row above the context/group rows, capped by
+   the space that is really available — the keyboard offset is subtracted
+   because Android draws the keyboard as an overlay (vh never shrinks). */
+.menu-dock__panel {
+  order: -1;
+  width: 100%;
+  padding: 6px 10px 8px;
+  border-top: 1px solid var(--background-modifier-border);
+  max-height: max(0px, calc(min(100vh - var(--keyboard-offset, 0px), var(--dock-viewport-height, 100vh), var(--dock-container-height, 100vh)) - 132px - var(--dock-navbar-clearance, 0px)));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  background: var(--background-primary);
+}
+
+.menu-dock__close {
+  display: block;
+  min-height: 44px;
+  margin-left: auto;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--text-normal);
+  font: inherit;
+  cursor: pointer;
+}
+.menu-dock__close:hover {
+  background: var(--background-modifier-hover);
+}
+
+.menu-dock__context {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 30px;
+  padding: 4px 14px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.menu-dock__context-title {
+  color: var(--text-normal);
+  font-weight: 650;
+}
+
+.menu-dock__row {
+  display: grid;
+  grid-template-columns: repeat(var(--dock-cols, 4), minmax(0, 1fr));
+  gap: 2px;
+  padding: 2px 6px 6px;
+}
+
+.menu-dock__group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 44px;
+  min-height: 50px;
+  padding: 4px 2px;
+  border: none;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.menu-dock__group:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+.menu-dock__group.is-open {
+  color: var(--interactive-accent);
+  box-shadow: inset 0 -2px 0 var(--interactive-accent);
+}
+.menu-dock__group-aa {
+  font-size: 19px;
+  font-weight: 650;
+  line-height: 24px;
+}
+.menu-dock__group-label {
+  font-size: 10.5px;
+  line-height: 1.15;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Panel action buttons: icon + visible label (no hover tooltips on touch),
+   two-per-row grid, 44dp minimum. */
+.menu-dock__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 6px;
+}
+.menu-dock__action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 4px 10px;
+  border: none;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--text-normal);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.menu-dock__action:hover {
+  background: var(--background-modifier-hover);
+}
+.menu-dock__action.is-active {
+  color: var(--interactive-accent);
+  background: var(--background-modifier-active);
+}
+.menu-dock__action.is-danger {
+  color: var(--text-error);
+}
+/* Unavailable command: kept in the DOM with the reason in the label
+   (review F37) — dimmed, still focusable, click is a no-op. */
+.menu-dock__action.is-disabled {
+  opacity: 0.45;
+}
+
+.menu-dock__section-label {
+  margin: 10px 2px 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.menu-dock__grid + .menu-dock__section-label {
+  border-top: 1px solid var(--background-modifier-border);
+  padding-top: 10px;
+  margin-top: 6px;
+}
+
+.menu-dock__icon,
+.menu-dock__action svg {
+  display: inline-block;
+  flex: none;
+  width: 20px;
+  height: 20px;
+}
+.menu-dock__icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.menu-dock__swatches {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  padding: 2px 0 4px;
+}
+.menu-dock__swatch {
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 44px;
+  justify-self: center;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.menu-dock__swatch.is-active {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+.menu-dock__swatch--none {
+  background: linear-gradient(
+      45deg,
+      transparent 44%,
+      var(--text-error) 45%,
+      var(--text-error) 54%,
+      transparent 55%
+    ),
+    var(--background-secondary);
+}
+
+.menu-dock__pen-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.menu-dock__pen-field {
+  display: grid;
+  gap: 3px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.menu-dock__pen-select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font: inherit;
+}
+
+.menu-dock__link-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.menu-dock__link-input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font: inherit;
+  font-size: 15px;
+}
+.menu-dock__link-go {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.menu-dock__link-go:hover {
+  color: var(--text-normal);
+}
+.menu-dock__link-go--del {
+  color: var(--text-error);
+}
+.menu-dock__link-go svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* The unified custom color row (customColorRow.tsx) renders .bb-dd-* classes
+   scoped to .bubble-menu-bar on desktop; the dock hosts it bare, so give the
+   row its dock-scope layout here (colors/shape come from its own inline
+   styles and the popup renders into the body). */
+.menu-dock .bb-dd-custom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+.menu-dock .bb-dd-custom--coarse .bb-dd-open {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-secondary);
+}
+.menu-dock .bb-dd-hex {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font: inherit;
 }
 
 /* ─── 3.1 Toolbar link layer ───
@@ -572,16 +881,6 @@
   display: none;
 }
 
-/* ─── 4. Keyboard visibility (phones) ───
-   Focus is not a reliable proxy for keyboard visibility: the keyboard can be
-   dismissed while a contenteditable element remains focused. On phones our
-   toolbar is visible only while visualViewport reports a keyboard; iPad keeps
-   the toolbar visible. ─── */
-.note-view-container.is-mobile.is-phone:not(.is-keyboard-open)
-.note-toolbar-host {
-  display: none;
-}
-
 /* The filename in Obsidian's fixed view header duplicates our document
    noteTitle. Keep the shell actions/navigation, but remove only its title. */
 .workspace-leaf-content.has-inscriptum-note-view .view-header-title,
@@ -764,13 +1063,6 @@
 
 .notepad-view-container.is-mobile.is-keyboard-open .notepad-toolbar-host {
   padding-bottom: 0;
-}
-
-/* Phones: the bar exists only while the keyboard is up (same contract as
-   the .note view). Tablets keep it visible. */
-.notepad-view-container.is-mobile.is-phone:not(.is-keyboard-open)
-  .notepad-toolbar-host {
-  display: none;
 }
 
 .notepad-view-container.is-mobile .notepad-toolbar.is-link-open {

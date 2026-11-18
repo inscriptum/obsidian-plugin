@@ -11,10 +11,10 @@ import {
 const undoBtn = '.note-toolbar .note-toolbar__btn[aria-label="Undo"]';
 const redoBtn = '.note-toolbar .note-toolbar__btn[aria-label="Redo"]';
 
-test.describe("toolbar undo/redo buttons (mobile row)", () => {
+test.describe("toolbar undo/redo buttons (tablet row)", () => {
   test("buttons render disabled on a fresh document", async ({ page }) => {
     await openHarness(page);
-    await mountToolbar(page, noteDoc(p("plain p1")));
+    await mountToolbar(page, noteDoc(p("plain p1")), { tablet: true });
 
     await expect(page.locator(undoBtn)).toBeVisible();
     await expect(page.locator(redoBtn)).toBeVisible();
@@ -51,7 +51,7 @@ test.describe("toolbar undo/redo buttons (mobile row)", () => {
 
   test("keyboard undo refreshes the visible buttons", async ({ page }) => {
     await openHarness(page);
-    await mountToolbar(page, noteDoc(p("plain p1")));
+    await mountToolbar(page, noteDoc(p("plain p1")), { tablet: true });
 
     const para = page.locator(".texto-editor .ProseMirror > p", {
       hasText: "plain p1",
@@ -70,7 +70,7 @@ test.describe("toolbar undo/redo buttons (mobile row)", () => {
 
   test("undo reverts typing, redo restores it", async ({ page }) => {
     await openHarness(page);
-    await mountToolbar(page, noteDoc(p("plain p1")));
+    await mountToolbar(page, noteDoc(p("plain p1")), { tablet: true });
 
     const para = page.locator(".texto-editor .ProseMirror > p", {
       hasText: "plain p1",
@@ -96,7 +96,7 @@ test.describe("toolbar undo/redo buttons (mobile row)", () => {
     page,
   }) => {
     await openHarness(page);
-    await mountToolbar(page, noteDoc(p("plain p1")));
+    await mountToolbar(page, noteDoc(p("plain p1")), { tablet: true });
 
     const para = page.locator(".texto-editor .ProseMirror > p", {
       hasText: "plain p1",
@@ -132,7 +132,7 @@ test.describe("toolbar undo/redo buttons (mobile row)", () => {
     page,
   }) => {
     await openHarness(page);
-    await mountToolbar(page, noteDoc(p("plain p1")));
+    await mountToolbar(page, noteDoc(p("plain p1")), { tablet: true });
     const para = page.locator(".texto-editor .ProseMirror > p", {
       hasText: "plain p1",
     });

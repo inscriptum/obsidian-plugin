@@ -37,7 +37,7 @@ export async function mount(page: Page, doc: JsonNode): Promise<void> {
 export async function mountToolbar(
   page: Page,
   doc: JsonNode,
-  opts?: { mobile?: boolean },
+  opts?: { mobile?: boolean; tablet?: boolean },
 ): Promise<void> {
   await page.evaluate(
     ({ d, opts }) => {
