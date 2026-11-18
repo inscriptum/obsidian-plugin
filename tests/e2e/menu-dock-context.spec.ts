@@ -27,6 +27,22 @@ test("opening a panel preserves the selected text", async ({ page }) => {
     const { from, to } = window.__e2e.editor!.state.selection;
     return { from, to };
   })).toEqual(range);
+  await expect(page.locator(".ProseMirror .menu-dock-selection")).toHaveText("alpha bravo");
+});
+
+test("blurred caret remains visible while a block panel is open", async ({ page }) => {
+  await openHarness(page);
+  await mountToolbar(page, noteDoc(p("alpha bravo")));
+  const range = await textRange(page, "alpha bravo");
+  await page.evaluate((pos) => {
+    const editor = window.__e2e.editor!;
+    editor.view.focus();
+    editor.commands.setTextSelection(pos);
+  }, range.from + 3);
+  await page.getByRole("button", { name: "Text and headings" }).click();
+  await expect(page.locator(".ProseMirror .menu-dock-caret")).toHaveCount(1);
+  await page.getByRole("button", { name: "Heading 1", exact: true }).click();
+  await expect(page.locator(".ProseMirror h1 .menu-dock-caret")).toHaveCount(1);
 });
 
 test("link applies to the mapped selection after an edit before it", async ({ page }) => {

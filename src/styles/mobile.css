@@ -290,6 +290,20 @@ body:has(.mobile-navbar.mod-raised) .notepad-view-container.is-mobile.is-phone:n
   width: 100%;
 }
 
+.note-view-container.is-phone .menu-dock-selection,
+.notepad-view-container.is-phone .menu-dock-selection {
+  background: var(--text-selection, var(--background-modifier-hover));
+}
+.note-view-container.is-phone .menu-dock-caret,
+.notepad-view-container.is-phone .menu-dock-caret {
+  display: inline-block;
+  width: 0;
+  height: 1em;
+  border-left: 2px solid var(--text-accent);
+  vertical-align: text-bottom;
+  pointer-events: none;
+}
+
 /* The open panel: full-width row above the context/group rows, capped by
    the space that is really available — the keyboard offset is subtracted
    because Android draws the keyboard as an overlay (vh never shrinks). */

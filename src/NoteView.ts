@@ -623,7 +623,9 @@ export class NoteView extends FileView {
                   (event).clientY - start.y,
                 ) < 12 &&
                 Date.now() - start.t < 600;
-              if (isTap && !editor.view.hasFocus()) {
+              const target = event.target;
+              const onDiagram = Platform.isPhone && target instanceof Element && target.closest(".texto-extension-mermaid-host");
+              if (isTap && !onDiagram && !editor.view.hasFocus()) {
                 editor.view.focus();
               }
             });

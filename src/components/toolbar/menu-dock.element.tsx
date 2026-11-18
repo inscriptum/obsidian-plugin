@@ -2,7 +2,8 @@ import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
 import type { App } from "obsidian";
 import { ConfirmModal } from "../../ui/ConfirmModal";
-import { TextSelection, type Selection, type Transaction } from "prosemirror-state";
+import { Plugin, PluginKey, TextSelection, type Selection, type Transaction } from "prosemirror-state";
+import { Decoration, DecorationSet } from "prosemirror-view";
 import { Editor } from "../../texto/core";
 import { elTag } from "../../tags";
 import { computeDockMode, type DockMode } from "./dockMode";
@@ -140,6 +141,30 @@ export const MenuDockElement = litView.element({
   let linkDraft = "";
   const colorDrafts = { text: "", fill: "", border: "" };
   let pen: BorderPen = { style: "solid", width: "1pt", color: null };
+
+  const selectionIndicatorKey = new PluginKey("mobile-dock-selection-indicator");
+  props.editor.registerPlugin(new Plugin({
+    key: selectionIndicatorKey,
+    props: {
+      decorations(state) {
+        if (props.editor.view.hasFocus() || !(state.selection instanceof TextSelection)) return null;
+        const { from, to } = state.selection;
+        if (from === to) {
+          return DecorationSet.create(state.doc, [Decoration.widget(from, () => {
+            const caret = props.editor.view.dom.ownerDocument.createElementNS("http://www.w3.org/1999/xhtml", "span");
+            caret.className = "menu-dock-caret";
+            caret.setAttribute("aria-hidden", "true");
+            return caret;
+          }, { side: -1 })]);
+        }
+        return DecorationSet.create(state.doc, [Decoration.inline(from, to, { class: "menu-dock-selection" })]);
+      },
+      handleDOMEvents: {
+        focus: () => { window.requestAnimationFrame(() => { if (!props.editor.isDestroyed) props.editor.view.dispatch(props.editor.state.tr); }); return false; },
+        blur: () => { window.requestAnimationFrame(() => { if (!props.editor.isDestroyed) props.editor.view.dispatch(props.editor.state.tr); }); return false; },
+      },
+    },
+  }));
 
   const schemaHasComments = props.editor.state.schema.marks.comment != null;
   const canReadClipboard =
@@ -995,6 +1020,7 @@ export const MenuDockElement = litView.element({
       );
     }
   } finally {
+    if (!props.editor.isDestroyed) props.editor.unregisterPlugin(selectionIndicatorKey);
     props.editor.off("selectionUpdate", refreshState);
     props.editor.off("update", refreshState);
     props.editor.off("transaction", mapHeldSelection);
