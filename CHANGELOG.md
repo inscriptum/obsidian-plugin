@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Phone menu panels now stay aligned and keep the keyboard hidden while applying formatting.
 - Long selections keep their formatting menu, right-aligned text stays clear of page controls, and custom color palettes remain usable on touch screens and short windows.
 - The selection menus now stay clear of the note toolbar: a selection in the first row opens the menu below itself instead of covering the toolbar, and panels that don't fit on screen scroll inside instead of spilling past the window edge.
 

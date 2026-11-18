@@ -46,20 +46,20 @@ import type {
   BorderPen,
   BorderSideName,
 } from "../../texto/extensions/table/helpers/borders";
-import { isMobileKeyboardOpen } from "../../tools/isMobileKeyboardOpen";
 import type { ImageLayout } from "../../texto/extensions/image/image";
+import { isMobileKeyboardOpen } from "../../tools/isMobileKeyboardOpen";
 import type { ToolbarIconName } from "../icons/iconSprite";
 
 const cls = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");
 
 const COLOR_LABELS: Record<string, string> = {
-  violet: "Фиолетовый", green: "Зелёный", yellow: "Жёлтый", red: "Красный",
-  orange: "Оранжевый", blue: "Синий", teal: "Бирюзовый", pink: "Розовый",
-  gray: "Серый", white: "Белый", black: "Чёрный",
+  violet: "Purple", green: "Green", yellow: "Yellow", red: "Red",
+  orange: "Orange", blue: "Blue", teal: "Teal", pink: "Pink",
+  gray: "Gray", white: "White", black: "Black",
 };
 const BORDER_STYLE_LABELS: Record<string, string> = {
-  solid: "Сплошная", double: "Двойная", dotted: "Точечная", dashed: "Пунктирная",
+  solid: "Solid", double: "Double", dotted: "Dotted", dashed: "Dashed",
 };
 
 type TextPanel = "format" | "styles" | "link" | "more";
@@ -91,12 +91,12 @@ const MEDIA_LAYOUTS: Array<{
   icon: IconRenderer;
   label: string;
 }> = [
-  { align: "left", icon: bubbleIconNodes.imgLeft, label: "По левому краю" },
-  { align: "center", icon: bubbleIconNodes.imgCenter, label: "По центру" },
-  { align: "right", icon: bubbleIconNodes.imgRight, label: "По правому краю" },
-  { align: "full", icon: bubbleIconNodes.imgFull, label: "На всю ширину" },
-  { align: "wrap-left", icon: bubbleIconNodes.imgWrapLeft, label: "Обтекание слева" },
-  { align: "wrap-right", icon: bubbleIconNodes.imgWrapRight, label: "Обтекание справа" },
+  { align: "left", icon: bubbleIconNodes.imgLeft, label: "Align left" },
+  { align: "center", icon: bubbleIconNodes.imgCenter, label: "Center" },
+  { align: "right", icon: bubbleIconNodes.imgRight, label: "Align right" },
+  { align: "full", icon: bubbleIconNodes.imgFull, label: "Full width" },
+  { align: "wrap-left", icon: bubbleIconNodes.imgWrapLeft, label: "Wrap left" },
+  { align: "wrap-right", icon: bubbleIconNodes.imgWrapRight, label: "Wrap right" },
 ];
 
 /** The backgroundColor attr value as a picker-able hex (solid hexes pass
@@ -264,7 +264,6 @@ export const MenuDockElement = litView.element({
   };
   props.editor.view.dom.addEventListener("pointerdown", onEditorPointerDown);
   const viewport = window.visualViewport;
-  const keyboardIsOpen = () => root.closest(".note-view-container, .notepad-view-container")?.classList.contains("is-keyboard-open") || isMobileKeyboardOpen();
   let observedContainer: Element | null = null;
   const containerObserver = new ResizeObserver((entries) => {
     const entry = entries.find(({ target }) => target === observedContainer);
@@ -339,29 +338,19 @@ export const MenuDockElement = litView.element({
       heldSelection = null;
       heldSelectionInvalid = false;
     }
-    void this.next().then(() => {
-      if (openPanel === "link") {
-        window.requestAnimationFrame(() => {
-          const input = root.querySelector<HTMLInputElement>(
-            ".menu-dock__link-input",
-          );
-          input?.focus();
-          input?.select();
-        });
-      }
-    });
+    void this.next();
   };
 
   /* ── Commands (parity: the same chains as the desktop bars / toolbar) ── */
   const applyMark = (mark: MarkAction) => {
     const e = props.editor;
     const map = {
-      bold: () => e.chain().focus().toggleBold().run(),
-      italic: () => e.chain().focus().toggleItalic().run(),
-      underline: () => e.chain().focus().toggleUnderline().run(),
-      strike: () => e.chain().focus().toggleStrike().run(),
-      code: () => e.chain().focus().toggleCode().run(),
-      mark: () => e.chain().focus().toggleHighlight().run(),
+      bold: () => e.chain().toggleBold().run(),
+      italic: () => e.chain().toggleItalic().run(),
+      underline: () => e.chain().toggleUnderline().run(),
+      strike: () => e.chain().toggleStrike().run(),
+      code: () => e.chain().toggleCode().run(),
+      mark: () => e.chain().toggleHighlight().run(),
     } as const;
     map[mark]();
   };
@@ -370,35 +359,35 @@ export const MenuDockElement = litView.element({
     const e = props.editor;
     switch (block) {
       case "paragraph":
-        e.chain().focus().clearNodes().run();
+        e.chain().clearNodes().run();
         break;
       case "h1":
       case "h2":
       case "h3":
-        e.chain().focus().toggleHeading({ level: HEADING_LEVEL[block] }).run();
+        e.chain().toggleHeading({ level: HEADING_LEVEL[block] }).run();
         break;
       case "quote":
-        e.chain().focus().toggleBlockquote().run();
+        e.chain().toggleBlockquote().run();
         break;
       case "list":
-        e.chain().focus().toggleBulletList().run();
+        e.chain().toggleBulletList().run();
         break;
       case "taskList":
-        e.chain().focus().toggleTaskList().run();
+        e.chain().toggleTaskList().run();
         break;
     }
   };
 
   const applyAlign = (align: "left" | "center" | "right") => {
-    props.editor.chain().focus().setTextAlign(align).run();
+    props.editor.chain().setTextAlign(align).run();
   };
 
   const applyColor = (color: string | null) => {
     const e = props.editor;
     if (color == null) {
-      e.chain().focus().unsetColor().run();
+      e.chain().unsetColor().run();
     } else {
-      e.chain().focus().setColor(color).run();
+      e.chain().setColor(color).run();
     }
   };
 
@@ -406,40 +395,40 @@ export const MenuDockElement = litView.element({
     const e = props.editor;
     switch (action) {
       case "rowAbove":
-        e.chain().focus().addRowBefore().run();
+        e.chain().addRowBefore().run();
         break;
       case "rowBelow":
-        e.chain().focus().addRowAfter().run();
+        e.chain().addRowAfter().run();
         break;
       case "colLeft":
-        e.chain().focus().addColumnBefore().run();
+        e.chain().addColumnBefore().run();
         break;
       case "colRight":
-        e.chain().focus().addColumnAfter().run();
+        e.chain().addColumnAfter().run();
         break;
       case "dupRow":
-        e.chain().focus().duplicateRow().run();
+        e.chain().duplicateRow().run();
         break;
       case "dupCol":
-        e.chain().focus().duplicateColumn().run();
+        e.chain().duplicateColumn().run();
         break;
       case "merge":
-        e.chain().focus().mergeCells().run();
+        e.chain().mergeCells().run();
         break;
       case "split":
-        e.chain().focus().splitCell().run();
+        e.chain().splitCell().run();
         break;
       case "delRow":
-        e.chain().focus().deleteRow().run();
+        e.chain().deleteRow().run();
         break;
       case "delCol":
-        e.chain().focus().deleteColumn().run();
+        e.chain().deleteColumn().run();
         break;
       case "header":
-        e.chain().focus().toggleHeaderRow().run();
+        e.chain().toggleHeaderRow().run();
         break;
       case "delTable":
-        e.chain().focus().deleteTable().run();
+        e.chain().deleteTable().run();
         break;
     }
   };
@@ -447,7 +436,6 @@ export const MenuDockElement = litView.element({
   const applyCellBg = (color: string | null) => {
     props.editor
       .chain()
-      .focus()
       .setCellsAttribute(
         "backgroundColor",
         bgHexToAttr(color) ?? (null as unknown as string),
@@ -461,25 +449,25 @@ export const MenuDockElement = litView.element({
     const e = props.editor;
     switch (preset) {
       case "none":
-        e.chain().focus().removeTableBorders().run();
+        e.chain().removeTableBorders().run();
         break;
       case "all":
-        e.chain().focus().applyTableBorders({ ...pen }).run();
+        e.chain().applyTableBorders({ ...pen }).run();
         break;
       case "box":
-        e.chain().focus().setBordersBox({ ...pen }).run();
+        e.chain().setBordersBox({ ...pen }).run();
         break;
       case "insideH":
-        e.chain().focus().setBordersInside({ ...pen }, "horizontal").run();
+        e.chain().setBordersInside({ ...pen }, "horizontal").run();
         break;
       case "insideV":
-        e.chain().focus().setBordersInside({ ...pen }, "vertical").run();
+        e.chain().setBordersInside({ ...pen }, "vertical").run();
         break;
     }
   };
 
   const applyBorderSide = (side: BorderSideName) => {
-    props.editor.chain().focus().toggleCellsBorders({ ...pen }, [side]).run();
+    props.editor.chain().toggleCellsBorders({ ...pen }, [side]).run();
   };
 
   /* ── Media actions (same helpers as the desktop media bar) ── */
@@ -531,9 +519,9 @@ export const MenuDockElement = litView.element({
   };
 
   const doneBtn = () => (
-    <button class="menu-dock__group" aria-label="Готово" onclick={leaveContext}>
+    <button class="menu-dock__group" aria-label="Done" onclick={leaveContext}>
       <span class="menu-dock__icon">{bubbleIconNodes.check()}</span>
-      <span class="menu-dock__group-label">Готово</span>
+      <span class="menu-dock__group-label">Done</span>
     </button>
   );
 
@@ -547,7 +535,7 @@ export const MenuDockElement = litView.element({
      *  DOM (tab order, screen reader) and explains itself (review F37). */
     disabled?: string;
   }) => {
-    const disabled = opts.disabled ?? (opts.danger && !props.app ? "Подтверждение недоступно" : undefined);
+    const disabled = opts.disabled ?? (opts.danger && !props.app ? "Confirmation unavailable" : undefined);
     return <button
       class={cls(
         "menu-dock__action",
@@ -570,8 +558,8 @@ export const MenuDockElement = litView.element({
         new ConfirmModal(props.app, {
           title: opts.label,
           message: `${opts.label}?`,
-          confirmText: "Удалить",
-          cancelText: "Отмена",
+          confirmText: "Delete",
+          cancelText: "Cancel",
           onConfirm: () => {
             if (props.editor.isDestroyed) return;
             const current = props.editor.state;
@@ -622,110 +610,85 @@ export const MenuDockElement = litView.element({
       const showLayout =
         mode === "media" &&
         (isMermaid || (media.nodeType === "image" && media.hasFile));
-      const keyboardOpen = keyboardIsOpen();
+      const keyboardOpen = !!root.closest(".note-view-container, .notepad-view-container")?.classList.contains("is-keyboard-open") || isMobileKeyboardOpen();
       const dockCols =
         mode === "none" ? 5 : mode === "text" ? 4 : mode === "table" ? 4 : showLayout ? 3 : 2;
 
-      const contextTitle =
-        mode === "text"
-          ? "Текст выделен"
-          : mode === "table"
-            ? "Ячейка выделена"
-            : mode === "media"
-              ? "Объект выбран"
-              : "Вставка блоков";
-      const contextDetail =
-        mode === "text"
-          ? "Форматирование"
-          : mode === "table"
-            ? "Таблица"
-            : mode === "media"
-              ? isMermaid
-                ? "Диаграмма"
-                : media.nodeType === "attachment" ? "Вложение" : "Изображение"
-              : "Нет выделения";
-
       props = yield (
         <div class="menu-dock" style={`--dock-cols: ${dockCols}`}>
-          {heldSelectionInvalid ? <div role="status">Выделение изменилось. Выберите текст заново.</div> : null}
+          {heldSelectionInvalid ? <div role="status">Selection changed. Select text again.</div> : null}
           {/* ── Panel (docked above the rows; one at a time) ── */}
           {openPanel === "blocks" ? (
-            <div class="menu-dock__panel" role="group" aria-label="Текстовые блоки">
-              <button class="menu-dock__close" type="button" onclick={closePanel}>Закрыть</button>
+            <div class="menu-dock__panel" role="group" aria-label="Text blocks">
               <div class="menu-dock__grid">
-                {actionBtn({ label: "Текст", icon: bubbleIconNodes.paragraph, active: bubbleState.paragraph, onclick: () => applyBlock("paragraph") })}
-                {actionBtn({ label: "Заголовок 1", icon: bubbleIconNodes.h1, active: bubbleState.h1, onclick: () => applyBlock("h1") })}
-                {actionBtn({ label: "Заголовок 2", icon: bubbleIconNodes.h2, active: bubbleState.h2, onclick: () => applyBlock("h2") })}
-                {actionBtn({ label: "Заголовок 3", icon: bubbleIconNodes.h3, active: bubbleState.h3, onclick: () => applyBlock("h3") })}
-                {actionBtn({ label: "Цитата", icon: bubbleIconNodes.blockquote, active: bubbleState.quote, onclick: () => applyBlock("quote") })}
+                {actionBtn({ label: "Text", icon: bubbleIconNodes.paragraph, active: bubbleState.paragraph, onclick: () => applyBlock("paragraph") })}
+                {actionBtn({ label: "Heading 1", icon: bubbleIconNodes.h1, active: bubbleState.h1, onclick: () => applyBlock("h1") })}
+                {actionBtn({ label: "Heading 2", icon: bubbleIconNodes.h2, active: bubbleState.h2, onclick: () => applyBlock("h2") })}
+                {actionBtn({ label: "Heading 3", icon: bubbleIconNodes.h3, active: bubbleState.h3, onclick: () => applyBlock("h3") })}
+                {actionBtn({ label: "Quote", icon: bubbleIconNodes.blockquote, active: bubbleState.quote, onclick: () => applyBlock("quote") })}
               </div>
             </div>
           ) : null}
           {openPanel === "lists" ? (
-            <div class="menu-dock__panel" role="group" aria-label="Списки">
-              <button class="menu-dock__close" type="button" onclick={closePanel}>Закрыть</button>
+            <div class="menu-dock__panel" role="group" aria-label="Lists">
               <div class="menu-dock__grid">
-                {actionBtn({ label: "Список задач", icon: bubbleIconNodes.taskList, active: bubbleState.taskList, onclick: () => applyBlock("taskList") })}
-                {actionBtn({ label: "Маркированный список", icon: bubbleIconNodes.list, active: bubbleState.list, onclick: () => applyBlock("list") })}
-                {actionBtn({ label: "Нумерованный список", icon: toolbarIconNodes.orderedList, active: props.editor.isActive("orderedList"), onclick: () => props.editor.chain().focus().toggleOrderedList().run() })}
+                {actionBtn({ label: "Task list", icon: bubbleIconNodes.taskList, active: bubbleState.taskList, onclick: () => applyBlock("taskList") })}
+                {actionBtn({ label: "Bullet list", icon: bubbleIconNodes.list, active: bubbleState.list, onclick: () => applyBlock("list") })}
+                {actionBtn({ label: "Numbered list", icon: toolbarIconNodes.orderedList, active: props.editor.isActive("orderedList"), onclick: () => props.editor.chain().toggleOrderedList().run() })}
               </div>
             </div>
           ) : null}
           {openPanel === "objects" ? (
-            <div class="menu-dock__panel" role="group" aria-label="Вставка блоков">
-              <button class="menu-dock__close" type="button" onclick={closePanel}>Закрыть</button>
+            <div class="menu-dock__panel" role="group" aria-label="Insert blocks">
               <div class="menu-dock__grid">
-                {actionBtn({ label: "Таблица", icon: toolbarIconNodes.table, onclick: () => props.editor.chain().focus().insertTable().run() })}
-                {actionBtn({ label: "Блок кода", icon: bubbleIconNodes.code, onclick: () => props.editor.chain().focus().toggleHljsCodeBlock().run() })}
-                {actionBtn({ label: "Ссылка", icon: bubbleIconNodes.link, onclick: () => togglePanel("link") })}
+                {actionBtn({ label: "Table", icon: toolbarIconNodes.table, onclick: () => props.editor.chain().insertTable().run() })}
+                {actionBtn({ label: "Code block", icon: bubbleIconNodes.code, onclick: () => props.editor.chain().toggleHljsCodeBlock().run() })}
+                {actionBtn({ label: "Link", icon: bubbleIconNodes.link, onclick: () => togglePanel("link") })}
               </div>
             </div>
           ) : null}
           {openPanel === "media" ? (
-            <div class="menu-dock__panel" role="group" aria-label="Вставка медиа">
-              <button class="menu-dock__close" type="button" onclick={closePanel}>Закрыть</button>
+            <div class="menu-dock__panel" role="group" aria-label="Insert media">
               <div class="menu-dock__grid">
-                {actionBtn({ label: "Изображение", icon: toolbarIconNodes.image, onclick: () => props.editor.chain().focus().selectImageFile().run() })}
-                {actionBtn({ label: "Диаграмма", icon: toolbarIconNodes.diagram, onclick: () => props.editor.chain().focus().insertMermaid().run() })}
-                {actionBtn({ label: "Вложение", icon: toolbarIconNodes.paperclip, onclick: () => props.editor.chain().focus().setAttachment(true).run() })}
+                {actionBtn({ label: "Image", icon: toolbarIconNodes.image, onclick: () => props.editor.chain().selectImageFile().run() })}
+                {actionBtn({ label: "Diagram", icon: toolbarIconNodes.diagram, onclick: () => props.editor.chain().insertMermaid().run() })}
+                {actionBtn({ label: "Attachment", icon: toolbarIconNodes.paperclip, onclick: () => props.editor.chain().setAttachment(true).run() })}
               </div>
             </div>
           ) : null}
           {openPanel === "format" ? (
-            <div class="menu-dock__panel" role="group" aria-label="Форматирование текста">
-              <button class="menu-dock__close" type="button" onclick={closePanel}>Закрыть</button>
+            <div class="menu-dock__panel" role="group" aria-label="Text formatting">
               <div class="menu-dock__grid">
-                {actionBtn({ label: "Жирный", icon: bubbleIconNodes.bold, active: bubbleState.bold, onclick: () => applyMark("bold") })}
-                {actionBtn({ label: "Курсив", icon: bubbleIconNodes.italic, active: bubbleState.italic, onclick: () => applyMark("italic") })}
-                {actionBtn({ label: "Подчёркнутый", icon: bubbleIconNodes.underline, active: bubbleState.underline, onclick: () => applyMark("underline") })}
-                {actionBtn({ label: "Зачёркнутый", icon: bubbleIconNodes.strike, active: bubbleState.strike, onclick: () => applyMark("strike") })}
-                {actionBtn({ label: "Код в строке", icon: bubbleIconNodes.code, active: bubbleState.code, onclick: () => applyMark("code") })}
-                {actionBtn({ label: "Выделение цветом", icon: bubbleIconNodes.mark, active: bubbleState.mark, onclick: () => applyMark("mark") })}
+                {actionBtn({ label: "Bold", icon: bubbleIconNodes.bold, active: bubbleState.bold, onclick: () => applyMark("bold") })}
+                {actionBtn({ label: "Italic", icon: bubbleIconNodes.italic, active: bubbleState.italic, onclick: () => applyMark("italic") })}
+                {actionBtn({ label: "Underline", icon: bubbleIconNodes.underline, active: bubbleState.underline, onclick: () => applyMark("underline") })}
+                {actionBtn({ label: "Strikethrough", icon: bubbleIconNodes.strike, active: bubbleState.strike, onclick: () => applyMark("strike") })}
+                {actionBtn({ label: "Inline code", icon: bubbleIconNodes.code, active: bubbleState.code, onclick: () => applyMark("code") })}
+                {actionBtn({ label: "Highlight", icon: bubbleIconNodes.mark, active: bubbleState.mark, onclick: () => applyMark("mark") })}
               </div>
             </div>
           ) : null}
           {openPanel === "styles" ? (
-            <div class="menu-dock__panel" role="group" aria-label="Стиль и цвет">
-              <button class="menu-dock__close" type="button" onclick={closePanel}>Закрыть</button>
-              <div class="menu-dock__section-label">Блок</div>
+            <div class="menu-dock__panel" role="group" aria-label="Styles and color">
+              <div class="menu-dock__section-label">Block</div>
               <div class="menu-dock__grid">
-                {actionBtn({ label: "Текст", icon: bubbleIconNodes.paragraph, active: bubbleState.paragraph, onclick: () => applyBlock("paragraph") })}
-                {actionBtn({ label: "Заголовок 1", icon: bubbleIconNodes.h1, active: bubbleState.h1, onclick: () => applyBlock("h1") })}
-                {actionBtn({ label: "Заголовок 2", icon: bubbleIconNodes.h2, active: bubbleState.h2, onclick: () => applyBlock("h2") })}
-                {actionBtn({ label: "Заголовок 3", icon: bubbleIconNodes.h3, active: bubbleState.h3, onclick: () => applyBlock("h3") })}
-                {actionBtn({ label: "Цитата", icon: bubbleIconNodes.blockquote, active: bubbleState.quote, onclick: () => applyBlock("quote") })}
+                {actionBtn({ label: "Text", icon: bubbleIconNodes.paragraph, active: bubbleState.paragraph, onclick: () => applyBlock("paragraph") })}
+                {actionBtn({ label: "Heading 1", icon: bubbleIconNodes.h1, active: bubbleState.h1, onclick: () => applyBlock("h1") })}
+                {actionBtn({ label: "Heading 2", icon: bubbleIconNodes.h2, active: bubbleState.h2, onclick: () => applyBlock("h2") })}
+                {actionBtn({ label: "Heading 3", icon: bubbleIconNodes.h3, active: bubbleState.h3, onclick: () => applyBlock("h3") })}
+                {actionBtn({ label: "Quote", icon: bubbleIconNodes.blockquote, active: bubbleState.quote, onclick: () => applyBlock("quote") })}
               </div>
-              <div class="menu-dock__section-label">Выравнивание</div>
+              <div class="menu-dock__section-label">Alignment</div>
               <div class="menu-dock__grid">
-                {actionBtn({ label: "Слева", icon: bubbleIconNodes.alignLeft, active: bubbleState.align === "left", onclick: () => applyAlign("left") })}
-                {actionBtn({ label: "По центру", icon: bubbleIconNodes.alignCenter, active: bubbleState.align === "center", onclick: () => applyAlign("center") })}
-                {actionBtn({ label: "Справа", icon: bubbleIconNodes.alignRight, active: bubbleState.align === "right", onclick: () => applyAlign("right") })}
+                {actionBtn({ label: "Left", icon: bubbleIconNodes.alignLeft, active: bubbleState.align === "left", onclick: () => applyAlign("left") })}
+                {actionBtn({ label: "Center", icon: bubbleIconNodes.alignCenter, active: bubbleState.align === "center", onclick: () => applyAlign("center") })}
+                {actionBtn({ label: "Right", icon: bubbleIconNodes.alignRight, active: bubbleState.align === "right", onclick: () => applyAlign("right") })}
               </div>
-              <div class="menu-dock__section-label">Цвет текста</div>
-              {colorSwatches(bubbleState.color, applyColor, "Цвет по умолчанию")}
+              <div class="menu-dock__section-label">Text color</div>
+              {colorSwatches(bubbleState.color, applyColor, "Default color")}
               {customColorRow({
                 value: pickerHexValue(bubbleState.color),
-                hexLabel: "HEX цвета текста",
+                hexLabel: "Text color HEX",
                 draft: colorDrafts.text,
                 onDraft: (value) => { colorDrafts.text = value; },
                 onApply: (hex) => { colorDrafts.text = ""; applyColor(hex); },
@@ -733,13 +696,12 @@ export const MenuDockElement = litView.element({
             </div>
           ) : null}
           {openPanel === "more" ? (
-            <div class="menu-dock__panel" role="group" aria-label="Другие действия">
-              <button class="menu-dock__close" type="button" onclick={closePanel}>Закрыть</button>
+            <div class="menu-dock__panel" role="group" aria-label="More actions">
               <div class="menu-dock__grid">
-                {actionBtn({ label: "Очистить форматирование", icon: bubbleIconNodes.clear, onclick: () => props.editor.chain().focus().unsetAllMarks().run() })}
+                {actionBtn({ label: "Clear formatting", icon: bubbleIconNodes.clear, onclick: () => props.editor.chain().unsetAllMarks().run() })}
                 {schemaHasComments
                   ? actionBtn({
-                      label: "Комментарий",
+                      label: "Comment",
                       icon: bubbleIconNodes.comment,
                       onclick: () =>
                         root.dispatchEvent(
@@ -753,15 +715,14 @@ export const MenuDockElement = litView.element({
             </div>
           ) : null}
           {openPanel === "link" ? (
-            <div class="menu-dock__panel" role="group" aria-label="Ссылка">
-              <button class="menu-dock__close" type="button" onclick={closePanel}>Закрыть</button>
+            <div class="menu-dock__panel" role="group" aria-label="Link">
               <div class="menu-dock__link-row">
                 <input
                   class="menu-dock__link-input"
                   type="url"
                   placeholder="https://…"
                   spellcheck={false}
-                  aria-label="Адрес ссылки"
+                  aria-label="Link URL"
                   value={linkDraft}
                   oninput={(e: Event) => {
                     linkDraft = (e.target as HTMLInputElement).value;
@@ -769,7 +730,7 @@ export const MenuDockElement = litView.element({
                   onkeydown={(e: KeyboardEvent) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
-                      applyLinkUrl(props.editor, linkDraft);
+                      applyLinkUrl(props.editor, linkDraft, false);
                       closePanel();
                     } else if (e.key === "Escape") {
                       e.preventDefault();
@@ -780,9 +741,9 @@ export const MenuDockElement = litView.element({
                 />
                 <button
                   class="menu-dock__link-go"
-                  aria-label="Применить ссылку"
+                  aria-label="Apply link"
                   onclick={() => {
-                    applyLinkUrl(props.editor, linkDraft);
+                    applyLinkUrl(props.editor, linkDraft, false);
                     closePanel();
                   }}
                 >
@@ -790,9 +751,9 @@ export const MenuDockElement = litView.element({
                 </button>
                 <button
                   class="menu-dock__link-go menu-dock__link-go--del"
-                  aria-label="Удалить ссылку"
+                  aria-label="Remove link"
                   onclick={() => {
-                    removeLinkMark(props.editor);
+                    removeLinkMark(props.editor, false);
                     closePanel();
                   }}
                 >
@@ -802,63 +763,61 @@ export const MenuDockElement = litView.element({
             </div>
           ) : null}
           {openPanel === "actions" ? (
-            <div class="menu-dock__panel" role="group" aria-label="Действия с таблицей">
-              <button class="menu-dock__close" type="button" onclick={closePanel}>Закрыть</button>
-              <div class="menu-dock__section-label">Строки и столбцы</div>
+            <div class="menu-dock__panel" role="group" aria-label="Table actions">
+              <div class="menu-dock__section-label">Rows and columns</div>
               <div class="menu-dock__grid">
-                {actionBtn({ label: "Строка выше", icon: bubbleIconNodes.rowAbove, onclick: () => applyTableAction("rowAbove") })}
-                {actionBtn({ label: "Строка ниже", icon: bubbleIconNodes.rowBelow, onclick: () => applyTableAction("rowBelow") })}
-                {actionBtn({ label: "Столбец слева", icon: bubbleIconNodes.colLeft, onclick: () => applyTableAction("colLeft") })}
-                {actionBtn({ label: "Столбец справа", icon: bubbleIconNodes.colRight, onclick: () => applyTableAction("colRight") })}
-                {actionBtn({ label: "Дублировать строку", icon: bubbleIconNodes.dupRow, onclick: () => applyTableAction("dupRow") })}
-                {actionBtn({ label: "Дублировать столбец", icon: bubbleIconNodes.dupCol, onclick: () => applyTableAction("dupCol") })}
+                {actionBtn({ label: "Row above", icon: bubbleIconNodes.rowAbove, onclick: () => applyTableAction("rowAbove") })}
+                {actionBtn({ label: "Row below", icon: bubbleIconNodes.rowBelow, onclick: () => applyTableAction("rowBelow") })}
+                {actionBtn({ label: "Column left", icon: bubbleIconNodes.colLeft, onclick: () => applyTableAction("colLeft") })}
+                {actionBtn({ label: "Column right", icon: bubbleIconNodes.colRight, onclick: () => applyTableAction("colRight") })}
+                {actionBtn({ label: "Duplicate row", icon: bubbleIconNodes.dupRow, onclick: () => applyTableAction("dupRow") })}
+                {actionBtn({ label: "Duplicate column", icon: bubbleIconNodes.dupCol, onclick: () => applyTableAction("dupCol") })}
               </div>
-              <div class="menu-dock__section-label">Ячейки</div>
+              <div class="menu-dock__section-label">Cells</div>
               <div class="menu-dock__grid">
-                {actionBtn({ label: "Копировать ячейки", icon: bubbleIconNodes.copy, onclick: () => copyTableSelection(props.editor.view) })}
-                {actionBtn({ label: "Вырезать ячейки", icon: bubbleIconNodes.cut, onclick: () => void cutTableSelection(props.editor.view).catch(() => {}) })}
+                {actionBtn({ label: "Copy cells", icon: bubbleIconNodes.copy, onclick: () => copyTableSelection(props.editor.view) })}
+                {actionBtn({ label: "Cut cells", icon: bubbleIconNodes.cut, onclick: () => void cutTableSelection(props.editor.view).catch(() => {}) })}
                 {canReadClipboard
-                  ? actionBtn({ label: "Вставить ячейки", icon: bubbleIconNodes.paste, onclick: () => void pasteFromSystemClipboard(props.editor.view).catch(() => {}) })
+                  ? actionBtn({ label: "Paste cells", icon: bubbleIconNodes.paste, onclick: () => void pasteFromSystemClipboard(props.editor.view).catch(() => {}) })
                   : null}
                 {actionBtn({
-                  label: "Объединить ячейки",
+                  label: "Merge cells",
                   icon: bubbleIconNodes.merge,
                   onclick: () => applyTableAction("merge"),
                   disabled: tableState.multiCell && props.editor.can().mergeCells()
                     ? undefined
-                    : "Сначала выделите несколько ячеек",
+                    : "Select a valid range of cells",
                 })}
                 {actionBtn({
-                  label: "Разделить ячейку",
+                  label: "Split cell",
                   icon: bubbleIconNodes.split,
                   onclick: () => applyTableAction("split"),
                   disabled: tableState.mergedCell
                     ? undefined
-                    : "Для объединённой ячейки",
+                    : "Select a merged cell",
                 })}
               </div>
-              <div class="menu-dock__section-label">Строки и таблица</div>
+              <div class="menu-dock__section-label">Rows and table</div>
               <div class="menu-dock__grid">
-                {actionBtn({ label: "Заголовок таблицы", icon: bubbleIconNodes.header, active: tableState.headerRow, onclick: () => applyTableAction("header") })}
-                {actionBtn({ label: "Удалить строку", icon: bubbleIconNodes.delRow, danger: true, onclick: () => applyTableAction("delRow") })}
-                {actionBtn({ label: "Удалить столбец", icon: bubbleIconNodes.delCol, danger: true, onclick: () => applyTableAction("delCol") })}
-                {actionBtn({ label: "Удалить таблицу", icon: bubbleIconNodes.delTable, danger: true, onclick: () => applyTableAction("delTable") })}
+                {actionBtn({ label: "Table header", icon: bubbleIconNodes.header, active: tableState.headerRow, onclick: () => applyTableAction("header") })}
+                {actionBtn({ label: "Delete row", icon: bubbleIconNodes.delRow, danger: true, onclick: () => applyTableAction("delRow") })}
+                {actionBtn({ label: "Delete column", icon: bubbleIconNodes.delCol, danger: true, onclick: () => applyTableAction("delCol") })}
+                {actionBtn({ label: "Delete table", icon: bubbleIconNodes.delTable, danger: true, onclick: () => applyTableAction("delTable") })}
               </div>
             </div>
           ) : null}
           {openPanel === "fill" ? (
-            <div class="menu-dock__panel" role="group" aria-label="Заливка ячейки">
-              <button class="menu-dock__close" type="button" onclick={closePanel}>Закрыть</button>
+            <div class="menu-dock__panel" role="group" aria-label="Cell fill">
               {colorSwatches(
                 tableState.bg == null
                   ? null
                   : (fillHexForPicker(tableState.bg) ?? tableState.bg),
                 applyCellBg,
-                "Без заливки",
+                "No fill",
               )}
               {customColorRow({
                 value: pickerHexValue(fillHexForPicker(tableState.bg)),
-                hexLabel: "HEX заливки ячейки",
+                hexLabel: "Cell fill HEX",
                 draft: colorDrafts.fill,
                 onDraft: (value) => { colorDrafts.fill = value; },
                 onApply: (hex) => { colorDrafts.fill = ""; applyCellBg(hex); },
@@ -866,14 +825,13 @@ export const MenuDockElement = litView.element({
             </div>
           ) : null}
           {openPanel === "borders" ? (
-            <div class="menu-dock__panel" role="group" aria-label="Границы">
-              <button class="menu-dock__close" type="button" onclick={closePanel}>Закрыть</button>
+            <div class="menu-dock__panel" role="group" aria-label="Borders">
               <div class="menu-dock__pen-row">
                 <label class="menu-dock__pen-field">
-                  <span>Линия</span>
+                  <span>Line</span>
                   <select
                     class="menu-dock__pen-select"
-                    aria-label="Тип линии границы"
+                    aria-label="Border line style"
                     onchange={(e: Event) => {
                       pen = {
                         ...pen,
@@ -891,10 +849,10 @@ export const MenuDockElement = litView.element({
                   </select>
                 </label>
                 <label class="menu-dock__pen-field">
-                  <span>Толщина</span>
+                  <span>Width</span>
                   <select
                     class="menu-dock__pen-select"
-                    aria-label="Толщина границы"
+                    aria-label="Border width"
                     onchange={(e: Event) => {
                       pen = { ...pen, width: (e.target as HTMLSelectElement).value };
                       void this.next();
@@ -908,7 +866,7 @@ export const MenuDockElement = litView.element({
                   </select>
                 </label>
               </div>
-              <div class="menu-dock__section-label">Цвет линии</div>
+              <div class="menu-dock__section-label">Line color</div>
               <div class="menu-dock__swatches">
                 {BORDER_COLORS.map((c) => (
                   <button
@@ -919,8 +877,8 @@ export const MenuDockElement = litView.element({
                     )}
                     aria-pressed={String(pen.color === c.color)}
                     style={c.color ? `background: ${c.color}` : undefined}
-                    aria-label={c.color == null ? "Автоматический цвет" : (COLOR_LABELS[c.id] ?? c.label)}
-                    title={c.color == null ? "Автоматический цвет" : (COLOR_LABELS[c.id] ?? c.label)}
+                    aria-label={c.color == null ? "Automatic color" : (COLOR_LABELS[c.id] ?? c.label)}
+                    title={c.color == null ? "Automatic color" : (COLOR_LABELS[c.id] ?? c.label)}
                     onclick={() => {
                       pen = { ...pen, color: c.color };
                       void this.next();
@@ -930,7 +888,7 @@ export const MenuDockElement = litView.element({
               </div>
               {customColorRow({
                 value: pickerHexValue(pen.color),
-                hexLabel: "HEX цвета границы",
+                hexLabel: "Border color HEX",
                 draft: colorDrafts.border,
                 onDraft: (value) => { colorDrafts.border = value; },
                 onApply: (hex) => {
@@ -939,45 +897,43 @@ export const MenuDockElement = litView.element({
                   void this.next();
                 },
               })}
-              <div class="menu-dock__section-label">Применить границы</div>
+              <div class="menu-dock__section-label">Apply borders</div>
               <div class="menu-dock__grid">
-                {actionBtn({ label: "Без границ", icon: bubbleIconNodes.bdNone, onclick: () => applyBorderPreset("none") })}
-                {actionBtn({ label: "Все границы", icon: bubbleIconNodes.bdAll, onclick: () => applyBorderPreset("all") })}
-                {actionBtn({ label: "Внешняя граница", icon: bubbleIconNodes.bdBox, onclick: () => applyBorderPreset("box") })}
-                {actionBtn({ label: "Внутренние горизонтальные", icon: bubbleIconNodes.bdInsideH, onclick: () => applyBorderPreset("insideH") })}
-                {actionBtn({ label: "Внутренние вертикальные", icon: bubbleIconNodes.bdInsideV, onclick: () => applyBorderPreset("insideV") })}
-                {actionBtn({ label: "Верхняя граница", icon: bubbleIconNodes.bdTop, onclick: () => applyBorderSide("top") })}
-                {actionBtn({ label: "Правая граница", icon: bubbleIconNodes.bdRight, onclick: () => applyBorderSide("right") })}
-                {actionBtn({ label: "Нижняя граница", icon: bubbleIconNodes.bdBottom, onclick: () => applyBorderSide("bottom") })}
-                {actionBtn({ label: "Левая граница", icon: bubbleIconNodes.bdLeft, onclick: () => applyBorderSide("left") })}
+                {actionBtn({ label: "No borders", icon: bubbleIconNodes.bdNone, onclick: () => applyBorderPreset("none") })}
+                {actionBtn({ label: "All borders", icon: bubbleIconNodes.bdAll, onclick: () => applyBorderPreset("all") })}
+                {actionBtn({ label: "Outer border", icon: bubbleIconNodes.bdBox, onclick: () => applyBorderPreset("box") })}
+                {actionBtn({ label: "Inside horizontal", icon: bubbleIconNodes.bdInsideH, onclick: () => applyBorderPreset("insideH") })}
+                {actionBtn({ label: "Inside vertical", icon: bubbleIconNodes.bdInsideV, onclick: () => applyBorderPreset("insideV") })}
+                {actionBtn({ label: "Top border", icon: bubbleIconNodes.bdTop, onclick: () => applyBorderSide("top") })}
+                {actionBtn({ label: "Right border", icon: bubbleIconNodes.bdRight, onclick: () => applyBorderSide("right") })}
+                {actionBtn({ label: "Bottom border", icon: bubbleIconNodes.bdBottom, onclick: () => applyBorderSide("bottom") })}
+                {actionBtn({ label: "Left border", icon: bubbleIconNodes.bdLeft, onclick: () => applyBorderSide("left") })}
               </div>
             </div>
           ) : null}
           {openPanel === "object" ? (
-            <div class="menu-dock__panel" role="group" aria-label="Действия с объектом">
-              <button class="menu-dock__close" type="button" onclick={closePanel}>Закрыть</button>
+            <div class="menu-dock__panel" role="group" aria-label="Object actions">
               <div class="menu-dock__grid">
                 {isMermaid
                   ? [
-                      actionBtn({ label: "Редактировать диаграмму", icon: bubbleIconNodes.pencil, onclick: doEditDiagram }),
-                      actionBtn({ label: "Удалить", icon: bubbleIconNodes.trash, danger: true, onclick: doDelete }),
+                      actionBtn({ label: "Edit diagram", icon: bubbleIconNodes.pencil, onclick: doEditDiagram }),
+                      actionBtn({ label: "Delete", icon: bubbleIconNodes.trash, danger: true, onclick: doDelete }),
                     ]
                   : [
                       actionBtn({
-                        label: "Открыть",
+                        label: "Open",
                         icon: bubbleIconNodes.file,
-                        disabled: media.hasFile ? undefined : "Файл ещё не добавлен",
+                        disabled: media.hasFile ? undefined : "No file yet",
                         onclick: doOpen,
                       }),
-                      actionBtn({ label: "Заменить", icon: bubbleIconNodes.replace, onclick: doReplace }),
-                      actionBtn({ label: "Удалить", icon: bubbleIconNodes.trash, danger: true, onclick: doDelete }),
+                      actionBtn({ label: "Replace", icon: bubbleIconNodes.replace, onclick: doReplace }),
+                      actionBtn({ label: "Delete", icon: bubbleIconNodes.trash, danger: true, onclick: doDelete }),
                     ]}
               </div>
             </div>
           ) : null}
           {openPanel === "layout" ? (
-            <div class="menu-dock__panel" role="group" aria-label="Размещение">
-              <button class="menu-dock__close" type="button" onclick={closePanel}>Закрыть</button>
+            <div class="menu-dock__panel" role="group" aria-label="Layout">
               <div class="menu-dock__grid">
                 {MEDIA_LAYOUTS.map((l) =>
                   actionBtn({
@@ -991,53 +947,38 @@ export const MenuDockElement = litView.element({
             </div>
           ) : null}
 
-          {/* ── Context line ── */}
-          <div class="menu-dock__context">
-            <span class="menu-dock__context-title">{contextTitle}</span>
-            <span class="menu-dock__context-detail">· {contextDetail}</span>
-          </div>
-
           {/* ── Group row ── */}
           <div class="menu-dock__row">
             {mode === "none" ? (
               <>
-                {groupBtn({ id: "blocks", label: "Текст", aria: "Текст и заголовки", text: "Aa" })}
-                {groupBtn({ id: "lists", label: "Списки", aria: "Списки", icon: bubbleIconNodes.list })}
-                {groupBtn({ id: "objects", label: "Вставка", aria: "Блоки и таблицы", toolbarIcon: "table" })}
-                {groupBtn({ id: "media", label: "Медиа", aria: "Медиа и файлы", toolbarIcon: "image" })}
-                <button
-                  class="menu-dock__group"
-                  aria-label={keyboardOpen ? "Скрыть клавиатуру" : "Показать клавиатуру"}
-                  onclick={() => {
-                    if (keyboardIsOpen()) props.editor.commands.blur();
-                    else props.editor.view.focus();
-                  }}
-                >
-                  <span class="menu-dock__icon">
-                    {toolbarIconNodes.keyboardHide({})}
-                  </span>
-                  <span class="menu-dock__group-label">Клавиатура</span>
+                {groupBtn({ id: "blocks", label: "Text", aria: "Text and headings", text: "Aa" })}
+                {groupBtn({ id: "lists", label: "Lists", aria: "Lists", icon: bubbleIconNodes.list })}
+                {groupBtn({ id: "objects", label: "Insert", aria: "Blocks and tables", toolbarIcon: "table" })}
+                {groupBtn({ id: "media", label: "Media", aria: "Media and files", toolbarIcon: "image" })}
+                <button class="menu-dock__group" aria-label="Hide keyboard" aria-disabled={keyboardOpen ? "false" : "true"} onclick={() => { if (keyboardOpen) props.editor.commands.blur(); }}>
+                  <span class="menu-dock__icon">{toolbarIconNodes.keyboardHide({})}</span>
+                  <span class="menu-dock__group-label">Keyboard</span>
                 </button>
               </>
             ) : mode === "text" ? (
               <>
-                {groupBtn({ id: "format", label: "Формат", aria: "Форматирование", icon: bubbleIconNodes.bold })}
-                {groupBtn({ id: "styles", label: "Стиль", aria: "Стиль и цвет", text: "Aa" })}
-                {groupBtn({ id: "link", label: "Ссылка", aria: "Ссылка", icon: bubbleIconNodes.link })}
-                {groupBtn({ id: "more", label: "Ещё", aria: "Другие действия", icon: toolbarIconNodes.dots })}
+                {groupBtn({ id: "format", label: "Format", aria: "Formatting", icon: bubbleIconNodes.bold })}
+                {groupBtn({ id: "styles", label: "Style", aria: "Styles and color", text: "Aa" })}
+                {groupBtn({ id: "link", label: "Link", aria: "Link", icon: bubbleIconNodes.link })}
+                {groupBtn({ id: "more", label: "More", aria: "More actions", icon: toolbarIconNodes.dots })}
               </>
             ) : mode === "table" ? (
               <>
-                {groupBtn({ id: "actions", label: "Действия", aria: "Действия с таблицей", toolbarIcon: "table" })}
-                {groupBtn({ id: "fill", label: "Заливка", aria: "Заливка ячейки", icon: bubbleIconNodes.paintBucket })}
-                {groupBtn({ id: "borders", label: "Границы", aria: "Границы", icon: bubbleIconNodes.bdAll })}
+                {groupBtn({ id: "actions", label: "Actions", aria: "Table actions", toolbarIcon: "table" })}
+                {groupBtn({ id: "fill", label: "Fill", aria: "Cell fill", icon: bubbleIconNodes.paintBucket })}
+                {groupBtn({ id: "borders", label: "Borders", aria: "Borders", icon: bubbleIconNodes.bdAll })}
                 {doneBtn()}
               </>
             ) : (
               <>
-                {groupBtn({ id: "object", label: "Объект", aria: "Действия с объектом", icon: bubbleIconNodes.file })}
+                {groupBtn({ id: "object", label: "Object", aria: "Object actions", icon: bubbleIconNodes.file })}
                 {showLayout
-                  ? groupBtn({ id: "layout", label: "Размещение", aria: "Размещение", icon: bubbleIconNodes.imgCenter })
+                  ? groupBtn({ id: "layout", label: "Layout", aria: "Layout", icon: bubbleIconNodes.imgCenter })
                   : null}
                 {doneBtn()}
               </>

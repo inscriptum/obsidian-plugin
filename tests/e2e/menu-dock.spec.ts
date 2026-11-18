@@ -45,11 +45,7 @@ test.describe("mobile menu dock", () => {
       container.append(host);
     });
     await expect(page.locator(dock)).toBeVisible();
-    await page.locator(".note-view-container").evaluate((el) => el.classList.add("is-keyboard-open"));
-    await expect(page.getByRole("button", { name: "Скрыть клавиатуру" })).toBeVisible();
-    await page.locator(".note-view-container").evaluate((el) => el.classList.remove("is-keyboard-open"));
-    await expect(page.getByRole("button", { name: "Показать клавиатуру" })).toBeVisible();
-    await openGroup(page, "Текст");
+    await openGroup(page, "Text");
     await expect(page.locator(panel)).toBeVisible();
   });
 
@@ -81,7 +77,7 @@ test.describe("mobile menu dock", () => {
       const rowBox = await row.boundingBox();
       const navBox = await navbar.boundingBox();
       expect(rowBox!.y + rowBox!.height).toBeLessThanOrEqual(navBox!.y);
-      await page.locator(`${dock} .menu-dock__group`, { hasText: "Текст" }).click();
+      await page.locator(`${dock} .menu-dock__group`, { hasText: "Text" }).click();
       await expect(page.locator(panel)).toBeVisible();
       await page.locator(`.${view}-view-container`).evaluate((el) => el.classList.add("is-keyboard-open"));
       const host = page.locator(view === "note" ? ".note-toolbar-host" : ".notepad-toolbar-host");
@@ -103,7 +99,7 @@ test.describe("mobile menu dock", () => {
       container.append(spacer, host);
       window.visualViewport?.dispatchEvent(new Event("resize"));
     });
-    await openGroup(page, "Действия");
+    await openGroup(page, "Actions");
     const container = page.locator(".note-view-container");
     await expect.poll(async () => {
       const row = await page.locator(".menu-dock__row").boundingBox();
@@ -120,28 +116,27 @@ test.describe("mobile menu dock", () => {
     await mountToolbar(page, noteDoc(p("plain p1")));
 
     await expect(page.locator(dock)).toBeVisible();
-    await expect(page.locator(`${dock} .menu-dock__context-title`)).toHaveText(
-      "Вставка блоков",
-    );
+
     const groups = page.locator(`${dock} .menu-dock__group`);
     await expect(groups).toHaveCount(5);
+    await expect(page.getByRole("button", { name: "Hide keyboard" })).toHaveAttribute("aria-disabled", "true");
 
-    await openGroup(page, "Текст");
+    await openGroup(page, "Text");
     await expect(page.locator(panel)).toBeVisible();
     await expect(
-      page.locator(`${dock} .menu-dock__group`, { hasText: "Текст" }),
+      page.locator(`${dock} .menu-dock__group`, { hasText: "Text" }),
     ).toHaveAttribute("aria-expanded", "true");
     await expect(page.locator(`${panel} .menu-dock__action`)).toHaveCount(5);
   });
 
-  test("close button dismisses a panel without leaving its context", async ({ page }) => {
+  test("repeated group tap dismisses its panel", async ({ page }) => {
     await openHarness(page);
     await mountToolbar(page, noteDoc(p("plain")));
-    await openGroup(page, "Текст");
-    await page.locator(panel).getByRole("button", { name: "Закрыть" }).click();
+    await openGroup(page, "Text");
+    await openGroup(page, "Text");
     await expect(page.locator(panel)).toHaveCount(0);
-    await expect(page.locator(`${dock} .menu-dock__context-title`)).toHaveText("Вставка блоков");
-    await expect(page.locator(`${dock} .menu-dock__group`, { hasText: "Текст" })).toHaveAttribute("aria-expanded", "false");
+
+    await expect(page.locator(`${dock} .menu-dock__group`, { hasText: "Text" })).toHaveAttribute("aria-expanded", "false");
   });
 
   test("block style applies to the current block without any selection", async ({
@@ -151,8 +146,8 @@ test.describe("mobile menu dock", () => {
     await mountToolbar(page, noteDoc(p("plain p1")));
     await clickInside(page, "plain p1");
 
-    await openGroup(page, "Текст");
-    await clickAction(page, "Заголовок 1");
+    await openGroup(page, "Text");
+    await clickAction(page, "Heading 1");
 
     const json = await docJson(page);
     const first = json.content?.[1] as JsonLike;
@@ -172,24 +167,22 @@ test.describe("mobile menu dock", () => {
       ed.commands.setTextSelection({ from, to });
     }, range);
 
-    await expect(page.locator(`${dock} .menu-dock__context-title`)).toHaveText(
-      "Текст выделен",
-    );
-    await openGroup(page, "Формат");
+
+    await openGroup(page, "Format");
     await expect(page.locator(`${panel} .menu-dock__action`)).toHaveCount(6);
 
-    await expect(page.locator(`${panel} .menu-dock__action`, { hasText: "Жирный" })).toHaveAttribute("aria-pressed", "false");
-    await clickAction(page, "Жирный");
-    await expect(page.locator(`${panel} .menu-dock__action`, { hasText: "Жирный" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(`${panel} .menu-dock__action`, { hasText: "Bold" })).toHaveAttribute("aria-pressed", "false");
+    await clickAction(page, "Bold");
+    await expect(page.locator(`${panel} .menu-dock__action`, { hasText: "Bold" })).toHaveAttribute("aria-pressed", "true");
     const json = await docJson(page);
     const text = findText(json, "alpha");
     expect(text?.marks?.some((m) => m.type === "bold")).toBe(true);
     // The active state stays visible after the re-render.
     await expect(
-      page.locator(`${panel} .menu-dock__action`, { hasText: "Жирный" }),
+      page.locator(`${panel} .menu-dock__action`, { hasText: "Bold" }),
     ).toHaveClass(/is-active/);
 
-    await clickAction(page, "Жирный");
+    await clickAction(page, "Bold");
     const after = await docJson(page);
     expect(
       findText(after, "alpha")?.marks?.some((m) => m.type === "bold"),
@@ -207,16 +200,17 @@ test.describe("mobile menu dock", () => {
       ed.view.focus();
       ed.commands.setTextSelection({ from, to });
     }, range);
-    await openGroup(page, "Стиль");
+    await openGroup(page, "Style");
 
     // Unified palette: 12 swatches + the custom color row (review F2/F5).
     await expect(page.locator(`${panel} .menu-dock__swatch`)).toHaveCount(12);
     await expect(page.locator(`${panel} .bb-dd-custom`)).toHaveCount(1);
 
     await page
-      .locator(`${panel} .menu-dock__swatch[title="Фиолетовый"]`)
+      .locator(`${panel} .menu-dock__swatch[title="Purple"]`)
       .click();
-    await expect(page.locator(`${panel} .menu-dock__swatch[title="Фиолетовый"]`)).toHaveAttribute("aria-pressed", "true");
+    await expect.poll(() => page.evaluate(() => document.activeElement === window.__e2e.editor!.view.dom)).toBe(false);
+    await expect(page.locator(`${panel} .menu-dock__swatch[title="Purple"]`)).toHaveAttribute("aria-pressed", "true");
     const json = await docJson(page);
     const text = findText(json, "alpha");
     const color = text?.marks?.find((m) => m.type === "textStyle")?.attrs
@@ -235,13 +229,11 @@ test.describe("mobile menu dock", () => {
     // Caret into the first cell → table context.
     await clickCell(page, "alpha");
 
-    await expect(page.locator(`${dock} .menu-dock__context-title`)).toHaveText(
-      "Ячейка выделена",
-    );
+
     await expect(page.locator(`${dock} .menu-dock__group`)).toHaveCount(4);
 
-    await openGroup(page, "Заливка");
-    await page.locator(`${panel} .menu-dock__swatch[title="Фиолетовый"]`).click();
+    await openGroup(page, "Fill");
+    await page.locator(`${panel} .menu-dock__swatch[title="Purple"]`).click();
     await expect
       .poll(() =>
         page.evaluate(() => {
@@ -260,23 +252,23 @@ test.describe("mobile menu dock", () => {
       )
       .toBe("rgba(179, 163, 247, .16)");
 
-    await openGroup(page, "Действия");
+    await openGroup(page, "Actions");
     const merge = page
-      .locator(`${panel} .menu-dock__action`, { hasText: "Объединить ячейки" });
+      .locator(`${panel} .menu-dock__action`, { hasText: "Merge cells" });
     // Review F37: the unavailable command stays in the DOM and explains
     // itself, instead of a silent native disabled.
     await expect(merge).toHaveAttribute("aria-disabled", "true");
     await expect(merge).toHaveAttribute(
       "aria-label",
-      /Сначала выделите несколько ячеек/,
+      /Select a valid range of cells/,
     );
     // Split is off for a non-merged cell.
     await expect(
-      page.locator(`${panel} .menu-dock__action`, { hasText: "Разделить ячейку" }),
+      page.locator(`${panel} .menu-dock__action`, { hasText: "Split cell" }),
     ).toHaveAttribute("aria-disabled", "true");
     // Header works from the same panel: the fixture row is a header row, so
     // the toggle flips its cells to regular cells.
-    await clickAction(page, "Заголовок таблицы");
+    await clickAction(page, "Table header");
     await expect
       .poll(() =>
         page.evaluate(() => {
@@ -303,14 +295,12 @@ test.describe("mobile menu dock", () => {
       noteDoc(p("before"), table([["alpha", "bravo"], ["charlie", "delta"]])),
     );
     await clickCell(page, "alpha");
-    await openGroup(page, "Заливка");
+    await openGroup(page, "Fill");
     await expect(page.locator(panel)).toBeVisible();
 
-    await openGroup(page, "Готово");
+    await openGroup(page, "Done");
     await expect(page.locator(panel)).toHaveCount(0);
-    await expect(page.locator(`${dock} .menu-dock__context-title`)).toHaveText(
-      "Вставка блоков",
-    );
+
   });
 
   test.describe("coarse custom colors", () => {
@@ -327,7 +317,7 @@ test.describe("mobile menu dock", () => {
         ed.view.focus();
         ed.commands.setTextSelection({ from, to });
       }, range);
-      await openGroup(page, "Стиль");
+      await openGroup(page, "Style");
       await page.locator(`${panel} .bb-dd-open`).click();
       const popup = page.locator(".bb-dd-popup.show");
       await expect(popup).toBeVisible();
@@ -356,7 +346,7 @@ test.describe("mobile menu dock", () => {
     await mountToolbar(page, noteDoc(p("alpha bravo charlie")));
     // Caret → main context → Text group opens the block panel.
     await clickInside(page, "alpha bravo charlie");
-    await openGroup(page, "Текст");
+    await openGroup(page, "Text");
     await expect(page.locator(panel)).toBeVisible();
 
     // A text selection switches the context — the panel must close with it.
@@ -366,24 +356,9 @@ test.describe("mobile menu dock", () => {
       ed.commands.setTextSelection({ from, to });
     }, range);
     await expect(page.locator(panel)).toHaveCount(0);
-    await expect(page.locator(`${dock} .menu-dock__context-title`)).toHaveText(
-      "Текст выделен",
-    );
+
   });
 
-  test("the keyboard group reflects the (harness-neutral) keyboard state", async ({
-    page,
-  }) => {
-    await openHarness(page);
-    await mountToolbar(page, noteDoc(p("plain p1")));
-    // The harness sets no keyboard CSS var, so the dock offers "Show" —
-    // on device the same button flips to "Hide" and blurs (see NoteView).
-    await expect(
-      page.locator(
-        `${dock} .menu-dock__group[aria-label="Показать клавиатуру"]`,
-      ),
-    ).toBeVisible();
-  });
 });
 
 interface JsonLike {

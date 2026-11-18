@@ -9,7 +9,7 @@ import { normalizeLinkUrl } from "./linkUrl";
  *  - with a bare caret elsewhere — insert the URL as the link's own text.
  *  Behavior mirrors the desktop toolbar link layer verbatim (the dock
  *  replaces it on mobile — rule-cr-parity: one source of the rules). */
-export function applyLinkUrl(editor: Editor, rawUrl: string): void {
+export function applyLinkUrl(editor: Editor, rawUrl: string, focus = true): void {
   const url = normalizeLinkUrl(rawUrl);
   const { selection } = editor.state;
   if (!url) return;
@@ -17,7 +17,7 @@ export function applyLinkUrl(editor: Editor, rawUrl: string): void {
     // Bare caret on a link: rewrite that link's href, keep its text.
     editor
       .chain()
-      .focus()
+      .focus(focus ? null : false)
       .extendMarkRange("link")
       .setMark("link", { href: url })
       .setMeta("preventAutolink", true)
@@ -26,7 +26,7 @@ export function applyLinkUrl(editor: Editor, rawUrl: string): void {
     // No selection: the URL becomes the link's own text.
     editor
       .chain()
-      .focus()
+      .focus(focus ? null : false)
       .insertContent({
         type: "text",
         text: url,
@@ -37,7 +37,7 @@ export function applyLinkUrl(editor: Editor, rawUrl: string): void {
   } else {
     editor
       .chain()
-      .focus()
+      .focus(focus ? null : false)
       .setMark("link", { href: url })
       .setMeta("preventAutolink", true)
       .run();
@@ -46,10 +46,10 @@ export function applyLinkUrl(editor: Editor, rawUrl: string): void {
 
 /** Remove the link mark — extends across the whole link when the caret sits
  *  on one (the toolbar's trash button semantics). */
-export function removeLinkMark(editor: Editor): void {
+export function removeLinkMark(editor: Editor, focus = true): void {
   editor
     .chain()
-    .focus()
+    .focus(focus ? null : false)
     .unsetMark("link", { extendEmptyMarkRange: true })
     .run();
 }

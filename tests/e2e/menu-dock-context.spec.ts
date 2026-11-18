@@ -34,14 +34,14 @@ test("link applies to the mapped selection after an edit before it", async ({ pa
   await mountToolbar(page, noteDoc(p("alpha bravo")));
   const range = await textRange(page, "alpha bravo");
   await page.evaluate(({ from, to }) => window.__e2e.editor!.commands.setTextSelection({ from, to }), range);
-  await page.getByRole("button", { name: "Ссылка", exact: true }).click();
-  const input = page.getByRole("textbox", { name: "Адрес ссылки" });
+  await page.getByRole("button", { name: "Link", exact: true }).click();
+  const input = page.getByRole("textbox", { name: "Link URL" });
   await input.fill("https://example.com");
   await page.evaluate(() => {
     const editor = window.__e2e.editor!;
     editor.view.dispatch(editor.state.tr.insertText("X", editor.state.selection.from));
   });
-  await page.getByRole("button", { name: "Применить ссылку" }).click();
+  await page.getByRole("button", { name: "Apply link" }).click();
   await expect(page.locator('.texto-editor a[href="https://example.com"]')).toHaveText("alpha bravo");
 });
 
@@ -50,14 +50,14 @@ test("editing the held range invalidates HEX until a new selection", async ({ pa
   await mountToolbar(page, noteDoc(p("alpha bravo")));
   const range = await textRange(page, "alpha bravo");
   await page.evaluate(({ from, to }) => window.__e2e.editor!.commands.setTextSelection({ from, to }), range);
-  await page.getByRole("button", { name: "Стиль и цвет" }).click();
-  const input = page.getByRole("textbox", { name: "HEX цвета текста" });
+  await page.getByRole("button", { name: "Styles and color" }).click();
+  const input = page.getByRole("textbox", { name: "Text color HEX" });
   await input.fill("#123456");
   await page.evaluate(() => {
     const editor = window.__e2e.editor!;
     editor.view.dispatch(editor.state.tr.insertText("X", editor.state.selection.from + 2));
   });
-  await expect(page.getByRole("status")).toContainText("Выберите текст заново");
+  await expect(page.getByRole("status")).toContainText("Select text again");
   await input.press("Enter");
   await expect(page.locator('.texto-editor [style*="color"]')).toHaveCount(0);
 });
@@ -72,13 +72,13 @@ test("inserts on either boundary stay outside a backwards selection", async ({ p
     editor.commands.setTextSelection({ from: to, to: from });
   }, range);
   await expect.poll(() => page.evaluate(() => window.__e2e.editor!.state.selection.empty)).toBe(false);
-  await page.getByRole("button", { name: "Ссылка", exact: true }).click();
-  await page.getByRole("textbox", { name: "Адрес ссылки" }).fill("https://example.com");
+  await page.getByRole("button", { name: "Link", exact: true }).click();
+  await page.getByRole("textbox", { name: "Link URL" }).fill("https://example.com");
   await page.evaluate(({ from, to }) => {
     const editor = window.__e2e.editor!;
     editor.view.dispatch(editor.state.tr.insertText("Y", to).insertText("X", from));
   }, range);
-  await page.getByRole("button", { name: "Применить ссылку" }).click();
+  await page.getByRole("button", { name: "Apply link" }).click();
   await expect(page.locator('.texto-editor a[href="https://example.com"]')).toHaveText("alpha bravo");
   await expect(page.locator(".texto-editor .ProseMirror > p")).toContainText("Xalpha bravoY");
 });
@@ -104,6 +104,6 @@ test("attachment context identifies the selected object", async ({ page }) => {
     editor.state.doc.forEach((node, offset) => { if (node.type.name === "attachment") pos = offset; });
     editor.commands.setNodeSelection(pos);
   });
-  await expect(page.locator(".menu-dock__context-detail")).toContainText("Вложение");
-  await expect(page.getByRole("button", { name: "Размещение" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Object actions" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Layout" })).toHaveCount(0);
 });
