@@ -668,7 +668,7 @@ export const BubbleMenuBarElement = litView.element({
             {/* Fixed translucent palette (HIGHLIGHT_COLORS); the default
                highlight is a colorless mark from the theme token, so the way
                back is the active swatch (unsets the mark), not a swatch. */}
-            <div class="bb-dd-swatches">
+            <div class="bb-dd-swatches bb-dd-swatches--highlight">
               {HIGHLIGHT_COLORS.map((sw) => (
                 <button
                   class={cls("bb-sw", state.markColor === sw.color && "is-active")}

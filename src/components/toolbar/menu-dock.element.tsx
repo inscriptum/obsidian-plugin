@@ -818,7 +818,7 @@ export const MenuDockElement = litView.element({
                  highlight is a colorless mark from the theme token, so the
                  way back is the active swatch (unsets the mark) or the
                  Highlight toggle in More. */}
-              <div class="menu-dock__swatches">
+              <div class="menu-dock__swatches menu-dock__swatches--highlight">
                 {HIGHLIGHT_COLORS.map((sw) => (
                   <button
                     class={cls("menu-dock__swatch", bubbleState.markColor === sw.color && "is-active")}

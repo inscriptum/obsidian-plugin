@@ -747,8 +747,16 @@ test.describe("mobile menu dock", () => {
     }, range);
     await openGroup(page, "Style");
 
-    // Unified palette: 12 swatches + the custom color row (review F2/F5).
-    await expect(page.locator(`${panel} .menu-dock__swatch`)).toHaveCount(12);
+    // Unified palette: 12 swatches + the custom color row (review F2/F5);
+    // the Highlight palette carries its own grid of 6 translucent swatches.
+    await expect(
+      page.locator(
+        `${panel} .menu-dock__swatches:not(.menu-dock__swatches--highlight) .menu-dock__swatch`,
+      ),
+    ).toHaveCount(12);
+    await expect(
+      page.locator(`${panel} .menu-dock__swatches--highlight .menu-dock__swatch`),
+    ).toHaveCount(6);
     await expect(page.locator(`${panel} .bb-dd-custom`)).toHaveCount(1);
 
     await page.locator(`${panel} .menu-dock__swatch[title="Purple"]`).click();

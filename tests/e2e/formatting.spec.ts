@@ -164,8 +164,14 @@ test.describe("formatting", () => {
       ".bubble-menu-bar:visible .bubble-menu-layer--styles",
     );
     await expect(layer).toBeVisible();
-    // Unified palette: 12 swatches + the custom picker row.
-    await expect(layer.locator(".bb-dd-swatches .bb-sw")).toHaveCount(12);
+    // Unified palette: 12 swatches + the custom picker row; the Highlight
+    // palette below it carries its own grid of 6 translucent swatches.
+    await expect(
+      layer.locator(".bb-dd-swatches:not(.bb-dd-swatches--highlight) .bb-sw"),
+    ).toHaveCount(12);
+    await expect(layer.locator(".bb-dd-swatches--highlight .bb-sw")).toHaveCount(
+      6,
+    );
     await expect(layer.locator(".bb-dd-custom input")).toHaveCount(2);
 
     const hex = layer.locator(".bb-dd-custom .bb-dd-hex");
