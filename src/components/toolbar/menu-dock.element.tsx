@@ -446,11 +446,13 @@ export const MenuDockElement = litView.element({
     }
   };
 
-  // Highlight swatch: a fresh color re-colors the mark, the active color
-  // removes the mark entirely — back to the theme's default highlight.
+  // Highlight swatch: a fresh color re-colors the mark; only a selection
+  // covered wholly by ONE color clears on the active swatch — a mixed
+  // color/gap selection paints instead (the tap must predict its result).
   const applyHighlight = (color: string) => {
     const e = props.editor;
-    if (e.isActive("highlight") && e.getAttributes("highlight").color === color) {
+    const uniform = spreads.mark === "all" ? spreads.markColor : null;
+    if (uniform === color) {
       e.chain().unsetHighlight().run();
     } else {
       e.chain().setHighlight({ color }).run();
@@ -821,8 +823,15 @@ export const MenuDockElement = litView.element({
               <div class="menu-dock__swatches menu-dock__swatches--highlight">
                 {HIGHLIGHT_COLORS.map((sw) => (
                   <button
-                    class={cls("menu-dock__swatch", bubbleState.markColor === sw.color && "is-active")}
-                    aria-pressed={String(bubbleState.markColor === sw.color)}
+                    class={cls(
+                      "menu-dock__swatch",
+                      spreads.mark === "all" &&
+                        spreads.markColor === sw.color &&
+                        "is-active",
+                    )}
+                    aria-pressed={String(
+                      spreads.mark === "all" && spreads.markColor === sw.color,
+                    )}
                     style={`background: ${sw.color}`}
                     aria-label={sw.label}
                     title={sw.label}

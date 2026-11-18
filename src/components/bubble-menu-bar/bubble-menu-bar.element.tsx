@@ -6,9 +6,11 @@ import { elTag } from "../../tags";
 import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
 import {
   getBubbleMenuState,
+  getSelectionMarkSpreads,
   HIGHLIGHT_COLORS,
   TEXT_COLORS,
   type BubbleMenuState,
+  type SelectionMarkSpreads,
 } from "./bubbleMenuState";
 import {
   getTableMenuState,
@@ -53,6 +55,7 @@ export const BubbleMenuBarElement = litView.element({
   },
 })(function* (props) {
   let state: BubbleMenuState = getBubbleMenuState(props.editor);
+  let spreads: SelectionMarkSpreads = getSelectionMarkSpreads(props.editor.state);
   let openLayer: OpenLayer = null;
   let linkDraft = "";
   let lastSelKey = "";
@@ -290,11 +293,13 @@ export const BubbleMenuBarElement = litView.element({
     props.editor.chain().focus().setTextAlign(align).run();
   };
 
-  // Highlight swatch: a fresh color re-colors the mark, the active color
-  // removes the mark entirely — back to the theme's default highlight.
+  // Highlight swatch: a fresh color re-colors the mark; only a selection
+  // covered wholly by ONE color clears on the active swatch — a mixed
+  // color/gap selection paints instead (the tap must predict its result).
   const applyHighlight = (color: string) => {
     const e = props.editor;
-    if (e.isActive("highlight") && e.getAttributes("highlight").color === color) {
+    const uniform = spreads.mark === "all" ? spreads.markColor : null;
+    if (uniform === color) {
       e.chain().focus().unsetHighlight().run();
     } else {
       e.chain().focus().setHighlight({ color }).run();
@@ -359,6 +364,7 @@ export const BubbleMenuBarElement = litView.element({
   const refreshState = () => {
     if (props.editor.isDestroyed) return;
     state = getBubbleMenuState(props.editor);
+    spreads = getSelectionMarkSpreads(props.editor.state);
     const sel = props.editor.state.selection;
     const selKey = `${sel.from}:${sel.to}`;
     if (selKey !== lastSelKey) openLayer = null;
@@ -671,11 +677,18 @@ export const BubbleMenuBarElement = litView.element({
             <div class="bb-dd-swatches bb-dd-swatches--highlight">
               {HIGHLIGHT_COLORS.map((sw) => (
                 <button
-                  class={cls("bb-sw", state.markColor === sw.color && "is-active")}
+                  class={cls(
+                    "bb-sw",
+                    spreads.mark === "all" &&
+                      spreads.markColor === sw.color &&
+                      "is-active",
+                  )}
                   style={`background: ${sw.color}`}
                   aria-label={sw.label}
                   title={sw.label}
-                  aria-pressed={String(state.markColor === sw.color)}
+                  aria-pressed={String(
+                    spreads.mark === "all" && spreads.markColor === sw.color,
+                  )}
                   onmousedown={(e: MouseEvent) => e.preventDefault()}
                   onclick={() => applyHighlight(sw.color)}
                 ></button>
