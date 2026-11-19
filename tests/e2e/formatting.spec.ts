@@ -164,14 +164,11 @@ test.describe("formatting", () => {
       ".bubble-menu-bar:visible .bubble-menu-layer--styles",
     );
     await expect(layer).toBeVisible();
-    // Unified palette: 12 swatches + the custom picker row; the Highlight
-    // palette below it carries its own grid of 6 translucent swatches.
+    // The styles layer keeps only the text-color palette and custom picker.
     await expect(
       layer.locator(".bb-dd-swatches:not(.bb-dd-swatches--highlight) .bb-sw"),
     ).toHaveCount(12);
-    await expect(layer.locator(".bb-dd-swatches--highlight .bb-sw")).toHaveCount(
-      6,
-    );
+    await expect(layer.locator(".bb-dd-swatches--highlight .bb-sw")).toHaveCount(0);
     await expect(layer.locator(".bb-dd-custom input")).toHaveCount(2);
 
     const hex = layer.locator(".bb-dd-custom .bb-dd-hex");
@@ -198,7 +195,7 @@ test.describe("formatting", () => {
     expect(mark?.color).toBe("#12ab34");
   });
 
-  test("highlight swatches: mixed colors paint, uniform color clears", async ({
+  test("highlight menu applies and removes color", async ({
     page,
   }) => {
     // PR #31 review round: on a [yellow][green] selection the active-swatch
@@ -289,14 +286,14 @@ test.describe("formatting", () => {
     await page.waitForTimeout(450);
 
     const layer = page.locator(
-      ".bubble-menu-bar:visible .bubble-menu-layer--styles",
+      ".bubble-menu-bar:visible .bubble-menu-layer--highlight",
     );
     await page
-      .locator('.bubble-menu-bar:visible button[data-tip="Styles & color"]')
+      .locator('.bubble-menu-bar:visible button[data-tip="Highlight"]')
       .first()
       .click();
     await expect(layer).toBeVisible();
-    // Mixed colors: no swatch counts as active.
+    // Opening the menu applies the last chosen color.
     await expect(
       layer.locator(".bb-dd-swatches--highlight .bb-sw"),
     ).toHaveCount(6);
@@ -304,7 +301,7 @@ test.describe("formatting", () => {
       layer.locator(".bb-dd-swatches--highlight .bb-sw.is-active"),
     ).toHaveCount(0);
 
-    // Clicking yellow paints the WHOLE selection yellow (not clears); PM
+    // Clicking yellow paints the WHOLE selection yellow; PM
     // merges the identically marked neighbours into one text node.
     await layer
       .locator('.bb-dd-swatches--highlight .bb-sw[aria-label="Yellow highlight"]')
@@ -324,7 +321,7 @@ test.describe("formatting", () => {
     });
     expect(colors).toEqual([{ text: "alpha bravo", color: YELLOW }]);
 
-    // Now uniform yellow: the swatch is active; clicking it clears wholesale.
+    // Now uniform yellow: the swatch is active; Remove clears it wholesale.
     // (A raw locator.click here races the bar's tippy reposition after the
     // transaction — the scroller intercepts the retry loop — so the second
     // tap goes through the element's own click handler.)
@@ -333,7 +330,7 @@ test.describe("formatting", () => {
     );
     await expect(yellow).toHaveClass(/is-active/);
     await page.waitForTimeout(300);
-    await yellow.evaluate((el: HTMLElement) => el.click());
+    await layer.getByRole("button", { name: "Remove highlight" }).evaluate((el: HTMLElement) => el.click());
     const marked = await page.evaluate(() => {
       let count = 0;
       for (const ed of window.__e2eNotepad.editors()) {

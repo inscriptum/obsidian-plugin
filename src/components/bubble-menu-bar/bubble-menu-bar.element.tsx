@@ -8,6 +8,8 @@ import {
   getBubbleMenuState,
   getSelectionMarkSpreads,
   HIGHLIGHT_COLORS,
+  getLastHighlightColor,
+  setLastHighlightColor,
   TEXT_COLORS,
   type BubbleMenuState,
   type SelectionMarkSpreads,
@@ -20,7 +22,7 @@ import { bubbleIconNodes } from "./icons.svgnode";
 import { customColorRow } from "./customColorRow";
 import { freeVerticalSpace } from "../../texto/extensions/bubble-menu/toolbarBoundary";
 
-type OpenLayer = "styles" | "link" | null;
+type OpenLayer = "styles" | "highlight" | "link" | null;
 
 const cls = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");
@@ -293,17 +295,12 @@ export const BubbleMenuBarElement = litView.element({
     props.editor.chain().focus().setTextAlign(align).run();
   };
 
-  // Highlight swatch: a fresh color re-colors the mark; only a selection
-  // covered wholly by ONE color clears on the active swatch — a mixed
-  // color/gap selection paints instead (the tap must predict its result).
-  const applyHighlight = (color: string) => {
+  // A palette choice updates both the selection and the remembered color.
+  const applyHighlight = (color: string | null) => {
     const e = props.editor;
-    const uniform = spreads.mark === "all" ? spreads.markColor : null;
-    if (uniform === color) {
-      e.chain().focus().unsetHighlight().run();
-    } else {
-      e.chain().focus().setHighlight({ color }).run();
-    }
+    setLastHighlightColor(color);
+    if (color === null) e.chain().focus().setMark("highlight", { color: null }).run();
+    else e.chain().focus().setHighlight({ color }).run();
   };
 
   const applyColor = (color: string | null) => {
@@ -409,8 +406,8 @@ export const BubbleMenuBarElement = litView.element({
   let recomputeScheduled = false;
   const recomputeOpenLayer = () => {
     recomputeScheduled = false;
-    if (openLayer !== "styles") return;
-    placeLayerDirection(".bubble-menu-layer--styles");
+    if (openLayer === "styles" || openLayer === "highlight")
+      placeLayerDirection(`.bubble-menu-layer--${openLayer}`);
   };
   const scheduleRecompute = () => {
     if (recomputeScheduled) return;
@@ -477,7 +474,19 @@ export const BubbleMenuBarElement = litView.element({
               class={cls("bb-btn", state.mark && "is-active")}
               data-tip="Highlight"
               onmousedown={(e: MouseEvent) => e.preventDefault()}
-              onclick={() => applyMark("mark")}
+              data-bb-action="highlight"
+              aria-expanded={String(openLayer === "highlight")}
+              onclick={() => {
+                if (openLayer === "highlight") { closeLayer(); return; }
+                const color = getLastHighlightColor();
+                if (color === null) props.editor.chain().focus().setMark("highlight", { color: null }).run();
+                else props.editor.chain().focus().setHighlight({ color }).run();
+                openLayer = "highlight";
+                void this.next().then(() => window.requestAnimationFrame(() => {
+                  placeLayerCaret(".bubble-menu-layer--highlight", '[data-bb-action="highlight"]');
+                  placeLayerDirection(".bubble-menu-layer--highlight");
+                }));
+              }}
             >
               {bubbleIconNodes.mark()}
             </button>
@@ -669,11 +678,14 @@ export const BubbleMenuBarElement = litView.element({
               hexLabel: "Custom text color hex",
               onApply: applyColor,
             })}
-            <div class="bb-layer-sep"></div>
-            <div class="bb-layer-label">Highlight</div>
-            {/* Fixed translucent palette (HIGHLIGHT_COLORS); the default
-               highlight is a colorless mark from the theme token, so the way
-               back is the active swatch (unsets the mark), not a swatch. */}
+
+          </div>
+
+          <div class={cls("bubble-menu-layer", "bubble-menu-layer--highlight", openLayer === "highlight" && "show")} role="dialog" aria-label="Highlight color">
+            <span class="bb-layer-caret"></span>
+            <div class="bb-layer-label">Highlight color</div>
+            <button class="bb-btn" aria-label="Default highlight" onmousedown={(e: MouseEvent) => e.preventDefault()} onclick={() => applyHighlight(null)}>Default</button>
+            <button class="bb-btn" aria-label="Remove highlight" onmousedown={(e: MouseEvent) => e.preventDefault()} onclick={() => { props.editor.chain().focus().unsetHighlight().run(); closeLayer(); }}>Remove</button>
             <div class="bb-dd-swatches bb-dd-swatches--highlight">
               {HIGHLIGHT_COLORS.map((sw) => (
                 <button

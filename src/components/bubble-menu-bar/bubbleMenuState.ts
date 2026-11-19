@@ -55,6 +55,29 @@ export const HIGHLIGHT_COLORS: Array<TextColorSwatch & { color: string }> = [
   { id: "red", label: "Red highlight", css: "red", color: "rgba(233, 49, 71, 0.3)" },
 ];
 
+const HIGHLIGHT_COLOR_KEY = "inscriptum:last-highlight-color";
+let lastHighlightColor: string | null = null;
+
+/** The default is represented by a colorless mark; ignore stale storage values. */
+export function getLastHighlightColor(): string | null {
+  try {
+    const stored = window.localStorage.getItem(HIGHLIGHT_COLOR_KEY);
+    return HIGHLIGHT_COLORS.some((sw) => sw.color === stored) ? stored : lastHighlightColor;
+  } catch {
+    return lastHighlightColor;
+  }
+}
+
+export function setLastHighlightColor(color: string | null): void {
+  lastHighlightColor = color;
+  try {
+    if (color === null) window.localStorage.removeItem(HIGHLIGHT_COLOR_KEY);
+    else window.localStorage.setItem(HIGHLIGHT_COLOR_KEY, color);
+  } catch {
+    // Storage can be unavailable in embedded contexts; keep the session value.
+  }
+}
+
 /**
  * Active state of bubble menu buttons based on the current editor selection.
  * Pure function of editor.isActive / editor.getAttributes — easy to test.

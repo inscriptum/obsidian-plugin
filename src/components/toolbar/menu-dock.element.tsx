@@ -11,6 +11,8 @@ import {
   getBubbleMenuState,
   getSelectionMarkSpreads,
   HIGHLIGHT_COLORS,
+  getLastHighlightColor,
+  setLastHighlightColor,
   TEXT_COLORS,
   type BubbleMenuState,
   type MarkSpread,
@@ -67,7 +69,7 @@ const BORDER_STYLE_LABELS: Record<string, string> = {
   solid: "Solid", double: "Double", dotted: "Dotted", dashed: "Dashed",
 };
 
-type TextPanel = "styles" | "link" | "more";
+type TextPanel = "styles" | "link" | "more" | "highlight";
 type MainPanel = "blocks" | "lists" | "objects" | "media";
 type TablePanel = "actions" | "fill" | "borders";
 type MediaPanel = "object" | "layout";
@@ -446,17 +448,12 @@ export const MenuDockElement = litView.element({
     }
   };
 
-  // Highlight swatch: a fresh color re-colors the mark; only a selection
-  // covered wholly by ONE color clears on the active swatch — a mixed
-  // color/gap selection paints instead (the tap must predict its result).
-  const applyHighlight = (color: string) => {
+  // A palette choice updates both the selection and the remembered color.
+  const applyHighlight = (color: string | null) => {
     const e = props.editor;
-    const uniform = spreads.mark === "all" ? spreads.markColor : null;
-    if (uniform === color) {
-      e.chain().unsetHighlight().run();
-    } else {
-      e.chain().setHighlight({ color }).run();
-    }
+    setLastHighlightColor(color);
+    if (color === null) e.chain().setMark("highlight", { color: null }).run();
+    else e.chain().setHighlight({ color }).run();
   };
 
   const applyTableAction = (action: string) => {
@@ -815,11 +812,14 @@ export const MenuDockElement = litView.element({
                 onDraft: (value) => { colorDrafts.text = value; },
                 onApply: (hex) => { colorDrafts.text = ""; applyColor(hex); },
               })}
+
+            </div>
+          ) : null}
+          {openPanel === "highlight" ? (
+            <div class="menu-dock__panel" role="group" aria-label="Highlight color">
+              <button class="menu-dock__action" onclick={() => applyHighlight(null)}>Default</button>
+              <button class="menu-dock__action" onclick={() => { props.editor.chain().unsetHighlight().run(); togglePanel("highlight"); }}>Remove highlight</button>
               <div class="menu-dock__section-label">Highlight</div>
-              {/* Fixed translucent palette (HIGHLIGHT_COLORS); the default
-                 highlight is a colorless mark from the theme token, so the
-                 way back is the active swatch (unsets the mark) or the
-                 Highlight toggle in More. */}
               <div class="menu-dock__swatches menu-dock__swatches--highlight">
                 {HIGHLIGHT_COLORS.map((sw) => (
                   <button
@@ -847,7 +847,12 @@ export const MenuDockElement = litView.element({
                 {markActionBtn({ label: "Underline", icon: bubbleIconNodes.underline, spread: spreads.underline, onclick: () => applyMark("underline") })}
                 {markActionBtn({ label: "Strikethrough", icon: bubbleIconNodes.strike, spread: spreads.strike, onclick: () => applyMark("strike") })}
                 {markActionBtn({ label: "Inline code", icon: bubbleIconNodes.code, spread: spreads.code, onclick: () => applyMark("code") })}
-                {markActionBtn({ label: "Highlight", icon: bubbleIconNodes.mark, spread: spreads.mark, onclick: () => applyMark("mark") })}
+                {markActionBtn({ label: "Highlight", icon: bubbleIconNodes.mark, spread: spreads.mark, onclick: () => {
+                  const color = getLastHighlightColor();
+                  if (color === null) props.editor.chain().setMark("highlight", { color: null }).run();
+                  else props.editor.chain().setHighlight({ color }).run();
+                  togglePanel("highlight");
+                } })}
                 {actionBtn({ label: "Clear formatting", icon: bubbleIconNodes.clear, iconOnly: true, onclick: () => props.editor.chain().unsetAllMarks().run() })}
                 {schemaHasComments
                   ? actionBtn({
