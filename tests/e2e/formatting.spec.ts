@@ -296,10 +296,8 @@ test.describe("formatting", () => {
     // Opening the menu applies the last chosen color.
     await expect(
       layer.locator(".bb-dd-swatches--highlight .bb-sw"),
-    ).toHaveCount(6);
-    await expect(
-      layer.locator(".bb-dd-swatches--highlight .bb-sw.is-active"),
-    ).toHaveCount(0);
+    ).toHaveCount(8);
+    await expect(layer.getByRole("button", { name: "Default highlight" })).toHaveAttribute("aria-pressed", "true");
 
     // Clicking yellow paints the WHOLE selection yellow; PM
     // merges the identically marked neighbours into one text node.

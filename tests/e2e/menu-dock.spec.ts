@@ -238,7 +238,7 @@ test.describe("mobile menu dock", () => {
     expect(first.attrs?.level).toBe(1);
   });
 
-  test("text selection: the main row carries Bold, Italic, Link, Style, More", async ({
+  test("text selection: the main row carries Bold, Italic, Highlight, Style, More", async ({
     page,
   }) => {
     await openHarness(page);
@@ -250,7 +250,7 @@ test.describe("mobile menu dock", () => {
     await expect(page.getByRole("button", { name: "Bold" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Italic" })).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Link", exact: true }),
+      page.getByRole("button", { name: "Highlight", exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Styles and color" }),
@@ -374,7 +374,7 @@ test.describe("mobile menu dock", () => {
     );
   });
 
-  test("Link reports the mark tri-state while keeping its panel expansion", async ({
+  test("Link in More reports the mark tri-state", async ({
     page,
   }) => {
     await openHarness(page);
@@ -393,16 +393,18 @@ test.describe("mobile menu dock", () => {
       }),
     );
 
-    const link = page.getByRole("button", { name: "Link", exact: true });
+    await selectSpan(page, "alpha", " bravo");
+    await openGroup(page, "More");
+    const link = page.locator(panel).getByRole("button", { name: "Link", exact: true });
     // A partly linked selection is neither on nor off, but the button still
     // opens the link panel (aria-expanded stays).
-    await selectSpan(page, "alpha", " bravo");
     await expect(link).toHaveAttribute("aria-pressed", "mixed");
     await expect(link).toHaveClass(/is-mixed/);
-    await expect(link).toHaveAttribute("aria-expanded", "false");
 
     // Fully linked selection: steady on-state.
+    await openGroup(page, "More");
     await selectText(page, "alpha");
+    await openGroup(page, "More");
     await expect(link).toHaveAttribute("aria-pressed", "true");
     await expect(link).toHaveClass(/is-active/);
     await expect(link).not.toHaveClass(/is-mixed/);
@@ -420,7 +422,7 @@ test.describe("mobile menu dock", () => {
       "Underline",
       "Strikethrough",
       "Inline code",
-      "Highlight",
+      "Link",
       "Clear formatting",
     ]) {
       await expect(
@@ -434,17 +436,16 @@ test.describe("mobile menu dock", () => {
     await mountToolbar(page, noteDoc(p("alpha bravo")));
     const full = await textRange(page, "alpha bravo");
     await page.evaluate(({ from }) => { const ed = window.__e2e.editor!; ed.view.focus(); ed.commands.setTextSelection({ from, to: from + 5 }); }, full);
-    await openGroup(page, "More");
-    await clickAction(page, "Highlight");
+    await page.getByRole("button", { name: "Highlight", exact: true }).click();
     await expect(page.locator(panel)).toHaveAttribute("aria-label", "Highlight color");
+    await expect.poll(() => page.evaluate(() => document.activeElement === window.__e2e.editor!.view.dom)).toBe(true);
     await expect(page.locator(".ProseMirror mark")).toHaveCount(1);
     await clickAction(page, "Blue highlight");
     await expect(page.locator(".ProseMirror mark")).toHaveAttribute("data-color", "rgba(8, 109, 221, 0.3)");
     await page.evaluate(({ from }) => { const ed = window.__e2e.editor!; ed.view.focus(); ed.commands.setTextSelection({ from: from + 6, to: from + 11 }); }, full);
-    await openGroup(page, "More");
-    await clickAction(page, "Highlight");
+    await page.getByRole("button", { name: "Highlight", exact: true }).click();
     await expect(page.locator(".ProseMirror mark").last()).toHaveAttribute("data-color", "rgba(8, 109, 221, 0.3)");
-    await clickAction(page, "Default");
+    await clickAction(page, "Default highlight");
     await expect(page.locator(".ProseMirror mark").last()).not.toHaveAttribute("data-color");
   });
 

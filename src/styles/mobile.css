@@ -489,7 +489,10 @@ body:has(.mobile-navbar.mod-raised) .notepad-view-container.is-mobile.is-phone:n
   gap: 6px;
   padding: 2px 0 4px;
 }
-.menu-dock__swatch {
+.menu-dock__swatches--highlight {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.menu-dock .menu-dock__swatch {
   width: 100%;
   aspect-ratio: 1;
   max-width: 44px;
@@ -503,7 +506,10 @@ body:has(.mobile-navbar.mod-raised) .notepad-view-container.is-mobile.is-phone:n
   outline: 2px solid var(--interactive-accent);
   outline-offset: 2px;
 }
-.menu-dock__swatch--none {
+.menu-dock .menu-dock__swatch--highlight-default {
+  background: var(--highlight-background, var(--text-highlight-bg, rgba(245, 158, 11, 0.28)));
+}
+.menu-dock .menu-dock__swatch--none {
   background: linear-gradient(
       45deg,
       transparent 44%,

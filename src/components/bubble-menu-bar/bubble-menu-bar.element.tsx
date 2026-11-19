@@ -684,9 +684,9 @@ export const BubbleMenuBarElement = litView.element({
           <div class={cls("bubble-menu-layer", "bubble-menu-layer--highlight", openLayer === "highlight" && "show")} role="dialog" aria-label="Highlight color">
             <span class="bb-layer-caret"></span>
             <div class="bb-layer-label">Highlight color</div>
-            <button class="bb-btn" aria-label="Default highlight" onmousedown={(e: MouseEvent) => e.preventDefault()} onclick={() => applyHighlight(null)}>Default</button>
-            <button class="bb-btn" aria-label="Remove highlight" onmousedown={(e: MouseEvent) => e.preventDefault()} onclick={() => { props.editor.chain().focus().unsetHighlight().run(); closeLayer(); }}>Remove</button>
             <div class="bb-dd-swatches bb-dd-swatches--highlight">
+              <button class={cls("bb-sw", "bb-sw--highlight-default", spreads.mark === "all" && spreads.markColor === null && "is-active")} aria-label="Default highlight" title="Default highlight" aria-pressed={String(spreads.mark === "all" && spreads.markColor === null)} onmousedown={(e: MouseEvent) => e.preventDefault()} onclick={() => applyHighlight(null)}></button>
+              <button class="bb-sw bb-sw--none" aria-label="Remove highlight" title="Remove highlight" onmousedown={(e: MouseEvent) => e.preventDefault()} onclick={() => { props.editor.chain().focus().unsetHighlight().run(); closeLayer(); }}></button>
               {HIGHLIGHT_COLORS.map((sw) => (
                 <button
                   class={cls(
