@@ -298,6 +298,14 @@ test.describe("formatting", () => {
       layer.locator(".bb-dd-swatches--highlight .bb-sw"),
     ).toHaveCount(8);
     await expect(layer.getByRole("button", { name: "Default highlight" })).toHaveAttribute("aria-pressed", "true");
+    const palette = layer.locator(".bb-dd-swatches--highlight .bb-sw");
+    await expect(palette.first()).toHaveAttribute("aria-label", "Remove highlight");
+    const positions = await palette.evaluateAll((buttons) => buttons.map((button) => {
+      const rect = button.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, right: rect.right };
+    }));
+    expect(new Set(positions.map((rect) => rect.y)).size).toBe(1);
+    expect(positions.every((rect, i) => i === 0 || rect.x >= positions[i - 1]!.right)).toBe(true);
 
     // Clicking yellow paints the WHOLE selection yellow; PM
     // merges the identically marked neighbours into one text node.

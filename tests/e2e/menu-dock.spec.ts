@@ -432,12 +432,22 @@ test.describe("mobile menu dock", () => {
   });
 
   test("highlight menu remembers the chosen color and can restore default", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
     await openHarness(page);
     await mountToolbar(page, noteDoc(p("alpha bravo")));
     const full = await textRange(page, "alpha bravo");
     await page.evaluate(({ from }) => { const ed = window.__e2e.editor!; ed.view.focus(); ed.commands.setTextSelection({ from, to: from + 5 }); }, full);
     await page.getByRole("button", { name: "Highlight", exact: true }).click();
     await expect(page.locator(panel)).toHaveAttribute("aria-label", "Highlight color");
+    const palette = page.locator(".menu-dock__swatches--highlight .menu-dock__swatch");
+    await expect(palette).toHaveCount(8);
+    await expect(palette.first()).toHaveAttribute("aria-label", "Remove highlight");
+    const positions = await palette.evaluateAll((buttons) => buttons.map((button) => {
+      const rect = button.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, right: rect.right };
+    }));
+    expect(new Set(positions.map((rect) => rect.y)).size).toBe(1);
+    expect(positions.every((rect, i) => (i === 0 || rect.x >= positions[i - 1]!.right) && rect.x >= 0 && rect.right <= 320), JSON.stringify(positions)).toBe(true);
     await expect.poll(() => page.evaluate(() => document.activeElement === window.__e2e.editor!.view.dom)).toBe(true);
     await expect(page.locator(".ProseMirror mark")).toHaveCount(1);
     await clickAction(page, "Blue highlight");

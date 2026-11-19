@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Highlight text in one tap and choose its color from the marker menu; your last choice is remembered on desktop and mobile. On phones, the marker now sits beside Bold and Italic without hiding the keyboard.
+- Highlight text in one tap and choose its color from the marker menu; your last choice is remembered on desktop and mobile. The palette fits in one row, and on phones the marker sits beside Bold and Italic without hiding the keyboard.
 - Comment anchors use a translucent theme accent so they stand apart from text highlights.
 - On phones, Bold, Italic and Link now sit right in the editor menu bar — one tap instead of opening a panel first — and the button shows when a mixed selection is only partly formatted.
 - Phone menu panels are about a third shorter with the same commands: table actions, borders and styles now fit above the lower half of the screen, so the document stays visible while you work.

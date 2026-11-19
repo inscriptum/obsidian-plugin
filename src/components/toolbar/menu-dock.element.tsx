@@ -819,11 +819,11 @@ export const MenuDockElement = litView.element({
             </div>
           ) : null}
           {openPanel === "highlight" ? (
-            <div class="menu-dock__panel" role="group" aria-label="Highlight color">
+            <div class="menu-dock__panel menu-dock__panel--highlight" role="group" aria-label="Highlight color">
               <div class="menu-dock__section-label">Highlight</div>
               <div class="menu-dock__swatches menu-dock__swatches--highlight">
-                <button class={cls("menu-dock__swatch", "menu-dock__swatch--highlight-default", spreads.mark === "all" && spreads.markColor === null && "is-active")} aria-label="Default highlight" title="Default highlight" aria-pressed={String(spreads.mark === "all" && spreads.markColor === null)} onclick={() => applyHighlight(null)}></button>
                 <button class="menu-dock__swatch menu-dock__swatch--none" aria-label="Remove highlight" title="Remove highlight" onclick={() => { props.editor.chain().unsetHighlight().run(); closePanel(); }}></button>
+                <button class={cls("menu-dock__swatch", "menu-dock__swatch--highlight-default", spreads.mark === "all" && spreads.markColor === null && "is-active")} aria-label="Default highlight" title="Default highlight" aria-pressed={String(spreads.mark === "all" && spreads.markColor === null)} onclick={() => applyHighlight(null)}></button>
                 {HIGHLIGHT_COLORS.map((sw) => (
                   <button
                     class={cls(
