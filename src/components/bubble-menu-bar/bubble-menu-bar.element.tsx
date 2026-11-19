@@ -1,13 +1,19 @@
 import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
 import type { Instance } from "tippy.js";
+import type { Transaction } from "prosemirror-state";
 import { Editor, isTextSelection } from "../../texto/core";
 import { elTag } from "../../tags";
 import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
 import {
   getBubbleMenuState,
+  getSelectionMarkSpreads,
+  HIGHLIGHT_COLORS,
+  getLastHighlightColor,
+  setLastHighlightColor,
   TEXT_COLORS,
   type BubbleMenuState,
+  type SelectionMarkSpreads,
 } from "./bubbleMenuState";
 import {
   getTableMenuState,
@@ -17,7 +23,7 @@ import { bubbleIconNodes } from "./icons.svgnode";
 import { customColorRow } from "./customColorRow";
 import { freeVerticalSpace } from "../../texto/extensions/bubble-menu/toolbarBoundary";
 
-type OpenLayer = "styles" | "link" | null;
+type OpenLayer = "styles" | "highlight" | "link" | null;
 
 const cls = (...parts: Array<string | false | null | undefined>) =>
   parts.filter(Boolean).join(" ");
@@ -52,6 +58,7 @@ export const BubbleMenuBarElement = litView.element({
   },
 })(function* (props) {
   let state: BubbleMenuState = getBubbleMenuState(props.editor);
+  let spreads: SelectionMarkSpreads = getSelectionMarkSpreads(props.editor.state);
   let openLayer: OpenLayer = null;
   let linkDraft = "";
   let lastSelKey = "";
@@ -257,7 +264,7 @@ export const BubbleMenuBarElement = litView.element({
         e.chain().focus().toggleCode().run();
         break;
       case "mark":
-        e.chain().focus().toggleHighlight().run();
+        e.chain().focus().toggleHighlight({ color: getLastHighlightColor() }).run();
         break;
     }
   };
@@ -287,6 +294,13 @@ export const BubbleMenuBarElement = litView.element({
 
   const applyAlign = (align: "left" | "center" | "right") => {
     props.editor.chain().focus().setTextAlign(align).run();
+  };
+
+  // A palette choice updates both the selection and the remembered color.
+  const applyHighlight = (color: string) => {
+    const e = props.editor;
+    setLastHighlightColor(color);
+    e.chain().focus().setHighlight({ color }).run();
   };
 
   const applyColor = (color: string | null) => {
@@ -347,6 +361,7 @@ export const BubbleMenuBarElement = litView.element({
   const refreshState = () => {
     if (props.editor.isDestroyed) return;
     state = getBubbleMenuState(props.editor);
+    spreads = getSelectionMarkSpreads(props.editor.state);
     const sel = props.editor.state.selection;
     const selKey = `${sel.from}:${sel.to}`;
     if (selKey !== lastSelKey) openLayer = null;
@@ -381,6 +396,10 @@ export const BubbleMenuBarElement = litView.element({
     }
   };
 
+  const onStoredMarksChange = ({ transaction }: { transaction: Transaction }) => {
+    if (transaction.storedMarksSet && !transaction.docChanged) refreshState();
+  };
+  props.editor.on("transaction", onStoredMarksChange);
   props.editor.on("selectionUpdate", refreshState);
   props.editor.on("update", refreshState);
   document.addEventListener("keydown", onKeydown);
@@ -391,8 +410,8 @@ export const BubbleMenuBarElement = litView.element({
   let recomputeScheduled = false;
   const recomputeOpenLayer = () => {
     recomputeScheduled = false;
-    if (openLayer !== "styles") return;
-    placeLayerDirection(".bubble-menu-layer--styles");
+    if (openLayer === "styles" || openLayer === "highlight")
+      placeLayerDirection(`.bubble-menu-layer--${openLayer}`);
   };
   const scheduleRecompute = () => {
     if (recomputeScheduled) return;
@@ -459,7 +478,18 @@ export const BubbleMenuBarElement = litView.element({
               class={cls("bb-btn", state.mark && "is-active")}
               data-tip="Highlight"
               onmousedown={(e: MouseEvent) => e.preventDefault()}
-              onclick={() => applyMark("mark")}
+              data-bb-action="highlight"
+              aria-expanded={String(openLayer === "highlight")}
+              onclick={() => {
+                if (openLayer === "highlight") { closeLayer(); return; }
+                const color = getLastHighlightColor();
+                props.editor.chain().focus().setHighlight({ color }).run();
+                openLayer = "highlight";
+                void this.next().then(() => window.requestAnimationFrame(() => {
+                  placeLayerCaret(".bubble-menu-layer--highlight", '[data-bb-action="highlight"]');
+                  placeLayerDirection(".bubble-menu-layer--highlight");
+                }));
+              }}
             >
               {bubbleIconNodes.mark()}
             </button>
@@ -651,6 +681,33 @@ export const BubbleMenuBarElement = litView.element({
               hexLabel: "Custom text color hex",
               onApply: applyColor,
             })}
+
+          </div>
+
+          <div class={cls("bubble-menu-layer", "bubble-menu-layer--highlight", openLayer === "highlight" && "show")} role="dialog" aria-label="Highlight color">
+            <span class="bb-layer-caret"></span>
+            <div class="bb-layer-label">Highlight color</div>
+            <div class="bb-dd-swatches bb-dd-swatches--highlight">
+              <button class="bb-sw bb-sw--none" aria-label="Remove highlight" title="Remove highlight" onmousedown={(e: MouseEvent) => e.preventDefault()} onclick={() => { props.editor.chain().focus().unsetHighlight().run(); closeLayer(); }}></button>
+              {HIGHLIGHT_COLORS.map((sw) => (
+                <button
+                  class={cls(
+                    "bb-sw",
+                    spreads.mark === "all" &&
+                      spreads.markColor === sw.color &&
+                      "is-active",
+                  )}
+                  style={`background: ${sw.color}`}
+                  aria-label={sw.label}
+                  title={sw.label}
+                  aria-pressed={String(
+                    spreads.mark === "all" && spreads.markColor === sw.color,
+                  )}
+                  onmousedown={(e: MouseEvent) => e.preventDefault()}
+                  onclick={() => applyHighlight(sw.color)}
+                ></button>
+              ))}
+            </div>
           </div>
 
           {/* "Link" layer — expands below the menu */}
@@ -714,6 +771,7 @@ export const BubbleMenuBarElement = litView.element({
       );
     }
   } finally {
+    props.editor.off("transaction", onStoredMarksChange);
     props.editor.off("selectionUpdate", refreshState);
     props.editor.off("update", refreshState);
     document.removeEventListener("keydown", onKeydown);

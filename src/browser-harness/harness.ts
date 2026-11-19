@@ -11,6 +11,7 @@ import { NotepadView } from "../NotepadView";
 import { installIconSprite } from "../components/icons/iconSprite";
 import { ToolbarElement } from "../components/toolbar/toolbar.element";
 import { MenuDockElement } from "../components/toolbar/menu-dock.element";
+import { BubbleMenuBarElement } from "../components/bubble-menu-bar/bubble-menu-bar.element";
 import { UmNotepad } from "../storage/um/umNotepad";
 import { exportNotepadAsWebsite } from "../export/exportNotepadWebsite";
 import type { UmContainerData, UmNoteDescriptor } from "../storage/um/umTypes";
@@ -323,6 +324,7 @@ interface E2EApi {
    *  for toolbar interaction tests. */
   mountToolbar: (doc: unknown, opts?: { mobile?: boolean; tablet?: boolean }) => string;
   /** The editor mounted last (null before the first mount). */
+  mountBubble: () => void;
   readonly editor: Editor | null;
   /** Doc JSON of the current editor. */
   docJson: () => JSONContent | null;
@@ -434,6 +436,12 @@ const e2eApi: E2EApi = {
     appContainer().appendChild(toolbar);
     lastMountedToolbar = toolbar;
     return mobile ? "editor+toolbar(mobile+dock)" : "editor+toolbar(desktop)";
+  },
+  mountBubble: () => {
+    if (!currentEditor) return;
+    const bubble = new BubbleMenuBarElement();
+    bubble.props.editor = currentEditor;
+    appContainer().appendChild(bubble);
   },
   get editor() {
     return currentEditor;

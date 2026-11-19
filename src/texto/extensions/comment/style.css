@@ -1,15 +1,13 @@
 /* Comment anchors (comments extension) — the visual highlight is a plugin
    decoration over the neutral span[data-comment-id] the mark renders, so
-   stored JSON and the website export (no plugin) stay plain. Colors derive
-   from the host theme tokens; the .um hosts define --ins-* on their view
-   containers, the fallbacks keep the rules self-sufficient in isolation. */
+   stored JSON and the website export (no plugin) stay plain. The anchor
+   background uses a translucent theme accent to distinguish it from ordinary
+   highlighting while retaining readable text in light and dark themes. Accent
+   rules use the --ins-* tokens the .um hosts define on their view
+   containers; the fallbacks keep the rules self-sufficient in isolation. */
 
 .inscriptum-comment-anchor {
-  background-color: color-mix(
-    in srgb,
-    #fde68a 55%,
-    transparent
-  );
+  background-color: color-mix(in srgb, var(--text-accent, #7c6af7) 25%, transparent);
   border-radius: 2px;
   cursor: pointer;
   transition: background-color 0.15s ease;

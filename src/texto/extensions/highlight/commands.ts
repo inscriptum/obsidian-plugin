@@ -1,4 +1,5 @@
 import type { Command } from "../../core/@types";
+import { isMarkActive } from "../../core/helpers/isMarkActive";
 import type { AnyConfig } from "../../core/@types/AnyConfig";
 
 type AddCommandsThis = ThisParameterType<Required<AnyConfig>["addCommands"]>;
@@ -12,8 +13,10 @@ export function addCommands(this: AddCommandsThis) {
       },
     toggleHighlight:
       (attributes?: { color: string }): Command =>
-      ({ commands }) => {
-        return commands.toggleMark("highlight", attributes);
+      ({ state, commands }) => {
+        return isMarkActive(state, "highlight")
+          ? commands.unsetMark("highlight")
+          : commands.setMark("highlight", attributes);
       },
     unsetHighlight:
       (): Command =>

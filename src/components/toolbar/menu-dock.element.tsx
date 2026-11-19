@@ -10,6 +10,9 @@ import { computeDockMode, type DockMode } from "./dockMode";
 import {
   getBubbleMenuState,
   getSelectionMarkSpreads,
+  HIGHLIGHT_COLORS,
+  getLastHighlightColor,
+  setLastHighlightColor,
   TEXT_COLORS,
   type BubbleMenuState,
   type MarkSpread,
@@ -66,7 +69,7 @@ const BORDER_STYLE_LABELS: Record<string, string> = {
   solid: "Solid", double: "Double", dotted: "Dotted", dashed: "Dashed",
 };
 
-type TextPanel = "styles" | "link" | "more";
+type TextPanel = "styles" | "link" | "more" | "highlight";
 type MainPanel = "blocks" | "lists" | "objects" | "media";
 type TablePanel = "actions" | "fill" | "borders";
 type MediaPanel = "object" | "layout";
@@ -152,6 +155,7 @@ export const MenuDockElement = litView.element({
   let spreads: SelectionMarkSpreads = spreadsFor(props.editor.state);
   let tableState: TableMenuState = getTableMenuState(props.editor.state);
   let openPanel: Panel | null = null;
+  let highlightSelectionKey = "";
   let heldSelection: Selection | null = null;
   let heldSelectionInvalid = false;
   let applyingBlockStyle = false;
@@ -193,6 +197,8 @@ export const MenuDockElement = litView.element({
   const refreshState = () => {
     if (props.editor.isDestroyed) return;
     contextDismissed = false;
+    const selection = props.editor.state.selection;
+    if (openPanel === "highlight" && `${selection.from}:${selection.to}` !== highlightSelectionKey) openPanel = null;
     const next = computeDockMode(props.editor);
     if (!heldSelection && !heldSelectionInvalid) {
       if (next !== mode) openPanel = null;
@@ -203,6 +209,10 @@ export const MenuDockElement = litView.element({
     tableState = getTableMenuState(props.editor.state);
     void this.next();
   };
+  const onStoredMarksChange = ({ transaction }: { transaction: Transaction }) => {
+    if (transaction.storedMarksSet && !transaction.docChanged) refreshState();
+  };
+  props.editor.on("transaction", onStoredMarksChange);
   props.editor.on("selectionUpdate", refreshState);
   props.editor.on("update", refreshState);
 
@@ -393,7 +403,7 @@ export const MenuDockElement = litView.element({
       underline: () => e.chain().toggleUnderline().run(),
       strike: () => e.chain().toggleStrike().run(),
       code: () => e.chain().toggleCode().run(),
-      mark: () => e.chain().toggleHighlight().run(),
+      mark: () => e.chain().toggleHighlight({ color: getLastHighlightColor() }).run(),
     } as const;
     map[mark]();
   };
@@ -443,6 +453,13 @@ export const MenuDockElement = litView.element({
     } else {
       e.chain().setColor(color).run();
     }
+  };
+
+  // A palette choice updates both the selection and the remembered color.
+  const applyHighlight = (color: string) => {
+    const e = props.editor;
+    setLastHighlightColor(color);
+    e.chain().setHighlight({ color }).run();
   };
 
   const applyTableAction = (action: string) => {
@@ -554,7 +571,7 @@ export const MenuDockElement = litView.element({
      *  (Link): the dashed mixed indicator shows only while closed. */
     pressed?: "true" | "false" | "mixed";
   }) => {
-    const open = openPanel === opts.id;
+    const open = openPanel === opts.id || (mode === "text" && opts.id === "more" && openPanel === "link");
     return (
       <button
         class={cls(
@@ -801,6 +818,32 @@ export const MenuDockElement = litView.element({
                 onDraft: (value) => { colorDrafts.text = value; },
                 onApply: (hex) => { colorDrafts.text = ""; applyColor(hex); },
               })}
+
+            </div>
+          ) : null}
+          {openPanel === "highlight" ? (
+            <div class="menu-dock__panel menu-dock__panel--highlight" role="group" aria-label="Highlight color">
+              <div class="menu-dock__section-label">Highlight</div>
+              <div class="menu-dock__swatches menu-dock__swatches--highlight">
+                <button class="menu-dock__swatch menu-dock__swatch--none" aria-label="Remove highlight" title="Remove highlight" onclick={() => { props.editor.chain().unsetHighlight().run(); closePanel(); }}></button>
+                {HIGHLIGHT_COLORS.map((sw) => (
+                  <button
+                    class={cls(
+                      "menu-dock__swatch",
+                      spreads.mark === "all" &&
+                        spreads.markColor === sw.color &&
+                        "is-active",
+                    )}
+                    aria-pressed={String(
+                      spreads.mark === "all" && spreads.markColor === sw.color,
+                    )}
+                    style={`background: ${sw.color}`}
+                    aria-label={sw.label}
+                    title={sw.label}
+                    onclick={() => applyHighlight(sw.color)}
+                  ></button>
+                ))}
+              </div>
             </div>
           ) : null}
           {openPanel === "more" ? (
@@ -809,7 +852,7 @@ export const MenuDockElement = litView.element({
                 {markActionBtn({ label: "Underline", icon: bubbleIconNodes.underline, spread: spreads.underline, onclick: () => applyMark("underline") })}
                 {markActionBtn({ label: "Strikethrough", icon: bubbleIconNodes.strike, spread: spreads.strike, onclick: () => applyMark("strike") })}
                 {markActionBtn({ label: "Inline code", icon: bubbleIconNodes.code, spread: spreads.code, onclick: () => applyMark("code") })}
-                {markActionBtn({ label: "Highlight", icon: bubbleIconNodes.mark, spread: spreads.mark, onclick: () => applyMark("mark") })}
+                {actionBtn({ label: "Link", icon: bubbleIconNodes.link, iconOnly: true, active: spreads.link === "all", mixed: spreads.link === "mixed", onclick: () => togglePanel("link") })}
                 {actionBtn({ label: "Clear formatting", icon: bubbleIconNodes.clear, iconOnly: true, onclick: () => props.editor.chain().unsetAllMarks().run() })}
                 {schemaHasComments
                   ? actionBtn({
@@ -1091,14 +1134,26 @@ export const MenuDockElement = litView.element({
               <>
                 {markBtn({ mark: "bold", label: "Bold", icon: bubbleIconNodes.bold })}
                 {markBtn({ mark: "italic", label: "Italic", icon: bubbleIconNodes.italic })}
-                {groupBtn({
-                  id: "link",
-                  label: "Link",
-                  aria: "Link",
-                  icon: bubbleIconNodes.link,
-                  active: spreads.link === "all",
-                  pressed: spreads.link === "mixed" ? "mixed" : spreads.link === "all" ? "true" : "false",
-                })}
+                <button
+                  class={cls("menu-dock__group", "menu-dock__direct", openPanel === "highlight" && "is-open", spreads.mark === "all" && "is-active", spreads.mark === "mixed" && "is-mixed")}
+                  aria-label="Highlight"
+                  aria-expanded={String(openPanel === "highlight")}
+                  aria-pressed={spreads.mark === "mixed" ? "mixed" : String(spreads.mark === "all")}
+                  onclick={() => {
+                    if (openPanel === "highlight") { closePanel(); return; }
+                    heldSelection = null;
+                    heldSelectionInvalid = false;
+                    const color = getLastHighlightColor();
+                    props.editor.chain().setHighlight({ color }).run();
+                    const selection = props.editor.state.selection;
+                    highlightSelectionKey = `${selection.from}:${selection.to}`;
+                    openPanel = "highlight";
+                    void this.next();
+                  }}
+                >
+                  <span class="menu-dock__icon">{bubbleIconNodes.mark()}</span>
+                  <span class="menu-dock__group-label">Highlight</span>
+                </button>
                 {groupBtn({ id: "styles", label: "Style", aria: "Styles and color", text: "Aa" })}
                 {groupBtn({ id: "more", label: "More", aria: "More actions", icon: toolbarIconNodes.dots })}
               </>
@@ -1124,6 +1179,7 @@ export const MenuDockElement = litView.element({
     }
   } finally {
     if (!props.editor.isDestroyed) props.editor.unregisterPlugin(selectionIndicatorKey);
+    props.editor.off("transaction", onStoredMarksChange);
     props.editor.off("selectionUpdate", refreshState);
     props.editor.off("update", refreshState);
     props.editor.off("transaction", mapHeldSelection);

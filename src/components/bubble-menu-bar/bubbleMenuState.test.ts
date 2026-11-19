@@ -9,6 +9,7 @@ import { isMarkActive } from "../../texto/core/helpers/isMarkActive";
 import {
   getBubbleMenuState,
   getSelectionMarkSpreads,
+  HIGHLIGHT_COLORS,
   TEXT_COLORS,
 } from "./bubbleMenuState";
 
@@ -164,6 +165,52 @@ describe("TEXT_COLORS", () => {
   });
 });
 
+describe("HIGHLIGHT_COLORS", () => {
+  it("fixed set: one swatch per gamma, no default entry, no dups", () => {
+    expect(HIGHLIGHT_COLORS.map((c) => c.id)).toEqual([
+      "yellow",
+      "orange",
+      "green",
+      "blue",
+      "purple",
+      "red",
+    ]);
+    // No "default" swatch: a colorless mark IS the theme default, and the
+    // way back from a colored mark is the active swatch or the toggle.
+    expect(HIGHLIGHT_COLORS.every((c) => c.color != null)).toBe(true);
+    const colors = HIGHLIGHT_COLORS.map((c) => c.color);
+    expect(new Set(colors).size).toBe(colors.length);
+  });
+
+  it("swatches are translucent rgba — inherited text stays readable", () => {
+    for (const c of HIGHLIGHT_COLORS) {
+      const m = c.color.match(
+        /^rgba\(\d{1,3}, \d{1,3}, \d{1,3}, 0\.3\)$/,
+      );
+      expect(m).not.toBe(null);
+      const [r, g, b, a] = c.color
+        .slice(5, -1)
+        .split(", ")
+        .map(Number) as [number, number, number, number];
+      expect(r).toBeLessThanOrEqual(255);
+      expect(g).toBeLessThanOrEqual(255);
+      expect(b).toBeLessThanOrEqual(255);
+      expect(a).toBeGreaterThan(0);
+      expect(a).toBeLessThan(1);
+    }
+  });
+
+  it("a stored attrs.color maps back to exactly one swatch", () => {
+    const color = HIGHLIGHT_COLORS[2].color; // green
+    const swatch = HIGHLIGHT_COLORS.find((c) => c.color === color);
+    expect(swatch?.id).toBe("green");
+    // A foreign color (old documents, custom values) maps to no swatch.
+    expect(HIGHLIGHT_COLORS.find((c) => c.color === "#123456")).toBe(
+      undefined,
+    );
+  });
+});
+
 describe("getSelectionMarkSpreads", () => {
   const para = (text: string, marks?: readonly Mark[]) =>
     schema.nodes.paragraph.create(null, [schema.text(text, marks)]);
@@ -199,6 +246,69 @@ describe("getSelectionMarkSpreads", () => {
     const state = stateOf(doc, { from: 1, to: 6 });
     expect(getSelectionMarkSpreads(state).bold).toBe("all");
     expect(getSelectionMarkSpreads(state).italic).toBe("none");
+  });
+
+  it("uniform colored highlight reports the single markColor", () => {
+    const YELLOW = HIGHLIGHT_COLORS[0].color;
+    const doc = schema.nodes.noteDoc.create(null, [
+      para("alpha", [schema.marks.highlight.create({ color: YELLOW })]),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 6 });
+    const s = getSelectionMarkSpreads(state);
+    expect(s.mark).toBe("all");
+    expect(s.markColor).toBe(YELLOW);
+  });
+
+  it("two highlight colors report no markColor — paint, not clear", () => {
+    const YELLOW = HIGHLIGHT_COLORS[0].color;
+    const GREEN = HIGHLIGHT_COLORS[2].color;
+    const doc = schema.nodes.noteDoc.create(null, [
+      para("alpha", [schema.marks.highlight.create({ color: YELLOW })]),
+      para("bravo", [schema.marks.highlight.create({ color: GREEN })]),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 13 });
+    const s = getSelectionMarkSpreads(state);
+    expect(s.mark).toBe("all");
+    expect(s.markColor).toBe(null);
+  });
+
+  it("a colored highlight next to unmarked text reports no markColor", () => {
+    const YELLOW = HIGHLIGHT_COLORS[0].color;
+    const doc = schema.nodes.noteDoc.create(null, [
+      para("alpha", [schema.marks.highlight.create({ color: YELLOW })]),
+      para("bravo"),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 13 });
+    const s = getSelectionMarkSpreads(state);
+    expect(s.mark).toBe("mixed");
+    expect(s.markColor).toBe(null);
+  });
+
+  it("a colorless (theme default) highlight reports null markColor", () => {
+    const doc = schema.nodes.noteDoc.create(null, [
+      para("alpha", [schema.marks.highlight.create({ color: null })]),
+    ]);
+    const state = stateOf(doc, { from: 1, to: 6 });
+    const s = getSelectionMarkSpreads(state);
+    expect(s.mark).toBe("all");
+    expect(s.markColor).toBe(null);
+  });
+
+  it("an unmarked selection reports null markColor", () => {
+    const doc = schema.nodes.noteDoc.create(null, [para("alpha")]);
+    const state = stateOf(doc, { from: 1, to: 6 });
+    expect(getSelectionMarkSpreads(state).markColor).toBe(null);
+  });
+
+  it("the caret reports the stored highlight color", () => {
+    const YELLOW = HIGHLIGHT_COLORS[0].color;
+    const doc = schema.nodes.noteDoc.create(null, [para("alpha")]);
+    const state = EditorState.create({
+      doc,
+      selection: TextSelection.create(doc, 1),
+      storedMarks: [schema.marks.highlight.create({ color: YELLOW })],
+    });
+    expect(getSelectionMarkSpreads(state).markColor).toBe(YELLOW);
   });
 
   it("partly formatted selection reports mixed", () => {

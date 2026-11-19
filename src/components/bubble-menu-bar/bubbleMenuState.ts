@@ -42,6 +42,8 @@ export const TEXT_COLORS: TextColorSwatch[] = [
   ...BORDER_COLORS.filter((c) => c.color != null),
 ];
 
+export { HIGHLIGHT_COLORS, getLastHighlightColor, setLastHighlightColor } from "../../texto/extensions/highlight/highlightColor";
+
 /**
  * Active state of bubble menu buttons based on the current editor selection.
  * Pure function of editor.isActive / editor.getAttributes — easy to test.
@@ -97,11 +99,16 @@ export interface SelectionMarkSpreads {
   color: string | null;
   /** True when the selection holds several distinct text colors. */
   colorMixed: boolean;
+  /** Single highlight color across the selection — only when the mark
+   *  covers it fully AND carries one color (null for the theme default).
+   *  Any mix of colors or an uncovered gap yields null, so the active
+   *  highlight swatch clears only what a tap would clear wholesale. */
+  markColor: string | null;
 }
 
 const SPREAD_MARKS: Array<{
   name: string;
-  key: keyof Omit<SelectionMarkSpreads, "color" | "colorMixed">;
+  key: keyof Omit<SelectionMarkSpreads, "color" | "colorMixed" | "markColor">;
 }> = [
   { name: "bold", key: "bold" },
   { name: "italic", key: "italic" },
@@ -132,6 +139,7 @@ export function getSelectionMarkSpreads(
   for (const { name } of SPREAD_MARKS)
     counters.set(name, { has: false, hasNot: false });
   const colors = new Set<string | null>();
+  const markColors = new Set<string | null>();
   const { from, to, empty, $from } = state.selection;
 
   if (empty) {
@@ -146,6 +154,12 @@ export function getSelectionMarkSpreads(
     const textStyle = marks.find((m) => m.type.name === "textStyle");
     colors.add(
       typeof textStyle?.attrs.color === "string" ? textStyle.attrs.color : null,
+    );
+    const highlight = marks.find((m) => m.type.name === "highlight");
+    markColors.add(
+      typeof highlight?.attrs.color === "string"
+        ? highlight.attrs.color
+        : null,
     );
   } else {
     // Exact parity with isMarkActive's toggle-decision arithmetic: text
@@ -179,6 +193,12 @@ export function getSelectionMarkSpreads(
           ? textStyle.attrs.color
           : null,
       );
+      const highlight = node.marks.find((m) => m.type.name === "highlight");
+      markColors.add(
+        typeof highlight?.attrs.color === "string"
+          ? highlight.attrs.color
+          : null,
+      );
       return true;
     });
     for (const { name } of SPREAD_MARKS) {
@@ -201,6 +221,7 @@ export function getSelectionMarkSpreads(
     return c.has ? "all" : "none";
   };
   const singleColor = colors.size === 1 ? [...colors][0]! : null;
+  const singleMarkColor = markColors.size === 1 ? [...markColors][0]! : null;
   return {
     bold: spread("bold"),
     italic: spread("italic"),
@@ -211,5 +232,6 @@ export function getSelectionMarkSpreads(
     link: spread("link"),
     color: singleColor,
     colorMixed: colors.size > 1,
+    markColor: singleMarkColor,
   };
 }

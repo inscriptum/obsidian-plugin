@@ -1,3 +1,4 @@
+import { getLastHighlightColor } from "../../texto/extensions/highlight/highlightColor";
 import type { Instance } from "tippy.js";
 import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
@@ -151,7 +152,7 @@ export const TableCellsBubbleMenuElement = litView.element({
         e.chain().focus().toggleCode().run();
         break;
       case "mark":
-        e.chain().focus().toggleHighlight().run();
+        e.chain().focus().toggleHighlight({ color: getLastHighlightColor() }).run();
         break;
     }
   };

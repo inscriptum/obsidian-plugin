@@ -238,7 +238,7 @@ test.describe("mobile menu dock", () => {
     expect(first.attrs?.level).toBe(1);
   });
 
-  test("text selection: the main row carries Bold, Italic, Link, Style, More", async ({
+  test("text selection: the main row carries Bold, Italic, Highlight, Style, More", async ({
     page,
   }) => {
     await openHarness(page);
@@ -250,7 +250,7 @@ test.describe("mobile menu dock", () => {
     await expect(page.getByRole("button", { name: "Bold" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Italic" })).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Link", exact: true }),
+      page.getByRole("button", { name: "Highlight", exact: true }),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Styles and color" }),
@@ -374,7 +374,7 @@ test.describe("mobile menu dock", () => {
     );
   });
 
-  test("Link reports the mark tri-state while keeping its panel expansion", async ({
+  test("Link in More reports the mark tri-state", async ({
     page,
   }) => {
     await openHarness(page);
@@ -393,16 +393,18 @@ test.describe("mobile menu dock", () => {
       }),
     );
 
-    const link = page.getByRole("button", { name: "Link", exact: true });
+    await selectSpan(page, "alpha", " bravo");
+    await openGroup(page, "More");
+    const link = page.locator(panel).getByRole("button", { name: "Link", exact: true });
     // A partly linked selection is neither on nor off, but the button still
     // opens the link panel (aria-expanded stays).
-    await selectSpan(page, "alpha", " bravo");
     await expect(link).toHaveAttribute("aria-pressed", "mixed");
     await expect(link).toHaveClass(/is-mixed/);
-    await expect(link).toHaveAttribute("aria-expanded", "false");
 
     // Fully linked selection: steady on-state.
+    await openGroup(page, "More");
     await selectText(page, "alpha");
+    await openGroup(page, "More");
     await expect(link).toHaveAttribute("aria-pressed", "true");
     await expect(link).toHaveClass(/is-active/);
     await expect(link).not.toHaveClass(/is-mixed/);
@@ -420,13 +422,84 @@ test.describe("mobile menu dock", () => {
       "Underline",
       "Strikethrough",
       "Inline code",
-      "Highlight",
+      "Link",
       "Clear formatting",
     ]) {
       await expect(
         page.locator(panel).getByRole("button", { name }),
       ).toBeVisible();
     }
+  });
+
+  test("open tabs use the panel surface while active formats stay on button surfaces", async ({ page }) => {
+    await openHarness(page);
+    await mountToolbar(page, noteDoc(p("alpha bravo")));
+    await page.evaluate(() => {
+      const dock = document.querySelector<HTMLElement>(".menu-dock")!;
+      dock.style.setProperty("--background-primary", "rgb(255, 255, 255)");
+      dock.style.setProperty("--interactive-normal", "rgb(238, 238, 238)");
+      dock.style.setProperty("--interactive-accent", "rgb(120, 80, 230)");
+    });
+    await selectText(page, "alpha bravo");
+    const bold = page.getByRole("button", { name: "Bold", exact: true });
+    const highlight = page.getByRole("button", { name: "Highlight", exact: true });
+    const style = page.getByRole("button", { name: "Styles and color" });
+    await bold.click();
+    await highlight.click();
+    await expect(highlight).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await expect(highlight).toHaveCSS("color", "rgb(120, 80, 230)");
+    await expect(highlight).toHaveCSS("box-shadow", /rgb\(120, 80, 230\)/);
+    await expect(bold).toHaveCSS("background-color", "rgb(238, 238, 238)");
+    await expect(bold).toHaveCSS("color", "rgb(120, 80, 230)");
+    await style.click();
+    await expect(style).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await expect(style).toHaveCSS("box-shadow", /rgb\(120, 80, 230\)/);
+    await expect(highlight).toHaveCSS("background-color", "rgb(238, 238, 238)");
+    await expect(highlight).toHaveCSS("color", "rgb(120, 80, 230)");
+    const selectedText = page.locator(panel).getByRole("button", { name: "Text", exact: true });
+    const heading = page.locator(panel).getByRole("button", { name: "Heading 1", exact: true });
+    await expect(selectedText).toHaveCSS("background-color", "rgb(238, 238, 238)");
+    await expect(selectedText).toHaveCSS("color", "rgb(120, 80, 230)");
+    await expect(heading).toHaveCSS("background-color", "rgb(238, 238, 238)");
+    await expect(heading).toHaveCSS("justify-content", "center");
+    await expect(heading).toHaveCSS("padding-left", "0px");
+    // Changing the theme preserves the same relationship.
+    await page.evaluate(() => {
+      const dock = document.querySelector<HTMLElement>(".menu-dock")!;
+      dock.style.setProperty("--background-primary", "rgb(30, 30, 30)");
+      dock.style.setProperty("--interactive-normal", "rgb(55, 55, 55)");
+    });
+    await expect(style).toHaveCSS("background-color", "rgb(30, 30, 30)");
+    await expect(highlight).toHaveCSS("background-color", "rgb(55, 55, 55)");
+    await expect(selectedText).toHaveCSS("background-color", "rgb(55, 55, 55)");
+  });
+
+  test("highlight menu starts yellow and remembers the chosen color", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+    await openHarness(page);
+    await mountToolbar(page, noteDoc(p("alpha bravo")));
+    const full = await textRange(page, "alpha bravo");
+    await page.evaluate(({ from }) => { const ed = window.__e2e.editor!; ed.view.focus(); ed.commands.setTextSelection({ from, to: from + 5 }); }, full);
+    await page.getByRole("button", { name: "Highlight", exact: true }).click();
+    await expect(page.locator(panel)).toHaveAttribute("aria-label", "Highlight color");
+    const palette = page.locator(".menu-dock__swatches--highlight .menu-dock__swatch");
+    await expect(palette).toHaveCount(7);
+    await expect(palette.first()).toHaveAttribute("aria-label", "Remove highlight");
+    const positions = await palette.evaluateAll((buttons) => buttons.map((button) => {
+      const rect = button.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, right: rect.right };
+    }));
+    expect(new Set(positions.map((rect) => rect.y)).size).toBe(1);
+    expect(positions.every((rect, i) => (i === 0 || rect.x >= positions[i - 1]!.right) && rect.x >= 0 && rect.right <= 320), JSON.stringify(positions)).toBe(true);
+    await expect.poll(() => page.evaluate(() => document.activeElement === window.__e2e.editor!.view.dom)).toBe(true);
+    await expect(page.locator(".ProseMirror mark")).toHaveAttribute("data-color", "rgba(224, 172, 0, 0.3)");
+    await clickAction(page, "Blue highlight");
+    await expect(page.locator(".ProseMirror mark")).toHaveAttribute("data-color", "rgba(8, 109, 221, 0.3)");
+    await page.evaluate(({ from }) => { const ed = window.__e2e.editor!; ed.view.focus(); ed.commands.setTextSelection({ from: from + 6, to: from + 11 }); }, full);
+    await page.getByRole("button", { name: "Highlight", exact: true }).click();
+    await expect(page.locator(".ProseMirror mark").last()).toHaveAttribute("data-color", "rgba(8, 109, 221, 0.3)");
+    await clickAction(page, "Yellow highlight");
+    await expect(page.locator(".ProseMirror mark").last()).toHaveAttribute("data-color", "rgba(224, 172, 0, 0.3)");
   });
 
   test("a More panel toggle resolves a mixed mark across the whole range", async ({
@@ -747,8 +820,15 @@ test.describe("mobile menu dock", () => {
     }, range);
     await openGroup(page, "Style");
 
-    // Unified palette: 12 swatches + the custom color row (review F2/F5).
-    await expect(page.locator(`${panel} .menu-dock__swatch`)).toHaveCount(12);
+    // The styles panel keeps the text-color palette and custom color row.
+    await expect(
+      page.locator(
+        `${panel} .menu-dock__swatches:not(.menu-dock__swatches--highlight) .menu-dock__swatch`,
+      ),
+    ).toHaveCount(12);
+    await expect(
+      page.locator(`${panel} .menu-dock__swatches--highlight .menu-dock__swatch`),
+    ).toHaveCount(0);
     await expect(page.locator(`${panel} .bb-dd-custom`)).toHaveCount(1);
 
     await page.locator(`${panel} .menu-dock__swatch[title="Purple"]`).click();

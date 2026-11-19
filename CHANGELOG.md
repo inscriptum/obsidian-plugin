@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Mobile editor menus now distinguish the open panel from active formatting.
+
+- Highlight text in one tap and choose its color from the marker menu; your last choice is remembered on desktop and mobile. New highlights start yellow, the palette fits in one row, and on phones the marker sits beside Bold and Italic without hiding the keyboard.
+- Comment anchors use a translucent theme accent so they stand apart from text highlights.
 - On phones, Bold, Italic and Link now sit right in the editor menu bar — one tap instead of opening a panel first — and the button shows when a mixed selection is only partly formatted.
 - Phone menu panels are about a third shorter with the same commands: table actions, borders and styles now fit above the lower half of the screen, so the document stays visible while you work.
 - On phones, the editor now groups text, table and media actions in a context-aware bottom menu. Undo and redo are available in the note’s more-options menu.
@@ -16,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Paragraphs, lists and quotes now fill the editor column all the way to its right edge — the leftover 60–68-character line caps are gone, so long text no longer leaves an empty gap beside itself in notes and notepad pages.
 
 ### Fixed
+
+- Highlight shortcuts now remove an existing highlight regardless of its color; the color picker and mobile menu icons update correctly.
 
 - On phones, the editor keeps the selection or caret visible while menus are open, and selecting a diagram no longer opens the keyboard.
 - Phone menu panels now stay aligned and keep the keyboard hidden while applying formatting.
