@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Mobile editor menus now distinguish the open panel from active formatting.
+
 - Highlight text in one tap and choose its color from the marker menu; your last choice is remembered on desktop and mobile. New highlights start yellow, the palette fits in one row, and on phones the marker sits beside Bold and Italic without hiding the keyboard.
 - Comment anchors use a translucent theme accent so they stand apart from text highlights.
 - On phones, Bold, Italic and Link now sit right in the editor menu bar — one tap instead of opening a panel first — and the button shows when a mixed selection is only partly formatted.

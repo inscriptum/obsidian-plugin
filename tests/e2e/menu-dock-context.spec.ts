@@ -65,6 +65,7 @@ test("link applies to the mapped selection after an edit before it", async ({ pa
   await page.evaluate(({ from, to }) => window.__e2e.editor!.commands.setTextSelection({ from, to }), range);
   await page.getByRole("button", { name: "More actions" }).click();
   await page.locator(".menu-dock__panel").getByRole("button", { name: "Link", exact: true }).click();
+  await expect(page.getByRole("button", { name: "More actions" })).toHaveClass(/is-open/);
   const input = page.getByRole("textbox", { name: "Link URL" });
   await input.fill("https://example.com");
   await page.evaluate(() => {

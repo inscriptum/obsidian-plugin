@@ -431,6 +431,47 @@ test.describe("mobile menu dock", () => {
     }
   });
 
+  test("open tabs use the panel surface while active formats stay on button surfaces", async ({ page }) => {
+    await openHarness(page);
+    await mountToolbar(page, noteDoc(p("alpha bravo")));
+    await page.evaluate(() => {
+      const dock = document.querySelector<HTMLElement>(".menu-dock")!;
+      dock.style.setProperty("--background-primary", "rgb(255, 255, 255)");
+      dock.style.setProperty("--interactive-normal", "rgb(238, 238, 238)");
+      dock.style.setProperty("--interactive-accent", "rgb(120, 80, 230)");
+    });
+    await selectText(page, "alpha bravo");
+    const bold = page.getByRole("button", { name: "Bold", exact: true });
+    const highlight = page.getByRole("button", { name: "Highlight", exact: true });
+    const style = page.getByRole("button", { name: "Styles and color" });
+    await bold.click();
+    await highlight.click();
+    await expect(highlight).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await expect(highlight).toHaveCSS("color", "rgb(120, 80, 230)");
+    await expect(highlight).toHaveCSS("box-shadow", /rgb\(120, 80, 230\)/);
+    await expect(bold).toHaveCSS("background-color", "rgb(238, 238, 238)");
+    await expect(bold).toHaveCSS("color", "rgb(120, 80, 230)");
+    await style.click();
+    await expect(style).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await expect(style).toHaveCSS("box-shadow", /rgb\(120, 80, 230\)/);
+    await expect(highlight).toHaveCSS("background-color", "rgb(238, 238, 238)");
+    await expect(highlight).toHaveCSS("color", "rgb(120, 80, 230)");
+    const selectedText = page.locator(panel).getByRole("button", { name: "Text", exact: true });
+    const heading = page.locator(panel).getByRole("button", { name: "Heading 1", exact: true });
+    await expect(selectedText).toHaveCSS("background-color", "rgb(238, 238, 238)");
+    await expect(selectedText).toHaveCSS("color", "rgb(120, 80, 230)");
+    await expect(heading).toHaveCSS("background-color", "rgb(238, 238, 238)");
+    // Changing the theme preserves the same relationship.
+    await page.evaluate(() => {
+      const dock = document.querySelector<HTMLElement>(".menu-dock")!;
+      dock.style.setProperty("--background-primary", "rgb(30, 30, 30)");
+      dock.style.setProperty("--interactive-normal", "rgb(55, 55, 55)");
+    });
+    await expect(style).toHaveCSS("background-color", "rgb(30, 30, 30)");
+    await expect(highlight).toHaveCSS("background-color", "rgb(55, 55, 55)");
+    await expect(selectedText).toHaveCSS("background-color", "rgb(55, 55, 55)");
+  });
+
   test("highlight menu starts yellow and remembers the chosen color", async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 568 });
     await openHarness(page);

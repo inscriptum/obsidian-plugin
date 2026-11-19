@@ -567,7 +567,7 @@ export const MenuDockElement = litView.element({
      *  (Link): the dashed mixed indicator shows only while closed. */
     pressed?: "true" | "false" | "mixed";
   }) => {
-    const open = openPanel === opts.id;
+    const open = openPanel === opts.id || (mode === "text" && opts.id === "more" && openPanel === "link");
     return (
       <button
         class={cls(
