@@ -52,6 +52,26 @@ test.describe("formatting", () => {
     );
   });
 
+  test("highlight shortcut uses yellow and leaves older colorless marks unchanged", async ({ page }) => {
+    await openHarness(page);
+    await mount(page, noteDoc({ type: "paragraph", content: [
+      { type: "text", text: "legacy", marks: [{ type: "highlight" }] },
+      { type: "text", text: " fresh" },
+    ] }));
+    const old = page.locator(`${EDITOR} mark`).first();
+    await expect(old).not.toHaveAttribute("data-color");
+    await page.evaluate(() => {
+      const editor = window.__e2e.editor!;
+      let from = 0;
+      editor.state.doc.descendants((node, pos) => { if (node.isText && node.text === " fresh") from = pos + 1; });
+      editor.view.focus();
+      editor.commands.setTextSelection({ from, to: from + 5 });
+    });
+    await page.keyboard.press("ControlOrMeta+Shift+h");
+    await expect(page.locator(`${EDITOR} mark`).last()).toHaveAttribute("data-color", "rgba(224, 172, 0, 0.3)");
+    await expect(old).not.toHaveAttribute("data-color");
+  });
+
   test("Mod-I applies italic to the selected word", async ({ page }) => {
     await openHarness(page);
     await mount(page, noteDoc(p("hello")));
@@ -296,8 +316,8 @@ test.describe("formatting", () => {
     // Opening the menu applies the last chosen color.
     await expect(
       layer.locator(".bb-dd-swatches--highlight .bb-sw"),
-    ).toHaveCount(8);
-    await expect(layer.getByRole("button", { name: "Default highlight" })).toHaveAttribute("aria-pressed", "true");
+    ).toHaveCount(7);
+    await expect(layer.getByRole("button", { name: "Yellow highlight" })).toHaveAttribute("aria-pressed", "true");
     const palette = layer.locator(".bb-dd-swatches--highlight .bb-sw");
     await expect(palette.first()).toHaveAttribute("aria-label", "Remove highlight");
     const positions = await palette.evaluateAll((buttons) => buttons.map((button) => {

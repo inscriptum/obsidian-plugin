@@ -263,7 +263,7 @@ export const BubbleMenuBarElement = litView.element({
         e.chain().focus().toggleCode().run();
         break;
       case "mark":
-        e.chain().focus().toggleHighlight().run();
+        e.chain().focus().toggleHighlight({ color: getLastHighlightColor() }).run();
         break;
     }
   };
@@ -296,11 +296,10 @@ export const BubbleMenuBarElement = litView.element({
   };
 
   // A palette choice updates both the selection and the remembered color.
-  const applyHighlight = (color: string | null) => {
+  const applyHighlight = (color: string) => {
     const e = props.editor;
     setLastHighlightColor(color);
-    if (color === null) e.chain().focus().setMark("highlight", { color: null }).run();
-    else e.chain().focus().setHighlight({ color }).run();
+    e.chain().focus().setHighlight({ color }).run();
   };
 
   const applyColor = (color: string | null) => {
@@ -479,8 +478,7 @@ export const BubbleMenuBarElement = litView.element({
               onclick={() => {
                 if (openLayer === "highlight") { closeLayer(); return; }
                 const color = getLastHighlightColor();
-                if (color === null) props.editor.chain().focus().setMark("highlight", { color: null }).run();
-                else props.editor.chain().focus().setHighlight({ color }).run();
+                props.editor.chain().focus().setHighlight({ color }).run();
                 openLayer = "highlight";
                 void this.next().then(() => window.requestAnimationFrame(() => {
                   placeLayerCaret(".bubble-menu-layer--highlight", '[data-bb-action="highlight"]');
@@ -686,7 +684,6 @@ export const BubbleMenuBarElement = litView.element({
             <div class="bb-layer-label">Highlight color</div>
             <div class="bb-dd-swatches bb-dd-swatches--highlight">
               <button class="bb-sw bb-sw--none" aria-label="Remove highlight" title="Remove highlight" onmousedown={(e: MouseEvent) => e.preventDefault()} onclick={() => { props.editor.chain().focus().unsetHighlight().run(); closeLayer(); }}></button>
-              <button class={cls("bb-sw", "bb-sw--highlight-default", spreads.mark === "all" && spreads.markColor === null && "is-active")} aria-label="Default highlight" title="Default highlight" aria-pressed={String(spreads.mark === "all" && spreads.markColor === null)} onmousedown={(e: MouseEvent) => e.preventDefault()} onclick={() => applyHighlight(null)}></button>
               {HIGHLIGHT_COLORS.map((sw) => (
                 <button
                   class={cls(

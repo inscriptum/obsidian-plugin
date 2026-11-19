@@ -399,7 +399,7 @@ export const MenuDockElement = litView.element({
       underline: () => e.chain().toggleUnderline().run(),
       strike: () => e.chain().toggleStrike().run(),
       code: () => e.chain().toggleCode().run(),
-      mark: () => e.chain().toggleHighlight().run(),
+      mark: () => e.chain().toggleHighlight({ color: getLastHighlightColor() }).run(),
     } as const;
     map[mark]();
   };
@@ -452,11 +452,10 @@ export const MenuDockElement = litView.element({
   };
 
   // A palette choice updates both the selection and the remembered color.
-  const applyHighlight = (color: string | null) => {
+  const applyHighlight = (color: string) => {
     const e = props.editor;
     setLastHighlightColor(color);
-    if (color === null) e.chain().setMark("highlight", { color: null }).run();
-    else e.chain().setHighlight({ color }).run();
+    e.chain().setHighlight({ color }).run();
   };
 
   const applyTableAction = (action: string) => {
@@ -823,7 +822,6 @@ export const MenuDockElement = litView.element({
               <div class="menu-dock__section-label">Highlight</div>
               <div class="menu-dock__swatches menu-dock__swatches--highlight">
                 <button class="menu-dock__swatch menu-dock__swatch--none" aria-label="Remove highlight" title="Remove highlight" onclick={() => { props.editor.chain().unsetHighlight().run(); closePanel(); }}></button>
-                <button class={cls("menu-dock__swatch", "menu-dock__swatch--highlight-default", spreads.mark === "all" && spreads.markColor === null && "is-active")} aria-label="Default highlight" title="Default highlight" aria-pressed={String(spreads.mark === "all" && spreads.markColor === null)} onclick={() => applyHighlight(null)}></button>
                 {HIGHLIGHT_COLORS.map((sw) => (
                   <button
                     class={cls(
@@ -1142,8 +1140,7 @@ export const MenuDockElement = litView.element({
                     heldSelection = null;
                     heldSelectionInvalid = false;
                     const color = getLastHighlightColor();
-                    if (color === null) props.editor.chain().setMark("highlight", { color: null }).run();
-                    else props.editor.chain().setHighlight({ color }).run();
+                    props.editor.chain().setHighlight({ color }).run();
                     const selection = props.editor.state.selection;
                     highlightSelectionKey = `${selection.from}:${selection.to}`;
                     openPanel = "highlight";

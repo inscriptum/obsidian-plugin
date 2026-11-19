@@ -6,6 +6,7 @@ import {
 } from "../../core";
 import type { AnyRecord } from "../../core/@types";
 import { addCommands } from "./commands";
+import { getLastHighlightColor } from "./highlightColor";
 
 export interface HighlightOptions {
   multicolor: boolean;
@@ -70,7 +71,7 @@ export const Highlight = Mark.create<HighlightOptions>({
 
   addKeyboardShortcuts() {
     return {
-      "Mod-Shift-h": () => this.editor.commands.toggleHighlight(),
+      "Mod-Shift-h": () => this.editor.commands.toggleHighlight({ color: getLastHighlightColor() }),
     };
   },
 
@@ -79,6 +80,7 @@ export const Highlight = Mark.create<HighlightOptions>({
       markInputRule({
         find: inputRegex,
         type: this.type,
+        getAttributes: () => ({ color: getLastHighlightColor() }),
       }),
     ];
   },
@@ -88,6 +90,7 @@ export const Highlight = Mark.create<HighlightOptions>({
       markPasteRule({
         find: pasteRegex,
         type: this.type,
+        getAttributes: () => ({ color: getLastHighlightColor() }),
       }),
     ];
   },
