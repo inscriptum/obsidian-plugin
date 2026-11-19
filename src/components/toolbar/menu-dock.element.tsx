@@ -209,6 +209,10 @@ export const MenuDockElement = litView.element({
     tableState = getTableMenuState(props.editor.state);
     void this.next();
   };
+  const onStoredMarksChange = ({ transaction }: { transaction: Transaction }) => {
+    if (transaction.storedMarksSet && !transaction.docChanged) refreshState();
+  };
+  props.editor.on("transaction", onStoredMarksChange);
   props.editor.on("selectionUpdate", refreshState);
   props.editor.on("update", refreshState);
 
@@ -1175,6 +1179,7 @@ export const MenuDockElement = litView.element({
     }
   } finally {
     if (!props.editor.isDestroyed) props.editor.unregisterPlugin(selectionIndicatorKey);
+    props.editor.off("transaction", onStoredMarksChange);
     props.editor.off("selectionUpdate", refreshState);
     props.editor.off("update", refreshState);
     props.editor.off("transaction", mapHeldSelection);

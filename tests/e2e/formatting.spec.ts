@@ -72,6 +72,47 @@ test.describe("formatting", () => {
     await expect(old).not.toHaveAttribute("data-color");
   });
 
+  test("highlight shortcut removes existing highlights regardless of color", async ({ page }) => {
+    await openHarness(page);
+    await mount(page, noteDoc({ type: "paragraph", content: [
+      { type: "text", text: "legacy", marks: [{ type: "highlight" }] },
+      { type: "text", text: " ", marks: [] },
+      { type: "text", text: "green", marks: [{ type: "highlight", attrs: { color: "rgba(8, 185, 78, 0.3)" } }] },
+    ] }));
+    for (const text of ["legacy", "green"]) {
+      await page.evaluate((word) => {
+        const editor = window.__e2e.editor!;
+        let from = 0;
+        editor.state.doc.descendants((node, pos) => { if (node.isText && node.text === word) from = pos; });
+        editor.view.focus();
+        editor.commands.setTextSelection({ from, to: from + word.length });
+      }, text);
+      await page.keyboard.press("ControlOrMeta+Shift+h");
+      const node = findText(await docJson(page), text);
+      expect(node?.marks?.some((mark) => mark.type === "highlight") ?? false).toBe(false);
+    }
+  });
+
+  test("highlight swatch updates immediately for a caret stored mark", async ({ page }) => {
+    await openHarness(page);
+    await mount(page, noteDoc(p("hello")));
+    await page.evaluate(() => {
+      const editor = window.__e2e.editor!;
+      editor.view.focus();
+      editor.commands.setTextSelection(8);
+      window.__e2e.mountBubble();
+    });
+    const bubble = page.locator(".bubble-menu-bar");
+    await bubble.locator('[data-tip="Highlight"]').click();
+    const layer = bubble.locator(".bubble-menu-layer--highlight.show");
+    const blue = layer.getByRole("button", { name: "Blue highlight" });
+    await blue.click();
+    await expect(blue).toHaveAttribute("aria-pressed", "true");
+    await expect(layer.getByRole("button", { name: "Yellow highlight" })).toHaveAttribute("aria-pressed", "false");
+    await page.keyboard.type("x");
+    await expect(page.locator(`${EDITOR} mark`)).toHaveAttribute("data-color", "rgba(8, 109, 221, 0.3)");
+  });
+
   test("Mod-I applies italic to the selected word", async ({ page }) => {
     await openHarness(page);
     await mount(page, noteDoc(p("hello")));

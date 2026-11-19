@@ -8,6 +8,7 @@ declare global {
     __e2e: {
       mount(doc: unknown): string;
       mountToolbar(doc: unknown, opts?: { mobile?: boolean; tablet?: boolean }): string;
+      mountBubble(): void;
       readonly editor: Editor | null;
       docJson(): unknown;
       positions(): number[];

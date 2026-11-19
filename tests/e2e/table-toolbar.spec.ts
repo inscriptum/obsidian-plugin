@@ -272,6 +272,28 @@ test.describe("table toolbar dock + cells bubble", () => {
     expect(await cellMarks(page, "B2")).not.toContain("bold");
   });
 
+  test("cells highlight toggle removes different and legacy colors", async ({ page }) => {
+    await mountNotepadWithTable(page);
+    await selectCells(page, 2, 3);
+    const index = await editorWith(page, "A2");
+    await page.evaluate((i) => {
+      const editor = window.__e2eNotepad.editors()[i];
+      editor.chain().setHighlight({ color: "rgba(8, 185, 78, 0.3)" }).run();
+      window.localStorage.setItem("inscriptum:last-highlight-color", "rgba(224, 172, 0, 0.3)");
+    }, index);
+    const button = page.locator(`${CELLS_BAR} button[data-tip="Highlight"]`);
+    await button.click();
+    expect(await cellMarks(page, "A2")).not.toContain("highlight");
+    expect(await cellMarks(page, "B2")).not.toContain("highlight");
+    await page.evaluate((i) => window.__e2eNotepad.editors()[i].chain().setMark("highlight", { color: null }).run(), index);
+    await button.click();
+    expect(await cellMarks(page, "A2")).not.toContain("highlight");
+    expect(await cellMarks(page, "B2")).not.toContain("highlight");
+    await button.click();
+    expect(await cellMarks(page, "A2")).toContain("highlight");
+    expect(await cellMarks(page, "B2")).toContain("highlight");
+  });
+
   test("cells bubble color layer sets text color on all selected cells", async ({
     page,
   }) => {

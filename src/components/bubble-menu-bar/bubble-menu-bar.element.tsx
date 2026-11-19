@@ -1,6 +1,7 @@
 import { litView } from "@web-companions/lit";
 import { p } from "@web-companions/gfc";
 import type { Instance } from "tippy.js";
+import type { Transaction } from "prosemirror-state";
 import { Editor, isTextSelection } from "../../texto/core";
 import { elTag } from "../../tags";
 import type { BubbleMenuPluginState } from "../../texto/extensions/bubble-menu/bubble-menu-plugin";
@@ -395,6 +396,10 @@ export const BubbleMenuBarElement = litView.element({
     }
   };
 
+  const onStoredMarksChange = ({ transaction }: { transaction: Transaction }) => {
+    if (transaction.storedMarksSet && !transaction.docChanged) refreshState();
+  };
+  props.editor.on("transaction", onStoredMarksChange);
   props.editor.on("selectionUpdate", refreshState);
   props.editor.on("update", refreshState);
   document.addEventListener("keydown", onKeydown);
@@ -766,6 +771,7 @@ export const BubbleMenuBarElement = litView.element({
       );
     }
   } finally {
+    props.editor.off("transaction", onStoredMarksChange);
     props.editor.off("selectionUpdate", refreshState);
     props.editor.off("update", refreshState);
     document.removeEventListener("keydown", onKeydown);

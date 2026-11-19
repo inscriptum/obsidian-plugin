@@ -438,7 +438,7 @@ body:has(.mobile-navbar.mod-raised) .notepad-view-container.is-mobile.is-phone:n
   color: var(--text-error);
 }
 /* Icon-only compact action: centered glyph, full 44dp square target. */
-.menu-dock__action--icon {
+.menu-dock .menu-dock__action--icon {
   justify-content: center;
   gap: 0;
   padding: 4px 0;

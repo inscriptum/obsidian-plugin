@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Highlight shortcuts now remove an existing highlight regardless of its color; the color picker and mobile menu icons update correctly.
+
 - On phones, the editor keeps the selection or caret visible while menus are open, and selecting a diagram no longer opens the keyboard.
 - Phone menu panels now stay aligned and keep the keyboard hidden while applying formatting.
 - Long selections keep their formatting menu, right-aligned text stays clear of page controls, and custom color palettes remain usable on touch screens and short windows.

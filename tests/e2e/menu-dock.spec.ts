@@ -461,6 +461,8 @@ test.describe("mobile menu dock", () => {
     await expect(selectedText).toHaveCSS("background-color", "rgb(238, 238, 238)");
     await expect(selectedText).toHaveCSS("color", "rgb(120, 80, 230)");
     await expect(heading).toHaveCSS("background-color", "rgb(238, 238, 238)");
+    await expect(heading).toHaveCSS("justify-content", "center");
+    await expect(heading).toHaveCSS("padding-left", "0px");
     // Changing the theme preserves the same relationship.
     await page.evaluate(() => {
       const dock = document.querySelector<HTMLElement>(".menu-dock")!;
