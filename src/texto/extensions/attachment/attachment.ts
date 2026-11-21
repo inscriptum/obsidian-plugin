@@ -15,6 +15,9 @@ export type AttachmentViewNodeState = {
   text?: string;
   subtext?: string;
   isAutoOpenFileSelection?: boolean;
+  /** The chip was created by an external file drop: cancelling the attach
+   *  dialog removes it instead of leaving an empty block. */
+  isQuickDrop?: boolean;
   preparedData?: {
     file?: File;
   };

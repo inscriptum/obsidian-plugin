@@ -157,9 +157,28 @@ function onFileSelected(
         // attrs back as they were when the picker opened — placeholder for a
         // fresh block, the previous file for a replace — and drop the
         // prepared file so the picker does not re-trigger.
+        // A quick-drop chip (created by an external file drop, no data yet)
+        // is different: the user never asked for a block in the document, so
+        // cancelling the dialog must remove it entirely.
         // PM attrs are untyped; this node is guaranteed to be an attachment
         // node, so read the previous attrs through the schema type.
         const prevAttrs = node.attrs as AttachmentOptions["attributes"];
+        const position = keyToPos.get(key);
+        const isFreshQuickDrop =
+          prevAttrs.state?.isQuickDrop === true &&
+          prevAttrs.data?.id == null &&
+          position != null;
+        if (isFreshQuickDrop) {
+          const target = editor.view.state.doc.nodeAt(position.pos);
+          if (target?.type === node.type) {
+            editor.view.dispatch(
+              editor.view.state.tr
+                .delete(position.pos, position.pos + target.nodeSize)
+                .setMeta("addToHistory", false),
+            );
+            return;
+          }
+        }
         dispatchAttrs({
           state: { ...prevAttrs.state, preparedData: undefined },
           data: prevAttrs.data,

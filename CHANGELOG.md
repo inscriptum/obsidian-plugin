@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Export any notepad page as a standalone website from its page menu, with only that page’s content and images. The desktop page menu also holds Delete to keep the toolbar compact.
 
+### Added
+
+- Drag a picture or any other file from your desktop straight into a note or notepad page on the computer: pictures insert right where you dropped them, other files attach as chips without opening the file externally.
+
 ### Fixed
 
 - Page website exports now handle Windows-reserved titles and keep private source paths out of ownership files, including when re-exporting older folders.
