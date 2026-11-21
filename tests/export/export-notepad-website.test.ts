@@ -84,6 +84,9 @@ function makeApp(): TestApp {
           writes.set(path, data);
         }),
         readBinary: vi.fn(async () => new ArrayBuffer(0)),
+        exists: vi.fn(async (path: string) => writes.has(path)),
+        read: vi.fn(async (path: string) => writes.get(path) as string),
+        remove: vi.fn(async (path: string) => { writes.delete(path); }),
       },
     },
   };
@@ -567,5 +570,217 @@ describe("exportNotepadAsWebsite", () => {
         { renderDiagram },
       ),
     ).rejects.toThrow("no pages");
+  });
+});
+
+describe("selected page website export", () => {
+  const paragraph = (text: string): JSONContent => ({
+    type: "paragraph",
+    content: text ? [{ type: "text", text }] : [],
+  });
+  const image = (id: string): JSONContent => ({
+    type: "image",
+    attrs: { data: { id } },
+  });
+
+  it("isolates a collapsed plain page, its metadata, and shared assets from the cover", async () => {
+    const { notepad, title, page } = makeNotepad();
+    const shared = notepad.addAsset(
+      TEXT_ENCODER.encode("shared"),
+      "shared.png",
+      "image/png",
+    );
+    const privateAsset = notepad.addAsset(
+      TEXT_ENCODER.encode("private"),
+      "private.png",
+      "image/png",
+    );
+    notepad.setNoteContent(title.id, {
+      type: "noteDoc",
+      content: [
+        paragraph("PRIVATE COVER"),
+        image(privateAsset.id),
+        image(shared.id),
+      ],
+    });
+    notepad.setNoteContent(page.id, {
+      type: "noteDoc",
+      content: [paragraph("Fresh unsaved page"), image(shared.id)],
+    });
+    page.modifiedAt = 1790000000000;
+    notepad.setExpanded(page.id, false);
+    const { app, writes } = makeApp();
+    const result = await exportNotepadAsWebsite(
+      app as never,
+      makeFile(),
+      notepad,
+      "export",
+      { pageId: page.id },
+    );
+    const html = writes.get(`${result.folder}/index.html`) as string;
+    expect(result.folder).toMatch(/^export\/page-exports\/[a-f0-9]{64}$/);
+    expect(html).toContain("<title>Fresh unsaved page</title>");
+    expect(html).toContain('content="Fresh unsaved page"');
+    expect(html).toContain(new Date(page.modifiedAt).toISOString());
+    expect(html).not.toContain("PRIVATE COVER");
+    expect(html.match(/<section[ >]/g)).toHaveLength(1);
+    expect(
+      [...writes.keys()].filter((key) => key.includes("/images/")),
+    ).toHaveLength(1);
+    expect(
+      new TextDecoder().decode(
+        writes.get(`${result.folder}/images/image-1.png`) as ArrayBuffer,
+      ),
+    ).toBe("shared");
+  });
+
+  it("exports the cover alone and uses the container mtime when the page has no stamp", async () => {
+    const { notepad, title } = makeNotepad();
+    delete title.modifiedAt;
+    const { app, writes } = makeApp();
+    const result = await exportNotepadAsWebsite(
+      app as never,
+      makeFile(),
+      notepad,
+      "export",
+      { pageId: title.id },
+    );
+    const html = writes.get(`${result.folder}/index.html`) as string;
+    expect(html).toContain("<title>Мой блокнот</title>");
+    expect(html).not.toContain("Page two");
+    expect(html).toContain(new Date(makeFile().stat.mtime).toISOString());
+  });
+
+  it("keeps equal/empty titles and different container paths separate and survives renaming", async () => {
+    const { notepad, title, page } = makeNotepad();
+    const { app, writes } = makeApp();
+    for (const id of [title.id, page.id])
+      notepad.setNoteContent(id, { type: "noteDoc", content: [paragraph("")] });
+    const run = (id: string, file = makeFile()) =>
+      exportNotepadAsWebsite(app as never, file, notepad, "export", {
+        pageId: id,
+      });
+    const a = await run(title.id);
+    const b = await run(page.id);
+    const c = await run(page.id, makeFile("Other/Мой блокнот.um"));
+    expect(new Set([a.folder, b.folder, c.folder]).size).toBe(3);
+    expect(writes.get(`${b.folder}/index.html`)).toContain(
+      "<title>Untitled</title>",
+    );
+    for (const id of [title.id, page.id]) {
+      notepad.setNoteContent(id, { type: "noteDoc", content: [paragraph("same title")] });
+    }
+    expect((await run(title.id)).folder).toBe(a.folder);
+    expect((await run(page.id)).folder).toBe(b.folder);
+    expect(
+      (
+        await exportNotepadAsWebsite(
+          app as never,
+          makeFile(),
+          notepad,
+          "export",
+        )
+      ).folder,
+    ).not.toBe(b.folder);
+  });
+
+  it.each(["missing", "unsupported", "no-content"])(
+    "rejects %s pages before writing",
+    async (kind) => {
+      const { notepad, page } = makeNotepad();
+      if (kind === "unsupported") page.schemaVersion = 999;
+      if (kind === "no-content") notepad.data.notes.delete(page.id);
+      const { app, writes } = makeApp();
+      await expect(
+        exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", {
+          pageId: kind === "missing" ? "absent" : page.id,
+        }),
+      ).rejects.toThrow("missing or uses an unsupported version");
+      expect(writes.size).toBe(0);
+    },
+  );
+
+  it("uses a deep snapshot when the live document, descriptor and asset bytes change during await", async () => {
+    const { notepad, page } = makeNotepad();
+    const asset = notepad.addAsset(
+      TEXT_ENCODER.encode("original"),
+      "a.png",
+      "image/png",
+    );
+    const doc = {
+      type: "noteDoc",
+      content: [
+        paragraph("Original page"),
+        { type: "mermaid", attrs: { code: "graph TD; A-->B" } },
+        image(asset.id),
+      ],
+    };
+    notepad.setNoteContent(page.id, doc);
+    const { app, writes } = makeApp();
+    const pending = exportNotepadAsWebsite(
+      app as never,
+      makeFile(),
+      notepad,
+      "export",
+      {
+        pageId: page.id,
+        renderDiagram: async () => {
+          notepad.removeNote(page.id);
+          return SVG;
+        },
+      },
+    );
+    doc.content[0] = paragraph("MUTATED");
+    page.title = "MUTATED";
+    notepad.data.assets.get(asset.id)!.fill(0);
+    const result = await pending;
+    const html = writes.get(`${result.folder}/index.html`) as string;
+    expect(html).toContain("Original page");
+    expect(html).not.toContain("MUTATED");
+    expect(
+      new TextDecoder().decode(
+        writes.get(`${result.folder}/images/image-1.png`) as ArrayBuffer,
+      ),
+    ).toBe("original");
+  });
+
+  it("removes only previously owned obsolete assets on repeat export", async () => {
+    const { notepad, page } = makeNotepad();
+    const asset = notepad.addAsset(
+      TEXT_ENCODER.encode("old"),
+      "old.png",
+      "image/png",
+    );
+    notepad.setNoteContent(page.id, {
+      type: "noteDoc",
+      content: [
+        image(asset.id),
+        { type: "mermaid", attrs: { code: "graph TD; A-->B" } },
+      ],
+    });
+    const { app, writes } = makeApp();
+    const run = () =>
+      exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", {
+        pageId: page.id,
+        renderDiagram,
+      });
+    const first = await run();
+    writes.set(`${first.folder}/images/user.png`, "keep");
+    writes.set("export/outside.png", "keep");
+    const ownershipPath = `${first.folder}/.inscriptum-export.json`;
+    const owned = JSON.parse(writes.get(ownershipPath) as string);
+    writes.set(
+      ownershipPath,
+      JSON.stringify([...owned, "../../outside.png", "images/user.png"]),
+    );
+    notepad.setNoteContent(page.id, {
+      type: "noteDoc",
+      content: [paragraph("Now no images")],
+    });
+    expect((await run()).folder).toBe(first.folder);
+    expect(writes.has(`${first.folder}/images/image-1.png`)).toBe(false);
+    expect(writes.has(`${first.folder}/images/diagram-1.svg`)).toBe(false);
+    expect(writes.get(`${first.folder}/images/user.png`)).toBe("keep");
+    expect(writes.get("export/outside.png")).toBe("keep");
   });
 });

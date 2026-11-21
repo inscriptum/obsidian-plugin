@@ -134,8 +134,11 @@ export default class NotesPlugin extends Plugin {
 
     NotepadView.onExportRequested = (view) =>
       void this.exportNotepadAsWebsite(view);
+    NotepadView.onPageExportRequested = (view, pageId) =>
+      void this.exportNotepadAsWebsite(view, pageId);
     this.register(() => {
       NotepadView.onExportRequested = null;
+      NotepadView.onPageExportRequested = null;
     });
 
     this.addRibbonIcon(NOTE_ICON_NAME, "New inscriptum", () => {
@@ -438,7 +441,10 @@ export default class NotesPlugin extends Plugin {
 
   /** "Export as website" for a notepad: every page flows into one static
    *  page (index.html + note.css + images), meta from the title page. */
-  private async exportNotepadAsWebsite(view: NotepadView): Promise<void> {
+  private async exportNotepadAsWebsite(
+    view: NotepadView,
+    pageId?: string,
+  ): Promise<void> {
     const file = view.file;
     if (!file) return;
 
@@ -454,6 +460,7 @@ export default class NotesPlugin extends Plugin {
         file,
         notepad,
         this.settings.exportFolder,
+        { pageId },
       );
       new Notice(`Exported to ${result.folder}`);
     } catch (err) {

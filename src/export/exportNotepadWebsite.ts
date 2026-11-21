@@ -60,6 +60,7 @@ export function createAssetNameResolver(
 export interface ExportNotepadWebsiteOptions {
   /** Diagram compiler override (tests); defaults to the real engine. */
   renderDiagram?: RenderDiagram;
+  pageId?: string;
 }
 
 export interface ExportNotepadWebsiteResult {
@@ -77,25 +78,9 @@ export interface ExportNotepadWebsiteResult {
   skippedPages: number;
 }
 
-/**
- * Exports a notepad as one self-contained static page into the vault —
- * the .um counterpart of exportNoteAsWebsite:
- *
- *   <exportFolder>/<slug>/index.html   (all pages, one <section> each,
- *                                       in manifest order)
- *   <exportFolder>/<slug>/note.css     (stylesheet with embedded fonts)
- *   <exportFolder>/<slug>/images/<file> (relative references)
- *
- * Meta and preview (title, description, og:image) come from the title
- * page (order 0). From two pages up, a ☰ contents drawer mirrors the
- * notepad's own pages navigator: each entry is an anchor link to its
- * page's section. Images unpack from the container's assets; page dates
- * in the meta come from the manifest's modifiedAt stamps (the .um file's
- * mtime when no page carries one). Re-exporting the same notepad
- * overwrites the folder's files in place; the .um file itself is never
- * written. Throws on serialization or write failure — the caller
- * surfaces it.
- */
+// CONTRACT: pageId exports only that page into page-exports/<path-and-page hash>;
+// otherwise all supported pages export into the title slug folder.
+// Metadata comes from the first selected page; the source .um is never written.
 export async function exportNotepadAsWebsite(
   app: App,
   file: TFile,
@@ -113,7 +98,24 @@ export async function exportNotepadAsWebsite(
       }
     });
 
-  const pages = notepad.notes();
+  const pageId = options?.pageId;
+  const pages =
+    pageId === undefined
+      ? notepad.notes()
+      : notepad.notes().filter((page) => page.id === pageId);
+  if (
+    pageId !== undefined &&
+    (pages.length === 0 ||
+      !notepad.isNoteOpenable(pageId) ||
+      notepad.noteContent(pageId) == null)
+  ) {
+    throw new Error(
+      "This page is missing or uses an unsupported version. It cannot be exported.",
+    );
+  }
+  const filePath = file.path;
+  const fileCreated = file.stat.ctime;
+  const fileModified = file.stat.mtime;
   const titleDescriptor = pages[0];
   if (titleDescriptor == null) {
     throw new Error("The notepad has no pages to export.");
@@ -128,7 +130,7 @@ export async function exportNotepadAsWebsite(
   const snapshotDocs = new Map<string, JSONContent | undefined>(
     pages.map((descriptor) => [
       descriptor.id,
-      notepad.noteContent(descriptor.id),
+      structuredClone(notepad.noteContent(descriptor.id)),
     ]),
   );
   const snapshotOpenable = new Map<string, boolean>(
@@ -140,20 +142,31 @@ export async function exportNotepadAsWebsite(
   const snapshotAssetMeta = new Map(
     readAssetDescriptors(notepad.data.manifest).map((asset) => [
       asset.id,
-      asset,
+      { ...asset },
     ]),
   );
-  const snapshotAssetBytes = new Map(notepad.data.assets);
+  const snapshotAssetBytes = new Map(
+    [...notepad.data.assets].map(([id, bytes]) => [id, bytes.slice()]),
+  );
 
   // The manifest title mirrors the title page's own title node (spec 8.4)
   // and is the only title source for a page this editor cannot parse.
   const title =
-    (titleDescriptor.title ?? "").trim() ||
-    (titleDoc != null ? extractNoteTitle(titleDoc).trim() : "") ||
-    file.basename;
+    pageId !== undefined
+      ? (titleDescriptor.title ?? "").trim() || "Untitled"
+      : (titleDescriptor.title ?? "").trim() ||
+        (titleDoc != null ? extractNoteTitle(titleDoc).trim() : "") ||
+        file.basename;
   // A title outside the Latin/Cyrillic maps (e.g. CJK) slugs down to
   // dashes only — fall back to a neutral name.
   const slug = titleToSlug(title).replace(/^-+$/g, "") || "notepad";
+
+  const folder =
+    pageId === undefined
+      ? normalizePath(`${exportFolder}/${slug}`)
+      : normalizePath(
+          `${exportFolder}/page-exports/${await pageExportKey(filePath, pageId)}`,
+        );
 
   const allocator = createExportNameAllocator();
   const resolveTarget = createAssetNameResolver(
@@ -213,11 +226,8 @@ export async function exportNotepadAsWebsite(
     droppedDiagrams += mapped.droppedDiagrams;
   }
 
-  // Meta and preview from the title page (order 0): the summary line for
-  // the description, its first image for og:image. Only when the title
-  // page actually took part in the export — a document this editor cannot
-  // interpret must not contribute references (its images would never be
-  // written) or description text.
+  // CONTRACT: an unsupported first page contributes no preview or image references.
+  // In single-page mode the selected page supplies all metadata.
   const titleOpenable = snapshotOpenable.get(titleDescriptor.id) === true;
   const preview =
     titleOpenable && titleDoc != null
@@ -260,16 +270,15 @@ export async function exportNotepadAsWebsite(
     title: escapeDescription(title),
     description: preview?.description ?? "",
     previewImageSrc: previewName != null ? `images/${previewName}` : null,
-    created: new Date(file.stat.ctime).toISOString(),
+    created: new Date(fileCreated).toISOString(),
     modified: new Date(
-      modifiedStamp > 0 ? modifiedStamp : file.stat.mtime,
+      modifiedStamp > 0 ? modifiedStamp : fileModified,
     ).toISOString(),
     sections,
     sectionIds,
     toc,
   });
 
-  const folder = normalizePath(`${exportFolder}/${slug}`);
   await ensureFolder(app, folder);
   await app.vault.adapter.write(`${folder}/index.html`, pageHtml);
   await app.vault.adapter.write(`${folder}/note.css`, noteCss);
@@ -294,6 +303,14 @@ export async function exportNotepadAsWebsite(
         diagram.svg,
       );
     }
+  }
+
+  if (pageId !== undefined) {
+    const ownedFiles = [
+      ...[...usedAssets].map((id) => `images/${resolveTarget(id)!}`),
+      ...diagrams.map((diagram) => `images/${diagram.name}`),
+    ];
+    await cleanPageExport(app, folder, ownedFiles);
   }
 
   if (
@@ -349,4 +366,45 @@ async function ensureFolder(app: App, path: string): Promise<void> {
       // already exists
     }
   }
+}
+
+async function pageExportKey(path: string, pageId: string): Promise<string> {
+  const digest = await window.crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(JSON.stringify([path, pageId])),
+  );
+  return [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function cleanPageExport(
+  app: App,
+  folder: string,
+  files: string[],
+): Promise<void> {
+  const adapter = app.vault.adapter;
+  const manifestPath = `${folder}/.inscriptum-export.json`;
+  if (await adapter.exists(manifestPath)) {
+    let previous: unknown;
+    try {
+      previous = JSON.parse(await adapter.read(manifestPath));
+    } catch {
+      previous = null;
+    }
+    if (Array.isArray(previous)) {
+      for (const name of previous) {
+        // CONTRACT: only generated image/diagram names in our ownership manifest may be removed.
+        if (
+          typeof name === "string" &&
+          /^images\/(?:image-\d+\.[a-zA-Z0-9]+|diagram-\d+\.svg)$/.test(name) &&
+          !files.includes(name)
+        ) {
+          const path = `${folder}/${name}`;
+          if (await adapter.exists(path)) await adapter.remove(path);
+        }
+      }
+    }
+  }
+  await adapter.write(manifestPath, JSON.stringify(files));
 }

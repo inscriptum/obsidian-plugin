@@ -319,6 +319,10 @@ export class NotepadView extends FileView {
    *  installs the actual export action (see main.ts). */
   static onExportRequested: ((view: NotepadView) => void) | null = null;
 
+  static onPageExportRequested:
+    | ((view: NotepadView, pageId: string) => void)
+    | null = null;
+
   private notepad: UmNotepad | null = null;
   private sections = new Map<string, SectionHandle>();
   /** Expansion state lives on the note descriptors in the manifest
@@ -907,18 +911,28 @@ export class NotepadView extends FileView {
       }
     }
 
+    if (Platform.isPhone && (isTitlePage || isUnsupported)) {
+      const menuBtn = createEl("button", { cls: "notepad-section-menubtn" });
+      menuBtn.setAttribute("aria-label", "Page menu");
+      setIcon(menuBtn, "more-horizontal");
+      menuBtn.addEventListener("click", () => this.openPageSheet(id));
+      margin.appendChild(menuBtn);
+    }
+
     const body = root.createDiv("notepad-section-body");
     const content = body.createDiv("notepad-section-content");
 
-    // Ghost controls inside the page frame, top-right — so they visibly
-    // belong to this page. The title page carries no controls at all
-    // (spec 9.1): it anchors the notepad, and the dashed "Add note" row at
-    // the document's end covers page creation; unopenable pages keep the
-    // add-only chip and are preserved as-is.
-    const controls = isTitlePage
-      ? null
-      : body.createDiv("notepad-section-controls");
-    if (controls != null) {
+    const controls = body.createDiv("notepad-section-controls");
+    if (!Platform.isPhone) {
+      const exportBtn = createEl("button", { cls: "notepad-section-control" });
+      exportBtn.setAttribute("aria-label", "Export page as website");
+      setIcon(exportBtn, "globe");
+      exportBtn.addEventListener("click", () =>
+        NotepadView.onPageExportRequested?.(this, id),
+      );
+      controls.appendChild(exportBtn);
+    }
+    if (!isTitlePage) {
       const addBtn = createEl("button", { cls: "notepad-section-control" });
       addBtn.setAttribute("aria-label", "Add note after");
       setIcon(addBtn, "plus");
@@ -3256,34 +3270,41 @@ export class NotepadView extends FileView {
     };
     const addDivider = () => sheet.createDiv("notepad-sheet-divider");
 
-    addRow("list", "All pages", () =>
-      this.setNavOpen(true, { animate: true }),
-    );
+    addRow("list", "All pages", () => this.setNavOpen(true, { animate: true }));
     addRow("search", "Find in document", () => this.openNotepadSearch());
     addRow("message-square", "Comments", () => this.openCommentsPanel());
     addDivider();
+    addRow("globe", "Export page as website", () =>
+      NotepadView.onPageExportRequested?.(this, id),
+    );
     addRow("plus", "Add page below", () => this.addNoteAfter(id));
-    if (notepad.isNoteOpenable(id)) {
+    if (notepad.isNoteOpenable(id) && descriptor.order !== 0) {
       addRow("copy", "Duplicate", () => this.duplicateNote(id));
       addRow("arrow-up-down", "Move…", () => this.enterMoveMode(id));
     }
-    addRow(
-      notepad.isExpanded(id) ? "chevron-down" : "chevron-up",
-      notepad.isExpanded(id) ? "Collapse page" : "Expand page",
-      () => this.toggleSection(id),
-    );
+    if (descriptor.order !== 0) {
+      addRow(
+        notepad.isExpanded(id) ? "chevron-down" : "chevron-up",
+        notepad.isExpanded(id) ? "Collapse page" : "Expand page",
+        () => this.toggleSection(id),
+      );
+    }
     if (notepad.isNoteOpenable(id) && descriptor.order !== 0) {
       addDivider();
       addRow("trash-2", "Delete", () => this.deleteNote(id), "is-danger");
     }
 
-    window.addEventListener("keydown", (this.sheetKeyDown = (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        event.stopPropagation();
-        this.closeSheet();
-      }
-    }), true);
+    window.addEventListener(
+      "keydown",
+      (this.sheetKeyDown = (event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          this.closeSheet();
+        }
+      }),
+      true,
+    );
     // The opening long-press ends ON the sheet: the browser synthesizes a
     // click at the release point, which would fire whatever sits under the
     // finger — page content or the scrim (worst case through the scrim's
