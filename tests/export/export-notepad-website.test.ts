@@ -71,24 +71,26 @@ interface TestApp {
   writes: Map<string, string | ArrayBuffer>;
 }
 
-function makeApp(): TestApp {
+function makeApp(caseInsensitive = false): TestApp {
+  const key = (path: string) => caseInsensitive ? path.normalize("NFC").toLowerCase() : path;
   const writes = new Map<string, string | ArrayBuffer>();
+  const folders = new Set<string>();
   const app = {
     vault: {
-      createFolder: vi.fn(async () => {}),
+      createFolder: vi.fn(async (path: string) => { folders.add(key(path)); }),
       getAbstractFileByPath: vi.fn(() => null),
       readBinary: vi.fn(async () => new ArrayBuffer(0)),
       adapter: {
         write: vi.fn(async (path: string, data: string) => {
-          writes.set(path, data);
+          writes.set(key(path), data);
         }),
         writeBinary: vi.fn(async (path: string, data: ArrayBuffer) => {
-          writes.set(path, data);
+          writes.set(key(path), data);
         }),
         readBinary: vi.fn(async () => new ArrayBuffer(0)),
-        exists: vi.fn(async (path: string) => writes.has(path)),
-        read: vi.fn(async (path: string) => writes.get(path) as string),
-        remove: vi.fn(async (path: string) => { writes.delete(path); }),
+        exists: vi.fn(async (path: string) => writes.has(key(path)) || folders.has(key(path))),
+        read: vi.fn(async (path: string) => writes.get(key(path)) as string),
+        remove: vi.fn(async (path: string) => { writes.delete(key(path)); }),
       },
     },
   };
@@ -620,7 +622,7 @@ describe("selected page website export", () => {
       { pageId: page.id },
     );
     const html = writes.get(`${result.folder}/index.html`) as string;
-    expect(result.folder).toMatch(/^export\/page-exports\/[a-f0-9]{64}$/);
+    expect(result.folder).toBe("export/page-exports/Fresh-unsaved-page");
     expect(html).toContain("<title>Fresh unsaved page</title>");
     expect(html).toContain('content="Fresh unsaved page"');
     expect(html).toContain(new Date(page.modifiedAt).toISOString());
@@ -670,10 +672,13 @@ describe("selected page website export", () => {
       "<title>Untitled</title>",
     );
     for (const id of [title.id, page.id]) {
-      notepad.setNoteContent(id, { type: "noteDoc", content: [paragraph("same title")] });
+      notepad.setNoteContent(id, { type: "noteDoc", content: [{ type: id === title.id ? "noteTitle" : "paragraph", content: [{ type: "text", text: "same title" }] }] });
     }
-    expect((await run(title.id)).folder).toBe(a.folder);
-    expect((await run(page.id)).folder).toBe(b.folder);
+    const renamedTitle = await run(title.id);
+    const renamedPage = await run(page.id);
+    expect(renamedTitle.folder).toBe("export/page-exports/same-title-page-1");
+    expect(renamedPage.folder).toBe("export/page-exports/same-title-page-2");
+    expect((await run(page.id)).folder).toBe(renamedPage.folder);
     expect(
       (
         await exportNotepadAsWebsite(
@@ -756,6 +761,7 @@ describe("selected page website export", () => {
     notepad.setNoteContent(page.id, {
       type: "noteDoc",
       content: [
+        paragraph("Stable title"),
         image(asset.id),
         { type: "mermaid", attrs: { code: "graph TD; A-->B" } },
       ],
@@ -777,7 +783,7 @@ describe("selected page website export", () => {
     );
     notepad.setNoteContent(page.id, {
       type: "noteDoc",
-      content: [paragraph("Now no images")],
+      content: [paragraph("Stable title"), paragraph("Now no images")],
     });
     expect((await run()).folder).toBe(first.folder);
     expect(writes.has(`${first.folder}/images/image-1.png`)).toBe(false);
@@ -835,19 +841,15 @@ describe("export resource and concurrency regressions", () => {
         await release.promise;
       }
     };
-    const digest = vi.spyOn(window.crypto.subtle, "digest");
     const first = exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
     await entered.promise;
-    notepad.setNoteContent(page.id, { type: "noteDoc", content: [paragraph("New page"), image(asset.id)] });
+    notepad.setNoteContent(page.id, { type: "noteDoc", content: [paragraph("Old page"), paragraph("New page"), image(asset.id)] });
     const second = exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
     try {
-      await vi.waitFor(() => expect(digest).toHaveBeenCalledTimes(2));
-      await Promise.all(digest.mock.results.map((result) => result.value));
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => setTimeout(resolve, 20));
       expect([...writes.keys()].filter((path) => path.includes("/images/"))).toHaveLength(0);
     } finally {
       release.resolve();
-      digest.mockRestore();
     }
     const [, result] = await Promise.all([first, second]);
     const html = writes.get(`${result.folder}/index.html`) as string;
@@ -866,7 +868,7 @@ describe("export resource and concurrency regressions", () => {
     const release = deferred();
     let paused = false;
     adapter.write = async (path, data) => {
-      if (!paused) { paused = true; entered.resolve(); await release.promise; }
+      if (!paused && path.endsWith("/index.html")) { paused = true; entered.resolve(); await release.promise; }
       await originalWrite(path, data);
     };
     const first = exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
@@ -949,5 +951,90 @@ describe("notepad exports with linked vault images", () => {
     expect(vault.getAbstractFileByPath).not.toHaveBeenCalledWith(absentId);
     expect(vault.readBinary).toHaveBeenCalledTimes(1);
     expect([...writes.keys()].filter(path => path.includes("/images/"))).toHaveLength(0);
+  });
+});
+
+describe("readable page export folders", () => {
+  const doc = (title: string): JSONContent => ({ type: "noteDoc", content: [{ type: "paragraph", content: [{ type: "text", text: title }] }] });
+
+  it("uses the same title transliteration as note exports", async () => {
+    const { notepad, page } = makeNotepad();
+    notepad.setNoteContent(page.id, doc("Моя инструкция"));
+    const { app } = makeApp();
+    const result = await exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
+    expect(result.folder).toBe("export/page-exports/Moya-instrukcziya");
+    expect((await exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id })).folder).toBe(result.folder);
+  });
+
+  it("numbers collisions after transliteration, including literal numbered titles", async () => {
+    const { notepad, page } = makeNotepad();
+    notepad.setNoteContent(page.id, doc("Plan?"));
+    const sibling = notepad.addNote(page.id, "Plan!");
+    notepad.setNoteContent(sibling.id, doc("Plan!"));
+    const literal = notepad.addNote(sibling.id, "Plan--page-3");
+    notepad.setNoteContent(literal.id, doc("Plan--page-3"));
+    const { app } = makeApp();
+    const results = await Promise.all([page, sibling, literal].map(p => exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: p.id })));
+    expect(results[0].folder).toBe("export/page-exports/Plan--page-2");
+    expect(results[1].folder).toBe("export/page-exports/Plan--page-3");
+    expect(results[2].folder).toBe("export/page-exports/Plan--page-3-2");
+    expect(new Set(results.map(r => r.folder.toLowerCase())).size).toBe(3);
+  });
+
+  it("does not overwrite unrelated folders and preserves ownership across containers", async () => {
+    const { notepad, page } = makeNotepad();
+    notepad.setNoteContent(page.id, doc("Plan"));
+    const { app, writes } = makeApp();
+    await (app as { vault: { createFolder: (path: string) => Promise<void> } }).vault.createFolder("export/page-exports/Plan");
+    writes.set("export/page-exports/Plan/index.html", "user content");
+    const run = (path: string) => exportNotepadAsWebsite(app as never, makeFile(path), notepad, "export", { pageId: page.id });
+    const results = await Promise.all([run("A/Notebook.um"), run("B/Notebook.um")]);
+    expect(results.map(r => r.folder)).toEqual(["export/page-exports/Plan-Notebook", "export/page-exports/Plan-Notebook-2"]);
+    expect((await run("B/Notebook.um")).folder).toBe(results[1].folder);
+    expect(writes.get("export/page-exports/Plan/index.html")).toBe("user content");
+  });
+
+  it("creates readable new names on rename without changing another page's export", async () => {
+    const { notepad, page } = makeNotepad();
+    notepad.setNoteContent(page.id, doc("Before"));
+    const { app, writes } = makeApp();
+    const before = await exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
+    const original = writes.get(`${before.folder}/index.html`);
+    notepad.setNoteContent(page.id, doc("After"));
+    const after = await exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
+    expect(after.folder).toBe("export/page-exports/After");
+    expect(writes.get(`${before.folder}/index.html`)).toBe(original);
+  });
+});
+
+describe("case-insensitive export destinations", () => {
+  it("serializes a case-only page rename that resolves to the same physical folder", async () => {
+    const { notepad, page } = makeNotepad();
+    const paragraph = (text: string): JSONContent => ({ type: "paragraph", content: [{ type: "text", text }] });
+    notepad.setNoteContent(page.id, { type: "noteDoc", content: [paragraph("Plan")] });
+    const { app, writes } = makeApp(true);
+    const adapter = (app as { vault: { adapter: { write: (path: string, data: string) => Promise<void> } } }).vault.adapter;
+    let enter!: () => void, release!: () => void;
+    const entered = new Promise<void>(resolve => { enter = resolve; });
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const original = adapter.write;
+    let paused = false;
+    adapter.write = async (path, data) => {
+      await original(path, data);
+      if (!paused && path.endsWith("/note.css")) { paused = true; enter(); await gate; }
+    };
+    const first = exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
+    await entered;
+    const asset = notepad.addAsset(TEXT_ENCODER.encode("picture"), "image.png", "image/png");
+    notepad.setNoteContent(page.id, { type: "noteDoc", content: [paragraph("plan"), { type: "image", attrs: { data: { id: asset.id } } }] });
+    const second = exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
+    try {
+      await new Promise(resolve => setTimeout(resolve, 20));
+      expect([...writes.keys()].filter(path => path.includes("/images/"))).toHaveLength(0);
+    } finally { release(); }
+    const [, result] = await Promise.all([first, second]);
+    expect(result.folder.toLowerCase()).toBe("export/page-exports/plan");
+    expect(writes.has("export/page-exports/plan/images/image-1.png")).toBe(true);
+    expect(writes.get("export/page-exports/plan/index.html")).toContain('src="images/image-1.png"');
   });
 });

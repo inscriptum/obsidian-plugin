@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Page website exports now use readable folder names from their titles, with suffixes only when names collide.
+
 - Notepad website exports now include images linked from the vault as well as pictures packed inside the notepad.
 
 - Repeated page exports keep their pictures when started together, and exporting a small page uses less memory in large notepads.
