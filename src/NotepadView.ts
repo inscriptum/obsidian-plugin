@@ -65,6 +65,7 @@ import { logDiagEvent } from "./storage/noteStorage";
 import type { ImageToolContext } from "./tools/image";
 import { collectGalleryItems } from "./ui/imageLightbox";
 import { createKeyboardTracking } from "./tools/keyboardTracking";
+import { createNavbarClearanceTracking } from "./tools/navbarClearance";
 import {
   commentAuthor,
 } from "./notepad/commentAuthor";
@@ -425,6 +426,9 @@ export class NotepadView extends FileView {
   // ── Mobile chrome (keyboard tracking, toolbar scroll shadows) ──
   private keyboardTracking: ReturnType<typeof createKeyboardTracking> | null =
     null;
+  private navbarClearance: ReturnType<
+    typeof createNavbarClearanceTracking
+  > | null = null;
   private scrollShadowCleanup: (() => void) | null = null;
 
   private dirty = false;
@@ -644,6 +648,13 @@ export class NotepadView extends FileView {
     if (Platform.isMobile) {
       // The soft keyboard drives the bottom toolbar's visibility (phones).
       this.keyboardTracking = createKeyboardTracking(this.contentEl);
+      if (Platform.isPhone) {
+        // Obsidian's floating navbar overlays the toolbar while raised; keep
+        // the reserved clearance equal to its real box (navbarClearance.ts).
+        // Phone-only: the navbar and the dock clearance consumer are phone UI.
+        this.navbarClearance?.dispose();
+        this.navbarClearance = createNavbarClearanceTracking(this.contentEl);
+      }
       // Fade edges of the horizontally scrolling toolbar / selection bars.
       this.scrollShadowCleanup = setupScrollShadows(this.contentEl);
     }
@@ -758,6 +769,8 @@ export class NotepadView extends FileView {
     this.navResize = null;
     this.keyboardTracking?.dispose();
     this.keyboardTracking = null;
+    this.navbarClearance?.dispose();
+    this.navbarClearance = null;
     this.scrollShadowCleanup?.();
     this.scrollShadowCleanup = null;
     this.closeSheet();

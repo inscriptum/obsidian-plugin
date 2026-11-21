@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Page website exports now handle Windows-reserved titles and keep private source paths out of ownership files, including when re-exporting older folders.
 - Page website exports now use readable folder names from their titles, with suffixes only when names collide.
 - The picture menu again sits right next to the selected picture in themes that add their own margins around images (like Notation 2).
+- On phones the editor toolbar now clears Obsidian's floating bottom navigation by its real size, so it no longer hides under the navigation on Android devices with a system bar and no longer leaves a dead gap above it on iPhone.
 - Notepad website exports now include images linked from the vault as well as pictures packed inside the notepad.
 - Repeated page exports keep their pictures when started together, and exporting a small page uses less memory in large notepads.
 

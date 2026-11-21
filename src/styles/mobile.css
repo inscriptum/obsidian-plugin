@@ -142,12 +142,23 @@
 }
 
 /* Obsidian's floating phone navigation pill overlays the view while raised.
-   Reserve its height and margins only while it is present and the keyboard is
-   hidden; the editor's flex area shrinks along with the toolbar host. */
+   Reserve only while it is present and the keyboard is hidden; the editor's
+   flex area shrinks along with the toolbar host. The exact clearance is
+   measured from the raised navbar's real box by navbarClearance.ts (its
+   offset from the window bottom varies with the Android system bar and the
+   iOS inset — one fixed value over- or under-reserves on one platform or
+   the other); the legacy constant is the fallback until JS has measured. */
 body:has(.mobile-navbar.mod-raised) .note-view-container.is-mobile.is-phone:not(.is-keyboard-open) .note-toolbar-host,
 body:has(.mobile-navbar.mod-raised) .notepad-view-container.is-mobile.is-phone:not(.is-keyboard-open) .notepad-toolbar-host {
-  --dock-navbar-clearance: 80px;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--dock-navbar-clearance));
+  padding-bottom: var(--dock-navbar-clearance, calc(env(safe-area-inset-bottom, 0px) + 80px));
+}
+
+/* Measurement probe for navbarClearance.ts: env() is only readable through
+   computed styles, so the probe carries the declaration in CSS. */
+.inscriptum-safe-area-probe {
+  position: absolute;
+  visibility: hidden;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* While the keyboard is open, Obsidian resizes the webview down to the
