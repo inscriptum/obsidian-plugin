@@ -4,7 +4,10 @@ import type { JSONContent } from "../texto/core/@types";
 import { generateHTML } from "../texto/core/helpers/generateHTML";
 import { extractNoteTitle } from "../storage/fileNaming";
 import type { UmNotepad } from "../storage/um/umNotepad";
-import { readAssetDescriptors } from "../storage/um/umContainer";
+import {
+  collectReferencedAssetIds,
+  readAssetDescriptors,
+} from "../storage/um/umContainer";
 import { renderMermaid } from "../texto/extensions/mermaid/mermaidApi";
 import { getExportExtensions } from "./extensions";
 import {
@@ -139,15 +142,25 @@ export async function exportNotepadAsWebsite(
       notepad.isNoteOpenable(descriptor.id),
     ]),
   );
+  const assetDescriptors = readAssetDescriptors(notepad.data.manifest);
+  const availableIds = new Set(assetDescriptors.map((asset) => asset.id));
+  const referencedIds = new Set<string>();
+  for (const page of snapshotPages) {
+    const doc = snapshotDocs.get(page.id);
+    if (snapshotOpenable.get(page.id) === true && doc != null) {
+      collectReferencedAssetIds(doc, availableIds, referencedIds);
+    }
+  }
   const snapshotAssetMeta = new Map(
-    readAssetDescriptors(notepad.data.manifest).map((asset) => [
-      asset.id,
-      { ...asset },
-    ]),
+    assetDescriptors
+      .filter((asset) => referencedIds.has(asset.id))
+      .map((asset) => [asset.id, { ...asset }]),
   );
-  const snapshotAssetBytes = new Map(
-    [...notepad.data.assets].map(([id, bytes]) => [id, bytes.slice()]),
-  );
+  const snapshotAssetBytes = new Map<string, Uint8Array>();
+  for (const id of referencedIds) {
+    const bytes = notepad.data.assets.get(id);
+    if (bytes != null) snapshotAssetBytes.set(id, bytes.slice());
+  }
 
   // The manifest title mirrors the title page's own title node (spec 8.4)
   // and is the only title source for a page this editor cannot parse.
@@ -279,39 +292,41 @@ export async function exportNotepadAsWebsite(
     toc,
   });
 
-  await ensureFolder(app, folder);
-  await app.vault.adapter.write(`${folder}/index.html`, pageHtml);
-  await app.vault.adapter.write(`${folder}/note.css`, noteCss);
+  await withExportFolderLock(app.vault.adapter, folder, async () => {
+    await ensureFolder(app, folder);
+    await app.vault.adapter.write(`${folder}/index.html`, pageHtml);
+    await app.vault.adapter.write(`${folder}/note.css`, noteCss);
 
-  if (usedAssets.size > 0 || diagrams.length > 0) {
-    const imagesFolder = `${folder}/images`;
-    await ensureFolder(app, imagesFolder);
-    for (const assetId of usedAssets) {
-      const name = resolveTarget(assetId);
-      const bytes = snapshotAssetBytes.get(assetId);
-      if (name == null || bytes == null) continue;
-      // Uint8Array.prototype.buffer may be larger than the view — copy
-      // exactly (same policy as umVault's writes).
-      await app.vault.adapter.writeBinary(
-        `${imagesFolder}/${name}`,
-        bytes.slice().buffer,
-      );
+    if (usedAssets.size > 0 || diagrams.length > 0) {
+      const imagesFolder = `${folder}/images`;
+      await ensureFolder(app, imagesFolder);
+      for (const assetId of usedAssets) {
+        const name = resolveTarget(assetId);
+        const bytes = snapshotAssetBytes.get(assetId);
+        if (name == null || bytes == null) continue;
+        // Uint8Array.prototype.buffer may be larger than the view — copy
+        // exactly (same policy as umVault's writes).
+        await app.vault.adapter.writeBinary(
+          `${imagesFolder}/${name}`,
+          bytes.slice().buffer,
+        );
+      }
+      for (const diagram of diagrams) {
+        await app.vault.adapter.write(
+          `${imagesFolder}/${diagram.name}`,
+          diagram.svg,
+        );
+      }
     }
-    for (const diagram of diagrams) {
-      await app.vault.adapter.write(
-        `${imagesFolder}/${diagram.name}`,
-        diagram.svg,
-      );
-    }
-  }
 
-  if (pageId !== undefined) {
-    const ownedFiles = [
-      ...[...usedAssets].map((id) => `images/${resolveTarget(id)!}`),
-      ...diagrams.map((diagram) => `images/${diagram.name}`),
-    ];
-    await cleanPageExport(app, folder, ownedFiles);
-  }
+    if (pageId !== undefined) {
+      const ownedFiles = [
+        ...[...usedAssets].map((id) => `images/${resolveTarget(id)!}`),
+        ...diagrams.map((diagram) => `images/${diagram.name}`),
+      ];
+      await cleanPageExport(app, folder, ownedFiles);
+    }
+  });
 
   if (
     missing.size > 0 ||
@@ -407,4 +422,31 @@ async function cleanPageExport(
     }
   }
   await adapter.write(manifestPath, JSON.stringify(files));
+}
+
+const exportFolderQueues = new WeakMap<object, Map<string, Promise<void>>>();
+
+async function withExportFolderLock(
+  adapter: App["vault"]["adapter"],
+  folder: string,
+  write: () => Promise<void>,
+): Promise<void> {
+  let queues = exportFolderQueues.get(adapter);
+  if (queues == null) {
+    queues = new Map();
+    exportFolderQueues.set(adapter, queues);
+  }
+  const previous = queues.get(folder) ?? Promise.resolve();
+  const current = previous.then(write);
+  // TRAP: failures must reach the caller without poisoning later exports.
+  const tail = current.then(
+    () => {},
+    () => {},
+  );
+  queues.set(folder, tail);
+  try {
+    await current;
+  } finally {
+    if (queues.get(folder) === tail) queues.delete(folder);
+  }
 }

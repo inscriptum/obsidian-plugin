@@ -784,3 +784,107 @@ describe("selected page website export", () => {
     expect(writes.get("export/outside.png")).toBe("keep");
   });
 });
+
+describe("export resource and concurrency regressions", () => {
+  function deferred() {
+    let resolve!: () => void;
+    const promise = new Promise<void>((done) => { resolve = done; });
+    return { promise, resolve };
+  }
+  const paragraph = (text: string): JSONContent => ({
+    type: "paragraph", content: [{ type: "text", text }],
+  });
+  const image = (id: string): JSONContent => ({
+    type: "image", attrs: { data: { id } },
+  });
+
+  it("does not copy unrelated bytes for a text-only page, and deduplicates shared images", async () => {
+    const { notepad, title, page } = makeNotepad();
+    const unrelated = notepad.addAsset(TEXT_ENCODER.encode("private"), "private.png", "image/png");
+    const shared = notepad.addAsset(TEXT_ENCODER.encode("shared"), "shared.png", "image/png");
+    notepad.setNoteContent(title.id, { type: "noteDoc", content: [image(unrelated.id), image(shared.id)] });
+    const unrelatedSlice = vi.spyOn(notepad.data.assets.get(unrelated.id)!, "slice");
+    const sharedSlice = vi.spyOn(notepad.data.assets.get(shared.id)!, "slice");
+    const { app } = makeApp();
+    await exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
+    expect(unrelatedSlice).not.toHaveBeenCalled();
+    expect(sharedSlice).not.toHaveBeenCalled();
+    notepad.setNoteContent(page.id, { type: "noteDoc", content: [image(shared.id), image(shared.id)] });
+    await exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
+    expect(unrelatedSlice).not.toHaveBeenCalled();
+    expect(sharedSlice).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps concurrent exports consistent through ownership cleanup", async () => {
+    const { notepad, page } = makeNotepad();
+    const asset = notepad.addAsset(TEXT_ENCODER.encode("new picture"), "new.png", "image/png");
+    notepad.setNoteContent(page.id, { type: "noteDoc", content: [paragraph("Old page")] });
+    const { app, writes } = makeApp();
+    const adapter = (app as { vault: { adapter: { write: (path: string, data: string) => Promise<void> } } }).vault.adapter;
+    const originalWrite = adapter.write;
+    const entered = deferred();
+    const release = deferred();
+    let paused = false;
+    adapter.write = async (path, data) => {
+      await originalWrite(path, data);
+      if (!paused && path.endsWith("/note.css")) {
+        paused = true;
+        entered.resolve();
+        await release.promise;
+      }
+    };
+    const digest = vi.spyOn(window.crypto.subtle, "digest");
+    const first = exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
+    await entered.promise;
+    notepad.setNoteContent(page.id, { type: "noteDoc", content: [paragraph("New page"), image(asset.id)] });
+    const second = exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
+    try {
+      await vi.waitFor(() => expect(digest).toHaveBeenCalledTimes(2));
+      await Promise.all(digest.mock.results.map((result) => result.value));
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect([...writes.keys()].filter((path) => path.includes("/images/"))).toHaveLength(0);
+    } finally {
+      release.resolve();
+      digest.mockRestore();
+    }
+    const [, result] = await Promise.all([first, second]);
+    const html = writes.get(`${result.folder}/index.html`) as string;
+    expect(html).toContain("New page");
+    expect(html).toContain('src="images/image-1.png"');
+    expect(writes.has(`${result.folder}/images/image-1.png`)).toBe(true);
+    expect(JSON.parse(writes.get(`${result.folder}/.inscriptum-export.json`) as string)).toEqual(["images/image-1.png"]);
+  });
+
+  it("lets another destination finish while one export is blocked", async () => {
+    const { notepad, title, page } = makeNotepad();
+    const { app } = makeApp();
+    const adapter = (app as { vault: { adapter: { write: (path: string, data: string) => Promise<void> } } }).vault.adapter;
+    const originalWrite = adapter.write;
+    const entered = deferred();
+    const release = deferred();
+    let paused = false;
+    adapter.write = async (path, data) => {
+      if (!paused) { paused = true; entered.resolve(); await release.promise; }
+      await originalWrite(path, data);
+    };
+    const first = exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
+    await entered.promise;
+    try {
+      const other = await exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: title.id });
+      expect(other.folder).toContain("/page-exports/");
+    } finally {
+      release.resolve();
+      await first;
+    }
+  });
+
+  it("does not poison the queue after a failed export", async () => {
+    const { notepad, page } = makeNotepad();
+    const { app, writes } = makeApp();
+    const adapter = (app as { vault: { adapter: { write: ReturnType<typeof vi.fn> } } }).vault.adapter;
+    adapter.write.mockRejectedValueOnce(new Error("disk full"));
+    await expect(exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id })).rejects.toThrow("disk full");
+    const result = await exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
+    expect(writes.has(`${result.folder}/index.html`)).toBe(true);
+  });
+});

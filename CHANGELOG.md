@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Export any notepad page as a standalone website from its page menu, with only that page’s content and images. The desktop page menu also holds Delete to keep the toolbar compact.
 
+### Fixed
+
+- Repeated page exports keep their pictures when started together, and exporting a small page uses less memory in large notepads.
+
 ## [0.16.0] - 2026-11-19
 
 ### Changed
