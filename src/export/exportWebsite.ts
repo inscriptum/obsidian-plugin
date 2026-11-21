@@ -81,6 +81,14 @@ const IMAGE_EXTENSIONS = new Set([
   "avif",
 ]);
 
+export function getExportImageFile(app: App, vaultPath: string): TFile | null {
+  const file = app.vault.getAbstractFileByPath(vaultPath);
+  return file instanceof TFile &&
+    IMAGE_EXTENSIONS.has(file.extension.toLowerCase())
+    ? file
+    : null;
+}
+
 /**
  * Assigns export file names to vault images: same source → same file,
  * different sources never collide (`name-2.png`). `resolveTarget` returns
@@ -97,13 +105,8 @@ export function createImageNameResolver(
   const nameByPath = new Map<string, string>();
 
   return (vaultPath: string): string | null => {
-    const file = app.vault.getAbstractFileByPath(vaultPath);
-    if (
-      !(file instanceof TFile) ||
-      !IMAGE_EXTENSIONS.has(file.extension.toLowerCase())
-    ) {
-      return null;
-    }
+    const file = getExportImageFile(app, vaultPath);
+    if (file == null) return null;
 
     const assigned = nameByPath.get(vaultPath);
     if (assigned != null) return assigned;
