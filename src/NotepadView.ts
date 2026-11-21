@@ -923,15 +923,6 @@ export class NotepadView extends FileView {
     const content = body.createDiv("notepad-section-content");
 
     const controls = body.createDiv("notepad-section-controls");
-    if (!Platform.isPhone) {
-      const exportBtn = createEl("button", { cls: "notepad-section-control" });
-      exportBtn.setAttribute("aria-label", "Export page as website");
-      setIcon(exportBtn, "globe");
-      exportBtn.addEventListener("click", () =>
-        NotepadView.onPageExportRequested?.(this, id),
-      );
-      controls.appendChild(exportBtn);
-    }
     if (!isTitlePage) {
       const addBtn = createEl("button", { cls: "notepad-section-control" });
       addBtn.setAttribute("aria-label", "Add note after");
@@ -944,14 +935,19 @@ export class NotepadView extends FileView {
         setIcon(copyBtn, "copy");
         copyBtn.addEventListener("click", () => this.duplicateNote(id));
         controls.appendChild(copyBtn);
-        const delBtn = createEl("button", {
-          cls: "notepad-section-control is-danger",
-        });
-        delBtn.setAttribute("aria-label", "Delete note");
-        setIcon(delBtn, "trash-2");
-        delBtn.addEventListener("click", () => this.deleteNote(id));
-        controls.appendChild(delBtn);
       }
+    }
+
+    if (!Platform.isPhone) {
+      const menuBtn = createEl("button", { cls: "notepad-section-control" });
+      menuBtn.setAttribute("aria-label", "Page menu");
+      menuBtn.setAttribute("aria-haspopup", "menu");
+      setIcon(menuBtn, "more-horizontal");
+      menuBtn.addEventListener("click", (event) => {
+        event.stopPropagation();
+        this.openPageMenu(id, menuBtn);
+      });
+      controls.appendChild(menuBtn);
     }
 
     const handle: SectionHandle = {
@@ -3208,6 +3204,27 @@ export class NotepadView extends FileView {
   }
 
   // ── Phone: page sheet (⋯ menu, design S3), move mode (S6) ──
+
+  private openPageMenu(id: string, anchor: HTMLElement): void {
+    const notepad = this.notepad;
+    const descriptor = notepad?.note(id);
+    if (!notepad || !descriptor) return;
+    const menu = new Menu().setUseNativeMenu(false);
+    menu.addItem((item) => item
+      .setTitle("Export page as website")
+      .setIcon("globe")
+      .onClick(() => NotepadView.onPageExportRequested?.(this, id)));
+    if (descriptor.order !== 0 && notepad.isNoteOpenable(id)) {
+      menu.addSeparator();
+      menu.addItem((item) => item
+        .setTitle("Delete page")
+        .setIcon("trash-2")
+        .setWarning(true)
+        .onClick(() => this.deleteNote(id)));
+    }
+    const rect = anchor.getBoundingClientRect();
+    menu.showAtPosition({ x: rect.right, y: rect.bottom });
+  }
 
   /** The bottom sheet for one page: navigation on top ("All pages", "Find
    *  in document"), then the page actions, delete last (red). Entered from

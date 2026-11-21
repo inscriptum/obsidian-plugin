@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Export any notepad page as a standalone website from its page actions, with only that page’s content and images.
+- Export any notepad page as a standalone website from its page menu, with only that page’s content and images. The desktop page menu also holds Delete to keep the toolbar compact.
 
 ## [0.16.0] - 2026-11-19
 
