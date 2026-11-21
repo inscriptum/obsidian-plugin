@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Notepad website exports now include images linked from the vault as well as pictures packed inside the notepad.
+
 - Repeated page exports keep their pictures when started together, and exporting a small page uses less memory in large notepads.
 
 ## [0.16.0] - 2026-11-19

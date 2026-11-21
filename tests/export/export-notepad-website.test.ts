@@ -76,6 +76,8 @@ function makeApp(): TestApp {
   const app = {
     vault: {
       createFolder: vi.fn(async () => {}),
+      getAbstractFileByPath: vi.fn(() => null),
+      readBinary: vi.fn(async () => new ArrayBuffer(0)),
       adapter: {
         write: vi.fn(async (path: string, data: string) => {
           writes.set(path, data);
@@ -240,7 +242,7 @@ describe("exportNotepadAsWebsite", () => {
 
     expect(result.missingImages).toEqual(["attachments/outer.png"]);
     expect(result.removedAttachments).toBe(1);
-    expect(Notice.messages.some((m) => m.includes("1 image missing"))).toBe(
+    expect(Notice.messages.some((m) => m.includes("1 image unavailable"))).toBe(
       true,
     );
     expect(
@@ -886,5 +888,66 @@ describe("export resource and concurrency regressions", () => {
     await expect(exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id })).rejects.toThrow("disk full");
     const result = await exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
     expect(writes.has(`${result.folder}/index.html`)).toBe(true);
+  });
+});
+
+describe("notepad exports with linked vault images", () => {
+  const image = (id: string): JSONContent => ({ type: "image", attrs: { data: { id } } });
+
+  it("includes all seven packed and six linked images of the selected page", async () => {
+    const { notepad, page } = makeNotepad();
+    const packed = Array.from({ length: 7 }, (_, i) => notepad.addAsset(TEXT_ENCODER.encode(`packed-${i}`), `${i}.png`, "image/png"));
+    const linked = Array.from({ length: 6 }, (_, i) => new TFile(`article/image-${i}.png`));
+    notepad.setNoteContent(page.id, { type: "noteDoc", content: [...packed.map(a => image(a.id)), ...linked.map(f => image(f.path))] });
+    const { app, writes } = makeApp();
+    const vault = (app as { vault: { getAbstractFileByPath: ReturnType<typeof vi.fn>; readBinary: ReturnType<typeof vi.fn> } }).vault;
+    vault.getAbstractFileByPath.mockImplementation((path: string) => linked.find(file => file.path === path) ?? null);
+    vault.readBinary.mockImplementation(async (file: TFile) => TEXT_ENCODER.encode(file.path).buffer);
+    const result = await exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
+    expect(result.missingImages).toEqual([]);
+    const html = writes.get(`${result.folder}/index.html`) as string;
+    expect(html.match(/<img /g)).toHaveLength(13);
+    expect([...writes.keys()].filter(path => path.includes("/images/"))).toHaveLength(13);
+    expect(vault.readBinary).toHaveBeenCalledTimes(6);
+    expect(new TextDecoder().decode(writes.get(`${result.folder}/images/image-8.png`) as ArrayBuffer)).toBe(linked[0].path);
+  });
+
+  it("deduplicates linked images and snapshots them before diagrams", async () => {
+    const { notepad, title, page } = makeNotepad();
+    const linked = new TFile("article/image.png");
+    const privateFile = new TFile("article/private.png");
+    notepad.setNoteContent(title.id, { type: "noteDoc", content: [image(privateFile.path)] });
+    notepad.setNoteContent(page.id, { type: "noteDoc", content: [image(linked.path), image(linked.path), { type: "mermaid", attrs: { code: "graph TD; A-->B" } }] });
+    const { app, writes } = makeApp();
+    const vault = (app as { vault: { getAbstractFileByPath: ReturnType<typeof vi.fn>; readBinary: ReturnType<typeof vi.fn> } }).vault;
+    const source = TEXT_ENCODER.encode("snapshot");
+    vault.getAbstractFileByPath.mockImplementation((path: string) => path === linked.path ? linked : privateFile);
+    vault.readBinary.mockResolvedValue(source.buffer);
+    const result = await exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id, renderDiagram: async () => {
+      source.fill(0);
+      linked.path = "renamed.png";
+      notepad.removeNote(page.id);
+      return SVG;
+    } });
+    expect(vault.readBinary).toHaveBeenCalledTimes(1);
+    expect(new TextDecoder().decode(writes.get(`${result.folder}/images/image-1.png`) as ArrayBuffer)).toBe("snapshot");
+    expect([...writes.keys()].some(path => path.includes("private"))).toBe(false);
+  });
+
+  it("rejects non-images, missing packed IDs and failed vault reads without copying other files", async () => {
+    const { notepad, page } = makeNotepad();
+    const note = new TFile("secret.note");
+    const unreadable = new TFile("unreadable.png");
+    const absentId = "01M7JNNM19C4D6ZB5MNQ9Z3RCA";
+    notepad.setNoteContent(page.id, { type: "noteDoc", content: [image(note.path), image(unreadable.path), image("missing.png"), image(absentId)] });
+    const { app, writes } = makeApp();
+    const vault = (app as { vault: { getAbstractFileByPath: ReturnType<typeof vi.fn>; readBinary: ReturnType<typeof vi.fn> } }).vault;
+    vault.getAbstractFileByPath.mockImplementation((path: string) => path === note.path ? note : path === unreadable.path ? unreadable : null);
+    vault.readBinary.mockRejectedValue(new Error("unavailable"));
+    const result = await exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
+    expect(result.missingImages).toEqual([note.path, unreadable.path, "missing.png", absentId]);
+    expect(vault.getAbstractFileByPath).not.toHaveBeenCalledWith(absentId);
+    expect(vault.readBinary).toHaveBeenCalledTimes(1);
+    expect([...writes.keys()].filter(path => path.includes("/images/"))).toHaveLength(0);
   });
 });

@@ -4,10 +4,7 @@ import type { JSONContent } from "../texto/core/@types";
 import { generateHTML } from "../texto/core/helpers/generateHTML";
 import { extractNoteTitle } from "../storage/fileNaming";
 import type { UmNotepad } from "../storage/um/umNotepad";
-import {
-  collectReferencedAssetIds,
-  readAssetDescriptors,
-} from "../storage/um/umContainer";
+import { readAssetDescriptors } from "../storage/um/umContainer";
 import { renderMermaid } from "../texto/extensions/mermaid/mermaidApi";
 import { getExportExtensions } from "./extensions";
 import {
@@ -18,20 +15,12 @@ import {
 import { extractPreview, escapeDescription } from "./preview";
 import { titleToSlug } from "./slug";
 import { buildPageHtml, type ExportTocEntry } from "./template";
-import { createExportNameAllocator } from "./exportWebsite";
+import { createExportNameAllocator, getExportImageFile } from "./exportWebsite";
+import { isUmId } from "../storage/um/umIds";
 import noteCss from "./assets/note.css?raw";
 
-/**
- * Assigns export file names to container assets: same asset → same file,
- * different assets never collide (`image-<n>.<ext>`). Names are derived
- * from the asset registry order of first use — packed assets carry no
- * original file names, only an id and an extension — and claimed in the
- * shared allocator, so a diagram file can never take an image's name.
- * Returns null for anything that is not a readable container asset (an
- * external vault link, an id absent from the manifest, or an archive
- * missing the binary) so those figures get dropped like missing images
- * in the .note export.
- */
+// CONTRACT: packed and vault image snapshots share collision-free image-N names;
+// unresolved references produce no exported figure.
 export function createAssetNameResolver(
   assetMeta: ReadonlyMap<string, { path: string }>,
   assetBytes: ReadonlyMap<string, Uint8Array>,
@@ -69,8 +58,7 @@ export interface ExportNotepadWebsiteOptions {
 export interface ExportNotepadWebsiteResult {
   /** Vault path of the created export folder. */
   folder: string;
-  /** Asset ids referenced by image nodes but not resolvable in the
-   *  container — their figures were dropped from the page. */
+  /** Image references unavailable in the container or vault. */
   missingImages: string[];
   /** Count of attachment blocks dropped from the page. */
   removedAttachments: number;
@@ -125,10 +113,8 @@ export async function exportNotepadAsWebsite(
   }
   const titleDoc = notepad.noteContent(titleDescriptor.id);
 
-  // The model is live: a page deleted while a diagram is rendering (or any
-  // other edit + save in between awaits) GCs assets the export still
-  // references. Snapshot everything the export reads before the first
-  // await — pages, docs, openability, asset descriptors and bytes.
+  // TRAP: snapshot model data and packed bytes before waiting; vault reads below
+  // must finish before rendering can edit/delete pages or collect their assets.
   const snapshotPages = pages.map((descriptor) => ({ ...descriptor }));
   const snapshotDocs = new Map<string, JSONContent | undefined>(
     pages.map((descriptor) => [
@@ -148,18 +134,34 @@ export async function exportNotepadAsWebsite(
   for (const page of snapshotPages) {
     const doc = snapshotDocs.get(page.id);
     if (snapshotOpenable.get(page.id) === true && doc != null) {
-      collectReferencedAssetIds(doc, availableIds, referencedIds);
+      collectImageReferences(doc, referencedIds);
     }
   }
-  const snapshotAssetMeta = new Map(
+  const snapshotAssetMeta = new Map<string, { path: string }>(
     assetDescriptors
       .filter((asset) => referencedIds.has(asset.id))
       .map((asset) => [asset.id, { ...asset }]),
   );
   const snapshotAssetBytes = new Map<string, Uint8Array>();
+  const vaultImages: Array<{
+    id: string;
+    path: string;
+    read: Promise<ArrayBuffer | null>;
+  }> = [];
   for (const id of referencedIds) {
-    const bytes = notepad.data.assets.get(id);
-    if (bytes != null) snapshotAssetBytes.set(id, bytes.slice());
+    if (availableIds.has(id)) {
+      const bytes = notepad.data.assets.get(id);
+      if (bytes != null) snapshotAssetBytes.set(id, bytes.slice());
+    } else if (!isUmId(id)) {
+      const image = getExportImageFile(app, id);
+      if (image != null) {
+        vaultImages.push({
+          id,
+          path: image.path,
+          read: app.vault.readBinary(image).catch(() => null),
+        });
+      }
+    }
   }
 
   // The manifest title mirrors the title page's own title node (spec 8.4)
@@ -173,6 +175,16 @@ export async function exportNotepadAsWebsite(
   // A title outside the Latin/Cyrillic maps (e.g. CJK) slugs down to
   // dashes only — fall back to a neutral name.
   const slug = titleToSlug(title).replace(/^-+$/g, "") || "notepad";
+
+  // TRAP: initiate all vault reads before waiting; rendering must only use the captured bytes.
+  await Promise.all(
+    vaultImages.map(async (image) => {
+      const bytes = await image.read;
+      if (bytes == null) return;
+      snapshotAssetMeta.set(image.id, { path: image.path });
+      snapshotAssetBytes.set(image.id, new Uint8Array(bytes).slice());
+    }),
+  );
 
   const folder =
     pageId === undefined
@@ -337,7 +349,7 @@ export async function exportNotepadAsWebsite(
     const parts: string[] = [];
     if (missing.size > 0) {
       parts.push(
-        `${missing.size} image${missing.size > 1 ? "s" : ""} missing from the notepad`,
+        `${missing.size} image${missing.size > 1 ? "s" : ""} unavailable in the notepad or vault`,
       );
     }
     if (removedAttachments > 0) {
@@ -449,4 +461,10 @@ async function withExportFolderLock(
   } finally {
     if (queues.get(folder) === tail) queues.delete(folder);
   }
+}
+
+function collectImageReferences(doc: JSONContent, into: Set<string>): void {
+  const id = (doc.attrs?.data as { id?: unknown } | undefined)?.id;
+  if (doc.type === "image" && typeof id === "string") into.add(id);
+  for (const child of doc.content ?? []) collectImageReferences(child, into);
 }
