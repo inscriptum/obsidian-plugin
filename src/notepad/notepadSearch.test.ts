@@ -80,3 +80,84 @@ describe("notepadSearch index", () => {
     expect(match.snippet).toContain("second alpha line");
   });
 });
+
+/** Docs exercising the size accounting: empty containers and leaf nodes
+ *  before text — every one of them used to shift computed positions. */
+const emptyContainersDoc: JSONContent = {
+  type: "noteDoc",
+  content: [
+    { type: "noteTitle", content: [{ type: "text", text: "Drift fixture" }] },
+    { type: "paragraph" },
+    { type: "paragraph", content: [] },
+    { type: "bulletList", content: [{ type: "listItem", content: [] }] },
+    {
+      type: "taskList",
+      content: [{ type: "taskItem", attrs: { checked: false }, content: [] }],
+    },
+    { type: "paragraph", content: [] },
+    {
+      type: "paragraph",
+      content: [{ type: "text", text: "target needle text" }],
+    },
+  ],
+};
+
+const leavesDoc: JSONContent = {
+  type: "noteDoc",
+  content: [
+    { type: "noteTitle", content: [{ type: "text", text: "Leaves" }] },
+    { type: "paragraph", content: [{ type: "text", text: "before" }] },
+    { type: "image", attrs: { data: { id: "01IMG" } } },
+    { type: "horizontalRule" },
+    {
+      type: "mermaid",
+      attrs: { code: "graph TD", align: "center" },
+    },
+    {
+      type: "paragraph",
+      content: [
+        { type: "text", text: "word " },
+        { type: "hardBreak" },
+        { type: "text", text: "needle after break" },
+      ],
+    },
+  ],
+};
+
+function expectIndexMatchesDoc(content: JSONContent, query: string): void {
+  const editor = editorFor(content);
+  const index = buildNoteTextIndex(editor.getJSON());
+  // The doc must actually contain the query (guard against a fixture that
+  // the schema coerced away).
+  expect(index.text.toLowerCase()).toContain(query.toLowerCase());
+  const pmMatches = findDocumentMatches(editor.state.doc, query);
+  const idxMatches = findMatchesInIndex(index, query);
+  expect(idxMatches.map((m) => ({ from: m.from, to: m.to }))).toEqual(
+    pmMatches.map((m) => ({ from: m.from, to: m.to })),
+  );
+  // Every match resolves to the query text in the real document.
+  for (const match of idxMatches) {
+    expect(
+      editor.state.doc.textBetween(match.from, match.to, "\n", ""),
+    ).toBe(query);
+  }
+  editor.destroy();
+}
+
+describe("notepadSearch node sizes", () => {
+  it("empty containers before text do not drift the positions", () => {
+    expectIndexMatchesDoc(emptyContainersDoc, "needle");
+  });
+
+  it("several empty containers still land exactly", () => {
+    expectIndexMatchesDoc(emptyContainersDoc, "text");
+  });
+
+  it("leaf nodes count 1, containers 2 — positions stay true across them", () => {
+    expectIndexMatchesDoc(leavesDoc, "needle after break");
+  });
+
+  it("mermaid and horizontalRule before text keep positions aligned", () => {
+    expectIndexMatchesDoc(leavesDoc, "word");
+  });
+});
