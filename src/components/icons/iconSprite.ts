@@ -24,6 +24,17 @@ const SPRITE_ID = "inscriptum-icon-sprite";
  *  exists there, "notepad-pen" does not — so domain renames must not touch it. */
 export const NOTE_ICON_NAME = "notebook-pen";
 
+/** Owner-approved icon for the quick "New um" entry points (issues/.quick-new-um):
+ *  an outlined notepad with a spine and a plus. Registered through the public
+ *  addIcon under a plugin-scoped id so it cannot collide with other plugins.
+ *  The path data lives in the 0–100 space setIcon's wrapper assumes
+ *  (scaled from the 24×24 owner SVG: 1 unit ≈ 4.1667, stroke 1.7 → 7.083);
+ *  carrying a full <svg> here would nest and render as a dot. */
+export const NEW_UM_ICON_NAME = "inscriptum-new-um";
+
+export const NEW_UM_ICON_SVG =
+  '<path fill="none" stroke="currentColor" stroke-width="7.083" stroke-linecap="round" stroke-linejoin="round" d="M58.333 12.5H25a8.333 8.333 0 0 0-8.333 8.333v58.333A8.333 8.333 0 0 0 25 87.5h50a8.333 8.333 0 0 0 8.333-8.333V29.167M33.333 12.5v75M70.833 20.833h25M83.333 8.333v25"/>';
+
 const ICON_PATHS: Record<string, string> = {
   file: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2" />`,
   fileUnknown: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M14 3v4a1 1 0 0 0 1 1h4" /><path d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2" /><path d="M12 17v.01" /><path d="M12 14a1.5 1.5 0 1 0 -1.14 -2.474" />`,

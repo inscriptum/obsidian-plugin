@@ -2870,6 +2870,28 @@ export class NotepadView extends FileView {
     this.contentEl.removeClass("comments-open");
   }
 
+  /** Focus the start page's editor (cursor lands in its title node). The
+   *  quick-create path opens the file before the view has finished mounting
+   *  its sections, so wait briefly for the editor handle. Public for the
+   *  plugin's quick "New um" flow (main.ts). */
+  public async focusStartPage(timeoutMs = 1500): Promise<void> {
+    const notepad = this.notepad;
+    if (!notepad) return;
+    const start = notepad.notes().find((n) => n.order === 0);
+    if (!start) return;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      // The view may close (or reload its notepad) while waiting — stop then.
+      if (this.notepad !== notepad) return;
+      const editor = this.sections.get(start.id)?.editor;
+      if (editor && !editor.isDestroyed) {
+        editor.view.focus();
+        return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 50));
+    }
+  }
+
   /** Bubble-menu «Comment»: mark the selection with a fresh id and open the
    *  panel composer. The thread itself is created on the first save. Public
    *  for the plugin command (main.ts «Add comment to selection»). */

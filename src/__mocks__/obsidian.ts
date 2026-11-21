@@ -127,6 +127,15 @@ export class Menu {
 
 export function setIcon(_el: unknown, _name: string): void {}
 
+/** The real module exposes these as ambient globals (obsidian.d.ts); the
+ *  polyfills in vitest.setup.ts back them under plain jsdom. */
+export function createDiv(): HTMLDivElement {
+  return (window as unknown as { createDiv: () => HTMLDivElement }).createDiv();
+}
+export function createSpan(): HTMLSpanElement {
+  return (window as unknown as { createSpan: () => HTMLSpanElement }).createSpan();
+}
+
 /** Minimal moment stub: only the format-token shapes the notepad views
  *  use (um-page-updated-at) — everything else stringifies. */
 export function moment(epochMs?: number) {

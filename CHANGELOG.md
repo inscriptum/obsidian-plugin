@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A quick "New um" action — ribbon, explorer, folder menu, the empty-tab screen and a command with hotkey support create a notepad in one step, named Notepad, Notepad 1 and so on in the folder Obsidian uses for new notes.
+
 - Export any notepad page as a standalone website from its page menu, with only that page’s content and images. The desktop page menu also holds Delete to keep the toolbar compact.
 
 ### Fixed
