@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { noteDoc, p } from "./fixtures/docs";
-import { mount, openHarness, type JsonNode } from "./helpers";
+import { docJson, mount, openHarness, type JsonNode } from "./helpers";
 
 const EDITOR = ".texto-editor";
 
@@ -170,6 +170,11 @@ test.describe("external file drop", () => {
   }) => {
     await openHarness(page);
     await mount(page, noteDoc(p("one"), p("two")));
+    // dispatchEvent swallows listener exceptions — a handler crash would
+    // look exactly like a clean decline. Watch for uncaught page errors so
+    // this test distinguishes "rejected" from "threw".
+    const pageErrors: Error[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error));
     // Coordinates above the editor's box (the toolbar strip): posAtCoords
     // must not resolve to a document position, so the handler declines.
     const { defaultPreventedDrop, doc } = await page.evaluate(() => {
@@ -196,5 +201,39 @@ test.describe("external file drop", () => {
     });
     expect(defaultPreventedDrop).toBe(false);
     expect(nodeTypes(doc)).toEqual(["noteTitle", "paragraph", "paragraph"]);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("undo never removes a quick-drop chip nor resurrects it after dismissal", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await mount(page, noteDoc(p("one")));
+    const { defaultPreventedDrop, doc } = await dropFiles(
+      page,
+      `${EDITOR} p`,
+      [{ name: "report.pdf", type: "application/pdf" }],
+      { x: 0.5, y: 0.05 },
+    );
+    expect(defaultPreventedDrop).toBe(true);
+    expect(nodeTypes(doc)).toContain("attachment");
+
+    // The attach flow started (the chip's node view picked up the parked
+    // file and hit the harness attachment hook) — the cancel is live.
+    await page.waitForFunction(() => Boolean(window.__e2eAttach));
+
+    // The chip insertion is silent (addToHistory: false): undo must go
+    // past it — the chip stays, whatever the undo actually reverts.
+    await page.evaluate(() => window.__e2e.undo());
+    expect(nodeTypes(await docJson(page))).toContain("attachment");
+
+    // Dismiss (the dialog was cancelled): the chip is removed by its own
+    // silent delete.
+    await page.evaluate(() => window.__e2eAttach?.cancel());
+    expect(nodeTypes(await docJson(page))).not.toContain("attachment");
+
+    // And undo must not resurrect the dismissed chip as a data-less orphan.
+    await page.evaluate(() => window.__e2e.undo());
+    expect(nodeTypes(await docJson(page))).not.toContain("attachment");
   });
 });

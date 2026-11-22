@@ -98,6 +98,17 @@ export class Plugin {
   }
 }
 
+/** Minimal stub of PluginSettingTab — main.ts subclasses it at module
+ *  load; the class body only needs the base to exist. */
+export class PluginSettingTab {
+  app: unknown;
+  plugin: unknown;
+  containerEl: HTMLElement = createDiv();
+  constructor(_app?: unknown, _plugin?: unknown) {}
+  display(): void {}
+  hide(): void {}
+}
+
 export abstract class ItemView {
   abstract getViewType(): string;
   abstract getDisplayText(): string;

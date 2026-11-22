@@ -39,6 +39,22 @@ describe("isImageDropFile", () => {
     expect(isImageDropFile(file("photo", "image/png"), ACCEPT)).toBe(true);
   });
 
+  it("rejects image-MIME files whose name extension is not renderable", () => {
+    // An image/* MIME with a non-image file extension goes to the
+    // attachment path (the renderer cannot display it) — this is the
+    // extension barrier under the MIME branch, not the UNRENDERABLE_MIME
+    // blacklist above it.
+    expect(isImageDropFile(file("photo.doc", "image/png"), ACCEPT)).toBe(
+      false,
+    );
+    // uppercase extension: lowercased before the check, still rejected
+    expect(isImageDropFile(file("PHOTO.DOC", "image/png"), ACCEPT)).toBe(
+      false,
+    );
+    // uppercase valid extension keeps the MIME path
+    expect(isImageDropFile(file("photo.PNG", "image/png"), ACCEPT)).toBe(true);
+  });
+
   it(".tiff with an empty MIME is rejected by the extension path", () => {
     expect(isImageDropFile(file("c.tiff", ""), ACCEPT)).toBe(false);
   });

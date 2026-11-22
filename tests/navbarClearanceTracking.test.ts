@@ -123,6 +123,55 @@ describe("createNavbarClearanceTracking", () => {
     expect(target.style.getPropertyValue(VAR)).toBe("148px");
   });
 
+  it("repeated measures with unchanged geometry do not rewrite the variable", () => {
+    vi.useFakeTimers();
+    stubComputedPadding();
+    setInnerHeight(800);
+    const nav = addNavbar({ top: 736 });
+    const target = document.createElement("div");
+    tracking = createNavbarClearanceTracking(target);
+    expect(target.style.getPropertyValue(VAR)).toBe("72px");
+
+    const setProperty = vi.spyOn(target.style, "setProperty");
+    const removeProperty = vi.spyOn(target.style, "removeProperty");
+
+    // unchanged geometry: poll ticks must not churn the style (the dedup)
+    vi.advanceTimersByTime(300);
+    vi.advanceTimersByTime(300);
+    expect(setProperty).not.toHaveBeenCalled();
+    expect(removeProperty).not.toHaveBeenCalled();
+
+    // the navbar drifted: the next tick publishes the new value once
+    vi.mocked(nav.getBoundingClientRect).mockReturnValue({
+      top: 660,
+    } as DOMRect);
+    vi.advanceTimersByTime(300);
+    expect(setProperty).toHaveBeenCalledTimes(1);
+    expect(setProperty).toHaveBeenCalledWith(VAR, "148px");
+  });
+
+  it("caches the safe-area inset until a viewport geometry change", () => {
+    vi.useFakeTimers();
+    const computed = vi.fn(() => ({ paddingBottom: "0px" }));
+    vi.stubGlobal("getComputedStyle", computed);
+    setInnerHeight(800);
+    addNavbar({ top: 736 });
+    const target = document.createElement("div");
+    tracking = createNavbarClearanceTracking(target);
+    expect(target.style.getPropertyValue(VAR)).toBe("72px");
+    const readsAfterMount = computed.mock.calls.length;
+
+    // unchanged viewport geometry: poll ticks reuse the cached inset —
+    // no forced style resolution per measure
+    vi.advanceTimersByTime(900);
+    expect(computed.mock.calls.length).toBe(readsAfterMount);
+
+    // rotation/resize invalidate the cache: the next measure re-reads it
+    window.dispatchEvent(new Event("resize"));
+    expect(computed.mock.calls.length).toBeGreaterThan(readsAfterMount);
+    expect(target.style.getPropertyValue(VAR)).toBe("72px");
+  });
+
   it("dispose stops the poll, clears the variable and removes the probe", () => {
     vi.useFakeTimers();
     stubComputedPadding();

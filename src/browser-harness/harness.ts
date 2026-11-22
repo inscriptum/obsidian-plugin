@@ -328,6 +328,8 @@ interface E2EApi {
   readonly editor: Editor | null;
   /** Doc JSON of the current editor. */
   docJson: () => JSONContent | null;
+  /** One undo step on the current editor (prosemirror-history). */
+  undo: () => boolean;
   /** Start positions of the top-level blocks. */
   positions: () => number[];
   /** Folded heading positions (plugin state). */
@@ -370,6 +372,8 @@ function mountEditor(doc: unknown): string {
     currentEditor = null;
   }
   lastError = null;
+  // A stale cancel handle must never point at a destroyed editor.
+  (window as unknown as { __e2eAttach?: unknown }).__e2eAttach = undefined;
 
   const app = appContainer();
   app.replaceChildren();
@@ -392,6 +396,15 @@ function mountEditor(doc: unknown): string {
           isResolved: (path) => wikiFiles().some((f) => f.path === path),
           openTarget: (path) => {
             window.__e2eWiki.opens.push(path);
+          },
+        },
+        // Surface the attach flow's cancel handle so specs can dismiss the
+        // link-or-copy dialog the way a cancelling user does — the real
+        // dismiss branch of setAttachmentViewProps runs its cleanup then.
+        attachment: {
+          onFileSelected: (_file, _update, cancel) => {
+            (window as unknown as { __e2eAttach?: { cancel(): void } })
+              .__e2eAttach = { cancel };
           },
         },
       },
@@ -448,6 +461,7 @@ const e2eApi: E2EApi = {
   },
   docJson: () =>
     (currentEditor?.state.doc.toJSON() ?? null) as JSONContent | null,
+  undo: () => currentEditor?.commands.undo() ?? false,
   positions: () => {
     const out: number[] = [];
     currentEditor?.state.doc.forEach((_, pos) => out.push(pos));

@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach, beforeAll } from "vitest";
 import type { Transaction } from "prosemirror-state";
 import { Editor } from "../../core/Editor";
 import { getExtensions } from "../../getExtensions";
-import { VIEW_TAG, quickDropFiles } from "./attachment";
+import { VIEW_TAG, keyToPos, quickDropFiles } from "./attachment";
 import type { AttachmentElementType } from "./attachment";
 
 /**
@@ -48,6 +48,9 @@ describe("attachment quick-drop dismiss branches", () => {
     editor = null;
     host = null;
     quickDropFiles.clear();
+    // keyToPos is module-level too: a stale key → position entry from one
+    // test would let a later restore loop (setAttachmentViewProps) adopt it.
+    keyToPos.clear();
   });
 
   /** Mount a plain editor; the hook only captures the flow callbacks into
@@ -233,5 +236,60 @@ describe("attachment quick-drop dismiss branches", () => {
     const state = chip!.attrs.state as { preparedData?: { file?: File } } | null;
     expect(state?.preparedData).toBeUndefined();
     expect(dispatches).toHaveLength(1);
+  });
+
+  it("the two-phase settle path delivers data and keeps the key stable", () => {
+    const flow = mount();
+    insertChip({ key: "qd_settle", state: { isQuickDrop: true } }, "qd_settle");
+
+    // Phase 1 (the dialog copy started): loading state, no data yet.
+    flow.update({
+      state: {
+        fileStatus: "loading",
+        text: "dropped.pdf",
+        subtext: "",
+        preparedData: undefined,
+      },
+      data: undefined,
+    });
+    // Phase 2 (the vault copy finished): the result must land on the SAME
+    // node under the SAME key. A key reset in phase 1 (setNodeMarkup
+    // without the current key) makes nodeState regenerate it before this
+    // phase, whose dispatch then fails the identity guard and strands the
+    // chip in "Loading…" with the file already written to the vault.
+    flow.update({
+      state: {
+        fileStatus: "attached",
+        text: "dropped.pdf",
+        subtext: "",
+        preparedData: undefined,
+      },
+      data: { id: "f1", size: "8", filename: "dropped.pdf" },
+    });
+
+    const chip = attachmentNode();
+    expect(chip).not.toBeNull();
+    // the attach result reached the node
+    expect((chip!.attrs.data as { id?: string }).id).toBe("f1");
+    // no key regeneration between the phases
+    expect(chip!.attrs.key).toBe("qd_settle");
+    // the settled flow consumed the parked file
+    expect(quickDropFiles.has("qd_settle")).toBe(false);
+  });
+
+  it("destroying the editor releases the parked quick-drop file", () => {
+    mount();
+    insertChip(
+      { key: "qd_destroy", state: { isQuickDrop: true } },
+      "qd_destroy",
+    );
+    expect(quickDropFiles.has("qd_destroy")).toBe(true);
+
+    // Dispose without an attach result: the node view's destroy is the
+    // leak net — the entry must not outlive the editor.
+    editor!.destroy();
+    editor = null; // afterEach would double-destroy
+
+    expect(quickDropFiles.has("qd_destroy")).toBe(false);
   });
 });
