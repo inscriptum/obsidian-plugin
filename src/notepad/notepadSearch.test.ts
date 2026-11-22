@@ -124,6 +124,51 @@ const leavesDoc: JSONContent = {
   ],
 };
 
+/** Rich containers before the needle: table with an empty and a filled
+ *  cell, blockquote, heading, ordered list — every one of them must count
+ *  its true size in the index (parity with the PM document). */
+const containersDoc: JSONContent = {
+  type: "noteDoc",
+  content: [
+    { type: "noteTitle", content: [{ type: "text", text: "Containers" }] },
+    { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Heading" }] },
+    {
+      type: "blockquote",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "quoted" }] }],
+    },
+    {
+      type: "orderedList",
+      content: [
+        { type: "listItem", content: [{ type: "paragraph", content: [] }] },
+        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "item" }] }] },
+      ],
+    },
+    {
+      type: "table",
+      content: [
+        {
+          type: "tableRow",
+          content: [
+            { type: "tableHeader", content: [] },
+            { type: "tableHeader", content: [{ type: "paragraph", content: [{ type: "text", text: "head" }] }] },
+          ],
+        },
+        {
+          type: "tableRow",
+          content: [
+            { type: "tableCell", content: [] },
+            { type: "tableCell", content: [{ type: "paragraph", content: [{ type: "text", text: "cell" }] }] },
+          ],
+        },
+      ],
+    },
+    {
+      type: "paragraph",
+      content: [{ type: "text", text: "target needle text" }],
+    },
+  ],
+};
+
 function expectIndexMatchesDoc(content: JSONContent, query: string): void {
   const editor = editorFor(content);
   const index = buildNoteTextIndex(editor.getJSON());
@@ -159,5 +204,15 @@ describe("notepadSearch node sizes", () => {
 
   it("mermaid and horizontalRule before text keep positions aligned", () => {
     expectIndexMatchesDoc(leavesDoc, "word");
+  });
+
+  it("table, blockquote, heading and ordered list before text keep positions aligned", () => {
+    expectIndexMatchesDoc(containersDoc, "needle");
+  });
+
+  it("text inside table cells and the blockquote matches in place", () => {
+    expectIndexMatchesDoc(containersDoc, "cell");
+    expectIndexMatchesDoc(containersDoc, "quoted");
+    expectIndexMatchesDoc(containersDoc, "item");
   });
 });

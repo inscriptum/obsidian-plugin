@@ -26,4 +26,20 @@ describe("isImageDropFile", () => {
   it("does not classify non-empty non-image MIME by extension", () => {
     expect(isImageDropFile(file("a.png", "application/octet-stream"), ACCEPT)).toBe(false);
   });
+
+  it("rejects Chromium image MIME the renderer cannot decode (with or without an extension)", () => {
+    expect(isImageDropFile(file("a.heic", "image/heic"), ACCEPT)).toBe(false);
+    expect(isImageDropFile(file("b.heif", "image/heif"), ACCEPT)).toBe(false);
+    expect(isImageDropFile(file("c.tiff", "image/tiff"), ACCEPT)).toBe(false);
+    // extension-less: must be blacklisted by MIME alone
+    expect(isImageDropFile(file("photo", "image/heic"), ACCEPT)).toBe(false);
+  });
+
+  it("keeps extension-less image files on the MIME path", () => {
+    expect(isImageDropFile(file("photo", "image/png"), ACCEPT)).toBe(true);
+  });
+
+  it(".tiff with an empty MIME is rejected by the extension path", () => {
+    expect(isImageDropFile(file("c.tiff", ""), ACCEPT)).toBe(false);
+  });
 });

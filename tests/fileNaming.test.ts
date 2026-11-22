@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { nextFreeNotepadName } from "../src/storage/fileNaming";
 
 describe("nextFreeNotepadName", () => {
@@ -16,16 +16,50 @@ describe("nextFreeNotepadName", () => {
     expect(nextFreeNotepadName((n) => taken.has(n))).toBe("Notepad 1");
   });
 
-  it("falls through to a unique suffix when the numeric range is exhausted", () => {
-    const name = nextFreeNotepadName(
-      () => true,
-      "Notepad",
-      3,
-    );
-    expect(name.startsWith("Notepad ")).toBe(true);
-    expect(name).not.toBe("Notepad");
-    expect(name).not.toBe("Notepad 1");
-    expect(name).not.toBe("Notepad 2");
-    expect(name).not.toBe("Notepad 3");
+  describe("timestamp fallback (pinned clock)", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function pinClock(): string {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-11-22T12:00:00Z"));
+      return Date.now().toString(36);
+    }
+
+    it("returns the free timestamp candidate when the numeric range is exhausted", () => {
+      const stamp = pinClock();
+      const name = nextFreeNotepadName(
+        (n) => n === "Notepad" || /^Notepad \d+$/.test(n),
+        "Notepad",
+        3,
+      );
+      expect(name).toBe(`Notepad ${stamp}`);
+    });
+
+    it("walks the suffix when even the first timestamp candidate is taken", () => {
+      const stamp = pinClock();
+      const taken = new Set([
+        "Notepad",
+        "Notepad 1",
+        "Notepad 2",
+        "Notepad 3",
+        `Notepad ${stamp}`,
+      ]);
+      const name = nextFreeNotepadName((n) => taken.has(n), "Notepad", 3);
+      expect(name).toBe(`Notepad ${stamp}-1`);
+    });
+
+    it("keeps walking suffixes while every candidate is taken", () => {
+      const stamp = pinClock();
+      const taken = new Set([
+        "Notepad",
+        `Notepad ${stamp}`,
+        `Notepad ${stamp}-1`,
+        `Notepad ${stamp}-2`,
+      ]);
+      const name = nextFreeNotepadName((n) => taken.has(n), "Notepad", 0);
+      expect(name).toBe(`Notepad ${stamp}-3`);
+    });
   });
 });

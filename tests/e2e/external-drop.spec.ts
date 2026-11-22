@@ -104,11 +104,15 @@ test.describe("external file drop", () => {
     const types = nodeTypes(doc);
     expect(types).toContain("attachment");
     expect(types.filter((t) => t === "attachment")).toHaveLength(1);
+    // CONTRACT: the File never travels in attrs (it would persist as "{}"
+    // into the saved note) — the chip only carries the quick-drop flag; the
+    // file itself parks in quickDropFiles under the chip's key.
     const chip = (doc?.content ?? []).find((n) => n.type === "attachment");
-    expect(
-      (chip?.attrs?.state as { preparedData?: { file?: unknown } })
-        ?.preparedData?.file,
-    ).toBeTruthy();
+    const state = chip?.attrs?.state as
+      | { isQuickDrop?: boolean; preparedData?: { file?: unknown } }
+      | undefined;
+    expect(state?.isQuickDrop).toBe(true);
+    expect(state?.preparedData).toBeUndefined();
   });
 
   test("a file with an empty MIME is classified by extension", async ({
@@ -135,6 +139,61 @@ test.describe("external file drop", () => {
         { name: "b.png", type: "image/png" },
       ],
     );
+    expect(defaultPreventedDrop).toBe(false);
+    expect(nodeTypes(doc)).toEqual(["noteTitle", "paragraph", "paragraph"]);
+  });
+
+  test("a drop on the title's upper half lands after the title, exactly once", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await mount(page, noteDoc(p("one")));
+    // The upper half of the .note title has no valid block boundary (the
+    // title node's content is inline) — the handler retries at the end of
+    // the top-level node under the pointer instead of guessing.
+    const { defaultPreventedDrop, doc } = await dropFiles(
+      page,
+      `${EDITOR} h1`,
+      [{ name: "shot.png", type: "image/png" }],
+      { x: 0.5, y: 0.1 },
+    );
+    expect(defaultPreventedDrop).toBe(true);
+    const types = nodeTypes(doc);
+    expect(types.filter((t) => t === "image")).toHaveLength(1);
+    // valid doc: the image sits right after the title
+    expect(types[0]).toBe("noteTitle");
+    expect(types[1]).toBe("image");
+  });
+
+  test("a drop outside any document position keeps the host behavior", async ({
+    page,
+  }) => {
+    await openHarness(page);
+    await mount(page, noteDoc(p("one"), p("two")));
+    // Coordinates above the editor's box (the toolbar strip): posAtCoords
+    // must not resolve to a document position, so the handler declines.
+    const { defaultPreventedDrop, doc } = await page.evaluate(() => {
+      const editor = document.querySelector(".texto-editor") as HTMLElement;
+      const editorTop = editor.getBoundingClientRect().top;
+      const dt = new DataTransfer();
+      dt.items.add(
+        new File([new Uint8Array(16)], "shot.png", { type: "image/png" }),
+      );
+      const drop = new DragEvent("drop", {
+        bubbles: true,
+        cancelable: true,
+        clientX: editor.getBoundingClientRect().left + 10,
+        clientY: editorTop - 200,
+        dataTransfer: dt,
+      });
+      editor.dispatchEvent(drop);
+      return {
+        defaultPreventedDrop: drop.defaultPrevented,
+        doc: (
+          window as unknown as { __e2e: { docJson(): JsonNode | null } }
+        ).__e2e.docJson(),
+      };
+    });
     expect(defaultPreventedDrop).toBe(false);
     expect(nodeTypes(doc)).toEqual(["noteTitle", "paragraph", "paragraph"]);
   });

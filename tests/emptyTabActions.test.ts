@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   ensureEmptyTabActions,
   removeEmptyTabActions,
@@ -96,5 +96,54 @@ describe("ensureEmptyTabActions", () => {
     expect(root.querySelectorAll(".inscriptum-empty-action")).toHaveLength(0);
     // the native action stays untouched
     expect(root.querySelectorAll(".empty-state-action")).toHaveLength(2);
+  });
+
+  describe("keyboard activation", () => {
+    function pillWithSpy(): { btn: HTMLElement; onClick: ReturnType<typeof vi.fn> } {
+      const content = emptyLeafContent();
+      const onClick = vi.fn();
+      ensureEmptyTabActions(content, [{ ...actions[0], onClick }]);
+      const btn = content.querySelector<HTMLElement>(
+        ".inscriptum-empty-new-um",
+      );
+      expect(btn).not.toBeNull();
+      return { btn: btn as HTMLElement, onClick };
+    }
+
+    it("Enter activates once and prevents the default", () => {
+      const { btn, onClick } = pillWithSpy();
+      const event = new KeyboardEvent("keydown", {
+        key: "Enter",
+        bubbles: true,
+        cancelable: true,
+      });
+      btn.dispatchEvent(event);
+      expect(onClick).toHaveBeenCalledTimes(1);
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    it("Space activates once and prevents the default", () => {
+      const { btn, onClick } = pillWithSpy();
+      const event = new KeyboardEvent("keydown", {
+        key: " ",
+        bubbles: true,
+        cancelable: true,
+      });
+      btn.dispatchEvent(event);
+      expect(onClick).toHaveBeenCalledTimes(1);
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    it("other keys do not activate", () => {
+      const { btn, onClick } = pillWithSpy();
+      btn.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Escape",
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      expect(onClick).not.toHaveBeenCalled();
+    });
   });
 });
