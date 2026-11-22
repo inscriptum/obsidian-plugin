@@ -100,7 +100,13 @@ describe("attachment quick-drop dismiss branches", () => {
       }
       return true;
     });
-    editor!.view.dispatch(editor!.state.tr.insert(insertAt, node));
+    editor!.view.dispatch(
+      editor!.state.tr
+        .insert(insertAt, node)
+        // WHY: mirror the production drop insert (image.ts attachment
+        // branch) — the chip insertion stays outside undo history.
+        .setMeta("addToHistory", false),
+    );
   }
 
   function chipElement(): AttachmentElementType {
@@ -252,11 +258,24 @@ describe("attachment quick-drop dismiss branches", () => {
       },
       data: undefined,
     });
+    // The document changed between the phases (the user kept typing while
+    // the vault copy ran): insert a paragraph BEFORE the chip so its
+    // position shifts, and phase 2 can only land through the keyToPos
+    // remap loop (filterTransaction → updateNodesPos). An insert AFTER the
+    // chip would map identity-wise and discriminate nothing.
+    const before = attachmentNode()!;
+    const typed = editor!.state.schema.nodes.paragraph.create(
+      null,
+      editor!.state.schema.text("typed"),
+    );
+    editor!.view.dispatch(editor!.state.tr.insert(before.pos, typed));
+    expect(attachmentNode()!.pos).toBe(before.pos + typed.nodeSize);
     // Phase 2 (the vault copy finished): the result must land on the SAME
-    // node under the SAME key. A key reset in phase 1 (setNodeMarkup
-    // without the current key) makes nodeState regenerate it before this
-    // phase, whose dispatch then fails the identity guard and strands the
-    // chip in "Loading…" with the file already written to the vault.
+    // node under the SAME key — now at the shifted position. A key reset
+    // in phase 1 (setNodeMarkup without the current key) makes nodeState
+    // regenerate it before this phase, whose dispatch then fails the
+    // identity guard and strands the chip in "Loading…" with the file
+    // already written to the vault.
     flow.update({
       state: {
         fileStatus: "attached",
