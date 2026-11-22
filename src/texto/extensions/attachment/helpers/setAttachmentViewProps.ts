@@ -170,7 +170,18 @@ function onFileSelected(
     }
     editor.view.dispatch(
       editor.view.state.tr
-        .setNodeMarkup(position.pos, node.type, attrs)
+        .setNodeMarkup(position.pos, node.type, {
+          ...attrs,
+          // Keep the node's current key (the identity guard above just
+          // proved it equals `key`): setNodeMarkup recomputes attrs from the
+          // given object, so a key-less object resets the key to the schema
+          // default — the nodeState plugin would regenerate it before the
+          // flow's next phase, whose dispatch would then fail the identity
+          // check and strand the chip mid-flow ("Loading…" forever, the
+          // file already written to the vault). Same shape as the image
+          // path in tools/image.ts.
+          key,
+        })
         .setMeta("addToHistory", false),
     );
   };

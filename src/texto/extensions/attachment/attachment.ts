@@ -54,14 +54,21 @@ export const HTML_TAG = "texto-extension-attachment";
 const AttachmentElement = attachmentElement(VIEW_TAG);
 
 /**
- * Files dropped from the OS onto the editor, parked under the chip's key
- * until its node view picks them up. CONTRACT: a File never travels in
- * node attrs — autosave serializes editor.getJSON() verbatim, and a File
- * stringifies to "{}", so the drop would persist garbage into the saved
- * note and a broken re-attach on reopen (same policy as attachSelectedFile
- * keeping its File in a closure: nothing transient is persisted). The
- * entry lives until the attach flow settles (result dispatched, chip
- * dismissed) or the node view is disposed.
+ * Files dropped from the OS onto the editor, parked under the attachment
+ * chip's key until its node view picks them up. CONTRACT (attachment
+ * quick-drop only): a File never travels in THIS node's attrs — autosave
+ * serializes editor.getJSON() verbatim, and a File stringifies to "{}", so
+ * the drop would persist garbage into the saved note and a broken
+ * re-attach on reopen (same policy as attachSelectedFile keeping its File
+ * in a closure: nothing transient is persisted). The entry lives until the
+ * attach flow settles (result dispatched, chip dismissed) or the node view
+ * is disposed.
+ *
+ * WHY the image node is out of scope: the image drop/paste paths still
+ * hand the File through node attrs (state.preparedData) and consume it in
+ * the next animation frame (tools/image.ts) — a pre-existing one-frame
+ * window with the same persistence risk, kept as-is for paste parity until
+ * that path gets its own parking.
  */
 export const quickDropFiles = new Map<string, File>();
 

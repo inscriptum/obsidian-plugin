@@ -50,16 +50,20 @@ export function createNavbarClearanceTracking(
   target: HTMLElement,
 ): NavbarClearanceTracking {
   let probe: HTMLElement | null = null;
-  // Cached between viewport geometry changes: env(safe-area-inset-bottom)
-  // only changes with rotation/viewport resizes, and the probe read costs
-  // a forced style resolution on every measure otherwise.
+  // Cached until the next viewport-geometry invalidation: env(
+  // safe-area-inset-bottom) only changes with rotation/viewport resizes —
+  // remeasureWithInset below is the invalidation point — and the probe read
+  // costs a forced style resolution per measure otherwise (the 300ms poll
+  // and every body-class mutation all measure).
   let insetBottom: number | null = null;
 
   const readInset = (): number => {
     if (probe == null) {
       probe = document.body.createDiv("inscriptum-safe-area-probe");
     }
-    insetBottom = safeAreaInsetBottom(probe);
+    if (insetBottom == null) {
+      insetBottom = safeAreaInsetBottom(probe);
+    }
     return insetBottom;
   };
 

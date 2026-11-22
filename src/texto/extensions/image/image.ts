@@ -406,6 +406,10 @@ export const Image = Node.create<ImageOptions>({
 
               const isImage = isImageDropFile(file, acceptedFiles);
               let node;
+              // Non-null exactly when an attachment chip is being inserted
+              // (the image path parks nothing — its File goes into attrs,
+              // see the quickDropFiles contract in attachment.ts).
+              let quickDropKey: string | null = null;
               if (isImage) {
                 node = imageNodeType.create({
                   state: { preparedData: { file } },
@@ -420,8 +424,11 @@ export const Image = Node.create<ImageOptions>({
                 // never in attrs: autosave serializes getJSON() verbatim and
                 // a File stringifies to "{}", persisting garbage into the
                 // saved note (see quickDropFiles contract in attachment.ts).
-                const quickDropKey = `quick_drop_${Date.now()}_${quickDropSeq++}`;
-                quickDropFiles.set(quickDropKey, file);
+                // The key must exist before the node (it goes into its
+                // attrs), but the Map entry is parked only after insertPos
+                // resolves below — parking earlier would leak the file on
+                // the bail-outs (no node view ever mounts to release it).
+                quickDropKey = `quick_drop_${Date.now()}_${quickDropSeq++}`;
                 node = attachmentNodeType.create({
                   key: quickDropKey,
                   state: { isQuickDrop: true },
@@ -448,6 +455,13 @@ export const Image = Node.create<ImageOptions>({
                 }
               }
               if (insertPos == null) return false;
+
+              // The insert is certain now: park the file. dispatch is
+              // synchronous, so the entry is in place before the view
+              // update mounts the chip's node view and reads it.
+              if (quickDropKey != null) {
+                quickDropFiles.set(quickDropKey, file);
+              }
 
               const { tr } = view.state;
               tr.insert(insertPos, node);
