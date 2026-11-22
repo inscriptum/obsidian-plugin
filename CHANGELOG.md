@@ -15,7 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Drag a picture or any other file from your desktop straight into a note or notepad page on the computer: pictures insert right where you dropped them, other files attach as chips without opening the file externally.
+- Drag a picture or any other file from your desktop straight into a note or notepad page on the computer: pictures insert right where you dropped them, other files attach as chips without opening the file externally. Works for a single dropped file that can be placed in the text; multi-file drops and drops outside the text behave as before.
 
 ### Fixed
 

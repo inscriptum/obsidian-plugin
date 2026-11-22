@@ -72,9 +72,9 @@ type CommandRegistry = { commands: Record<string, CommandLike> };
 
 export default class NotesPlugin extends Plugin {
   private fileExplorerObserver: MutationObserver | null = null;
-  /** Set from onunload so a pending observeEmptyTabs debounce cannot
-   *  re-inject actions after the cleanup ran. */
-  private emptyTabsUnloadFlag: (() => void) | null = null;
+  /** Set from onunload so pending debounces (empty-tab actions, file
+   *  explorer button) cannot re-inject UI after the cleanup ran. */
+  private unloadFlags: Array<() => void> = [];
   private patchedCommands: Array<{
     command: CommandLike;
     kind: "checkCallback" | "callback" | "editorCallback";
@@ -434,8 +434,9 @@ export default class NotesPlugin extends Plugin {
     if (!umBtn || !noteBtn) return;
     // The native buttons keep their own order; ours sit directly after the
     // first native button (the "New note" action) — um, then inscriptum.
-    const nativeNoteBtn =
-      container.querySelector<HTMLElement>(".nav-action-button");
+    const nativeNoteBtn = container.querySelector<HTMLElement>(
+      ".nav-action-button:not(.inscriptum-nav-new-um):not(.inscriptum-nav-new-note)",
+    );
     if (nativeNoteBtn?.nextSibling !== umBtn) {
       container.insertBefore(umBtn, nativeNoteBtn?.nextSibling ?? null);
     }
@@ -448,11 +449,16 @@ export default class NotesPlugin extends Plugin {
   private observeFileExplorer(): void {
     if (this.fileExplorerObserver) return;
     let scheduled = false;
+    let unloaded = false;
+    this.unloadFlags.push(() => {
+      unloaded = true;
+    });
     this.fileExplorerObserver = new MutationObserver(() => {
       if (scheduled) return;
       scheduled = true;
       window.setTimeout(() => {
         scheduled = false;
+        if (unloaded) return;
         this.ensureFileExplorerButton();
       }, 200);
     });
@@ -486,9 +492,9 @@ export default class NotesPlugin extends Plugin {
   private observeEmptyTabs(): void {
     let scheduled = false;
     let unloaded = false;
-    this.emptyTabsUnloadFlag = () => {
+    this.unloadFlags.push(() => {
       unloaded = true;
-    };
+    });
     this.registerEvent(
       this.app.workspace.on("layout-change", () => {
         if (scheduled) return;
@@ -504,8 +510,8 @@ export default class NotesPlugin extends Plugin {
   }
 
   onunload(): void {
-    this.emptyTabsUnloadFlag?.();
-    this.emptyTabsUnloadFlag = null;
+    for (const flag of this.unloadFlags) flag();
+    this.unloadFlags = [];
     this.fileExplorerObserver?.disconnect();
     this.fileExplorerObserver = null;
     document.querySelector(".inscriptum-nav-new-note")?.remove();

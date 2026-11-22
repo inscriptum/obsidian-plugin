@@ -22,6 +22,8 @@ import { Fragment, Slice } from "prosemirror-model";
 import { dropPoint } from "prosemirror-transform";
 import type { EditorView } from "prosemirror-view";
 
+import { quickDropFiles } from "../attachment/attachment";
+
 import { addCommands } from "./commands";
 import { setViewProps } from "./helpers/setViewProps.helper";
 import { createResizeHandles } from "./helpers/resizeHandles";
@@ -54,6 +56,16 @@ const IMAGE_FILE_EXTENSIONS = [
   "ico",
 ];
 
+/** WHY blacklist, not an allowlist on the whole MIME branch: image files
+ *  without a file-name extension must keep the MIME path. This only strips
+ *  image/* MIME types Chromium reports but the renderer cannot decode —
+ *  they would insert a permanently broken image block; extend as needed. */
+const UNRENDERABLE_IMAGE_MIME = new Set([
+  "image/tiff",
+  "image/heic",
+  "image/heif",
+]);
+
 function buildAcceptedFileExtensions(accept: string | undefined): Set<string> {
   const set = new Set<string>();
   for (const entry of (accept ?? "")
@@ -78,7 +90,18 @@ export function isImageDropFile(
   file: File,
   acceptedFiles: Set<string>,
 ): boolean {
-  if (file.type.startsWith("image")) return true;
+  if (UNRENDERABLE_IMAGE_MIME.has(file.type)) return false;
+  if (file.type.startsWith("image")) {
+    // A named file whose extension the renderer cannot display goes to the
+    // attachment path instead of a broken image block; extension-less
+    // image files keep the MIME path (getFileExt returns the bare name
+    // when there is no dot — the dot is what marks a real extension).
+    const ext = getFileExt(file.name);
+    if (file.name.includes(".") && !IMAGE_FILE_EXTENSIONS.includes(ext)) {
+      return false;
+    }
+    return true;
+  }
   if (file.type === "") return acceptedFiles.has(`.${getFileExt(file.name)}`);
   return false;
 }
@@ -151,6 +174,9 @@ export const IMAGE_LAYOUTS: ImageLayout[] = [
   "wrap-left",
   "wrap-right",
 ];
+
+/** Disambiguates quick-drop keys created within the same millisecond. */
+let quickDropSeq = 0;
 
 export function isImageLayout(value: unknown): value is ImageLayout {
   return (
@@ -390,8 +416,15 @@ export const Image = Node.create<ImageOptions>({
                 // The attachment extension is part of every profile; if it
                 // ever disappears, unclaimed drops keep the host behavior.
                 if (attachmentNodeType == null) return false;
+                // The File parks in quickDropFiles under the chip's key —
+                // never in attrs: autosave serializes getJSON() verbatim and
+                // a File stringifies to "{}", persisting garbage into the
+                // saved note (see quickDropFiles contract in attachment.ts).
+                const quickDropKey = `quick_drop_${Date.now()}_${quickDropSeq++}`;
+                quickDropFiles.set(quickDropKey, file);
                 node = attachmentNodeType.create({
-                  state: { isQuickDrop: true, preparedData: { file } },
+                  key: quickDropKey,
+                  state: { isQuickDrop: true },
                 });
               }
 
@@ -421,6 +454,10 @@ export const Image = Node.create<ImageOptions>({
               if (isImage) {
                 // Paste-path parity: the inserted image lands selected.
                 tr.setSelection(NodeSelection.near(tr.doc.resolve(insertPos)));
+              } else {
+                // Module convention (setAttachmentViewProps): attachment
+                // block transactions stay outside undo history.
+                tr.setMeta("addToHistory", false);
               }
 
               // preventDefault stops Electron's file:// hand-off (the

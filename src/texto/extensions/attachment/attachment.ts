@@ -53,6 +53,18 @@ export const VIEW_TAG = elTag("texto-extension-attachment");
 export const HTML_TAG = "texto-extension-attachment";
 const AttachmentElement = attachmentElement(VIEW_TAG);
 
+/**
+ * Files dropped from the OS onto the editor, parked under the chip's key
+ * until its node view picks them up. CONTRACT: a File never travels in
+ * node attrs — autosave serializes editor.getJSON() verbatim, and a File
+ * stringifies to "{}", so the drop would persist garbage into the saved
+ * note and a broken re-attach on reopen (same policy as attachSelectedFile
+ * keeping its File in a closure: nothing transient is persisted). The
+ * entry lives until the attach flow settles (result dispatched, chip
+ * dismissed) or the node view is disposed.
+ */
+export const quickDropFiles = new Map<string, File>();
+
 export type AttachmentElementType = InstanceType<typeof AttachmentElement>;
 
 // Allow to get a node's position by a key
@@ -164,12 +176,16 @@ export const Attachment = Node.create<AttachmentOptions>({
         getPos(),
       );
 
+      let currentNode = node;
+
       return {
         dom: element,
         update: (updatedNode) => {
           if (updatedNode.type !== this.type) {
             return false;
           }
+
+          currentNode = updatedNode;
 
           setAttachmentViewProps(
             element,
@@ -180,6 +196,15 @@ export const Attachment = Node.create<AttachmentOptions>({
           );
 
           return true;
+        },
+        destroy: () => {
+          // Dispose without an attach result (view closed, chip removed by
+          // other means): release the parked quick-drop file or it leaks
+          // for the whole session. A settled flow has already deleted the
+          // entry, so this is a no-op there.
+          quickDropFiles.delete(
+            (currentNode.attrs as { key?: string }).key as string,
+          );
         },
       };
     };

@@ -72,7 +72,9 @@ export function getDesiredFileName(doc: JSONContent): string | null {
  * First free notepad name: the base itself, then "base 1", "base 2", … —
  * an existing file is never overwritten. The numeric walk is bounded (a
  * pathological vault falls through to a timestamp suffix instead of
- * looping forever).
+ * looping forever); the timestamp walk grows the suffix until a candidate
+ * is actually free — returning a taken name would overwrite it, so this
+ * loop is the contract's last line of defense.
  */
 export function nextFreeNotepadName(
   exists: (name: string) => boolean,
@@ -84,10 +86,9 @@ export function nextFreeNotepadName(
     const candidate = `${base} ${i}`;
     if (!exists(candidate)) return candidate;
   }
-  // Bounded-walk fallback: suffix candidates until one is actually free.
-  for (let i = 0; i < limit; i++) {
-    const candidate = `${base} ${Date.now().toString(36)}${i ? `-${i}` : ""}`;
+  const stamp = Date.now().toString(36);
+  for (let i = 0; ; i++) {
+    const candidate = `${base} ${stamp}${i ? `-${i}` : ""}`;
     if (!exists(candidate)) return candidate;
   }
-  return `${base} ${Date.now().toString(36)}-x`;
 }

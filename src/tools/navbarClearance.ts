@@ -32,47 +32,75 @@ export function navbarClearanceValue(
   return Math.max(insetBottom, innerHeight - navbarTop + gap);
 }
 
-/** Bottom inset for the clearance floor. Read through the CSS probe class:
- *  env() is only readable from computed styles, and Obsidian's own
- *  --safe-area-inset-bottom body variable must NOT be trusted here — on
- *  Android it carries the dynamic keyboard height, not the device inset
- *  (measured 336px while env() is 0). */
-export function safeAreaInsetBottom(doc: Document): number {
-  const probe = doc.body.createDiv("inscriptum-safe-area-probe");
+/** Bottom inset for the clearance floor, read from the caller-provided
+ *  probe element: env() is only readable from computed styles, and
+ *  Obsidian's own --safe-area-inset-bottom body variable must NOT be
+ *  trusted here — on Android it carries the dynamic keyboard height, not
+ *  the device inset (measured 336px while env() is 0). The probe element
+ *  is owned by the tracking instance (created once, removed on dispose),
+ *  not per read. */
+export function safeAreaInsetBottom(probe: HTMLElement): number {
   const value = Number.parseFloat(getComputedStyle(probe).paddingBottom);
-  probe.remove();
   return Number.isFinite(value) ? value : 0;
 }
+
+const CLEARANCE_VAR = "--dock-navbar-clearance";
 
 export function createNavbarClearanceTracking(
   target: HTMLElement,
 ): NavbarClearanceTracking {
+  let probe: HTMLElement | null = null;
+  // Cached between viewport geometry changes: env(safe-area-inset-bottom)
+  // only changes with rotation/viewport resizes, and the probe read costs
+  // a forced style resolution on every measure otherwise.
+  let insetBottom: number | null = null;
+
+  const readInset = (): number => {
+    if (probe == null) {
+      probe = document.body.createDiv("inscriptum-safe-area-probe");
+    }
+    insetBottom = safeAreaInsetBottom(probe);
+    return insetBottom;
+  };
+
+  // Only write when the value actually changes: the measure runs on every
+  // body-class mutation and a 300ms poll, and redundant setProperty calls
+  // on unrelated mutations churn style recalcs for nothing.
+  const applyClearance = (value: number | null) => {
+    const next = value == null ? "" : `${value}px`;
+    if (target.style.getPropertyValue(CLEARANCE_VAR) === next) return;
+    if (next === "") {
+      target.style.removeProperty(CLEARANCE_VAR);
+    } else {
+      target.style.setProperty(CLEARANCE_VAR, next);
+    }
+  };
+
   const measure = () => {
     const nav = document.querySelector(".mobile-navbar");
     if (!(nav instanceof HTMLElement)) {
-      target.style.removeProperty("--dock-navbar-clearance");
+      applyClearance(null);
       return;
     }
     const raised = nav.classList.contains("mod-raised");
     // A laid-out box is required: a display:none navbar reports rect.top 0,
     // which would reserve the whole column and collapse the editor.
     if (nav.offsetHeight === 0) {
-      target.style.removeProperty("--dock-navbar-clearance");
+      applyClearance(null);
+      return;
+    }
+    if (!raised) {
+      applyClearance(null);
       return;
     }
     const top = nav.getBoundingClientRect().top;
-    // The inset is re-read per measure: it changes with rotation on iOS.
     const value = navbarClearanceValue(
       window.innerHeight,
-      raised ? top : null,
-      raised,
-      safeAreaInsetBottom(document),
+      top,
+      true,
+      readInset(),
     );
-    if (value == null) {
-      target.style.removeProperty("--dock-navbar-clearance");
-    } else {
-      target.style.setProperty("--dock-navbar-clearance", `${value}px`);
-    }
+    applyClearance(value);
   };
 
   measure();
@@ -81,6 +109,11 @@ export function createNavbarClearanceTracking(
   // observable event surface (system inset, --keyboard-height var changes,
   // auto-hide transform, layout switches); re-measure on the reachable
   // signals and let a cheap poll be the correctness net for the rest.
+  const remeasureWithInset = () => {
+    // env() changes with rotation and viewport resizes — drop the cache.
+    insetBottom = null;
+    measure();
+  };
   const bodyObserver = new MutationObserver(measure);
   bodyObserver.observe(document.body, {
     attributes: true,
@@ -92,9 +125,10 @@ export function createNavbarClearanceTracking(
     attributeFilter: ["class"],
   });
   const viewport = window.visualViewport;
-  viewport?.addEventListener("resize", measure);
+  viewport?.addEventListener("resize", remeasureWithInset);
   viewport?.addEventListener("scroll", measure);
-  window.addEventListener("resize", measure);
+  window.addEventListener("resize", remeasureWithInset);
+  window.addEventListener("orientationchange", remeasureWithInset);
   const poll = window.setInterval(measure, 300);
 
   return {
@@ -102,10 +136,13 @@ export function createNavbarClearanceTracking(
       window.clearInterval(poll);
       bodyObserver.disconnect();
       targetObserver.disconnect();
-      viewport?.removeEventListener("resize", measure);
+      viewport?.removeEventListener("resize", remeasureWithInset);
       viewport?.removeEventListener("scroll", measure);
-      window.removeEventListener("resize", measure);
-      target.style.removeProperty("--dock-navbar-clearance");
+      window.removeEventListener("resize", remeasureWithInset);
+      window.removeEventListener("orientationchange", remeasureWithInset);
+      probe?.remove();
+      probe = null;
+      target.style.removeProperty(CLEARANCE_VAR);
     },
   };
 }

@@ -21,7 +21,7 @@ export interface EmptyTabAction {
   label: string;
   /** Icon name resolvable by Obsidian's setIcon (Lucide or registered via addIcon). */
   icon: string;
-  onClick: (event: MouseEvent) => void;
+  onClick: (event: MouseEvent | KeyboardEvent) => void;
 }
 
 /** Append the given actions to the empty view's action list of every empty
@@ -70,7 +70,7 @@ function buildActionEl(action: EmptyTabAction): HTMLElement {
   el.addEventListener("keydown", (event: KeyboardEvent) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
-      action.onClick(event as unknown as MouseEvent);
+      action.onClick(event);
     }
   });
   return el;
