@@ -4,6 +4,7 @@ import type { JSONContent } from "../texto/core/@types";
 import { generateHTML } from "../texto/core/helpers/generateHTML";
 import { extractNoteTitle } from "../storage/fileNaming";
 import type { UmNotepad } from "../storage/um/umNotepad";
+import type { UmNoteDescriptor } from "../storage/um/umTypes";
 import { readAssetDescriptors } from "../storage/um/umContainer";
 import { renderMermaid } from "../texto/extensions/mermaid/mermaidApi";
 import { getExportExtensions } from "./extensions";
@@ -69,7 +70,7 @@ export interface ExportNotepadWebsiteResult {
   skippedPages: number;
 }
 
-// CONTRACT: pageId exports only that page into page-exports/<path-and-page hash>;
+// CONTRACT: pageId exports only that page into a readable folder under page-exports;
 // otherwise all supported pages export into the title slug folder.
 // Metadata comes from the first selected page; the source .um is never written.
 export async function exportNotepadAsWebsite(
@@ -105,6 +106,9 @@ export async function exportNotepadAsWebsite(
     );
   }
   const filePath = file.path;
+  const containerSlug = pageFolderSlug(file.basename).slice(0, 50);
+  const preferredPageFolder =
+    pageId === undefined ? null : pageFolderNames(notepad.notes()).get(pageId)!;
   const fileCreated = file.stat.ctime;
   const fileModified = file.stat.mtime;
   const titleDescriptor = pages[0];
@@ -185,13 +189,6 @@ export async function exportNotepadAsWebsite(
       snapshotAssetBytes.set(image.id, new Uint8Array(bytes).slice());
     }),
   );
-
-  const folder =
-    pageId === undefined
-      ? normalizePath(`${exportFolder}/${slug}`)
-      : normalizePath(
-          `${exportFolder}/page-exports/${await pageExportKey(filePath, pageId)}`,
-        );
 
   const allocator = createExportNameAllocator();
   const resolveTarget = createAssetNameResolver(
@@ -304,6 +301,18 @@ export async function exportNotepadAsWebsite(
     toc,
   });
 
+  const folder =
+    pageId === undefined
+      ? normalizePath(`${exportFolder}/${slug}`)
+      : await resolvePageExportFolder(
+          app,
+          exportFolder,
+          preferredPageFolder!,
+          containerSlug,
+          filePath,
+          pageId,
+        );
+
   await withExportFolderLock(app.vault.adapter, folder, async () => {
     await ensureFolder(app, folder);
     await app.vault.adapter.write(`${folder}/index.html`, pageHtml);
@@ -395,14 +404,92 @@ async function ensureFolder(app: App, path: string): Promise<void> {
   }
 }
 
-async function pageExportKey(path: string, pageId: string): Promise<string> {
+function pageFolderSlug(title: string): string {
+  const slug = (
+    titleToSlug(title.trim() || "Untitled").replace(/^-+$/g, "") || "Untitled"
+  ).slice(0, 180);
+  return /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(slug)
+    ? `page-${slug}`
+    : slug;
+}
+
+function pageFolderNames(pages: UmNoteDescriptor[]): Map<string, string> {
+  const bases = pages.map((page) => pageFolderSlug(page.title ?? ""));
+  const counts = new Map<string, number>();
+  for (const base of bases)
+    counts.set(base.toLowerCase(), (counts.get(base.toLowerCase()) ?? 0) + 1);
+  const used = new Set<string>();
+  const names = new Map<string, string>();
+  for (const [index, page] of pages.entries()) {
+    const base = bases[index];
+    const preferred =
+      counts.get(base.toLowerCase())! > 1
+        ? `${base}-page-${page.order + 1}`
+        : base;
+    let name = preferred;
+    let suffix = 2;
+    while (used.has(name.toLowerCase())) name = `${preferred}-${suffix++}`;
+    used.add(name.toLowerCase());
+    names.set(page.id, name);
+  }
+  return names;
+}
+
+async function resolvePageExportFolder(
+  app: App,
+  exportFolder: string,
+  preferred: string,
+  containerSlug: string,
+  source: string,
+  pageId: string,
+): Promise<string> {
+  const root = normalizePath(`${exportFolder}/page-exports`);
+  const adapter = app.vault.adapter;
   const digest = await window.crypto.subtle.digest(
     "SHA-256",
-    new TextEncoder().encode(JSON.stringify([path, pageId])),
+    new TextEncoder().encode(JSON.stringify([source, pageId])),
   );
-  return [...new Uint8Array(digest)]
+  const ownerKey = [...new Uint8Array(digest)]
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
+  const markerContent = JSON.stringify({ version: 1, owner: ownerKey });
+  // TRAP: claim names under one lock before per-folder writes can run in parallel.
+  return withExportFolderLock(adapter, root, async () => {
+    for (let attempt = 0; ; attempt += 1) {
+      const name =
+        attempt === 0
+          ? preferred
+          : `${preferred}-${containerSlug}${attempt > 1 ? `-${attempt}` : ""}`;
+      const folder = `${root}/${name}`;
+      const marker = `${folder}/.inscriptum-page.json`;
+      if (await adapter.exists(folder)) {
+        let owner: unknown;
+        try {
+          owner = JSON.parse(await adapter.read(marker));
+        } catch {
+          owner = null;
+        }
+        const matches =
+          owner != null &&
+          typeof owner === "object" &&
+          (("version" in owner &&
+            owner.version === 1 &&
+            "owner" in owner &&
+            owner.owner === ownerKey) ||
+            ("source" in owner &&
+              owner.source === source &&
+              "pageId" in owner &&
+              owner.pageId === pageId));
+        if (!matches) continue;
+        // CONTRACT: re-export upgrades legacy markers without publishing source paths.
+        await adapter.write(marker, markerContent);
+        return folder;
+      }
+      await ensureFolder(app, folder);
+      await adapter.write(marker, markerContent);
+      return folder;
+    }
+  });
 }
 
 async function cleanPageExport(
@@ -438,28 +525,29 @@ async function cleanPageExport(
 
 const exportFolderQueues = new WeakMap<object, Map<string, Promise<void>>>();
 
-async function withExportFolderLock(
+async function withExportFolderLock<T>(
   adapter: App["vault"]["adapter"],
   folder: string,
-  write: () => Promise<void>,
-): Promise<void> {
+  write: () => Promise<T>,
+): Promise<T> {
   let queues = exportFolderQueues.get(adapter);
   if (queues == null) {
     queues = new Map();
     exportFolderQueues.set(adapter, queues);
   }
-  const previous = queues.get(folder) ?? Promise.resolve();
+  const key = folder.normalize("NFC").toLowerCase();
+  const previous = queues.get(key) ?? Promise.resolve();
   const current = previous.then(write);
   // TRAP: failures must reach the caller without poisoning later exports.
   const tail = current.then(
     () => {},
     () => {},
   );
-  queues.set(folder, tail);
+  queues.set(key, tail);
   try {
-    await current;
+    return await current;
   } finally {
-    if (queues.get(folder) === tail) queues.delete(folder);
+    if (queues.get(key) === tail) queues.delete(key);
   }
 }
 
