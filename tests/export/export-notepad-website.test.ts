@@ -1038,3 +1038,60 @@ describe("case-insensitive export destinations", () => {
     expect(writes.get("export/page-exports/plan/index.html")).toContain('src="images/image-1.png"');
   });
 });
+
+describe("portable and private page export folders", () => {
+  const doc = (text: string): JSONContent => ({ type: "noteDoc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
+
+  it.each(["CON", "con", "PRN", "AUX", "NUL", "COM1", "com9", "LPT1", "lpt9"])("prefixes the Windows-reserved title %s", async (title) => {
+    const { notepad, page } = makeNotepad();
+    notepad.setNoteContent(page.id, doc(title));
+    const { app } = makeApp();
+    const result = await exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
+    expect(result.folder).toBe(`export/page-exports/page-${title}`);
+  });
+
+  it.each(["COM0", "COM10", "LPT0", "LPT10", "CONsole"])("leaves the valid title %s readable", async (title) => {
+    const { notepad, page } = makeNotepad();
+    notepad.setNoteContent(page.id, doc(title));
+    const { app } = makeApp();
+    const result = await exportNotepadAsWebsite(app as never, makeFile(), notepad, "export", { pageId: page.id });
+    expect(result.folder).toBe(`export/page-exports/${title}`);
+  });
+
+  it("stores opaque ownership and reuses the same private-source destination", async () => {
+    const { notepad, page } = makeNotepad();
+    notepad.setNoteContent(page.id, doc("Public page"));
+    const { app, writes } = makeApp();
+    const file = makeFile("Private/Clients/Secret Notebook.um");
+    const result = await exportNotepadAsWebsite(app as never, file, notepad, "export", { pageId: page.id });
+    const marker = writes.get(`${result.folder}/.inscriptum-page.json`) as string;
+    expect(JSON.parse(marker)).toEqual({ version: 1, owner: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    expect(marker).not.toContain("Private");
+    expect(marker).not.toContain("Clients");
+    expect(marker).not.toContain("Secret");
+    expect(marker).not.toContain(page.id);
+    expect((await exportNotepadAsWebsite(app as never, file, notepad, "export", { pageId: page.id })).folder).toBe(result.folder);
+    const other = await exportNotepadAsWebsite(app as never, makeFile("Other/Secret Notebook.um"), notepad, "export", { pageId: page.id });
+    expect(other.folder).not.toBe(result.folder);
+  });
+
+  it("upgrades an owned legacy marker in place but leaves a foreign legacy marker untouched", async () => {
+    const { notepad, page } = makeNotepad();
+    notepad.setNoteContent(page.id, doc("Public page"));
+    const { app, writes } = makeApp();
+    const folder = "export/page-exports/Public-page";
+    await (app as { vault: { createFolder: (path: string) => Promise<void> } }).vault.createFolder(folder);
+    const file = makeFile("Private/Secret Notebook.um");
+    const legacy = JSON.stringify({ source: file.path, pageId: page.id });
+    writes.set(`${folder}/.inscriptum-page.json`, legacy);
+    const foreign = await exportNotepadAsWebsite(app as never, makeFile("Other.um"), notepad, "export", { pageId: page.id });
+    expect(foreign.folder).not.toBe(folder);
+    expect(writes.get(`${folder}/.inscriptum-page.json`)).toBe(legacy);
+    const owned = await exportNotepadAsWebsite(app as never, file, notepad, "export", { pageId: page.id });
+    expect(owned.folder).toBe(folder);
+    const marker = writes.get(`${folder}/.inscriptum-page.json`) as string;
+    expect(JSON.parse(marker)).toEqual({ version: 1, owner: expect.stringMatching(/^[a-f0-9]{64}$/) });
+    expect(marker).not.toContain("Private");
+    expect(marker).not.toContain("source");
+  });
+});

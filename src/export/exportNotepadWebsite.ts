@@ -405,9 +405,12 @@ async function ensureFolder(app: App, path: string): Promise<void> {
 }
 
 function pageFolderSlug(title: string): string {
-  return (
+  const slug = (
     titleToSlug(title.trim() || "Untitled").replace(/^-+$/g, "") || "Untitled"
   ).slice(0, 180);
+  return /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(slug)
+    ? `page-${slug}`
+    : slug;
 }
 
 function pageFolderNames(pages: UmNoteDescriptor[]): Map<string, string> {
@@ -442,6 +445,14 @@ async function resolvePageExportFolder(
 ): Promise<string> {
   const root = normalizePath(`${exportFolder}/page-exports`);
   const adapter = app.vault.adapter;
+  const digest = await window.crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(JSON.stringify([source, pageId])),
+  );
+  const ownerKey = [...new Uint8Array(digest)]
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  const markerContent = JSON.stringify({ version: 1, owner: ownerKey });
   // TRAP: claim names under one lock before per-folder writes can run in parallel.
   return withExportFolderLock(adapter, root, async () => {
     for (let attempt = 0; ; attempt += 1) {
@@ -458,19 +469,24 @@ async function resolvePageExportFolder(
         } catch {
           owner = null;
         }
-        if (
-          owner == null ||
-          typeof owner !== "object" ||
-          !("source" in owner) ||
-          owner.source !== source ||
-          !("pageId" in owner) ||
-          owner.pageId !== pageId
-        )
-          continue;
+        const matches =
+          owner != null &&
+          typeof owner === "object" &&
+          (("version" in owner &&
+            owner.version === 1 &&
+            "owner" in owner &&
+            owner.owner === ownerKey) ||
+            ("source" in owner &&
+              owner.source === source &&
+              "pageId" in owner &&
+              owner.pageId === pageId));
+        if (!matches) continue;
+        // CONTRACT: re-export upgrades legacy markers without publishing source paths.
+        await adapter.write(marker, markerContent);
         return folder;
       }
       await ensureFolder(app, folder);
-      await adapter.write(marker, JSON.stringify({ source, pageId }));
+      await adapter.write(marker, markerContent);
       return folder;
     }
   });
