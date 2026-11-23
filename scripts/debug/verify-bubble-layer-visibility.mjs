@@ -14,10 +14,11 @@
 //      capped with an inner scroll; every pixel inside the bounds
 //   E. link layer mid-content → still opens below the bar (no regression)
 import { chromium } from 'playwright-core';
+import { devVaultPath } from './dev-vault-path.mjs';
 import { execFileSync } from 'node:child_process';
 
 const label = process.argv[2] ?? 'run';
-const devVault = '/Users/d.sumbaev/DEVELOPMENT/inscriptum/obsidian-plugin';
+const devVault = devVaultPath;
 
 const browser = await chromium.connectOverCDP('http://127.0.0.1:9223', { timeout: 8000 });
 const windows = [];

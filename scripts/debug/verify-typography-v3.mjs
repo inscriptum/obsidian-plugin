@@ -13,6 +13,7 @@
 // rendered gaps between adjacent top-level blocks, and list item gaps.
 // Screenshot: desktop — element shot over CDP; android — adb screencap.
 import { chromium } from 'playwright-core';
+import { devVaultPath } from './dev-vault-path.mjs';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 
@@ -21,7 +22,7 @@ const platform = process.argv[3] === 'android' ? 'android' : 'desktop';
 
 const endpoint = platform === 'android' ? 'http://127.0.0.1:9224' : 'http://127.0.0.1:9223';
 const pageUrlPrefix = platform === 'android' ? 'http://localhost/' : 'app://obsidian.md';
-const devVault = '/Users/d.sumbaev/DEVELOPMENT/inscriptum/obsidian-plugin';
+const devVault = devVaultPath;
 
 const browser = await chromium.connectOverCDP(endpoint, { timeout: 8000 });
 const page = browser

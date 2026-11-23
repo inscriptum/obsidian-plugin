@@ -17,6 +17,7 @@
 // one whose vault adapter basePath matches the dev vault.
 // Prints one JSON object; screenshot saved as PNG evidence.
 import { chromium } from 'playwright-core';
+import { devVaultPath } from './dev-vault-path.mjs';
 
 const label = process.argv[2] ?? 'run';
 const platform = process.argv[3] === 'android' ? 'android' : 'desktop';
@@ -24,7 +25,7 @@ const umMode = process.argv[4] === 'um';
 
 const endpoint = platform === 'android' ? 'http://127.0.0.1:9224' : 'http://127.0.0.1:9223';
 const pageUrlPrefix = platform === 'android' ? 'http://localhost/' : 'app://obsidian.md';
-const devVault = '/Users/d.sumbaev/DEVELOPMENT/inscriptum/obsidian-plugin';
+const devVault = devVaultPath;
 
 const browser = await chromium.connectOverCDP(endpoint, { timeout: 8000 });
 const windows = [];

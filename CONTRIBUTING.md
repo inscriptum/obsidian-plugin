@@ -30,6 +30,24 @@ Create a production build:
 npm run build
 ```
 
+To build and update the shared `obsidian-dev-vault` with the plugin and the
+sibling `obsidian-theme` repository, run:
+
+```bash
+npm run dev:vault
+```
+
+The command creates the vault if needed and preserves existing notes and
+settings. It refuses to update an existing vault without the Inscriptum dev
+vault marker. Use `npm run dev:vault -- --dry-run` to preview, or pass
+`--workspace /path/to/inscriptum` to select another parent directory. Reload
+the vault in Obsidian after updating.
+
+Desktop CDP debugging scripts default to the repository root as their test
+vault. To target the shared dev vault instead, set `INSCRIPTUM_DEV_VAULT` to
+its absolute path before running a script. Scripts that verify the vault path
+continue to require an exact match.
+
 Run tests:
 
 ```bash

@@ -2,6 +2,7 @@
 // round-7 model (committed marks, owner direction) in the dev vault, CDP
 // :9223. Real keyboard via Playwright Input; screenshots per scenario.
 import { chromium } from 'playwright-core';
+import { devVaultPath } from './dev-vault-path.mjs';
 import { mkdirSync, readdirSync, readFileSync } from 'node:fs';
 
 const SHOTS = 'local/wikilinks-round7';
@@ -9,8 +10,8 @@ mkdirSync(SHOTS, { recursive: true });
 
 // rule-verify-vault: only the vault whose ROOT is the plugin repo may be
 // touched; verify by basePath, never by the vault NAME (several vaults may
-// share a name, and unfiltered probes have landed in ~/insum).
-const DEV_VAULT_ROOT = '/Users/d.sumbaev/DEVELOPMENT/inscriptum/obsidian-plugin';
+// share a name).
+const DEV_VAULT_ROOT = devVaultPath;
 
 const browser = await chromium.connectOverCDP('http://127.0.0.1:9223', { timeout: 8000 });
 const R = {};

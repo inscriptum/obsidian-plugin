@@ -9,11 +9,12 @@
 // the probe iterates all renderer windows and picks the dev vault window;
 // other vault windows are never touched.
 import { chromium } from 'playwright-core';
+import { devVaultPath } from './dev-vault-path.mjs';
 
 const platform = process.argv[2] === 'android' ? 'android' : 'desktop';
 const endpoint = platform === 'android' ? 'http://127.0.0.1:9224' : 'http://127.0.0.1:9223';
 const pageUrlPrefix = platform === 'android' ? 'http://localhost/' : 'app://obsidian.md';
-const devVault = '/Users/d.sumbaev/DEVELOPMENT/inscriptum/obsidian-plugin';
+const devVault = devVaultPath;
 
 const browser = await chromium.connectOverCDP(endpoint, { timeout: 8000 });
 const windows = [];
