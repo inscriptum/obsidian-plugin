@@ -12,6 +12,15 @@
   --texto-image-container__outline-color: var(--color-accent, #5a9eff);
 }
 
+/* The editor controls image spacing itself (container padding, host layout
+   classes). A theme's global rule like `img { margin: 2em auto }` would leak
+   into the inner <img> and push the visible picture away from the selection
+   menu — measured 2026-11-21 (+36px gap). Class specificity beats the bare
+   element selector; no !important. */
+.texto-extension-image-host .image-container .image {
+  margin: 0;
+}
+
 /* Fullscreen image lightbox (click-to-zoom) — plugin UI (src/ui/imageLightbox.ts)
    Closing model: Esc / ✕ / click on the background outside the object; the
    object itself never closes, so it keeps a neutral cursor (zoom-out only

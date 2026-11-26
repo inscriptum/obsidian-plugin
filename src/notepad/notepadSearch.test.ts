@@ -80,3 +80,139 @@ describe("notepadSearch index", () => {
     expect(match.snippet).toContain("second alpha line");
   });
 });
+
+/** Docs exercising the size accounting: empty containers and leaf nodes
+ *  before text — every one of them used to shift computed positions. */
+const emptyContainersDoc: JSONContent = {
+  type: "noteDoc",
+  content: [
+    { type: "noteTitle", content: [{ type: "text", text: "Drift fixture" }] },
+    { type: "paragraph" },
+    { type: "paragraph", content: [] },
+    { type: "bulletList", content: [{ type: "listItem", content: [] }] },
+    {
+      type: "taskList",
+      content: [{ type: "taskItem", attrs: { checked: false }, content: [] }],
+    },
+    { type: "paragraph", content: [] },
+    {
+      type: "paragraph",
+      content: [{ type: "text", text: "target needle text" }],
+    },
+  ],
+};
+
+const leavesDoc: JSONContent = {
+  type: "noteDoc",
+  content: [
+    { type: "noteTitle", content: [{ type: "text", text: "Leaves" }] },
+    { type: "paragraph", content: [{ type: "text", text: "before" }] },
+    { type: "image", attrs: { data: { id: "01IMG" } } },
+    { type: "horizontalRule" },
+    {
+      type: "mermaid",
+      attrs: { code: "graph TD", align: "center" },
+    },
+    {
+      type: "paragraph",
+      content: [
+        { type: "text", text: "word " },
+        { type: "hardBreak" },
+        { type: "text", text: "needle after break" },
+      ],
+    },
+  ],
+};
+
+/** Rich containers before the needle: table with an empty and a filled
+ *  cell, blockquote, heading, ordered list — every one of them must count
+ *  its true size in the index (parity with the PM document). */
+const containersDoc: JSONContent = {
+  type: "noteDoc",
+  content: [
+    { type: "noteTitle", content: [{ type: "text", text: "Containers" }] },
+    { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Heading" }] },
+    {
+      type: "blockquote",
+      content: [{ type: "paragraph", content: [{ type: "text", text: "quoted" }] }],
+    },
+    {
+      type: "orderedList",
+      content: [
+        { type: "listItem", content: [{ type: "paragraph", content: [] }] },
+        { type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "item" }] }] },
+      ],
+    },
+    {
+      type: "table",
+      content: [
+        {
+          type: "tableRow",
+          content: [
+            { type: "tableHeader", content: [] },
+            { type: "tableHeader", content: [{ type: "paragraph", content: [{ type: "text", text: "head" }] }] },
+          ],
+        },
+        {
+          type: "tableRow",
+          content: [
+            { type: "tableCell", content: [] },
+            { type: "tableCell", content: [{ type: "paragraph", content: [{ type: "text", text: "cell" }] }] },
+          ],
+        },
+      ],
+    },
+    {
+      type: "paragraph",
+      content: [{ type: "text", text: "target needle text" }],
+    },
+  ],
+};
+
+function expectIndexMatchesDoc(content: JSONContent, query: string): void {
+  const editor = editorFor(content);
+  const index = buildNoteTextIndex(editor.getJSON());
+  // The doc must actually contain the query (guard against a fixture that
+  // the schema coerced away).
+  expect(index.text.toLowerCase()).toContain(query.toLowerCase());
+  const pmMatches = findDocumentMatches(editor.state.doc, query);
+  const idxMatches = findMatchesInIndex(index, query);
+  expect(idxMatches.map((m) => ({ from: m.from, to: m.to }))).toEqual(
+    pmMatches.map((m) => ({ from: m.from, to: m.to })),
+  );
+  // Every match resolves to the query text in the real document.
+  for (const match of idxMatches) {
+    expect(
+      editor.state.doc.textBetween(match.from, match.to, "\n", ""),
+    ).toBe(query);
+  }
+  editor.destroy();
+}
+
+describe("notepadSearch node sizes", () => {
+  it("empty containers before text do not drift the positions", () => {
+    expectIndexMatchesDoc(emptyContainersDoc, "needle");
+  });
+
+  it("several empty containers still land exactly", () => {
+    expectIndexMatchesDoc(emptyContainersDoc, "text");
+  });
+
+  it("leaf nodes count 1, containers 2 — positions stay true across them", () => {
+    expectIndexMatchesDoc(leavesDoc, "needle after break");
+  });
+
+  it("mermaid and horizontalRule before text keep positions aligned", () => {
+    expectIndexMatchesDoc(leavesDoc, "word");
+  });
+
+  it("table, blockquote, heading and ordered list before text keep positions aligned", () => {
+    expectIndexMatchesDoc(containersDoc, "needle");
+  });
+
+  it("text inside table cells and the blockquote matches in place", () => {
+    expectIndexMatchesDoc(containersDoc, "cell");
+    expectIndexMatchesDoc(containersDoc, "quoted");
+    expectIndexMatchesDoc(containersDoc, "item");
+  });
+});

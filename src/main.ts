@@ -1,5 +1,6 @@
 import "./styles/editor.css";
 import {
+  addIcon,
   App,
   Notice,
   normalizePath,
@@ -13,7 +14,17 @@ import {
 } from "obsidian";
 import { NoteView, NOTE_VIEW_TYPE } from "./NoteView";
 import { NotepadView, NOTEPAD_VIEW_TYPE } from "./NotepadView";
-import { installIconSprite, NOTE_ICON_NAME } from "./components/icons/iconSprite";
+import {
+  installIconSprite,
+  NEW_UM_ICON_NAME,
+  NEW_UM_ICON_SVG,
+  NOTE_ICON_NAME,
+} from "./components/icons/iconSprite";
+import {
+  ensureEmptyTabActions,
+  removeEmptyTabActions,
+} from "./ui/emptyTabActions";
+import { nextFreeNotepadName } from "./storage/fileNaming";
 import { createEmptyNote, setWriteLogEnabled } from "./storage/noteStorage";
 import {
   clearCommentAuthorProvider,
@@ -61,6 +72,9 @@ type CommandRegistry = { commands: Record<string, CommandLike> };
 
 export default class NotesPlugin extends Plugin {
   private fileExplorerObserver: MutationObserver | null = null;
+  /** Set from onunload so pending debounces (empty-tab actions, file
+   *  explorer button) cannot re-inject UI after the cleanup ran. */
+  private unloadFlags: Array<() => void> = [];
   private patchedCommands: Array<{
     command: CommandLike;
     kind: "checkCallback" | "callback" | "editorCallback";
@@ -83,6 +97,9 @@ export default class NotesPlugin extends Plugin {
     void this.regenerateSchemaArtifact();
 
     installIconSprite();
+    // The quick "New um" icon is owner-approved artwork (issues/.quick-new-um),
+    // registered under a plugin-scoped public addIcon id.
+    addIcon(NEW_UM_ICON_NAME, NEW_UM_ICON_SVG);
 
     this.registerExtensions(["note"], NOTE_VIEW_TYPE);
 
@@ -141,6 +158,12 @@ export default class NotesPlugin extends Plugin {
       NotepadView.onPageExportRequested = null;
     });
 
+    // Quick "New um" first: the empty-tab order requirement (New um, then
+    // New inscriptum) and the ribbon read top-to-bottom in registration order.
+    this.addRibbonIcon(NEW_UM_ICON_NAME, "New um", () => {
+      void this.createQuickNotepad();
+    });
+
     this.addRibbonIcon(NOTE_ICON_NAME, "New inscriptum", () => {
       this.createNewNote();
     });
@@ -150,6 +173,14 @@ export default class NotesPlugin extends Plugin {
       name: "New note",
       callback: () => {
         this.createNewNote();
+      },
+    });
+
+    this.addCommand({
+      id: "new-um",
+      name: "New um",
+      callback: () => {
+        void this.createQuickNotepad();
       },
     });
 
@@ -214,6 +245,13 @@ export default class NotesPlugin extends Plugin {
 
         menu.addItem((item) =>
           item
+            .setTitle("New um")
+            .setIcon(NEW_UM_ICON_NAME)
+            .onClick(() => void this.createQuickNotepad(file.path)),
+        );
+
+        menu.addItem((item) =>
+          item
             .setTitle("New inscriptum")
             .setIcon(NOTE_ICON_NAME)
             .onClick(() => this.createNewNote(file.path)),
@@ -221,14 +259,16 @@ export default class NotesPlugin extends Plugin {
       }),
     );
 
-    // Add a "New inscriptum" button next to the standard "New note" button in
-    // the file explorer (visible on both desktop and mobile). The ribbon icon
-    // is hidden inside the left sidebar on mobile, and the folder context-menu
-    // item is only reachable by long-pressing a folder, so a direct button is
-    // the discoverable entry point.
+    // Add "New um" / "New inscriptum" buttons next to the standard "New note"
+    // button in the file explorer (visible on both desktop and mobile). The
+    // ribbon icon is hidden inside the left sidebar on mobile, and the folder
+    // context-menu item is only reachable by long-pressing a folder, so a
+    // direct button is the discoverable entry point.
     this.app.workspace.onLayoutReady(() => {
       this.ensureFileExplorerButton();
       this.observeFileExplorer();
+      this.ensureEmptyTabActions();
+      this.observeEmptyTabs();
     });
 
     this.addSettingTab(new InscriptumSettingTab(this.app, this));
@@ -351,31 +391,57 @@ export default class NotesPlugin extends Plugin {
     this.patchedCommands = [];
   }
 
-  /** Insert (once) a "New inscriptum" button right after the file explorer's
-   *  standard "New note" button. Re-adds itself if Obsidian re-renders the bar. */
+  /** Insert (once) the "New um" and "New inscriptum" buttons right after the
+   *  file explorer's standard "New note" button, then normalize their order
+   *  (native New note, New um, New inscriptum). Re-adds itself if Obsidian
+   *  re-renders the bar. */
   private ensureFileExplorerButton(): void {
     const container = document.querySelector<HTMLElement>(
       '.workspace-leaf-content[data-type="file-explorer"] .nav-buttons-container',
     );
     if (!container) return;
-    if (container.querySelector(".inscriptum-nav-new-note")) return;
 
-    const button = container.createDiv({
-      cls: "clickable-icon nav-action-button inscriptum-nav-new-note",
-      attr: { "aria-label": "New inscriptum", type: "button" },
-    });
-    setIcon(button, NOTE_ICON_NAME);
-    button.addEventListener("click", (event) => {
-      event.preventDefault();
-      this.createNewNote();
-    });
+    if (!container.querySelector(".inscriptum-nav-new-um")) {
+      const button = container.createDiv({
+        cls: "clickable-icon nav-action-button inscriptum-nav-new-um",
+        attr: { "aria-label": "New um", type: "button" },
+      });
+      setIcon(button, NEW_UM_ICON_NAME);
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        void this.createQuickNotepad();
+      });
+    }
 
-    const newNoteBtn =
-      container.querySelector<HTMLElement>(".nav-action-button");
-    if (newNoteBtn?.nextSibling) {
-      container.insertBefore(button, newNoteBtn.nextSibling);
-    } else {
-      container.appendChild(button);
+    if (!container.querySelector(".inscriptum-nav-new-note")) {
+      const button = container.createDiv({
+        cls: "clickable-icon nav-action-button inscriptum-nav-new-note",
+        attr: { "aria-label": "New inscriptum", type: "button" },
+      });
+      setIcon(button, NOTE_ICON_NAME);
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        this.createNewNote();
+      });
+    }
+
+    const umBtn = container.querySelector<HTMLElement>(
+      ".inscriptum-nav-new-um",
+    );
+    const noteBtn = container.querySelector<HTMLElement>(
+      ".inscriptum-nav-new-note",
+    );
+    if (!umBtn || !noteBtn) return;
+    // The native buttons keep their own order; ours sit directly after the
+    // first native button (the "New note" action) — um, then inscriptum.
+    const nativeNoteBtn = container.querySelector<HTMLElement>(
+      ".nav-action-button:not(.inscriptum-nav-new-um):not(.inscriptum-nav-new-note)",
+    );
+    if (nativeNoteBtn?.nextSibling !== umBtn) {
+      container.insertBefore(umBtn, nativeNoteBtn?.nextSibling ?? null);
+    }
+    if (umBtn.nextSibling !== noteBtn) {
+      container.insertBefore(noteBtn, umBtn.nextSibling);
     }
   }
 
@@ -383,11 +449,16 @@ export default class NotesPlugin extends Plugin {
   private observeFileExplorer(): void {
     if (this.fileExplorerObserver) return;
     let scheduled = false;
+    let unloaded = false;
+    this.unloadFlags.push(() => {
+      unloaded = true;
+    });
     this.fileExplorerObserver = new MutationObserver(() => {
       if (scheduled) return;
       scheduled = true;
       window.setTimeout(() => {
         scheduled = false;
+        if (unloaded) return;
         this.ensureFileExplorerButton();
       }, 200);
     });
@@ -397,10 +468,55 @@ export default class NotesPlugin extends Plugin {
     });
   }
 
+  /** Attach the quick-create actions to every empty-tab view. */
+  private ensureEmptyTabActions(): void {
+    ensureEmptyTabActions(document, [
+      {
+        cls: "inscriptum-empty-new-um",
+        label: "New um",
+        icon: NEW_UM_ICON_NAME,
+        onClick: () => void this.createQuickNotepad(),
+      },
+      {
+        cls: "inscriptum-empty-new-note",
+        label: "New inscriptum",
+        icon: NOTE_ICON_NAME,
+        onClick: () => this.createNewNote(),
+      },
+    ]);
+  }
+
+  /** Empty tabs appear on new-tab and on closing the last file — both emit
+   *  public workspace events. Re-debounced: layout-change can arrive in
+   *  bursts while a workspace settles. */
+  private observeEmptyTabs(): void {
+    let scheduled = false;
+    let unloaded = false;
+    this.unloadFlags.push(() => {
+      unloaded = true;
+    });
+    this.registerEvent(
+      this.app.workspace.on("layout-change", () => {
+        if (scheduled) return;
+        scheduled = true;
+        window.setTimeout(() => {
+          scheduled = false;
+          if (unloaded) return;
+          this.ensureEmptyTabActions();
+        }, 150);
+      }),
+    );
+    this.ensureEmptyTabActions();
+  }
+
   onunload(): void {
+    for (const flag of this.unloadFlags) flag();
+    this.unloadFlags = [];
     this.fileExplorerObserver?.disconnect();
     this.fileExplorerObserver = null;
     document.querySelector(".inscriptum-nav-new-note")?.remove();
+    document.querySelector(".inscriptum-nav-new-um")?.remove();
+    removeEmptyTabActions(document);
     // Drop the in-memory log switch; the persisted setting and the
     // localStorage dev flag remain what they are.
     setWriteLogEnabled(false);
@@ -550,11 +666,65 @@ export default class NotesPlugin extends Plugin {
     await this.app.workspace.getLeaf("tab").openFile(file);
   }
 
+  /** "New um": create a valid notepad without any dialog and open it. The
+   *  folder comes from Obsidian's own location settings (public
+   *  FileManager.getNewFileParent with the active file as context); an
+   *  explicit folderPath (folder context menu) wins over the settings. The
+   *  file name is the first free "Notepad", "Notepad 1", … — an existing
+   *  file is never overwritten. Rapid repeated invocations are serialized,
+   *  so each press sees the previous file and picks the next free name. */
+  private async createQuickNotepad(initialFolderPath?: string): Promise<void> {
+    this.quickCreateQueue = this.quickCreateQueue
+      .catch(() => {
+        /* a failed earlier creation must not block the next one */
+      })
+      .then(() => this.createQuickNotepadInner(initialFolderPath));
+    await this.quickCreateQueue;
+  }
+
+  private quickCreateQueue: Promise<void> = Promise.resolve();
+
+  private async createQuickNotepadInner(
+    initialFolderPath?: string,
+  ): Promise<void> {
+    try {
+      const explicitFolder =
+        initialFolderPath !== undefined
+          ? (this.app.vault.getFolderByPath(initialFolderPath) ??
+            this.app.vault.getRoot())
+          : null;
+      const activeFile = this.app.workspace.getActiveFile();
+      // Public resolution honoring the "default location for new notes"
+      // setting; empty sourcePath when no file is open.
+      const settingsFolder = this.app.fileManager.getNewFileParent(
+        activeFile?.path ?? "",
+        "Notepad.um",
+      );
+      const folder = explicitFolder ?? settingsFolder;
+      // getNewFileParent reports the vault root as "/" — keep "" as the
+      // root marker so the path building below stays single-slash.
+      const folderPath =
+        folder?.path && folder.path !== "/" ? folder.path : "";
+      const name = nextFreeNotepadName((candidate) =>
+        this.app.vault.getAbstractFileByPath(
+          folderPath ? `${folderPath}/${candidate}.um` : `${candidate}.um`,
+        ) != null,
+      );
+      await this.createNotepadFile(name, folderPath, { focusTitle: true });
+    } catch (error) {
+      new Notice(
+        `Failed to create: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      console.error("Quick notepad creation failed:", error);
+    }
+  }
+
   /** Create a `.um` container with one starter note whose manifest title
    *  matches the notepad name, then open it. */
   private async createNotepadFile(
     name: string,
     folderPath: string,
+    options?: { focusTitle?: boolean },
   ): Promise<void> {
     const notepad = UmNotepad.empty();
     notepad.addNote(undefined, name);
@@ -565,6 +735,10 @@ export default class NotesPlugin extends Plugin {
     );
     const file = await createUmFile(this.app.vault, path, notepad);
     await this.app.workspace.getLeaf("tab").openFile(file);
+    if (options?.focusTitle) {
+      const view = this.app.workspace.getActiveViewOfType(NotepadView);
+      if (view) await view.focusStartPage();
+    }
   }
 }
 

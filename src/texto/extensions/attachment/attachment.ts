@@ -15,6 +15,9 @@ export type AttachmentViewNodeState = {
   text?: string;
   subtext?: string;
   isAutoOpenFileSelection?: boolean;
+  /** The chip was created by an external file drop: cancelling the attach
+   *  dialog removes it instead of leaving an empty block. */
+  isQuickDrop?: boolean;
   preparedData?: {
     file?: File;
   };
@@ -49,6 +52,25 @@ export const VIEW_TAG = elTag("texto-extension-attachment");
 /** Static tag used in HTML serialization (clipboard/export) — stays version-independent. */
 export const HTML_TAG = "texto-extension-attachment";
 const AttachmentElement = attachmentElement(VIEW_TAG);
+
+/**
+ * Files dropped from the OS onto the editor, parked under the attachment
+ * chip's key until its node view picks them up. CONTRACT (attachment
+ * quick-drop only): a File never travels in THIS node's attrs — autosave
+ * serializes editor.getJSON() verbatim, and a File stringifies to "{}", so
+ * the drop would persist garbage into the saved note and a broken
+ * re-attach on reopen (same policy as attachSelectedFile keeping its File
+ * in a closure: nothing transient is persisted). The entry lives until the
+ * attach flow settles (result dispatched, chip dismissed) or the node view
+ * is disposed.
+ *
+ * WHY the image node is out of scope: the image drop/paste paths still
+ * hand the File through node attrs (state.preparedData) and consume it in
+ * the next animation frame (tools/image.ts) — a pre-existing one-frame
+ * window with the same persistence risk, kept as-is for paste parity until
+ * that path gets its own parking.
+ */
+export const quickDropFiles = new Map<string, File>();
 
 export type AttachmentElementType = InstanceType<typeof AttachmentElement>;
 
@@ -161,12 +183,16 @@ export const Attachment = Node.create<AttachmentOptions>({
         getPos(),
       );
 
+      let currentNode = node;
+
       return {
         dom: element,
         update: (updatedNode) => {
           if (updatedNode.type !== this.type) {
             return false;
           }
+
+          currentNode = updatedNode;
 
           setAttachmentViewProps(
             element,
@@ -177,6 +203,15 @@ export const Attachment = Node.create<AttachmentOptions>({
           );
 
           return true;
+        },
+        destroy: () => {
+          // Dispose without an attach result (view closed, chip removed by
+          // other means): release the parked quick-drop file or it leaks
+          // for the whole session. A settled flow has already deleted the
+          // entry, so this is a no-op there.
+          quickDropFiles.delete(
+            (currentNode.attrs as { key?: string }).key as string,
+          );
         },
       };
     };

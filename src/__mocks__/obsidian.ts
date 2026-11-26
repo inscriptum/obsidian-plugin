@@ -98,6 +98,17 @@ export class Plugin {
   }
 }
 
+/** Minimal stub of PluginSettingTab — main.ts subclasses it at module
+ *  load; the class body only needs the base to exist. */
+export class PluginSettingTab {
+  app: unknown;
+  plugin: unknown;
+  containerEl: HTMLElement = createDiv();
+  constructor(_app?: unknown, _plugin?: unknown) {}
+  display(): void {}
+  hide(): void {}
+}
+
 export abstract class ItemView {
   abstract getViewType(): string;
   abstract getDisplayText(): string;
@@ -126,6 +137,15 @@ export class Menu {
 }
 
 export function setIcon(_el: unknown, _name: string): void {}
+
+/** The real module exposes these as ambient globals (obsidian.d.ts); the
+ *  polyfills in vitest.setup.ts back them under plain jsdom. */
+export function createDiv(): HTMLDivElement {
+  return (window as unknown as { createDiv: () => HTMLDivElement }).createDiv();
+}
+export function createSpan(): HTMLSpanElement {
+  return (window as unknown as { createSpan: () => HTMLSpanElement }).createSpan();
+}
 
 /** Minimal moment stub: only the format-token shapes the notepad views
  *  use (um-page-updated-at) — everything else stringifies. */

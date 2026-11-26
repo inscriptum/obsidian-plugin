@@ -1,4 +1,5 @@
 import type { JSONContent } from "../texto/core/@types";
+import { getProfileSchema } from "../texto/editorSchemas";
 
 /**
  * Notepad-wide search plumbing: build a plain-text index of a note document
@@ -33,11 +34,45 @@ function isTextNode(node: JSONContent): boolean {
   return node.type === "text";
 }
 
+/** Empty-node sizes by type, from the actual editor schema. In PM a leaf
+ *  occupies 1 position while a content-bearing node always costs 2 (open +
+ *  close) — even when empty, so an empty paragraph/list before a match
+ *  shifts every computed position by one. The JSON shape alone cannot tell
+ *  a leaf from an empty container ("content" is absent in both), so the
+ *  schema decides. The schema never changes at runtime; cache the map. */
+let nodeSizesCache: Map<string, 1 | 2> | null = null;
+function getNodeSizes(): Map<string, 1 | 2> {
+  if (nodeSizesCache == null) {
+    try {
+      const schema = getProfileSchema("title");
+      nodeSizesCache = new Map();
+      for (const nodeType of Object.values(schema.nodes)) {
+        nodeSizesCache.set(nodeType.name, nodeType.isLeaf ? 1 : 2);
+      }
+    } catch {
+      // Schema construction failed: degrade to the legacy all-1 sizing
+      // (the pre-fix behavior) instead of breaking the search panel.
+      nodeSizesCache = new Map();
+    }
+  }
+  return nodeSizesCache;
+}
+
+/** Size of a JSON node that carries no content array (or an empty one).
+ *  A type the schema does not know keeps the historical leaf guess (1):
+ *  documents with unknown types fail to mount anyway, so no size computed
+ *  for them is ever consumed against a real editor. */
+function emptyNodeSize(node: JSONContent): number {
+  return getNodeSizes().get(node.type ?? "") ?? 1;
+}
+
 /** ProseMirror node size of a JSON node (open + children + close). */
 function jsonNodeSize(node: JSONContent): number {
   if (isTextNode(node)) return (node.text ?? "").length;
   const content = node.content;
-  if (!Array.isArray(content) || content.length === 0) return 1;
+  if (!Array.isArray(content) || content.length === 0) {
+    return emptyNodeSize(node);
+  }
   let size = 2;
   for (const child of content) size += jsonNodeSize(child);
   return size;
@@ -63,7 +98,7 @@ export function buildNoteTextIndex(doc: JSONContent): NoteTextIndex {
       return value.length;
     }
     const content = Array.isArray(node.content) ? node.content : [];
-    if (content.length === 0) return 1;
+    if (content.length === 0) return emptyNodeSize(node);
     let size = 2;
     let childPos = pos + 1;
     for (const child of content) {

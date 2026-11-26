@@ -52,6 +52,7 @@ import {
   type ImageToolContext,
 } from "./tools/image";
 import { collectGalleryItems } from "./ui/imageLightbox";
+import { createNavbarClearanceTracking } from "./tools/navbarClearance";
 import type { JSONContent } from "./texto/core/@types";
 import "./styles/bubble-menu.css";
 import "./components/note/note.element";
@@ -142,6 +143,9 @@ export class NoteView extends FileView {
   // Our toolbar is always a separate docked bar. On phones it is shown only
   // while the soft keyboard is open; on iPad it stays visible.
   private scrollShadowCleanup: (() => void) | null = null;
+  private navbarClearance: ReturnType<
+    typeof createNavbarClearanceTracking
+  > | null = null;
   private mobileScrollCleanup: (() => void) | null = null;
   private mobileNavWasHidden: boolean | null = null;
   private lastEditorPointer: { x: number; y: number; t: number } | null = null;
@@ -286,6 +290,13 @@ export class NoteView extends FileView {
 
     if (this.isMobileView()) {
       this.setupKeyboardHandling();
+      if (Platform.isPhone) {
+        // Obsidian's floating navbar overlays the toolbar while raised; keep
+        // the reserved clearance equal to its real box (navbarClearance.ts).
+        // Phone-only: the navbar and the dock clearance consumer are phone UI.
+        this.navbarClearance?.dispose();
+        this.navbarClearance = createNavbarClearanceTracking(this.contentEl);
+      }
       this.scrollShadowCleanup?.();
       this.scrollShadowCleanup = setupScrollShadows(this.contentEl);
     }
@@ -960,6 +971,8 @@ export class NoteView extends FileView {
     this.mobileScrollCleanup?.();
     this.mobileScrollCleanup = null;
     this.clearKeyboardListeners();
+    this.navbarClearance?.dispose();
+    this.navbarClearance = null;
     this.destroySearchBar();
     this.leafContentWithNoteClass?.classList.remove("has-inscriptum-note-view");
     this.leafContentWithNoteClass = null;

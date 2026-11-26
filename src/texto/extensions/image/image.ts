@@ -18,7 +18,11 @@ import {
   Plugin,
   PluginKey,
 } from "prosemirror-state";
+import { Fragment, Slice } from "prosemirror-model";
+import { dropPoint } from "prosemirror-transform";
 import type { EditorView } from "prosemirror-view";
+
+import { quickDropFiles } from "../attachment/attachment";
 
 import { addCommands } from "./commands";
 import { setViewProps } from "./helpers/setViewProps.helper";
@@ -36,6 +40,85 @@ export type ViewNodeState = {
   isAutoOpenFileSelection?: boolean;
   error?: string | null;
 };
+
+/** Standard image extensions the renderer can display; expands the
+ *  "image/*" accept wildcard for files the OS reports without a MIME type
+ *  (OS file drags of e.g. .JPG often arrive with an empty type). */
+const IMAGE_FILE_EXTENSIONS = [
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "svg",
+  "avif",
+  "bmp",
+  "ico",
+];
+
+/** WHY blacklist, not an allowlist on the whole MIME branch: image files
+ *  without a file-name extension must keep the MIME path. This only strips
+ *  image/* MIME types Chromium reports but the renderer cannot decode —
+ *  they would insert a permanently broken image block; extend as needed. */
+const UNRENDERABLE_IMAGE_MIME = new Set([
+  "image/tiff",
+  "image/heic",
+  "image/heif",
+]);
+
+function buildAcceptedFileExtensions(accept: string | undefined): Set<string> {
+  const set = new Set<string>();
+  for (const entry of (accept ?? "")
+    .split(",")
+    .map((it) => it.toLowerCase().trim())
+    .filter(Boolean)) {
+    if (entry.endsWith("/*")) {
+      if (entry === "image/*") {
+        for (const ext of IMAGE_FILE_EXTENSIONS) set.add(`.${ext}`);
+      }
+      continue;
+    }
+    set.add(entry.startsWith(".") ? entry : `.${entry}`);
+  }
+  return set;
+}
+
+/** Image classification shared by paste and external drop: by MIME first,
+ *  by the accept-list extension when the OS reports no type. Exported for
+ *  the classification unit tests. */
+export function isImageDropFile(
+  file: File,
+  acceptedFiles: Set<string>,
+): boolean {
+  if (UNRENDERABLE_IMAGE_MIME.has(file.type)) return false;
+  if (file.type.startsWith("image")) {
+    // A named file whose extension the renderer cannot display goes to the
+    // attachment path instead of a broken image block; extension-less
+    // image files keep the MIME path (getFileExt returns the bare name
+    // when there is no dot — the dot is what marks a real extension).
+    const ext = getFileExt(file.name);
+    if (file.name.includes(".") && !IMAGE_FILE_EXTENSIONS.includes(ext)) {
+      return false;
+    }
+    return true;
+  }
+  if (file.type === "") return acceptedFiles.has(`.${getFileExt(file.name)}`);
+  return false;
+}
+
+/** A drop/dragover claims the editor only for a single local FILE:
+ *  multi-file drags, directory drags (Chromium delivers a folder as one
+ *  MIME-less File — recognized directories must not be imported) and
+ *  internal block drags keep the host behavior. */
+export function isSingleFileDrag(dataTransfer: DataTransfer | null): boolean {
+  if (dataTransfer == null || !dataTransfer.types.includes("Files")) {
+    return false;
+  }
+  if (dataTransfer.files.length !== 1) return false;
+  const entry = dataTransfer.items[0]?.webkitGetAsEntry?.();
+  if (entry?.isDirectory) return false;
+  return true;
+}
 
 export type UpdateFn = (
   attrs: Omit<ImageOptionsAttrs, "key">,
@@ -91,6 +174,9 @@ export const IMAGE_LAYOUTS: ImageLayout[] = [
   "wrap-left",
   "wrap-right",
 ];
+
+/** Disambiguates quick-drop keys created within the same millisecond. */
+let quickDropSeq = 0;
 
 export function isImageLayout(value: unknown): value is ImageLayout {
   return (
@@ -210,9 +296,7 @@ export const Image = Node.create<ImageOptions>({
   addProseMirrorPlugins() {
     const imageNodeType = this.type;
 
-    const acceptedFiles = new Set(
-      this.options.accept?.split(",").map((it) => it.toLowerCase().trim()),
-    );
+    const acceptedFiles = buildAcceptedFileExtensions(this.options.accept);
 
     const imageOptions = this.options;
     return [
@@ -261,12 +345,7 @@ export const Image = Node.create<ImageOptions>({
               }
 
               for (const file of event.clipboardData.files) {
-                let isImage = file.type.startsWith("image");
-
-                // If a type was not recognised check a file extension based on the accept attribute
-                if (file.type === "") {
-                  isImage = acceptedFiles.has(`.${getFileExt(file.name)}`);
-                }
+                const isImage = isImageDropFile(file, acceptedFiles);
 
                 if (isImage) {
                   const attrs: Omit<ImageOptionsAttrs, "key"> = {
@@ -296,6 +375,112 @@ export const Image = Node.create<ImageOptions>({
               }
 
               return false;
+            },
+            dragover(view, event) {
+              // Signal a copy-drop over the editor for a single local file
+              // (internal block drags carry no Files). PM preventDefaults
+              // every dragover over the editable area anyway; this documents
+              // the intent and keeps non-file drags untouched.
+              const dataTransfer = event.dataTransfer;
+              if (!isSingleFileDrag(dataTransfer)) {
+                return false;
+              }
+              event.preventDefault();
+              return false;
+            },
+            drop(view, event) {
+              const dataTransfer = event.dataTransfer;
+              // Exactly one local file; multi-file and directory drags keep
+              // the host behavior (batch import is out of scope).
+              if (!isSingleFileDrag(dataTransfer)) {
+                return false;
+              }
+              const file = dataTransfer!.files[0];
+              const dropPos = view.posAtCoords({
+                left: event.clientX,
+                top: event.clientY,
+              });
+              // Gutter/outside areas: not a document position — keep the
+              // host behavior instead of guessing.
+              if (dropPos == null) return false;
+
+              const isImage = isImageDropFile(file, acceptedFiles);
+              let node;
+              // Non-null exactly when an attachment chip is being inserted
+              // (the image path parks nothing — its File goes into attrs,
+              // see the quickDropFiles contract in attachment.ts).
+              let quickDropKey: string | null = null;
+              if (isImage) {
+                node = imageNodeType.create({
+                  state: { preparedData: { file } },
+                });
+              } else {
+                const attachmentNodeType =
+                  view.state.schema.nodes.attachment;
+                // The attachment extension is part of every profile; if it
+                // ever disappears, unclaimed drops keep the host behavior.
+                if (attachmentNodeType == null) return false;
+                // The File parks in quickDropFiles under the chip's key —
+                // never in attrs: autosave serializes getJSON() verbatim and
+                // a File stringifies to "{}", persisting garbage into the
+                // saved note (see quickDropFiles contract in attachment.ts).
+                // The key must exist before the node (it goes into its
+                // attrs), but the Map entry is parked only after insertPos
+                // resolves below — parking earlier would leak the file on
+                // the bail-outs (no node view ever mounts to release it).
+                quickDropKey = `quick_drop_${Date.now()}_${quickDropSeq++}`;
+                node = attachmentNodeType.create({
+                  key: quickDropKey,
+                  state: { isQuickDrop: true },
+                });
+              }
+
+              // Snap the raw position to a boundary where a whole block
+              // fits — dropPoint is the snapping PM's own drop uses; a raw
+              // mid-text position would make the block insert invalid.
+              const slice = new Slice(Fragment.from(node), 0, 0);
+              let insertPos = dropPoint(view.state.doc, dropPos.pos, slice);
+              if (insertPos == null) {
+                // The upper half of the .note title has no valid boundary
+                // (NoteDoc requires the leading noteTitle) — retry at the
+                // end of the top-level node under the pointer, the first
+                // block boundary after the title, before giving up.
+                const $raw = view.state.doc.resolve(dropPos.pos);
+                if ($raw.depth >= 1) {
+                  insertPos = dropPoint(
+                    view.state.doc,
+                    $raw.after(1),
+                    slice,
+                  );
+                }
+              }
+              if (insertPos == null) return false;
+
+              // The insert is certain now: park the file. dispatch is
+              // synchronous, so the entry is in place before the view
+              // update mounts the chip's node view and reads it.
+              if (quickDropKey != null) {
+                quickDropFiles.set(quickDropKey, file);
+              }
+
+              const { tr } = view.state;
+              tr.insert(insertPos, node);
+              if (isImage) {
+                // Paste-path parity: the inserted image lands selected.
+                tr.setSelection(NodeSelection.near(tr.doc.resolve(insertPos)));
+              } else {
+                // Module convention (setAttachmentViewProps): attachment
+                // block transactions stay outside undo history.
+                tr.setMeta("addToHistory", false);
+              }
+
+              // preventDefault stops Electron's file:// hand-off (the
+              // "open with external application" path); stopPropagation
+              // keeps the workspace-level drop handlers out of it.
+              event.preventDefault();
+              event.stopPropagation();
+              view.dispatch(tr);
+              return true;
             },
             dragstart(view, event) {
               if (

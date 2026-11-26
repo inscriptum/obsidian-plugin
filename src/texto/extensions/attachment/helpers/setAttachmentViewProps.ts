@@ -7,6 +7,7 @@ import {
   type AttachmentOptions,
   type AttachmentViewNodeState,
   keyToPos,
+  quickDropFiles,
 } from "../attachment";
 import { createPositions } from "./createPositions";
 
@@ -115,6 +116,23 @@ export function setAttachmentViewProps(
       },
       selectedFile,
     );
+  } else if (attrs.state?.isQuickDrop === true) {
+    // A quick-drop chip carries no File in attrs (nothing transient is
+    // persisted) — the drop handler parked it in quickDropFiles under the
+    // chip's key. The entry stays alive while the attach dialog is open
+    // (the dismiss path tests it) and is released when the flow settles.
+    const parkedFile = quickDropFiles.get(attrs.key);
+    if (parkedFile != null) {
+      onFileSelected(
+        {
+          editor,
+          node,
+          options,
+          key: attrs.key,
+        },
+        parkedFile,
+      );
+    }
   }
 
   removeTempStateOptions(node, editor, startPos);
@@ -137,13 +155,33 @@ function onFileSelected(
   const dispatchAttrs = (
     attrs: Omit<AttachmentOptions["attributes"], "key">,
   ) => {
+    // The flow has resolved (result, error, or stale-position no-op): the
+    // parked quick-drop file is consumed either way — release it here so a
+    // settled chip never leaves a live entry behind.
+    quickDropFiles.delete(key);
     const position = keyToPos.get(key);
     if (position == null) return;
     const target = editor.view.state.doc.nodeAt(position.pos);
-    if (target?.type !== node.type) return;
+    if (
+      target?.type !== node.type ||
+      (target.attrs as { key?: string } | null)?.key !== key
+    ) {
+      return;
+    }
     editor.view.dispatch(
       editor.view.state.tr
-        .setNodeMarkup(position.pos, node.type, attrs)
+        .setNodeMarkup(position.pos, node.type, {
+          ...attrs,
+          // Keep the node's current key (the identity guard above just
+          // proved it equals `key`): setNodeMarkup recomputes attrs from the
+          // given object, so a key-less object resets the key to the schema
+          // default — the nodeState plugin would regenerate it before the
+          // flow's next phase, whose dispatch would then fail the identity
+          // check and strand the chip mid-flow ("Loading…" forever, the
+          // file already written to the vault). Same shape as the image
+          // path in tools/image.ts.
+          key,
+        })
         .setMeta("addToHistory", false),
     );
   };
@@ -157,9 +195,39 @@ function onFileSelected(
         // attrs back as they were when the picker opened — placeholder for a
         // fresh block, the previous file for a replace — and drop the
         // prepared file so the picker does not re-trigger.
+        // A quick-drop chip (created by an external file drop, no data yet)
+        // is different: the user never asked for a block in the document, so
+        // cancelling the dialog must remove it entirely.
         // PM attrs are untyped; this node is guaranteed to be an attachment
         // node, so read the previous attrs through the schema type.
         const prevAttrs = node.attrs as AttachmentOptions["attributes"];
+        const position = keyToPos.get(key);
+        const isFreshQuickDrop =
+          prevAttrs.state?.isQuickDrop === true &&
+          prevAttrs.data?.id == null &&
+          position != null &&
+          // A live parked file is required: a chip reloaded from JSON (or
+          // one whose flow already settled) carries the flag but has no
+          // file — cancelling any future dialog must keep it as a plain
+          // block, never delete it blind.
+          quickDropFiles.has(key);
+        if (isFreshQuickDrop) {
+          const target = editor.view.state.doc.nodeAt(position.pos);
+          // Only the exact chip this flow was opened for may be removed:
+          // a mapped position can hold another node after a doc replace.
+          if (
+            target?.type === node.type &&
+            (target.attrs as { key?: string } | null)?.key === key
+          ) {
+            editor.view.dispatch(
+              editor.view.state.tr
+                .delete(position.pos, position.pos + target.nodeSize)
+                .setMeta("addToHistory", false),
+            );
+            quickDropFiles.delete(key);
+            return;
+          }
+        }
         dispatchAttrs({
           state: { ...prevAttrs.state, preparedData: undefined },
           data: prevAttrs.data,

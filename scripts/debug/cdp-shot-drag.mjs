@@ -6,8 +6,9 @@
 // window, drags across it with playwright's mouse (user-like selection, the
 // bubble menu reacts to it), then captures the window to <out.png>.
 import { chromium } from 'playwright-core';
+import { devVaultPath } from './dev-vault-path.mjs';
 
-const DEV_VAULT_ROOT = '/Users/d.sumbaev/DEVELOPMENT/inscriptum/obsidian-plugin';
+const DEV_VAULT_ROOT = devVaultPath;
 const outPath = process.argv[2];
 const searchText = process.argv[3];
 if (outPath == null || searchText == null) {
@@ -20,9 +21,15 @@ const pages = browser
   .contexts()
   .flatMap((c) => c.pages())
   .filter((p) => p.url().startsWith('app://obsidian.md'));
-const titled = await Promise.all(pages.map(async (p) => ({ t: await p.title(), p })));
-const page = titled.find((x) => x.t.includes('obsidian-plugin'))?.p;
-if (!page) throw new Error('dev vault window not found');
+let page;
+for (const p of pages) {
+  const root = await p.evaluate(() => window.app?.vault?.adapter?.basePath ?? null).catch(() => null);
+  if (root === DEV_VAULT_ROOT) { page = p; break; }
+}
+if (!page) {
+  await browser.close().catch(() => {});
+  throw new Error('dev vault window not found');
+}
 try {
   const root = await page.evaluate(() => window.app.vault.adapter.basePath);
   if (root !== DEV_VAULT_ROOT) throw new Error(`wrong vault window: basePath=${root}`);

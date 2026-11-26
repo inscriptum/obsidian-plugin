@@ -3,14 +3,13 @@
 // Usage: node scripts/debug/cdp-shot.mjs <body.js> <out.png> [--wait <ms>]
 //
 // The body is an async IIFE source (see playwright-eval.mjs). It runs in the
-// window whose title contains "obsidian-plugin"; before evaluating, the script
-// asserts the window's vault root is the dev vault (rule-verify-vault — name
-// match is not sufficient). After the body resolves, the window is captured
+// window whose vault root matches the configured dev vault. After the body resolves, the window is captured
 // to <out.png> (viewport screenshot, like the user sees it).
 import fs from 'node:fs';
 import { chromium } from 'playwright-core';
+import { devVaultPath } from './dev-vault-path.mjs';
 
-const DEV_VAULT_ROOT = '/Users/d.sumbaev/DEVELOPMENT/inscriptum/obsidian-plugin';
+const DEV_VAULT_ROOT = devVaultPath;
 
 const bodyPath = process.argv[2];
 const outPath = process.argv[3];
@@ -27,12 +26,12 @@ const pages = browser
   .contexts()
   .flatMap((c) => c.pages())
   .filter((p) => p.url().startsWith('app://obsidian.md'));
-const titled = await Promise.all(
-  pages.map(async (p) => ({ t: await p.title(), p })),
-);
-const chosen = titled.find((x) => x.t.includes('obsidian-plugin'))?.p;
+let chosen;
+for (const p of pages) {
+  const root = await p.evaluate(() => window.app?.vault?.adapter?.basePath ?? null).catch(() => null);
+  if (root === DEV_VAULT_ROOT) { chosen = p; break; }
+}
 if (!chosen) {
-  console.error(JSON.stringify(titled.map((x) => x.t)));
   await browser.close().catch(() => {});
   throw new Error('dev vault window not found');
 }

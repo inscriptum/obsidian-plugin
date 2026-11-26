@@ -9,16 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A quick "New um" action — ribbon, explorer, folder menu, the empty-tab screen and a command with hotkey support create a notepad in one step, named Notepad, Notepad 1 and so on in the folder Obsidian uses for new notes.
+
 - Export any notepad page as a standalone website from its page menu, with only that page’s content and images. The desktop page menu also holds Delete to keep the toolbar compact.
+
+### Added
+
+- Drag a picture or any other file from your desktop straight into a note or notepad page on the computer: pictures insert right where you dropped them, other files attach as chips without opening the file externally. Works for a single dropped file that can be placed in the text; multi-file drops and drops outside the text behave as before.
 
 ### Fixed
 
 - Page website exports now handle Windows-reserved titles and keep private source paths out of ownership files, including when re-exporting older folders.
-
 - Page website exports now use readable folder names from their titles, with suffixes only when names collide.
-
+- The picture menu again sits right next to the selected picture in themes that add their own margins around images (like Notation 2).
+- On phones the editor toolbar now clears Obsidian's floating bottom navigation by its real size, so it no longer hides under the navigation on Android devices with a system bar and no longer leaves a dead gap above it on iPhone.
+- Search in notepads now jumps to the right spot in pages that have empty blocks — an empty paragraph or list before a match no longer pulls the highlight above or below it.
 - Notepad website exports now include images linked from the vault as well as pictures packed inside the notepad.
-
 - Repeated page exports keep their pictures when started together, and exporting a small page uses less memory in large notepads.
 
 ## [0.16.0] - 2026-11-19
@@ -90,9 +96,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Cmd/Ctrl+X cuts the selected text again: the table feature had claimed the shortcut app-wide, which cancelled the native cut before it could run. Cutting selected table cells keeps its spreadsheet behavior (rows removed, or the rectangle cleared), now on both desktop and mobile.
-
 - Changes made to a notepad file outside the app — a git sync, another agent, another editor — can no longer be silently overwritten by the app's own autosave. The app now notices the external change and asks which version to keep, and when it reloads quietly, your open pages and scroll position stay put.
-
 - Checking a task no longer makes its nested sub-tasks look checked: their checkboxes kept their own state, but the strike-through and the checkmark leaked from the parent onto everything nested under it.
 - Selecting text inside a code block no longer shows the text-formatting menu — the floating bar on desktop, the button row above the keyboard on mobile. None of its buttons could change a code block anyway; a selection that starts outside the block keeps the menu as before.
 - A quick drag across table cells now ends with the cells selected: the text no longer highlights along the way, and the selection no longer resets when you release the mouse. On mobile, a touch that starts on a table border can no longer summon the text selection either.
