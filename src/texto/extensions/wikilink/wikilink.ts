@@ -26,6 +26,8 @@ export interface WikiFile {
 export interface WikiHooks {
   /** All linkable files of the vault. */
   listFiles(): WikiFile[];
+  /** Notify an open suggestion list when asynchronous discovery completes. */
+  onFilesChanged?(listener: () => void): () => void;
   /** Whether the path currently resolves to a vault file. */
   isResolved(path: string): boolean;
   /** Open the target in the workspace (current tab). */

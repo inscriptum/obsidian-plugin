@@ -28,6 +28,7 @@ import {
   type NotepadSearchMatch,
 } from "./notepad/notepadSearch";
 import { getExtensions, type ExtensionHooks } from "./texto/getExtensions";
+import { wikiFiles } from "./tools/wikiFiles";
 import {
   assignBlockIds,
   ensureUniqueBlockIds,
@@ -1866,8 +1867,8 @@ export class NotepadView extends FileView {
         },
       },
       wiki: {
-        listFiles: () =>
-          app.vault.getFiles().map((f) => ({ path: f.path, name: f.basename })),
+        listFiles: () => wikiFiles(app.vault).list(),
+        onFilesChanged: (listener) => wikiFiles(app.vault).subscribe(listener),
         isResolved: (path) => app.vault.getAbstractFileByPath(path) != null,
         openTarget: (path) => {
           void app.workspace.openLinkText(path, this.file?.path ?? "", false);

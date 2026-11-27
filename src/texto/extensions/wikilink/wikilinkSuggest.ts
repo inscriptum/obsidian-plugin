@@ -91,19 +91,32 @@ export function filterFiles(
   query: string,
   limit = MAX_SUGGESTIONS,
 ): WikiFile[] {
-  if (query.length === 0) {
-    return files.slice(0, limit);
-  }
-  return files
-    .map((file) => ({ file, score: scoreFile(file, query) }))
+  const ranked = files
+    .map((file, index) => ({
+      file,
+      index,
+      hidden: file.path.split("/").some((part) => part.startsWith(".")),
+      score: scoreFile(file, query),
+    }))
     .filter((entry) => entry.score > 0)
     .sort(
       (a, b) =>
+        Number(a.hidden) - Number(b.hidden) ||
         b.score - a.score ||
-        a.file.path.localeCompare(b.file.path),
-    )
-    .slice(0, limit)
-    .map((entry) => entry.file);
+        (query.length === 0 ? a.index - b.index : a.file.path.localeCompare(b.file.path)),
+    );
+  const selected = ranked.slice(0, limit);
+  // Keep an explicitly typed exact path available even when the ordinary
+  // matches fill the popup. Its place remains after all ordinary matches.
+  let exact = ranked.find((entry) => entry.file.path === query);
+  if (!exact && query.length > 0 && query.split("/").some((part) => part.startsWith("."))) {
+    exact = { file: { path: query, name: query }, index: files.length, hidden: true, score: 0 };
+    if (selected.length < limit) selected.push(exact);
+  }
+  if (limit > 0 && exact && !selected.includes(exact)) {
+    selected[selected.length - 1] = exact;
+  }
+  return selected.map((entry) => entry.file);
 }
 
 interface WikiSuggestState {
@@ -127,7 +140,7 @@ const initial: WikiSuggestState = {
   display: null,
   closeEnd: null,
   dismissed: false,
-  selected: 0,
+  selected: -1,
 };
 
 /** Recomputes the suggest state from the caret of `tr`'s resulting doc. */
@@ -174,9 +187,16 @@ function scan(state: WikiSuggestState, tr: Transaction): WikiSuggestState {
     display: query.display,
     closeEnd,
     dismissed: changedTarget ? false : state.dismissed,
-    selected: changedTarget ? 0 : Math.min(state.selected, MAX_SUGGESTIONS - 1),
+    selected: changedTarget ? -1 : Math.min(state.selected, MAX_SUGGESTIONS - 1),
   };
 }
+
+function selectedIndex(state: WikiSuggestState, candidates: WikiFile[]): number {
+  if (state.selected >= 0) return Math.min(state.selected, candidates.length - 1);
+  const exact = candidates.findIndex((file) => file.path === state.query);
+  return exact >= 0 ? exact : 0;
+}
+
 
 function apply(
   state: WikiSuggestState,
@@ -319,13 +339,13 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
           event.preventDefault();
           const step = event.key === "ArrowDown" ? 1 : -1;
           const selected =
-            (state.selected + step + candidates.length) % candidates.length;
+            (selectedIndex(state, candidates) + step + candidates.length) % candidates.length;
           view.dispatch(view.state.tr.setMeta(wikiSuggestKey, { selected }));
           return true;
         }
         if (event.key === "Enter" || event.key === "Tab") {
           event.preventDefault();
-          const file = candidates[Math.min(state.selected, candidates.length - 1)];
+          const file = candidates[selectedIndex(state, candidates)];
           acceptWikiSuggestion(
             view.state,
             (tr) => view.dispatch(tr),
@@ -359,7 +379,7 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
       if (!looksLikeEnter(tr)) return true;
       const view = viewRef;
       if (view == null || view.isDestroyed) return true;
-      const file = candidates[Math.min(suggest.selected, candidates.length - 1)];
+      const file = candidates[selectedIndex(suggest, candidates)];
       window.setTimeout(() => {
         if (view.isDestroyed) return;
         acceptWikiSuggestion(
@@ -375,6 +395,11 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
     },
     view(editorView) {
       viewRef = editorView;
+      const unsubscribe = hooks.onFilesChanged?.(() => {
+        if (!editorView.isDestroyed && wikiSuggestKey.getState(editorView.state)?.active) {
+          editorView.dispatch(editorView.state.tr);
+        }
+      });
       // Hide the popup when a mousedown lands outside the editor AND the
       // popup (sidebar, toolbar, another editor): the transaction-driven
       // update never fires for those, and a focus change alone does not
@@ -429,6 +454,7 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
           positionPopup(view, popup, next.from);
         },
         destroy() {
+          unsubscribe?.();
           editorView.dom.removeEventListener("focusout", onFocusOut);
           document.removeEventListener("mousedown", onDocMouseDown, true);
           document.removeEventListener("scroll", onScroll, true);
@@ -478,7 +504,7 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
   ): void {
     el.replaceChildren();
     const list = createDiv("texto-wiki-suggest__list");
-    const selected = Math.min(state.selected, candidates.length - 1);
+    const selected = selectedIndex(state, candidates);
     candidates.forEach((file, index) => {
       // A div, deliberately not a button: Obsidian's base button styles
       // would bleed into items through higher-specificity selectors (the

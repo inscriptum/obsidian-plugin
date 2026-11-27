@@ -35,6 +35,7 @@ import {
   openAttachmentFile,
 } from "./tools/attachment";
 import { getExtensions, type ExtensionHooks } from "./texto/getExtensions";
+import { wikiFiles } from "./tools/wikiFiles";
 import {
   assignBlockIds,
   BLOCK_IDS_EXTERNAL_CONTENT,
@@ -1641,8 +1642,8 @@ export class NoteView extends FileView {
         },
       },
       wiki: {
-        listFiles: () =>
-          app.vault.getFiles().map((f) => ({ path: f.path, name: f.basename })),
+        listFiles: () => wikiFiles(app.vault).list(),
+        onFilesChanged: (listener) => wikiFiles(app.vault).subscribe(listener),
         isResolved: (path) => app.vault.getAbstractFileByPath(path) != null,
         openTarget: (path) => {
           void app.workspace.openLinkText(path, noteFile.path, false);
