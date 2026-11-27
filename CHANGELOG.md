@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Wikilink suggestions can find files in hidden folders and preserve explicitly entered hidden paths.
 
+### Fixed
+
+- Text copied from a table cell now pastes at the cursor or replaces the selected text without replacing the whole cell.
+
 ## [0.17.0] - 2026-11-26
 
 ### Added
