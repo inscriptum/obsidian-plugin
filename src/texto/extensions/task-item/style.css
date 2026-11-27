@@ -145,7 +145,7 @@ ul.chk,
   flex: none;
   /* Unchecked box border token (the <use> sprite's OFF rect strokes with
      currentColor): matches the .chk .box preview border. */
-  color: color-mix(in srgb, var(--text-normal) 30%, transparent);
+  color: color-mix(in srgb, var(--text-normal) 55%, transparent);
   transition: color 150ms ease;
 }
 
@@ -175,7 +175,7 @@ ul.chk,
 }
 
 .texto-extension-task-item-host .texto-task-check__box {
-  stroke: color-mix(in srgb, var(--text-normal) 30%, transparent);
+  stroke: color-mix(in srgb, var(--text-normal) 55%, transparent);
   fill: transparent;
   transition:
     fill 180ms,
