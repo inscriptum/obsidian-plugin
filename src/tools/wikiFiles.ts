@@ -13,10 +13,19 @@ class HiddenFiles {
 
   constructor(private vault: Vault) {}
 
-  list(): WikiFile[] {
+  private ensureFresh(): void {
     if (!this.refreshing && Date.now() - this.refreshedAt >= REFRESH_INTERVAL) {
       void this.refresh();
     }
+  }
+
+  hasHiddenFile(path: string): boolean {
+    this.ensureFresh();
+    return this.files.some((file) => file.path === path);
+  }
+
+  list(): WikiFile[] {
+    this.ensureFresh();
     const regular = this.vault.getFiles().map((f) => ({ path: f.path, name: f.basename }));
     const paths = new Set(regular.map((f) => f.path));
     return regular.concat(this.files.filter((f) => !paths.has(f.path)));

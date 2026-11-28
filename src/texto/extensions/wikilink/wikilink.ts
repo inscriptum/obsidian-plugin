@@ -501,6 +501,12 @@ function finalizeOnExitPlugin(): Plugin {
 function wikiUnresolvedPlugin(hooks: WikiHooks): Plugin {
   return new Plugin({
     key: new PluginKey("wikiLinkUnresolved"),
+    view: (view) => {
+      const unsubscribe = hooks.onFilesChanged?.(() => {
+        if (!view.isDestroyed) view.dispatch(view.state.tr);
+      });
+      return { destroy: () => unsubscribe?.() };
+    },
     props: {
       decorations: (state) => {
         const decorations: Decoration[] = [];

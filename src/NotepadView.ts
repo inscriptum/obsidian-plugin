@@ -28,7 +28,7 @@ import {
   type NotepadSearchMatch,
 } from "./notepad/notepadSearch";
 import { getExtensions, type ExtensionHooks } from "./texto/getExtensions";
-import { wikiFiles } from "./tools/wikiFiles";
+import { createWikiHooks } from "./tools/wikiHooks";
 import {
   assignBlockIds,
   ensureUniqueBlockIds,
@@ -1856,14 +1856,7 @@ export class NotepadView extends FileView {
           openAttachmentFile(app, attrs.data);
         },
       },
-      wiki: {
-        listFiles: () => wikiFiles(app.vault).list(),
-        onFilesChanged: (listener) => wikiFiles(app.vault).subscribe(listener),
-        isResolved: (path) => app.vault.getAbstractFileByPath(path) != null,
-        openTarget: (path) => {
-          void app.workspace.openLinkText(path, this.file?.path ?? "", false);
-        },
-      },
+      wiki: createWikiHooks(app, () => this.file?.path ?? ""),
       comments: {
         findThread: (id) => {
           const thread = this.allThreads().find((t) => t.id === id);
