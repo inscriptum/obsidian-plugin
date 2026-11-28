@@ -197,6 +197,9 @@ export function findWikiMatches(state: EditorState): WikiMatch[] {
  * round 7: editing shows the same menu as a fresh «[[»).
  */
 export function startWikiEdit(view: EditorView, range: WikiLinkRange): void {
+  // Restore focus before opening the suggest session: the menu's mousedown
+  // is observed as an outside click by the suggestion plugin.
+  view.focus();
   const raw = `[[${range.path}|${range.label}]]`;
   const tr = view.state.tr;
   tr.replaceWith(range.from, range.to, tr.doc.type.schema.text(raw));
@@ -205,7 +208,6 @@ export function startWikiEdit(view: EditorView, range: WikiLinkRange): void {
   );
   tr.setMeta(wikiSuggestKey, { open: true });
   view.dispatch(tr);
-  view.focus();
 }
 
 /**
