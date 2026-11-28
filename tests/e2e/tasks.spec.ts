@@ -104,9 +104,8 @@ test.describe("tasks and folding", () => {
       };
     });
     expect(unchecked).not.toBeNull();
-    // Unchecked border is a text-normal mix at 30% (color-mix serializes
-    // as color(srgb … / 0.3)) — not the old hardcoded gray.
-    expect(unchecked?.boxStroke).toMatch(/^color\(srgb .+ \/ 0\.3\)$/);
+    // The unchecked border follows the theme text color at readable contrast.
+    expect(unchecked?.boxStroke).toMatch(/^color\(srgb .+ \/ 0\.55\)$/);
     // The mark hides behind the dash gap while unchecked.
     expect(unchecked?.markOffset).toBeGreaterThan(0);
 
