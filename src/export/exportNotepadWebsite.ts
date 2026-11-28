@@ -299,6 +299,9 @@ export async function exportNotepadAsWebsite(
     sections,
     sectionIds,
     toc,
+    foldLabels: pageId === undefined
+      ? sectionLabels.map((label) => escapeDescription(label || "Untitled"))
+      : undefined,
   });
 
   const folder =

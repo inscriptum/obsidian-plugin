@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Wikilink suggestions can find files in hidden folders and preserve explicitly entered hidden paths.
+- Full notepad website exports now present collapsible pages, with controls to expand or collapse all and remember the reader's choices.
 
 ### Fixed
 

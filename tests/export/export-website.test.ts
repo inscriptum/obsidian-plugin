@@ -510,6 +510,7 @@ describe("buildPageHtml", () => {
     );
     expect(html).toContain("<article>");
     expect(html).toContain("<p>hello</p>");
+    expect(html).not.toContain('class="export-page"');
     // assets and links are relative — the page is location-independent
     expect(html).not.toContain('src="/');
     expect(html).not.toContain('href="/');

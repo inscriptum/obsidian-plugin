@@ -42,3 +42,10 @@ extract the `@font-face` rules from any exported note in
 `blog/src/public/note/*.html`, inline the four font files from
 `blog/src/public/fonts/` as data URIs, and replace part 2 in `note.css`
 before regenerating.
+
+Full-notepad exports start with every page collapsed when JavaScript is
+available. Use `?pages=open` or `?pages=closed` to choose the initial state
+for every page; other values are ignored. A valid parameter takes precedence
+over the saved per-page state, while a `#page-N` link opens its target. The
+page state is saved in localStorage when available. Without JavaScript every
+page remains open, and the export also works without browser storage.
