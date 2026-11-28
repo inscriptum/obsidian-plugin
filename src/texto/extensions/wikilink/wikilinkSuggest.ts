@@ -415,6 +415,13 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
           outsidePointer = false;
           return;
         }
+        // Editing a hovered link keeps the current editor focused. Its menu
+        // lives outside the editor, but this action starts a new session.
+        if (editorView.hasFocus() && target instanceof Element &&
+            target.closest('.texto-wiki-hover [aria-label="Edit wikilink"]')) {
+          outsidePointer = false;
+          return;
+        }
         if (popup?.contains(target)) return;
         outsidePointer = true;
         destroyPopup();
