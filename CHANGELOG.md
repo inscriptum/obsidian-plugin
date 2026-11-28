@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Full notepad exports keep the cover open and match the editor’s folded rows, including page numbers, word counts and update dates; expand and collapse controls now live in the pages menu in both the editor and exports.
+
 - Text copied from a table cell now pastes at the cursor or replaces the selected text without replacing the whole cell.
 - Unchecked task checkboxes are easier to see in Obsidian's default light and dark themes.
 

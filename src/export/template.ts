@@ -41,6 +41,8 @@ export interface ExportPageMeta {
   toc?: ExportTocEntry[];
   /** Escaped labels for full-notepad exports; absent for notes and single pages. */
   foldLabels?: string[];
+  /** Collapsed-row metadata, aligned with sections and already escaped. */
+  foldMetadata?: { date: string; timestamp: string; words: string; order: number; empty: boolean }[];
 }
 
 /** Details start open in the HTML so every page remains readable without JS. */
@@ -59,11 +61,6 @@ const PAGE_FOLD_SCRIPT = `(function () {
   }
   pages.forEach(function (page) {
     var id = page.parentElement.id;
-    var first = page.querySelector(".export-page__content > :first-child");
-    var summary = page.querySelector("summary");
-    if (first && summary && /^H[1-6]$/.test(first.tagName) && first.textContent.trim() === summary.textContent.trim()) {
-      first.classList.add("export-page__repeated-title");
-    }
     page.open = requested === "open" ? true : requested === "closed" ? false : saved[id] === true;
   });
   function reveal(hash) {
@@ -80,7 +77,8 @@ const PAGE_FOLD_SCRIPT = `(function () {
   if (location.hash) reveal(location.hash);
   controls.hidden = false;
   controls.addEventListener("click", function (event) {
-    var action = event.target && event.target.getAttribute("data-pages");
+    var button = event.target && event.target.closest ? event.target.closest("[data-pages]") : null;
+    var action = button && button.getAttribute("data-pages");
     if (action !== "open" && action !== "closed") return;
     pages.forEach(function (page) { page.open = action === "open"; });
     persist();
@@ -273,7 +271,8 @@ export function buildPageHtml(meta: ExportPageMeta): string {
       const id = meta.sectionIds?.[index];
       const attr = id != null ? ` id="${id}"` : "";
       if (meta.foldLabels) {
-        return `      <section${attr}>\n        <details class="export-page" open><summary>${meta.foldLabels[index]}</summary><div class="export-page__content">${html}</div></details>\n      </section>`;
+        if (id === "page-1") return `      <section${attr} class="export-cover">\n        ${html}\n      </section>`;
+        return `      <section${attr} class="export-fold-section">\n        <details class="export-page" open><summary><svg class="export-page__chevron" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"></polyline></svg><span class="export-page__label${meta.foldMetadata?.[index]?.empty ? " is-empty" : ""}">${meta.foldLabels[index]}</span><span class="export-page__leader" aria-hidden="true"></span><span class="export-page__meta" title="${meta.foldMetadata?.[index]?.timestamp ?? ""}">${meta.foldMetadata?.[index]?.date ?? ""} · ${meta.foldMetadata?.[index]?.words ?? ""}<span class="export-page__order">${meta.foldMetadata?.[index]?.order ?? ""}</span></span></summary><div class="export-page__content">${html}</div></details>\n      </section>`;
       }
       return `      <section${attr}>\n        ${html}\n      </section>`;
     })
@@ -285,6 +284,7 @@ export function buildPageHtml(meta: ExportPageMeta): string {
         <svg class="icon-menu" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
         <svg class="icon-close" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="17" y1="7" x2="7" y2="17"></line><line x1="7" y1="7" x2="17" y2="17"></line></svg>
       </button>
+      ${meta.foldLabels ? `<div class="page-fold-controls" hidden><button type="button" data-pages="open" aria-label="Expand all pages" title="Expand all pages"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></button><button type="button" data-pages="closed" aria-label="Collapse all pages" title="Collapse all pages"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></svg></button></div>` : ""}
       <ul class="toc-list">
 ${meta.toc
   .map(
@@ -306,9 +306,6 @@ ${meta.toc
     ? `
     <script>${LIGHTBOX_SCRIPT}</script>`
     : "";
-  const foldControls = meta.foldLabels
-    ? '<div class="page-fold-controls" hidden><button type="button" data-pages="open">Expand all</button><button type="button" data-pages="closed">Collapse all</button></div>'
-    : "";
   const foldScript = meta.foldLabels ? `\n    <script>${PAGE_FOLD_SCRIPT}</script>` : "";
 
   return `<!DOCTYPE html>
@@ -328,7 +325,7 @@ ${meta.toc
     <meta name="twitter:description" content="${meta.description}">
     <link href="note.css" rel="stylesheet">
   </head>
-  <body>${toc}${foldControls}
+  <body>${toc}
     <article>
 ${sections}
     </article>

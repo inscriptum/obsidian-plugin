@@ -84,7 +84,7 @@ test.describe("notepad website export", () => {
     );
     // three exported pages → contents drawer with anchor entries; labels
     // mirror the pages' display titles (first line), untitled → "Untitled"
-    expect(index).toContain('<section id="page-1">');
+    expect(index).toContain('<section id="page-1" class="export-cover">');
     expect(index).toContain('<a class="toc-item is-cover" href="#page-1"');
     expect(index).toContain('<span class="toc-header">E2E export</span>');
     expect(index).toContain('<span class="toc-header">first page</span>');
@@ -149,7 +149,9 @@ test.describe("notepad website export", () => {
     // figure lightbox: click a figure (mermaid diagram here, same markup as
     // images) — the overlay carries the enlarged object; cursors come from
     // the real stylesheet
-    await page.getByRole("button", { name: "Expand all" }).click();
+    await page.locator(".toc-toggle").click();
+    await page.getByRole("button", { name: "Expand all pages" }).click();
+    await page.locator(".toc-toggle").click();
     const mermaidFigure = page.locator("figure.mermaid-figure");
     await expect(mermaidFigure).toHaveCSS("cursor", "zoom-in");
     await mermaidFigure.click();
@@ -228,39 +230,59 @@ test("full notepad folding respects navigation, saved state and URL overrides", 
   await page.route("**/fold-export/note.css", (route) => route.fulfill({ body: css, contentType: "text/css" }));
   await page.goto(url);
   const pages = page.locator(".export-page");
-  await expect(pages).toHaveCount(3);
+  await expect(pages).toHaveCount(2);
+  await expect(page.locator("#page-1.export-cover")).toBeVisible();
+  await expect(page.locator("#page-1 summary")).toHaveCount(0);
+  await expect(page.locator("#page-1 h1")).toHaveCSS("font-size", "40px");
+  await expect(page.locator("#page-1")).toHaveCSS("border-top-style", "none");
+  await expect(pages.first().locator("summary svg")).toHaveAttribute("stroke-width", "0.5");
+  await expect(page.locator(".toc-drawer .page-fold-controls")).toHaveCount(1);
+  await page.setViewportSize({ width: 375, height: 812 });
+  await expect(page.locator("#page-1.export-cover")).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.locator(".toc-toggle").click();
+  await expect(page.getByRole("button", { name: "Expand all pages" })).toBeVisible();
+  await page.locator(".toc-toggle").click();
+  await page.setViewportSize({ width: 1280, height: 720 });
   await expect(pages.nth(0)).not.toHaveAttribute("open", "");
   await expect(pages.nth(1)).not.toHaveAttribute("open", "");
-  await expect(pages.nth(1).locator("h1")).toHaveClass(/export-page__repeated-title/);
-  await expect(pages.nth(2).locator("summary")).toHaveText("Untitled");
-  await pages.nth(1).locator("summary").focus();
+  await expect(pages.nth(1).locator(".export-page__label")).toHaveText("Untitled");
+  await expect(pages.nth(0).locator(".export-page__leader")).toBeVisible();
+  await expect(pages.nth(0).locator(".export-page__meta")).toContainText("4 words");
+  await expect(pages.nth(0).locator(".export-page__order")).toHaveText("1");
+  await expect(pages.nth(1).locator(".export-page__meta")).toContainText("Empty");
+  await expect(pages.nth(1).locator(".export-page__order")).toHaveText("2");
+  await pages.nth(0).locator("summary").focus();
   await page.keyboard.press("Enter");
-  await expect(pages.nth(1)).toHaveAttribute("open", "");
-  await expect(pages.nth(0)).not.toHaveAttribute("open", "");
+  await expect(pages.nth(0)).toHaveAttribute("open", "");
+  await expect(pages.nth(0).locator(".export-page__meta")).toBeHidden();
+  await expect(pages.nth(1)).not.toHaveAttribute("open", "");
   await page.reload();
-  await expect(pages.nth(1)).toHaveAttribute("open", "");
-  await expect(pages.nth(0)).not.toHaveAttribute("open", "");
+  await expect(pages.nth(0)).toHaveAttribute("open", "");
+  await expect(pages.nth(1)).not.toHaveAttribute("open", "");
   await page.goto(`${url}?pages=open`);
   for (const item of await pages.all()) await expect(item).toHaveAttribute("open", "");
   await page.goto(`${url}?pages=closed#page-3`);
   await expect(pages.nth(0)).not.toHaveAttribute("open", "");
-  await expect(pages.nth(2)).toHaveAttribute("open", "");
-  await page.getByRole("button", { name: "Expand all" }).click();
-  for (const item of await pages.all()) await expect(item).toHaveAttribute("open", "");
-  await page.getByRole("button", { name: "Collapse all" }).click();
-  for (const item of await pages.all()) await expect(item).not.toHaveAttribute("open", "");
+  await expect(pages.nth(1)).toHaveAttribute("open", "");
+  await expect(page.locator("#page-1.export-cover")).toBeVisible();
   await page.locator(".toc-toggle").click();
+  await page.getByRole("button", { name: "Expand all pages" }).click();
+  for (const item of await pages.all()) await expect(item).toHaveAttribute("open", "");
+  await page.getByRole("button", { name: "Collapse all pages" }).click();
+  for (const item of await pages.all()) await expect(item).not.toHaveAttribute("open", "");
+  await expect(page.locator("#page-1.export-cover")).toBeVisible();
   await page.locator('.toc-drawer a[href="#page-2"]').click();
-  await expect(pages.nth(1)).toHaveAttribute("open", "");
+  await expect(pages.nth(0)).toHaveAttribute("open", "");
   await page.goto(`${url}?pages=invalid`);
-  await expect(pages.nth(1)).toHaveAttribute("open", "");
+  await expect(pages.nth(0)).toHaveAttribute("open", "");
 
   const noScript = await browser.newContext({ javaScriptEnabled: false });
   const noScriptPage = await noScript.newPage();
   await noScriptPage.route("**/fold-export/index.html*", (route) => route.fulfill({ body: html, contentType: "text/html" }));
   await noScriptPage.goto(`http://127.0.0.1:4599${url}`);
   for (const item of await noScriptPage.locator(".export-page").all()) await expect(item).toHaveAttribute("open", "");
-  await expect(noScriptPage.getByRole("button", { name: "Expand all" })).toBeHidden();
+  await expect(noScriptPage.getByRole("button", { name: "Expand all pages" })).toBeHidden();
   await noScript.close();
 
   const noStorage = await browser.newContext();
@@ -271,7 +293,8 @@ test("full notepad folding respects navigation, saved state and URL overrides", 
   await noStoragePage.route("**/fold-export/index.html*", (route) => route.fulfill({ body: html, contentType: "text/html" }));
   await noStoragePage.goto(`http://127.0.0.1:4599${url}`);
   await expect(noStoragePage.locator(".export-page").first()).not.toHaveAttribute("open", "");
-  await noStoragePage.getByRole("button", { name: "Expand all" }).click();
+  await noStoragePage.locator(".toc-toggle").click();
+  await noStoragePage.getByRole("button", { name: "Expand all pages" }).click();
   await expect(noStoragePage.locator(".export-page").first()).toHaveAttribute("open", "");
   await noStorage.close();
 });

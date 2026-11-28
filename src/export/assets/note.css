@@ -507,51 +507,44 @@ article .texto-wikilink {
   color: var(--note-accent-text, #7c6af7);
 }
 
-/* Full-notepad page boundaries and keyboard-accessible folding controls. */
-.page-fold-controls {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  max-width: 48rem;
-  margin: 1rem auto;
-  padding: 0 1rem;
-}
+/* The drawer uses the same compact actions as the Obsidian page navigator. */
+.page-fold-controls { display: flex; justify-content: flex-end; gap: 4px; padding: 4px 12px; }
 .page-fold-controls[hidden] { display: none; }
-.page-fold-controls button {
-  cursor: pointer;
-  padding: 0.45rem 0.7rem;
-  border: 1px solid #aab2bd;
-  border-radius: 0.35rem;
-  background: #fff;
-  color: #303841;
-}
-article .export-page {
-  margin: 1rem 0;
-  border: 1px solid #d4d9df;
-  border-radius: 0.5rem;
-}
-article .export-page > summary {
-  padding: 0.8rem 1rem;
-  cursor: pointer;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-article .export-page > summary:focus-visible,
-.page-fold-controls button:focus-visible {
-  outline: 2px solid #6750a4;
-  outline-offset: 2px;
-}
+.page-fold-controls button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 6px; border: 0; background: transparent; color: #888; cursor: pointer; }
+.page-fold-controls button:hover { color: #222; }
+.page-fold-controls button:focus-visible, article .export-page > summary:focus-visible { outline: 2px solid #6750a4; outline-offset: 2px; }
+
+/* A cover is ordinary content, always visible and without a card or chevron. */
+article .export-cover { border: 0; background: transparent; }
+article .export-cover { font-family: Inter, sans-serif; font-size: 16px; line-height: 1.7; }
+article .export-cover > h1:first-of-type { font-family: Inter, sans-serif; font-size: 40px; font-weight: 650; line-height: 1.15; letter-spacing: -0.022em; margin: 0 21px 14px; }
+article .export-cover .note-property { grid-template-columns: 200px 1fr; gap: 0 16px; margin: 2px 21px; min-height: 1.6em; align-items: start; }
+article .export-cover .note-property-name { font-size: 13px; line-height: inherit; }
+article .export-cover p.note-property-value { font-family: inherit; font-size: inherit; line-height: 1.6; }
+article section.export-fold-section { margin: 6px 0; }
+article .export-cover + .export-fold-section { margin-top: 24px; }
+article .export-fold-section:has(.export-page[open]) { margin-top: 24px; margin-bottom: 24px; }
+article .export-page { position: relative; border: 1px solid transparent; }
+article .export-page[open] { border-color: #d4d9df; border-radius: 0.5rem; }
+article .export-page > summary { display: block; list-style: none; cursor: pointer; padding: 13px 21px; font-family: Inter, sans-serif; font-size: 18px; font-weight: 200; line-height: 1.5; color: #777; overflow-wrap: anywhere; }
+article .export-page > summary::-webkit-details-marker { display: none; }
+article .export-page__label { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -0.01em; }
+article .export-page__label.is-empty { color: #999; font-style: italic; font-weight: 100; }
+article .export-page__leader { display: block; height: 0; border-bottom: 1px dotted #d4d9df; }
+article .export-page__meta { display: block; font-size: 12px; font-weight: 400; letter-spacing: 0.01em; font-variant-numeric: tabular-nums; color: #999; white-space: nowrap; }
+article .export-page__order { float: right; font-size: 13px; font-weight: 500; }
+article .export-page[open] .export-page__leader, article .export-page[open] .export-page__meta { display: none; }
+article .export-page__chevron { position: absolute; left: -70px; top: 20px; color: #999; transition: transform 0.2s, color 0.2s; }
+article .export-page > summary:hover .export-page__chevron { color: #333; }
+article .export-page[open] > summary { position: absolute; left: -70px; top: 7px; width: 44px; height: 44px; padding: 0; }
+article .export-page[open] .export-page__chevron { left: 0; top: 0; transform: rotate(90deg); }
+article .export-page[open] .export-page__label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 article .export-page__content { padding: 0 1rem 1rem; }
-/* Keep the original heading in the accessibility tree without displaying
-   an identical page title twice when the section is expanded. */
-article .export-page__repeated-title {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
+@media (max-width: 850px) {
+  article { margin-left: 52px; margin-right: 16px; }
+  article .export-page__chevron { left: -48px; }
+  article .export-page[open] > summary { left: -48px; }
+}
+@media (max-width: 600px) {
+  article .export-cover .note-property { grid-template-columns: 120px 1fr; gap: 0 10px; }
 }

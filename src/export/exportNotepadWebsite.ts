@@ -1,5 +1,6 @@
 import { Notice, normalizePath, type App, type TFile } from "obsidian";
 
+import { countPageWords, formatPageDate, formatPageWordCount } from "../notepad/pageMetadata";
 import type { JSONContent } from "../texto/core/@types";
 import { generateHTML } from "../texto/core/helpers/generateHTML";
 import { extractNoteTitle } from "../storage/fileNaming";
@@ -201,6 +202,7 @@ export async function exportNotepadAsWebsite(
   const sectionIds: string[] = [];
   const sectionLabels: string[] = [];
   const sectionOrders: number[] = [];
+  const foldMetadata: { date: string; timestamp: string; words: string; order: number; empty: boolean }[] = [];
   const diagrams: ExportDiagramFile[] = [];
   const missing = new Set<string>();
   const usedAssets = new Set<string>();
@@ -241,6 +243,14 @@ export async function exportNotepadAsWebsite(
     // The contents label is the page's display title (the manifest mirror
     // of its first line); untitled pages fall back to their number.
     sectionLabels.push((descriptor.title ?? "").trim());
+    const modifiedAt = descriptor.modifiedAt ?? fileModified;
+    foldMetadata.push({
+      date: escapeDescription(formatPageDate(modifiedAt, "L LT")),
+      timestamp: escapeDescription(formatPageDate(modifiedAt, "YYYY-MM-DD HH:mm:ss")),
+      words: formatPageWordCount(countPageWords(doc)),
+      order: descriptor.order,
+      empty: !(descriptor.title ?? "").trim(),
+    });
     diagrams.push(...mapped.diagrams);
     for (const id of mapped.images) usedAssets.add(id);
     for (const id of mapped.missing) missing.add(id);
@@ -273,7 +283,7 @@ export async function exportNotepadAsWebsite(
   // in the muted-italic style when a page has no first-line title. A
   // single-page export has nowhere to navigate — it stays clean.
   const toc: ExportTocEntry[] | undefined =
-    sections.length >= 2
+    sections.length >= 2 || (pageId === undefined && sectionOrders.some((order) => order > 0))
       ? sections.map((_, index) => {
           const pageTitle = sectionLabels[index];
           const order = sectionOrders[index];
@@ -299,6 +309,7 @@ export async function exportNotepadAsWebsite(
     sections,
     sectionIds,
     toc,
+    foldMetadata: pageId === undefined ? foldMetadata : undefined,
     foldLabels: pageId === undefined
       ? sectionLabels.map((label) => escapeDescription(label || "Untitled"))
       : undefined,

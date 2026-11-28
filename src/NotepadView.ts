@@ -1,7 +1,6 @@
 import {
   FileView,
   Menu,
-  moment,
   Notice,
   Platform,
   setIcon,
@@ -9,6 +8,7 @@ import {
   WorkspaceLeaf,
 } from "obsidian";
 import { CellSelection, isInTable } from "prosemirror-tables";
+import { countPageWords, formatPageDate, formatPageWordCount } from "./notepad/pageMetadata";
 import { NOTE_ICON_NAME } from "./components/icons/iconSprite";
 import { Editor, isTextSelection } from "./texto/core";
 import {
@@ -157,16 +157,6 @@ function createCustomElement<T>(baseTag: string, make: () => T): T {
 const makeNoteElement = () =>
   createCustomElement<NoteElement>("texto-editor", () => new NoteElement());
 
-// obsidian re-exports moment for runtime use, but its type is the moment
-// module namespace and without @types/moment TS cannot call it — a
-// one-method local view is all the folded-row meta needs.
-const momentFormat = (
-  epochMs: number,
-  fmt: string,
-): string =>
-  (moment as unknown as {
-    (t: number): { format(f: string): string };
-  })(epochMs).format(fmt);
 const makeToolbarElement = () =>
   createCustomElement<ToolbarElement>(
     "note-toolbar",
@@ -1055,9 +1045,9 @@ export class NotepadView extends FileView {
     const modifiedAt =
       this.notepad?.note(handle.id)?.modifiedAt ?? this.file?.stat.mtime;
     if (modifiedAt != null) {
-      meta.push(momentFormat(modifiedAt, "L LT"));
+      meta.push(formatPageDate(modifiedAt, "L LT"));
     }
-    meta.push(words === 0 ? "Empty" : words === 1 ? "1 word" : `${words} words`);
+    meta.push(formatPageWordCount(words));
     const metaEl = row.createSpan({
       cls: "notepad-section-meta",
       text: meta.join(" · "),
@@ -1065,7 +1055,7 @@ export class NotepadView extends FileView {
     if (modifiedAt != null) {
       // The tooltip carries the exact stamp with seconds — some locales'
       // LLLL already embeds the time, so a composed format would double it.
-      metaEl.setAttr("title", momentFormat(modifiedAt, "YYYY-MM-DD HH:mm:ss"));
+      metaEl.setAttr("title", formatPageDate(modifiedAt, "YYYY-MM-DD HH:mm:ss"));
     }
     row.addEventListener("click", () => {
       if (this.suppressFoldToggle) {
@@ -1093,21 +1083,7 @@ export class NotepadView extends FileView {
    *  folded row shows it as its TOC meta. Whitespace-split tokens: close
    *  enough for a quiet row label, cheap enough to run on every fold. */
   private countNoteWords(id: string): number {
-    const visit = (node: unknown): number => {
-      if (node == null || typeof node !== "object") return 0;
-      const rec = node as { text?: unknown; content?: unknown };
-      let words = 0;
-      if (typeof rec.text === "string") {
-        for (const token of rec.text.split(/\s+/)) {
-          if (token.length > 0) words++;
-        }
-      }
-      if (Array.isArray(rec.content)) {
-        for (const child of rec.content) words += visit(child);
-      }
-      return words;
-    };
-    return visit(this.notepad?.noteContent(id) ?? null);
+    return countPageWords(this.notepad?.noteContent(id) ?? null);
   }
 
   /** Re-render the collapsed title text after inline editing. */
@@ -1981,6 +1957,31 @@ export class NotepadView extends FileView {
     toggle.appendChild(closeSvg());
     toggle.setAttribute("aria-label", "Pages");
     toggle.addEventListener("click", () => this.toggleNav());
+    const actions = nav.createDiv("notepad-nav-actions");
+    const expandAll = actions.createEl("button", { cls: "notepad-nav-action" });
+    expandAll.setAttribute("aria-label", "Expand all pages");
+    expandAll.setAttribute("title", "Expand all pages");
+    setIcon(expandAll, "chevrons-up-down");
+    const collapseAll = actions.createEl("button", { cls: "notepad-nav-action" });
+    collapseAll.setAttribute("aria-label", "Collapse all pages");
+    collapseAll.setAttribute("title", "Collapse all pages");
+    setIcon(collapseAll, "chevrons-down-up");
+    const setAll = async (open: boolean) => {
+      expandAll.disabled = true;
+      collapseAll.disabled = true;
+      try {
+        for (const page of this.notepad?.notes() ?? []) {
+          if (page.order === 0 || !this.notepad?.isNoteOpenable(page.id)) continue;
+          if (open) await this.expandSection(page.id, { focus: false, autofocus: false, morph: false });
+          else await this.collapseSection(page.id, { morph: false });
+        }
+      } finally {
+        expandAll.disabled = false;
+        collapseAll.disabled = false;
+      }
+    };
+    expandAll.addEventListener("click", () => { void setAll(true); });
+    collapseAll.addEventListener("click", () => { void setAll(false); });
     this.navListEl = nav.createDiv("notepad-nav-list");
     this.navEl = nav;
     this.rebuildNavList();
@@ -3320,8 +3321,8 @@ export class NotepadView extends FileView {
     const words = this.countNoteWords(id);
     const meta: string[] = [];
     const modifiedAt = descriptor.modifiedAt ?? this.file?.stat.mtime;
-    if (modifiedAt != null) meta.push(momentFormat(modifiedAt, "L LT"));
-    meta.push(words === 0 ? "Empty" : words === 1 ? "1 word" : `${words} words`);
+    if (modifiedAt != null) meta.push(formatPageDate(modifiedAt, "L LT"));
+    meta.push(formatPageWordCount(words));
     if (descriptor.order > 0) meta.push(`page ${descriptor.order}`);
     head.createDiv("notepad-sheet-meta").setText(meta.join(" · "));
 
