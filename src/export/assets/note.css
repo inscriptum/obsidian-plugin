@@ -548,3 +548,7 @@ article .export-page__content { padding: 0 1rem 1rem; }
 @media (max-width: 600px) {
   article .export-cover .note-property { grid-template-columns: 120px 1fr; gap: 0 10px; }
 }
+
+@media print {
+  .page-fold-controls, article .export-page > summary { display: none; }
+}

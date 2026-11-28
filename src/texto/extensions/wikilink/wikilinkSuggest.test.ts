@@ -310,6 +310,42 @@ function typeText(editor: Editor, text: string): void {
   }
 }
 
+describe("asynchronous suggestion refresh", () => {
+  it("does not reopen a popup after an outside click or blur", () => {
+    let refresh: (() => void) | undefined;
+    const hooks: ExtensionHooks = { wiki: {
+      listFiles: () => FILES,
+      isResolved: () => true,
+      openTarget: () => {},
+      onFilesChanged: (listener) => { refresh = listener; return () => {}; },
+    } };
+    const editor = makeEditor(hooks, "hello ");
+    const container = editor.view.dom.parentElement!;
+    const outside = createEl("button");
+    document.body.append(container, outside);
+    try {
+      editor.view.focus();
+      editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 10)));
+      typeText(editor, "[[plan");
+      expect(document.querySelector(".texto-wiki-suggest")).not.toBeNull();
+      outside.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      expect(document.querySelector(".texto-wiki-suggest")).toBeNull();
+      refresh?.();
+      expect(document.querySelector(".texto-wiki-suggest")).toBeNull();
+      outside.focus();
+      refresh?.();
+      expect(document.querySelector(".texto-wiki-suggest")).toBeNull();
+      editor.view.focus();
+      refresh?.();
+      expect(document.querySelector(".texto-wiki-suggest")).not.toBeNull();
+    } finally {
+      editor.destroy();
+      container.remove();
+      outside.remove();
+    }
+  });
+});
+
 describe("the creation session over plain text", () => {
   it("accepts an explicitly typed hidden path instead of a competing suggestion", () => {
     const hooks: ExtensionHooks = { wiki: {

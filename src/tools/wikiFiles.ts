@@ -38,18 +38,23 @@ class HiddenFiles {
     try {
       for (let cursor = 0; cursor < queue.length; cursor += 1) {
         const folder = queue[cursor];
-        if (seen.has(folder)) continue;
+        if (seen.has(folder) || folder.split("/").includes(".git")) continue;
         seen.add(folder);
         try {
           const listing = await this.vault.adapter.list(folder);
           for (const path of listing.files) {
-            if (!path.split("/").some((part) => part.startsWith("."))) continue;
+            const parts = path.split("/");
+            if (parts.includes(".git") || !parts.some((part) => part.startsWith("."))) continue;
             const filename = path.split("/").pop() ?? path;
             const dot = filename.lastIndexOf(".");
             found.push({ path, name: dot > 0 ? filename.slice(0, dot) : filename });
           }
           for (const path of listing.folders) {
-            if (path.split("/").some((part) => part.startsWith("."))) queue.push(path);
+            const parts = path.split("/");
+            // Repository internals can contain hundreds of thousands of
+            // objects and are never useful wikilink targets.
+            if (parts.includes(".git")) continue;
+            if (parts.some((part) => part.startsWith("."))) queue.push(path);
           }
         } catch {
           // An unreadable directory must not prevent suggestions from others.

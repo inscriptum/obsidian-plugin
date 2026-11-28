@@ -46,4 +46,17 @@ describe("hidden wiki file discovery", () => {
     await complete;
     expect(cache.list()).toEqual([{ path: "notes/.hidden.md", name: ".hidden" }]);
   });
+  it("skips Git internals while retaining other hidden paths", async () => {
+    const list = vi.fn(async (path: string) => path === "/"
+      ? { files: [".git/config", ".keep.md"], folders: [".git", ".private"] }
+      : { files: [".private/note.md"], folders: [".private/.git"] });
+    const vault = { getAllLoadedFiles: () => [], getFiles: () => [], adapter: { list } } as unknown as Vault;
+    const cache = wikiFiles(vault);
+    const complete = new Promise<void>((resolve) => cache.subscribe(resolve));
+    cache.list();
+    await complete;
+    expect(list.mock.calls.map(([path]) => path)).toEqual(["/", ".private"]);
+    expect(cache.list().map((file) => file.path)).toEqual([".keep.md", ".private/note.md"]);
+  });
+
 });

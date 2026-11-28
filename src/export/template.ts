@@ -52,6 +52,8 @@ const PAGE_FOLD_SCRIPT = `(function () {
   if (!pages.length || !controls) return;
   var key = "inscriptum-page-folds:" + location.pathname;
   var saved = {};
+  var printing = false;
+  var beforePrint = null;
   try { saved = JSON.parse(localStorage.getItem(key) || "{}") || {}; } catch (e) {}
   var requested = new URLSearchParams(location.search).get("pages");
   function persist(changedPage, nextOpen) {
@@ -89,7 +91,20 @@ const PAGE_FOLD_SCRIPT = `(function () {
     page.querySelector("summary").addEventListener("click", function () {
       persist(page, !page.open);
     });
-    page.addEventListener("toggle", function () { persist(); });
+    page.addEventListener("toggle", function () { if (!printing) persist(); });
+  });
+  window.addEventListener("beforeprint", function () {
+    if (printing) return;
+    printing = true;
+    beforePrint = pages.map(function (page) { return page.open; });
+    pages.forEach(function (page) { page.open = true; });
+  });
+  window.addEventListener("afterprint", function () {
+    if (!printing || !beforePrint) return;
+    pages.forEach(function (page, index) { page.open = beforePrint[index]; });
+    beforePrint = null;
+    // toggle events are queued tasks: ignore the restoration events too.
+    window.setTimeout(function () { printing = false; }, 0);
   });
   window.addEventListener("hashchange", function () { reveal(location.hash); });
   document.addEventListener("click", function (event) {

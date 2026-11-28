@@ -395,8 +395,11 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
     },
     view(editorView) {
       viewRef = editorView;
+      let outsidePointer = false;
+      const onFocusIn = () => { outsidePointer = false; };
+      editorView.dom.addEventListener("focusin", onFocusIn);
       const unsubscribe = hooks.onFilesChanged?.(() => {
-        if (!editorView.isDestroyed && wikiSuggestKey.getState(editorView.state)?.active) {
+        if (!editorView.isDestroyed && !outsidePointer && editorView.hasFocus() && wikiSuggestKey.getState(editorView.state)?.active) {
           editorView.dispatch(editorView.state.tr);
         }
       });
@@ -407,9 +410,13 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
       // round-5, «зависшая модалка»). Popup items stopPropagation on their
       // mousedown, so accepting never triggers this path.
       const onDocMouseDown = (event: MouseEvent) => {
-        if (popup == null) return;
         const target = event.target as Node | null;
-        if (editorView.dom.contains(target) || popup.contains(target)) return;
+        if (editorView.dom.contains(target)) {
+          outsidePointer = false;
+          return;
+        }
+        if (popup?.contains(target)) return;
+        outsidePointer = true;
         destroyPopup();
       };
       const onFocusOut = () => {
@@ -437,7 +444,7 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
       return {
         update(view, _prevState) {
           const next = wikiSuggestKey.getState(view.state);
-          if (next?.active !== true || next.dismissed) {
+          if (next?.active !== true || next.dismissed || outsidePointer || !view.hasFocus()) {
             if (popup != null) destroyPopup();
             return;
           }
@@ -455,6 +462,7 @@ export function wikiSuggestPlugin(hooks: WikiHooks): Plugin<WikiSuggestState> {
         },
         destroy() {
           unsubscribe?.();
+          editorView.dom.removeEventListener("focusin", onFocusIn);
           editorView.dom.removeEventListener("focusout", onFocusOut);
           document.removeEventListener("mousedown", onDocMouseDown, true);
           document.removeEventListener("scroll", onScroll, true);
