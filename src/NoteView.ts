@@ -276,6 +276,19 @@ export class NoteView extends FileView {
   async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("note-view-container");
+    this.registerDomEvent(this.contentEl, "keydown", (event) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      if (Array.from(document.querySelectorAll<HTMLElement>(".modal-container"))
+        .some((modal) => modal.getClientRects().length > 0)) return;
+      if (this.contentEl.querySelector(".is-dragging")) return;
+      if (this.app.workspace.getActiveViewOfType(NoteView) !== this) return;
+      if (!this.searchEl?.querySelector(".inscriptum-search-bar.is-open")) return;
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !target.closest(".ProseMirror")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.searchEl.dispatchEvent(new Event("close-search"));
+    }, true);
 
     this.leafContentWithNoteClass = this.contentEl.closest<HTMLElement>(
       ".workspace-leaf-content",
@@ -994,12 +1007,7 @@ export class NoteView extends FileView {
     if (this.app.workspace.getActiveViewOfType(NoteView) !== this) return;
 
     const isFindKey = event.code === "KeyF" || event.key.toLowerCase() === "f";
-    if (!(event.metaKey || event.ctrlKey) || !isFindKey) {
-      if (event.key === "Escape") {
-        this.searchEl?.dispatchEvent(new Event("close-search"));
-      }
-      return;
-    }
+    if (!(event.metaKey || event.ctrlKey) || !isFindKey) return;
 
     event.preventDefault();
     event.stopPropagation();

@@ -619,6 +619,20 @@ export class NotepadView extends FileView {
   async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.contentEl.addClass("notepad-view-container");
+    this.registerDomEvent(this.contentEl, "keydown", (event) => {
+      if (event.key !== "Escape" || event.defaultPrevented || !this.searchPanelEl) return;
+      if (Array.from(document.querySelectorAll<HTMLElement>(".modal-container"))
+        .some((modal) => modal.getClientRects().length > 0)) return;
+      if (this.contentEl.querySelector(".is-dragging")) return;
+      if (this.drag || this.sheetEl || this.moveModeId || this.commentsScrimEl) return;
+      if (this.app.workspace.getActiveViewOfType(NotepadView) !== this) return;
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !target.closest(".ProseMirror")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.closeNotepadSearch();
+      this.focusSearchEditor();
+    }, true);
     // Mirrors NoteView: the CSS uses the class to scope desktop-only rules
     // (e.g. the fixed page column) away from phones/tablets.
     if (Platform.isMobile) {
@@ -2575,6 +2589,13 @@ export class NotepadView extends FileView {
     if (input.value) this.recomputeSearch();
   }
 
+  private focusSearchEditor(): void {
+    const editor = this.focusedEditor ?? Array.from(this.sections.values())
+      .map((section) => section.editor)
+      .find((candidate) => candidate && !candidate.isDestroyed);
+    editor?.view.focus();
+  }
+
   private closeNotepadSearch(): void {
     this.searchPanelEl?.remove();
     this.searchPanelEl = null;
@@ -2607,6 +2628,7 @@ export class NotepadView extends FileView {
         event.preventDefault();
         event.stopPropagation();
         this.closeNotepadSearch();
+        this.focusSearchEditor();
       }
     });
 
