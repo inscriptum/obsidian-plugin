@@ -85,7 +85,16 @@ const PAGE_FOLD_SCRIPT = `(function () {
     pages.forEach(function (page) { page.open = action === "open"; });
     persist();
   });
-  pages.forEach(function (page) { page.addEventListener("toggle", persist); });
+  pages.forEach(function (page) {
+    // Native toggle events are queued; a reload immediately after a click
+    // can happen before they fire. Save synchronously with the action.
+    page.querySelector("summary").addEventListener("click", function (event) {
+      event.preventDefault();
+      page.open = !page.open;
+      persist();
+    });
+    page.addEventListener("toggle", persist);
+  });
   window.addEventListener("hashchange", function () { reveal(location.hash); });
   document.addEventListener("click", function (event) {
     var link = event.target && event.target.closest ? event.target.closest('a[href^="#"]') : null;
