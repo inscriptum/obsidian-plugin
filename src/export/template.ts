@@ -52,9 +52,9 @@ const PAGE_FOLD_SCRIPT = `(function () {
   var saved = {};
   try { saved = JSON.parse(localStorage.getItem(key) || "{}") || {}; } catch (e) {}
   var requested = new URLSearchParams(location.search).get("pages");
-  function persist() {
+  function persist(changedPage, nextOpen) {
     var state = {};
-    pages.forEach(function (page) { state[page.parentElement.id] = page.open; });
+    pages.forEach(function (page) { state[page.parentElement.id] = page === changedPage ? nextOpen : page.open; });
     try { localStorage.setItem(key, JSON.stringify(state)); } catch (e) {}
   }
   pages.forEach(function (page) {
@@ -85,7 +85,14 @@ const PAGE_FOLD_SCRIPT = `(function () {
     pages.forEach(function (page) { page.open = action === "open"; });
     persist();
   });
-  pages.forEach(function (page) { page.addEventListener("toggle", persist); });
+  pages.forEach(function (page) {
+    // Native toggle events are queued; a reload immediately after a click
+    // can happen before they fire. Save synchronously with the action.
+    page.querySelector("summary").addEventListener("click", function () {
+      persist(page, !page.open);
+    });
+    page.addEventListener("toggle", function () { persist(); });
+  });
   window.addEventListener("hashchange", function () { reveal(location.hash); });
   document.addEventListener("click", function (event) {
     var link = event.target && event.target.closest ? event.target.closest('a[href^="#"]') : null;
