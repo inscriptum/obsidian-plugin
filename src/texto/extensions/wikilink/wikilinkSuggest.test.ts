@@ -91,6 +91,33 @@ describe("filterFiles / scoreFile", () => {
     expect(filterFiles(FILES, "zzz")).toEqual([]);
   });
 
+  it("keeps ordinary results before hidden files without changing their ranking", () => {
+    const files = [
+      { path: ".hidden/plan.md", name: "plan" },
+      { path: "notes/planning.md", name: "planning" },
+      { path: "notes/.private/plan.md", name: "plan" },
+      { path: "notes/plan.md", name: "plan" },
+    ];
+    expect(filterFiles(files, "").map((f) => f.path)).toEqual([
+      "notes/planning.md", "notes/plan.md", ".hidden/plan.md", "notes/.private/plan.md",
+    ]);
+    expect(filterFiles(files, "plan").map((f) => f.path)).toEqual([
+      "notes/plan.md", "notes/planning.md", ".hidden/plan.md", "notes/.private/plan.md",
+    ]);
+  });
+
+  it("keeps an exact hidden path in a capped list", () => {
+    const exact = { path: ".hidden/plan.md", name: "plan" };
+    const files = [
+      { path: "ordinary/prefix.hidden/plan.md", name: ".hidden/plan.md" },
+      { path: "other/prefix.hidden/plan.md", name: ".hidden/plan.md" },
+      exact,
+    ];
+    expect(filterFiles(files, exact.path, 2)).toContain(exact);
+    expect(filterFiles(files.slice(0, 2), exact.path, 2).map((file) => file.path))
+      .toContain(exact.path);
+  });
+
   it("scoreFile: prefix beats inclusion beats subsequence", () => {
     const q = "plan";
     const prefix = scoreFile({ path: "p", name: "plan" }, q);
@@ -283,7 +310,63 @@ function typeText(editor: Editor, text: string): void {
   }
 }
 
+describe("asynchronous suggestion refresh", () => {
+  it("does not reopen a popup after an outside click or blur", () => {
+    let refresh: (() => void) | undefined;
+    const hooks: ExtensionHooks = { wiki: {
+      listFiles: () => FILES,
+      isResolved: () => true,
+      openTarget: () => {},
+      onFilesChanged: (listener) => { refresh = listener; return () => {}; },
+    } };
+    const editor = makeEditor(hooks, "hello ");
+    const container = editor.view.dom.parentElement!;
+    const outside = createEl("button");
+    document.body.append(container, outside);
+    try {
+      editor.view.focus();
+      editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, 10)));
+      typeText(editor, "[[plan");
+      expect(document.querySelector(".texto-wiki-suggest")).not.toBeNull();
+      outside.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+      expect(document.querySelector(".texto-wiki-suggest")).toBeNull();
+      refresh?.();
+      expect(document.querySelector(".texto-wiki-suggest")).toBeNull();
+      outside.focus();
+      refresh?.();
+      expect(document.querySelector(".texto-wiki-suggest")).toBeNull();
+      editor.view.focus();
+      refresh?.();
+      expect(document.querySelector(".texto-wiki-suggest")).not.toBeNull();
+    } finally {
+      editor.destroy();
+      container.remove();
+      outside.remove();
+    }
+  });
+});
+
 describe("the creation session over plain text", () => {
+  it("accepts an explicitly typed hidden path instead of a competing suggestion", () => {
+    const hooks: ExtensionHooks = { wiki: {
+      listFiles: () => [{ path: "notes/prefix.secret/file.md", name: ".secret/file.md" }],
+      isResolved: () => false,
+      openTarget: () => {},
+    } };
+    const editor = makeEditor(hooks, "hello ");
+    const para = editor.state.doc.child(1);
+    editor.view.dispatch(editor.state.tr.setSelection(
+      TextSelection.create(editor.state.doc, 4 + para.content.size),
+    ));
+    typeText(editor, "[[.secret/file.md");
+    const plugin = wikiSuggestKey.get(editor.state);
+    if (!plugin?.props.handleKeyDown) throw new Error("wiki suggestion handler missing");
+    expect(plugin.props.handleKeyDown.call(plugin, editor.view, new KeyboardEvent("keydown", { key: "Enter" }))).toBe(true);
+    expect(paraJson(editor).find((run) => run.type === "wikiLink")?.attrs?.path)
+      .toBe(".secret/file.md");
+    editor.destroy();
+  });
+
   it("typing «[[» auto-closes and opens the suggest session", () => {
     const editor = makeEditor(WIKI_HOOKS, "hello ");
     const doc = editor.state.doc;

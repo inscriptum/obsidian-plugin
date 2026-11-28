@@ -729,25 +729,47 @@ export function cellClipboardPlugin(): Plugin {
           event.clipboardData?.setData("text/plain", grid ? gridToTsv(grid) : scope.slice.content.textBetween(0, scope.slice.content.size, "\n\n"));
           return true;
         },
-        // TRAP: a stock table copy's html carries data-id attrs (block ids
-        // of the source cells). With them present the live paste pipeline
-        // misses the cell grid and lands the paste as raw text (verified
-        // live: the same html without data-id tiles). The ids are worthless
-        // on arrival anyway — the block-ids plugin re-ids pasted duplicates
-        // — so remove the ATTRIBUTES (a text-level replace would eat cell
-        // content that merely mentions data-id) and replay the event clean.
+        // Normalize clipboard metadata before PM parses the slice. Real table
+        // copies also lose source block IDs, which would prevent grid paste.
         paste: (view: EditorView, event: ClipboardEvent) => {
           const clipboard = event.clipboardData;
           const html = clipboard?.getData("text/html") ?? "";
-          if (!clipboard || !html || !/<table[\s>]/i.test(html)) {
+          if (!clipboard || !html) {
             return false;
           }
           const parsed = new DOMParser().parseFromString(html, "text/html");
-          const withIds = parsed.querySelectorAll("[data-id]");
-          // Progress guarantee: only intercept when an attribute is actually
-          // removed — replaying an identical html would re-enter this
-          // handler synchronously and recurse without end.
-          if (withIds.length === 0) {
+          let changed = false;
+          // A text selection copied inside a cell carries table ancestors in
+          // PM's private context, even though its HTML contains no cells.
+          // Restore only the ancestors inside the cell; otherwise PM turns
+          // this ordinary text paste into a whole-cell replacement.
+          if (!(view.state.selection instanceof CellSelection) && isInTable(view.state) &&
+              !parsed.querySelector("table, tr, td, th")) {
+            const contextNode = parsed.querySelector("[data-pm-slice]");
+            const value = contextNode?.getAttribute("data-pm-slice") ?? "";
+            const match = /^(\d+ \d+(?: -\d+)? )(.+)$/.exec(value);
+            if (match) {
+              try {
+                const context: unknown = JSON.parse(match[2]);
+                if (Array.isArray(context)) {
+                  let cellIndex = -1;
+                  for (let i = 0; i < context.length; i += 2) {
+                    if (context[i] === "tableCell" || context[i] === "tableHeader") cellIndex = i;
+                  }
+                  if (cellIndex >= 0) {
+                    contextNode?.setAttribute("data-pm-slice", match[1] + JSON.stringify(context.slice(cellIndex + 2)));
+                    changed = true;
+                  }
+                }
+              } catch {
+                // Leave malformed foreign clipboard metadata to PM.
+              }
+            }
+          }
+          const withIds = parsed.querySelector("table") ? parsed.querySelectorAll("[data-id]") : [];
+          // Replay only after a change, to avoid recursively handling an
+          // identical clipboard event.
+          if (!changed && withIds.length === 0) {
             return false;
           }
           withIds.forEach((el) => el.removeAttribute("data-id"));

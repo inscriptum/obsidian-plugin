@@ -297,6 +297,17 @@ test.describe("wiki links — the committed-mark model (round 7)", () => {
     await expect(page.locator(hover)).toHaveCount(0);
   });
 
+  test("«Редактировать» opens suggestions when the editor already has focus", async ({ page }) => {
+    await mount(page, noteDoc(pWiki("go ", "My Plan", "notes/planning.um")));
+    await page.locator(".texto-editor .ProseMirror > p").click({ position: { x: 2, y: 5 } });
+    await expect(page.locator(".texto-editor .ProseMirror")).toBeFocused();
+    await page.locator(link).hover();
+    await page.locator(hover).locator('[aria-label="Edit wikilink"]').click();
+    await expect(page.locator(popup)).toBeVisible();
+    await page.keyboard.press("Backspace");
+    await expect(page.locator(popup)).toBeVisible();
+  });
+
   test("«Редактировать» in the bubble reopens the suggest session on the raw syntax", async ({
     page,
   }) => {

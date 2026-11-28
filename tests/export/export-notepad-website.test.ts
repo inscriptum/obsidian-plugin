@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { TFile, Notice } from "../../src/__mocks__/obsidian";
+import { formatPageDate } from "../../src/notepad/pageMetadata";
 import { UmNotepad } from "../../src/storage/um/umNotepad";
 import type { UmNoteDescriptor } from "../../src/storage/um/umTypes";
 import type { JSONContent } from "../../src/texto/core/@types";
@@ -200,10 +201,9 @@ describe("exportNotepadAsWebsite", () => {
     expect(index).toContain(
       'figure class="mermaid-figure" data-align="center"',
     );
-    // no mermaid host on the page; the only inline <svg> are the two
-    // toggle glyphs (menu + close)
+    // no mermaid host on the page; inline SVGs are navigation and fold icons
     expect(index).not.toContain("texto-extension-mermaid");
-    expect(index.match(/<svg/g)?.length).toBe(2);
+    expect(index.match(/<svg/g)?.length).toBe(5);
     // created from the .um file's ctime; modified from the manifest's
     // latest modifiedAt (1790000000000 → 2026-09-21), not the file mtime
     expect(index).toContain('content="2023-11-14T22:13:20.000Z"');
@@ -318,6 +318,22 @@ describe("exportNotepadAsWebsite", () => {
     expect(writes.has("export/Moj-bloknot/images/image-1.png")).toBe(false);
   });
 
+  it("renders folded metadata from the page and falls back to the file date", async () => {
+    const { notepad } = makeNotepad();
+    const page = notepad.notes().find((d) => d.order === 1)!;
+    notepad.setNoteContent(page.id, plainPageDoc());
+    delete page.modifiedAt;
+    const file = makeFile();
+    const { app, writes } = makeApp();
+    await exportNotepadAsWebsite(app as never, file, notepad, "export", { renderDiagram });
+    const html = writes.get("export/Moj-bloknot/index.html") as string;
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const summary = doc.querySelector("#page-2 summary")!;
+    expect(summary.querySelector(".export-page__meta")?.textContent).toContain(`${formatPageDate(file.stat.mtime, "L LT")} · 2 words`);
+    expect(summary.querySelector(".export-page__meta")?.getAttribute("title")).toBe(formatPageDate(file.stat.mtime, "YYYY-MM-DD HH:mm:ss"));
+    expect(summary.querySelector(".export-page__order")?.textContent).toBe("1");
+  });
+
   it("anchors pages and renders the contents drawer from page titles", async () => {
     const { notepad } = makeNotepad();
     const { app, writes } = makeApp();
@@ -331,8 +347,8 @@ describe("exportNotepadAsWebsite", () => {
 
     const html = writes.get("export/Moj-bloknot/index.html") as string;
     // stable per-page anchors on the sections
-    expect(html).toContain('<section id="page-1">');
-    expect(html).toContain('<section id="page-2">');
+    expect(html).toContain('<section id="page-1" class="export-cover">');
+    expect(html).toContain('<section id="page-2" class="export-fold-section">');
     // drawer entries in order, labels from the pages' own titles, cover
     // without a number, pages numbered like the editor's navigator
     expect(
@@ -424,7 +440,7 @@ describe("exportNotepadAsWebsite", () => {
     );
 
     const html = writes.get("export/Single-page/index.html") as string;
-    expect(html).toContain('<section id="page-1">');
+    expect(html).toContain('<section id="page-1" class="export-cover">');
     expect(html).not.toContain("toc-toggle");
     expect(html).not.toContain("toc-drawer");
   });
@@ -537,14 +553,18 @@ describe("exportNotepadAsWebsite", () => {
     // the surviving pages keep their manifest-order anchors (page-2,
     // page-3) — not section positions (page-1, page-2): shared links
     // cannot drift
-    expect(html).toContain('<section id="page-2">');
-    expect(html).toContain('<section id="page-3">');
-    expect(html).not.toContain('<section id="page-1">');
+    expect(html).toContain('<section id="page-2" class="export-fold-section">');
+    expect(html).toContain('<section id="page-3" class="export-fold-section">');
+    expect(html).not.toContain('<section id="page-1" class="export-cover">');
     // gutter numbers are manifest orders, and no surviving row is
     // mistaken for the cover (no is-cover → no uppercase)
     expect(html).toContain('<a class="toc-item is-empty" href="#page-3"');
     expect(html).toContain('<span class="toc-numb">1</span><span class="toc-header">Page two</span>');
     expect(html).not.toContain("is-cover");
+    const exported = new DOMParser().parseFromString(html, "text/html");
+    expect(exported.querySelector("#page-3 .export-page__order")?.textContent).toBe("2");
+    expect(exported.querySelector("#page-3 .export-page__meta")?.textContent).toContain("Empty");
+    expect(exported.querySelector("#page-3 .export-page__label")?.classList.contains("is-empty")).toBe(true);
   });
 
   it("marks the cover row with is-cover", async () => {
@@ -627,6 +647,7 @@ describe("selected page website export", () => {
     expect(html).toContain('content="Fresh unsaved page"');
     expect(html).toContain(new Date(page.modifiedAt).toISOString());
     expect(html).not.toContain("PRIVATE COVER");
+    expect(html).not.toContain('class="export-page"');
     expect(html.match(/<section[ >]/g)).toHaveLength(1);
     expect(
       [...writes.keys()].filter((key) => key.includes("/images/")),

@@ -1877,3 +1877,28 @@ button.notepad-sheet-row.is-danger svg {
   color: var(--text-faint);
   font-size: 12px;
 }
+
+/* Bulk page actions live at the top of the pages drawer. */
+.notepad-nav-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  padding: 4px 12px;
+}
+
+button.notepad-nav-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+button.notepad-nav-action:hover { color: var(--text-normal); }
+button.notepad-nav-action svg { width: 18px; height: 18px; }

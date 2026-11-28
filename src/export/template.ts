@@ -6,7 +6,7 @@
  * structure (`article > section+`) and meta set so an exported page can be
  * dropped into that blog unchanged. Differences: the stylesheet is a local
  * relative `note.css` with fonts embedded (no inline style, no site
- * absolute paths) and there is no page script.
+ * absolute paths). Small standalone scripts add navigation and controls.
  */
 
 /** One contents entry: in-page anchor href (`#…`) and the page label. */
@@ -39,7 +39,79 @@ export interface ExportPageMeta {
   /** Contents entries rendered as the ☰ navigation drawer (the notepad's
    *  page navigator). Absent/empty → no drawer, like the .note export. */
   toc?: ExportTocEntry[];
+  /** Escaped labels for full-notepad exports; absent for notes and single pages. */
+  foldLabels?: string[];
+  /** Collapsed-row metadata, aligned with sections and already escaped. */
+  foldMetadata?: { date: string; timestamp: string; words: string; order: number; empty: boolean }[];
 }
+
+/** Details start open in the HTML so every page remains readable without JS. */
+const PAGE_FOLD_SCRIPT = `(function () {
+  var pages = Array.prototype.slice.call(document.querySelectorAll(".export-page"));
+  var controls = document.querySelector(".page-fold-controls");
+  if (!pages.length || !controls) return;
+  var key = "inscriptum-page-folds:" + location.pathname;
+  var saved = {};
+  var printing = false;
+  var beforePrint = null;
+  try { saved = JSON.parse(localStorage.getItem(key) || "{}") || {}; } catch (e) {}
+  var requested = new URLSearchParams(location.search).get("pages");
+  function persist(changedPage, nextOpen) {
+    var state = {};
+    pages.forEach(function (page) { state[page.parentElement.id] = page === changedPage ? nextOpen : page.open; });
+    try { localStorage.setItem(key, JSON.stringify(state)); } catch (e) {}
+  }
+  pages.forEach(function (page) {
+    var id = page.parentElement.id;
+    page.open = requested === "open" ? true : requested === "closed" ? false : saved[id] === true;
+  });
+  function reveal(hash) {
+    var id;
+    try { id = decodeURIComponent(hash.slice(1)); } catch (e) { return; }
+    var section = document.getElementById(id);
+    if (!section) return;
+    var page = section.querySelector(".export-page");
+    if (!page) return;
+    page.open = true;
+    persist();
+    section.scrollIntoView();
+  }
+  if (location.hash) reveal(location.hash);
+  controls.hidden = false;
+  controls.addEventListener("click", function (event) {
+    var button = event.target && event.target.closest ? event.target.closest("[data-pages]") : null;
+    var action = button && button.getAttribute("data-pages");
+    if (action !== "open" && action !== "closed") return;
+    pages.forEach(function (page) { page.open = action === "open"; });
+    persist();
+  });
+  pages.forEach(function (page) {
+    // Native toggle events are queued; a reload immediately after a click
+    // can happen before they fire. Save synchronously with the action.
+    page.querySelector("summary").addEventListener("click", function () {
+      persist(page, !page.open);
+    });
+    page.addEventListener("toggle", function () { if (!printing) persist(); });
+  });
+  window.addEventListener("beforeprint", function () {
+    if (printing) return;
+    printing = true;
+    beforePrint = pages.map(function (page) { return page.open; });
+    pages.forEach(function (page) { page.open = true; });
+  });
+  window.addEventListener("afterprint", function () {
+    if (!printing || !beforePrint) return;
+    pages.forEach(function (page, index) { page.open = beforePrint[index]; });
+    beforePrint = null;
+    // toggle events are queued tasks: ignore the restoration events too.
+    window.setTimeout(function () { printing = false; }, 0);
+  });
+  window.addEventListener("hashchange", function () { reveal(location.hash); });
+  document.addEventListener("click", function (event) {
+    var link = event.target && event.target.closest ? event.target.closest('a[href^="#"]') : null;
+    if (link) reveal(link.getAttribute("href"));
+  });
+})();`;
 
 /**
  * The copy-code handler for the code block chrome (see postprocess.ts):
@@ -213,6 +285,10 @@ export function buildPageHtml(meta: ExportPageMeta): string {
     .map((html, index) => {
       const id = meta.sectionIds?.[index];
       const attr = id != null ? ` id="${id}"` : "";
+      if (meta.foldLabels) {
+        if (id === "page-1") return `      <section${attr} class="export-cover">\n        ${html}\n      </section>`;
+        return `      <section${attr} class="export-fold-section">\n        <details class="export-page" open><summary><svg class="export-page__chevron" width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="0.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 6 15 12 9 18"></polyline></svg><span class="export-page__label${meta.foldMetadata?.[index]?.empty ? " is-empty" : ""}">${meta.foldLabels[index]}</span><span class="export-page__leader" aria-hidden="true"></span><span class="export-page__meta" title="${meta.foldMetadata?.[index]?.timestamp ?? ""}">${meta.foldMetadata?.[index]?.date ?? ""} · ${meta.foldMetadata?.[index]?.words ?? ""}<span class="export-page__order">${meta.foldMetadata?.[index]?.order ?? ""}</span></span></summary><div class="export-page__content">${html}</div></details>\n      </section>`;
+      }
       return `      <section${attr}>\n        ${html}\n      </section>`;
     })
     .join("\n");
@@ -223,6 +299,7 @@ export function buildPageHtml(meta: ExportPageMeta): string {
         <svg class="icon-menu" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="6" x2="20" y2="6"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="18" x2="20" y2="18"></line></svg>
         <svg class="icon-close" width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="17" y1="7" x2="7" y2="17"></line><line x1="7" y1="7" x2="17" y2="17"></line></svg>
       </button>
+      ${meta.foldLabels ? `<div class="page-fold-controls" hidden><button type="button" data-pages="open" aria-label="Expand all pages" title="Expand all pages"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg></button><button type="button" data-pages="closed" aria-label="Collapse all pages" title="Collapse all pages"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></svg></button></div>` : ""}
       <ul class="toc-list">
 ${meta.toc
   .map(
@@ -244,6 +321,7 @@ ${meta.toc
     ? `
     <script>${LIGHTBOX_SCRIPT}</script>`
     : "";
+  const foldScript = meta.foldLabels ? `\n    <script>${PAGE_FOLD_SCRIPT}</script>` : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -266,7 +344,7 @@ ${meta.toc
     <article>
 ${sections}
     </article>
-    <script>${COPY_SCRIPT}</script>${lightboxScript}${tocScript}
+    <script>${COPY_SCRIPT}</script>${lightboxScript}${tocScript}${foldScript}
   </body>
 </html>
 `;

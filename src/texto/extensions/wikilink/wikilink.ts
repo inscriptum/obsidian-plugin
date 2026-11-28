@@ -26,6 +26,8 @@ export interface WikiFile {
 export interface WikiHooks {
   /** All linkable files of the vault. */
   listFiles(): WikiFile[];
+  /** Notify an open suggestion list when asynchronous discovery completes. */
+  onFilesChanged?(listener: () => void): () => void;
   /** Whether the path currently resolves to a vault file. */
   isResolved(path: string): boolean;
   /** Open the target in the workspace (current tab). */
@@ -195,6 +197,9 @@ export function findWikiMatches(state: EditorState): WikiMatch[] {
  * round 7: editing shows the same menu as a fresh «[[»).
  */
 export function startWikiEdit(view: EditorView, range: WikiLinkRange): void {
+  // Restore focus before opening the suggest session: the menu's mousedown
+  // is observed as an outside click by the suggestion plugin.
+  view.focus();
   const raw = `[[${range.path}|${range.label}]]`;
   const tr = view.state.tr;
   tr.replaceWith(range.from, range.to, tr.doc.type.schema.text(raw));
@@ -203,7 +208,6 @@ export function startWikiEdit(view: EditorView, range: WikiLinkRange): void {
   );
   tr.setMeta(wikiSuggestKey, { open: true });
   view.dispatch(tr);
-  view.focus();
 }
 
 /**
@@ -499,6 +503,12 @@ function finalizeOnExitPlugin(): Plugin {
 function wikiUnresolvedPlugin(hooks: WikiHooks): Plugin {
   return new Plugin({
     key: new PluginKey("wikiLinkUnresolved"),
+    view: (view) => {
+      const unsubscribe = hooks.onFilesChanged?.(() => {
+        if (!view.isDestroyed) view.dispatch(view.state.tr);
+      });
+      return { destroy: () => unsubscribe?.() };
+    },
     props: {
       decorations: (state) => {
         const decorations: Decoration[] = [];

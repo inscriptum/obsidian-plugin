@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Wikilink suggestions can find files in hidden folders and preserve explicitly entered hidden paths.
+- Full notepad website exports now present collapsible pages, with controls to expand or collapse all and remember the reader's choices.
+
+### Fixed
+
+- Wikilink suggestions stay closed after leaving the editor and no longer scan Git internals. Printing a notepad website includes all pages without changing their saved fold state.
+
+- Full notepad exports keep the cover open and match the editor’s folded rows, including page numbers, word counts and update dates; expand and collapse controls now live in the pages menu in both the editor and exports.
+
+- Text copied from a table cell now pastes at the cursor or replaces the selected text without replacing the whole cell.
+- Unchecked task checkboxes are easier to see in Obsidian's default light and dark themes.
+
 ## [0.17.0] - 2026-11-26
 
 ### Added
@@ -18,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Drag a picture or any other file from your desktop straight into a note or notepad page on the computer: pictures insert right where you dropped them, other files attach as chips without opening the file externally. Works for a single dropped file that can be placed in the text; multi-file drops and drops outside the text behave as before.
 
 ### Fixed
+
+- Escape closes document search from the search field or editor and returns focus to the editor.
 
 - Page website exports now handle Windows-reserved titles and keep private source paths out of ownership files, including when re-exporting older folders.
 - Page website exports now use readable folder names from their titles, with suffixes only when names collide.
