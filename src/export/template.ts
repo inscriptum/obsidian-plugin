@@ -6,7 +6,7 @@
  * structure (`article > section+`) and meta set so an exported page can be
  * dropped into that blog unchanged. Differences: the stylesheet is a local
  * relative `note.css` with fonts embedded (no inline style, no site
- * absolute paths) and there is no page script.
+ * absolute paths). Small standalone scripts add navigation and controls.
  */
 
 /** One contents entry: in-page anchor href (`#…`) and the page label. */
@@ -39,7 +39,59 @@ export interface ExportPageMeta {
   /** Contents entries rendered as the ☰ navigation drawer (the notepad's
    *  page navigator). Absent/empty → no drawer, like the .note export. */
   toc?: ExportTocEntry[];
+  /** Escaped labels for full-notepad exports; absent for notes and single pages. */
+  foldLabels?: string[];
 }
+
+/** Details start open in the HTML so every page remains readable without JS. */
+const PAGE_FOLD_SCRIPT = `(function () {
+  var pages = Array.prototype.slice.call(document.querySelectorAll(".export-page"));
+  var controls = document.querySelector(".page-fold-controls");
+  if (!pages.length || !controls) return;
+  var key = "inscriptum-page-folds:" + location.pathname;
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(key) || "{}") || {}; } catch (e) {}
+  var requested = new URLSearchParams(location.search).get("pages");
+  function persist() {
+    var state = {};
+    pages.forEach(function (page) { state[page.parentElement.id] = page.open; });
+    try { localStorage.setItem(key, JSON.stringify(state)); } catch (e) {}
+  }
+  pages.forEach(function (page) {
+    var id = page.parentElement.id;
+    var first = page.querySelector(".export-page__content > :first-child");
+    var summary = page.querySelector("summary");
+    if (first && summary && /^H[1-6]$/.test(first.tagName) && first.textContent.trim() === summary.textContent.trim()) {
+      first.classList.add("export-page__repeated-title");
+    }
+    page.open = requested === "open" ? true : requested === "closed" ? false : saved[id] === true;
+  });
+  function reveal(hash) {
+    var id;
+    try { id = decodeURIComponent(hash.slice(1)); } catch (e) { return; }
+    var section = document.getElementById(id);
+    if (!section) return;
+    var page = section.querySelector(".export-page");
+    if (!page) return;
+    page.open = true;
+    persist();
+    section.scrollIntoView();
+  }
+  if (location.hash) reveal(location.hash);
+  controls.hidden = false;
+  controls.addEventListener("click", function (event) {
+    var action = event.target && event.target.getAttribute("data-pages");
+    if (action !== "open" && action !== "closed") return;
+    pages.forEach(function (page) { page.open = action === "open"; });
+    persist();
+  });
+  pages.forEach(function (page) { page.addEventListener("toggle", persist); });
+  window.addEventListener("hashchange", function () { reveal(location.hash); });
+  document.addEventListener("click", function (event) {
+    var link = event.target && event.target.closest ? event.target.closest('a[href^="#"]') : null;
+    if (link) reveal(link.getAttribute("href"));
+  });
+})();`;
 
 /**
  * The copy-code handler for the code block chrome (see postprocess.ts):
@@ -213,6 +265,9 @@ export function buildPageHtml(meta: ExportPageMeta): string {
     .map((html, index) => {
       const id = meta.sectionIds?.[index];
       const attr = id != null ? ` id="${id}"` : "";
+      if (meta.foldLabels) {
+        return `      <section${attr}>\n        <details class="export-page" open><summary>${meta.foldLabels[index]}</summary><div class="export-page__content">${html}</div></details>\n      </section>`;
+      }
       return `      <section${attr}>\n        ${html}\n      </section>`;
     })
     .join("\n");
@@ -244,6 +299,10 @@ ${meta.toc
     ? `
     <script>${LIGHTBOX_SCRIPT}</script>`
     : "";
+  const foldControls = meta.foldLabels
+    ? '<div class="page-fold-controls" hidden><button type="button" data-pages="open">Expand all</button><button type="button" data-pages="closed">Collapse all</button></div>'
+    : "";
+  const foldScript = meta.foldLabels ? `\n    <script>${PAGE_FOLD_SCRIPT}</script>` : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -262,11 +321,11 @@ ${meta.toc
     <meta name="twitter:description" content="${meta.description}">
     <link href="note.css" rel="stylesheet">
   </head>
-  <body>${toc}
+  <body>${toc}${foldControls}
     <article>
 ${sections}
     </article>
-    <script>${COPY_SCRIPT}</script>${lightboxScript}${tocScript}
+    <script>${COPY_SCRIPT}</script>${lightboxScript}${tocScript}${foldScript}
   </body>
 </html>
 `;

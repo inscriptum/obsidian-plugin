@@ -627,6 +627,7 @@ describe("selected page website export", () => {
     expect(html).toContain('content="Fresh unsaved page"');
     expect(html).toContain(new Date(page.modifiedAt).toISOString());
     expect(html).not.toContain("PRIVATE COVER");
+    expect(html).not.toContain('class="export-page"');
     expect(html.match(/<section[ >]/g)).toHaveLength(1);
     expect(
       [...writes.keys()].filter((key) => key.includes("/images/")),
